@@ -463,7 +463,10 @@ final class ServerMenu {
             if (entity instanceof ItemEntity item && isNavigator(item.getItem())) entity.discard();
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID id = handler.player.getUUID(); LAST_TOOL.remove(id); READY_AT.remove(id); FULL_NOTICE.remove(id); SELECTED_CONTROL.remove(id);
+            UUID id = handler.player.getUUID();
+            var joined = server.getPlayerList().getPlayer(id);
+            if (joined != null && joined != handler.player) return;
+            LAST_TOOL.remove(id); READY_AT.remove(id); FULL_NOTICE.remove(id); SELECTED_CONTROL.remove(id);
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> { LAST_TOOL.clear(); READY_AT.clear(); FULL_NOTICE.clear(); SELECTED_CONTROL.clear(); });
     }

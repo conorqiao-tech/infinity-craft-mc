@@ -1,6 +1,17 @@
-# Reliability and helper work — explore.35
+# Reliability and helper work — explore.36
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
+
+## Replacement-session boundaries in explore.36
+
+| Trigger | Previous behavior | Corrected boundary |
+| --- | --- | --- |
+| A new same-UUID login opens a private stat prompt or native form before an old disconnect callback arrives. | UUID-only cleanup removes the new prompt/form; a later Java numeric entry can then fall through into normal chat. An old actor’s direct input can also retire the replacement’s prompt. | Retire only the stored actor/listener’s prompt or ticket. Consume an obsolete actor’s private input without deleting the new prompt. An off-thread input callback also retains the exact observed prompt, so switching prompts before execution cannot redirect the old number. This was a source-verified private-input failure, not an observed live chat disclosure. |
+| A replacement login selects an Infinity/gear menu before old disconnect cleanup. | UUID-only removal clears fresh selection, readiness and previous-tool state. | Ignore cleanup while a different current player object owns that UUID. Genuine current departure retains cleanup. |
+| A replacement starts a new trade whose revision coincides with an older trade. | Old actor boundaries can alter offers, supply consent, open/cancel its review or cancel it on delayed departure. | Require the exact current participant before actor operations. Departure checks exact participant identity even after removal from PlayerList. Inventory journal and revision contracts remain unchanged. This was a deterministic stale-actor API defect, not a demonstrated stock-client exploit. |
+| New dual-approved combat state, API samples or an AI answer is followed by an old lifecycle callback. | UUID-only revocation cancels fresh state; helper-record-only history can retain observations from a prior login. | Bind combat to actual owner/target objects, reject detached approve/cancel/ceasefire actors, and bind API history and request cancellation to the native listener. Old lookups cannot stop another owner object’s order. Same-listener native respawn retains connection ownership; reply delivery still rejects an obsolete player object. Both reviews remain required. |
+
+The regressions use native in-process play codecs, actual PlayerList disconnects and saved `PrepareSpawnTask` reconnects. Local fake assistant futures isolate cancellation without spending provider requests. These tests do not establish an authenticated Java/iPad login, signed-chat transport, touch-form rendering or live multiplayer load. The live installation remains explore.26 until separately approved.
 
 ## Destination preparation and discovery in explore.33
 

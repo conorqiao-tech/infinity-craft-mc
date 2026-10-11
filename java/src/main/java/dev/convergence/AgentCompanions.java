@@ -318,7 +318,9 @@ public final class AgentCompanions {
         if (owner == null) return null;
         var order = playerTargets.get(owner.getUUID());
         if (order == null) return null;
-        if (order.owner != owner || order.ownerConnection != owner.connection || order.targetConnection != order.target.connection
+        // Reading through an old entity must not stop a replacement session's order.
+        if (order.owner != owner) return null;
+        if (order.ownerConnection != owner.connection || order.targetConnection != order.target.connection
             || order.world != owner.level() || order.world != order.target.level() || clock.millis() < order.issuedAt || clock.millis() >= order.expiresAt
             || targetEligibility(owner, order.target) != null) {
             ceasefire(owner); return null;
@@ -328,14 +330,18 @@ public final class AgentCompanions {
     /** Can always stop the caller's own order, even after OP permissions are revoked. */
     void ceasefire(ServerPlayer owner) {
         if (owner == null) return;
-        playerTargets.remove(owner.getUUID());
+        var order = playerTargets.get(owner.getUUID());
+        boolean currentOwner = server.getPlayerList().getPlayer(owner.getUUID()) == owner;
+        if (!currentOwner && (order == null || order.owner != owner)) return;
+        if (order != null && !playerTargets.remove(owner.getUUID(), order)) return;
         for (var entry : loaded.entrySet()) {
             var agent = data.agents.get(entry.getKey().toString());
             if (agent != null && agent.owner.equals(owner.getStringUUID())) halt(entry.getValue());
         }
     }
     void invalidatePlayer(ServerPlayer player) {
-        for (var order : new ArrayList<>(playerTargets.values())) if (order.owner.getUUID().equals(player.getUUID()) || order.target.getUUID().equals(player.getUUID())) ceasefire(order.owner);
+        for (var order : new ArrayList<>(playerTargets.values()))
+            if (order.owner == player || order.target == player) ceasefire(order.owner);
     }
     String playerTargetStatus(ServerPlayer owner) {
         var order = validPlayerTarget(owner);

@@ -244,6 +244,8 @@ final class CreativeGearPicker {
             }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            var joined = server.getPlayerList().getPlayer(handler.player.getUUID());
+            if (joined != null && joined != handler.player) return;
             OPEN_AFTER.remove(handler.player.getUUID());
             SELECTED.remove(handler.player.getUUID());
         });

@@ -282,6 +282,7 @@ final class AgentActions {
     }
 
     int ceasefire(ServerPlayer owner) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can stop this squad.");
         AgentCompanions.get(server).ceasefire(owner);
         boolean changed = false;
@@ -301,8 +302,9 @@ final class AgentActions {
         boolean changed = false;
         for (var entry : queue.data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
+            var session = queue.targetSessions.get(entry.getKey());
             if (proposal.active() && proposal.action == Action.TARGET
-                && (proposal.owner.equals(player.getStringUUID()) || proposal.targetUuid.equals(player.getStringUUID()))) {
+                && session != null && (session.owner == player || session.target == player)) {
                 proposal.state = State.CANCELLED; queue.targetSessions.remove(entry.getKey()); changed = true;
             }
         }
@@ -338,6 +340,7 @@ final class AgentActions {
     }
 
     int ownerApprove(ServerPlayer owner, String id) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can approve a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);
@@ -348,6 +351,7 @@ final class AgentActions {
     }
 
     int cancel(ServerPlayer owner, String id) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can cancel a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);

@@ -12,10 +12,12 @@ import java.util.WeakHashMap;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 
 /** Named helper guidance. Only the explicitly selected API profile sends external questions. */
 final class AgentChat {
@@ -30,8 +32,14 @@ final class AgentChat {
     }
     static final class Tracker {
         final Identity identity;
+        final ServerGamePacketListenerImpl ownerConnection;
         final ArrayDeque<Sample> samples = new ArrayDeque<>();
-        Tracker(Identity identity) { this.identity = identity; }
+        Tracker(Identity identity, ServerPlayer owner) { this.identity = identity; ownerConnection = owner.connection; }
+        boolean current(AgentCompanions companions, ServerPlayer owner, String name) {
+            return owner != null && companions.server.getPlayerList().getPlayer(owner.getUUID()) == owner
+                && owner.connection == ownerConnection && ownerConnection.isAcceptingMessages()
+                && identity.current(companions, owner, name);
+        }
         void add(Sample sample) {
             if (!samples.isEmpty() && samples.getLast().tick() == sample.tick()) return;
             samples.addLast(sample); while (samples.size() > MAX_SAMPLES) samples.removeFirst();
@@ -93,16 +101,16 @@ final class AgentChat {
         tracked.entrySet().removeIf(entry -> {
             var agent = entry.getValue().identity.record();
             var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner()));
-            return agent.profile() != AgentCompanions.Profile.API || owner == null || !entry.getValue().identity.current(companions, owner, agent.name());
+            return agent.profile() != AgentCompanions.Profile.API || !entry.getValue().current(companions, owner, agent.name());
         });
         if (tick % SAMPLE_INTERVAL != 0) return;
         for (var entry : companions.data.agents.entrySet()) {
             var agent = entry.getValue();
             if (agent.profile() != AgentCompanions.Profile.API) continue;
             var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner()));
-            if (owner == null || !AgentCompanions.operator(owner.createCommandSourceStack())) continue;
+            if (owner == null || !owner.connection.isAcceptingMessages() || !AgentCompanions.operator(owner.createCommandSourceStack())) continue;
             if (!tracked.containsKey(entry.getKey()) && tracked.size() >= AgentCompanions.GLOBAL_LIMIT) continue;
-            var tracker = tracked.computeIfAbsent(entry.getKey(), unused -> new Tracker(new Identity(entry.getKey(), agent)));
+            var tracker = tracked.computeIfAbsent(entry.getKey(), unused -> new Tracker(new Identity(entry.getKey(), agent), owner));
             tracker.add(new Sample(tick, snapshot(companions, owner, entry.getKey(), agent)));
         }
     }
@@ -111,7 +119,7 @@ final class AgentChat {
         var samples = new ArrayList<Sample>();
         var tracked = TRACKING.get(companions.server);
         var tracker = tracked == null ? null : tracked.get(id);
-        if (tracker != null && tracker.identity.current(companions, owner, agent.name())) samples.addAll(tracker.samples);
+        if (tracker != null && tracker.current(companions, owner, agent.name())) samples.addAll(tracker.samples);
         int tick = companions.server.getTickCount();
         if (!samples.isEmpty() && samples.getLast().tick() == tick) samples.removeLast();
         samples.add(new Sample(tick, snapshot(companions, owner, id, agent)));
@@ -255,6 +263,10 @@ final class AgentChat {
 
     static void initialize() {
         ServerTickEvents.END_SERVER_TICK.register(server -> track(server, server.getTickCount()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            var tracked = TRACKING.get(server);
+            if (tracked != null) tracked.values().removeIf(tracker -> tracker.ownerConnection == handler);
+        });
         ServerLifecycleEvents.SERVER_STOPPED.register(TRACKING::remove);
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> dispatcher.register(
             Commands.literal("agent").requires(AgentCompanions::operator)

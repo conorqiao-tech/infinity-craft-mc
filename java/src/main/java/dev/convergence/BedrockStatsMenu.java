@@ -27,7 +27,12 @@ final class BedrockStatsMenu {
     private BedrockStatsMenu() {}
 
     static void register() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{ACTIVE.remove(handler.player.getUUID());DELIVERIES.remove(handler.player.getUUID());});
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{
+            ACTIVE.computeIfPresent(handler.player.getUUID(),(id,ticket)->
+                ticket.actor().player()==handler.player && ticket.actor().connection()==handler ? null : ticket);
+            DELIVERIES.computeIfPresent(handler.player.getUUID(),(id,delivery)->
+                delivery.ticket().actor().player()==handler.player && delivery.ticket().actor().connection()==handler ? null : delivery);
+        });
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{
             ACTIVE.entrySet().removeIf(e->e.getValue().actor().world().getServer()==server);
             DELIVERIES.entrySet().removeIf(e->e.getValue().ticket().actor().world().getServer()==server);
