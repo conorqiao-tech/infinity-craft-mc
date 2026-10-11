@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:helmet",
+    "convergence:chestplate",
+    "convergence:leggings",
+    "convergence:boots"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:infinity_block",
+    "convergence:polished_infinity",
+    "convergence:infinity_bricks",
+    "convergence:radiant_infinity",
+    "convergence:aurora_tiles",
+    "convergence:obsidian_lattice",
+    "convergence:copper_circuit",
+    "convergence:moonstone",
+    "convergence:sunstone_lamp",
+    "convergence:verdant_mosaic"
+  ]
+}

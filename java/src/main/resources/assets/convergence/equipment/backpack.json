@@ -1,0 +1,12 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "convergence:backpack",
+        "dyeable": {
+          "color_when_undyed": 4831653
+        }
+      }
+    ]
+  }
+}

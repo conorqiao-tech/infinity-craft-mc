@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:void_arrow",
+    "count": 2
+  },
+  "pattern": [
+    " E ",
+    " A ",
+    " E "
+  ],
+  "key": {
+    "E": "minecraft:echo_shard",
+    "A": "convergence:infinity_arrow"
+  }
+}

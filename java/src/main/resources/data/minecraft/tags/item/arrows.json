@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:infinity_arrow",
+    "convergence:void_arrow",
+    "convergence:starfire_arrow"
+  ]
+}
