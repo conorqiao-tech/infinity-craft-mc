@@ -91,6 +91,7 @@ public final class GameModes {
     public static boolean operator(ServerPlayer player) {return Memberships.operator(player);}
     /** Vanilla /tp and dimension commands still save and restore each world's inventory. */
     public static void beforeOperatorTeleport(ServerPlayer p,ServerLevel destination) {
+        CommunityServer.get(p.level().getServer()).cancelPending(p);
         LobbyServer.cancelArrival(p);
         if(operator(p)&&!TRANSITIONS.contains(p.getUUID()))cancelPending(p);
         if(!operator(p)||TRANSITIONS.contains(p.getUUID())||current(p)==of(destination)||OPERATOR_TRANSFERS.containsKey(p.getUUID()))return;
@@ -106,7 +107,7 @@ public final class GameModes {
         s.putString("active",mode.name());restore(p,next);profiles.remove(mode.name());s.put("profiles",profiles);
         if(mode==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
         cancelPending(p);ModeMaps.RUNS.remove(p.getUUID());
-        var community=CommunityServer.get(p.level().getServer());community.pending.remove(p.getUUID());
+        var community=CommunityServer.get(p.level().getServer());community.cancelPending(p);
         PlayerPersistence.save(p);
     }
     public static CompoundTag state(ServerPlayer p) { return ((ModePlayer)p).infinity$state(); }
@@ -158,6 +159,16 @@ public final class GameModes {
             if(CommunityServer.safe(w,p)){cached.put(mode,p);return p;}
         }
         throw new DestinationUnavailable("No dry, safe spawn is available in "+mode+" within 64 blocks of its origin. Ask the host to choose a dry spawn inside its world border.");
+    }
+    /** Command /spawn uses only its default, never an inactive saved mode home. */
+    static ModeDestinations prepareDefault(MinecraftServer server, Mode mode) {
+        String map=CourseSelector.supports(mode)?ModeMaps.defaultMap(mode):null;
+        var defaults=DEFAULT_SPAWNS.get(server);
+        return new ModeDestinations(server,mode,map,null,defaults==null?null:defaults.get(mode));
+    }
+    static void rememberDefault(MinecraftServer server,Mode mode,ModeDestinations destination) {
+        if(destination.defaultSearchResult())
+            DEFAULT_SPAWNS.computeIfAbsent(server,key->new EnumMap<>(Mode.class)).put(mode,destination.selected());
     }
     static CommunityServer.Place mapPlace(MinecraftServer server, Mode mode, String id) {
         var spec=ModeMaps.MAPS.get(id);
@@ -229,7 +240,7 @@ public final class GameModes {
         var c=CommunityServer.get(p.level().getServer());
         if(Memberships.gameplayBypass(p)) {
             if(TRANSITIONS.contains(p.getUUID())||OPERATOR_TRANSFERS.containsKey(p.getUUID())) return CommunityServer.say(p,"Finish your current mode transition first.");
-            cancelPending(p);c.pending.remove(p.getUUID());
+            cancelPending(p);c.cancelPending(p);
             if(current(p)==mode){if(mode==Mode.HUB)return LobbyServer.arrive(p,map==null?"main":map);if(map!=null)ModeMaps.begin(p,map);}
             else switchNow(p,mode,map);
             return CommunityServer.say(p,"OP mode access: "+mode+". /gamemode can change your abilities in any world.");
@@ -243,7 +254,7 @@ public final class GameModes {
             if(map!=null) ModeMaps.begin(p,map);
             return CommunityServer.say(p,"Current mode: "+mode+". /play lists all modes.");
         }
-        c.pending.remove(p.getUUID());LobbyServer.cancelArrival(p);
+        c.cancelPending(p);LobbyServer.cancelArrival(p);
         PENDING.put(p.getUUID(),new Switch(mode,map,CommunityServer.Place.of(p),c.server.getTickCount()+60));
         prepare(p);
         if(!PENDING.containsKey(p.getUUID()))return 1;
@@ -257,7 +268,7 @@ public final class GameModes {
         }
         if(!p.getShoulderEntityLeft().isEmpty() || !p.getShoulderEntityRight().isEmpty() || p.isPassenger()) { CommunityServer.say(p,"Dismount and let shoulder pets down first.");return; }
         var s=state(p); if(!Memberships.gameplayBypass(p)&&mode==Mode.HARDCORE && s.getBooleanOr("eliminated",false)) return;
-        cancelPending(p);LobbyServer.cancelArrival(p);
+        cancelPending(p);CommunityServer.get(server).cancelPending(p);LobbyServer.cancelArrival(p);
         // This internal route historically skips gameplay countdown/combat checks.
         // Only first-visit routing and the already-authorized OP request call it.
         PENDING.put(p.getUUID(),new Switch(mode,map,CommunityServer.Place.of(p),server.getTickCount(),true));
@@ -341,7 +352,7 @@ public final class GameModes {
             if(!p.teleportTo(c.world(place),place.x(),place.y(),place.z(),Set.of(),place.yaw(),place.pitch(),true)) { CommunityServer.say(p,"Mode change could not teleport. Your items remain in the current world.");return; }
             s.put("profiles",profiles);s.putString("active",mode.name());restore(p,mode==Mode.HUB&&!operator(p)?new CompoundTag():next);p.setGameMode(gameMode(p));
             if(mode==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
-            profiles.remove(mode.name());c.pending.remove(p.getUUID());c.requests.remove(p.getUUID());c.requests.values().removeIf(r->r.sender().equals(p.getUUID()));
+            profiles.remove(mode.name());c.cancelPending(p);c.cancelRequests(p);
             ModeMaps.RUNS.remove(p.getUUID());
             if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) ModeMaps.begin(p,map==null?ModeMaps.selectedMap(p,mode):map);
             if(mode==Mode.HUB) LobbyServer.arrive(p,map==null?"main":map);
@@ -350,7 +361,7 @@ public final class GameModes {
         } finally { TRANSITIONS.remove(p.getUUID()); }
     }
     static void death(ServerPlayer p) {
-        cancelPending(p);LobbyServer.cancelArrival(p);ModeMaps.RUNS.remove(p.getUUID());
+        cancelPending(p);var community=CommunityServer.get(p.level().getServer());community.cancelPending(p);community.cancelRequests(p);LobbyServer.cancelArrival(p);ModeMaps.RUNS.remove(p.getUUID());
         if(!Memberships.gameplayBypass(p)&&current(p)==Mode.HARDCORE) { state(p).putBoolean("eliminated",true);CommunityServer.say(p,"Your Hardcore life has ended. Respawn to spectate, then /play survival to continue elsewhere."); }
     }
     static boolean routeFirstVisit(ServerPlayer p) {

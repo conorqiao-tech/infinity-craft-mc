@@ -83,7 +83,12 @@ public class ModeDestinationGameTests {
         try(var fresh=new ModeDestinations(server,GameModes.Mode.MINIGAMES,"sprint",null,null)){
             c.assertValueEqual(fresh.poll(),ModeDestinations.Status.READY,"A fresh request recovers after the exact course is restored");
             c.assertValueEqual(fresh.selected(),GameModes.mapPlace(server,GameModes.Mode.MINIGAMES,"sprint"),"Recovery uses the requested course's own retained footprint");
-        }
+            ModeMaps.AVAILABLE.remove("sprint");
+            c.assertValueEqual(fresh.poll(),ModeDestinations.Status.FAILED,"Withdrawing an already-ready course refuses its final commit");
+            ModeMaps.AVAILABLE.add("sprint");
+            c.assertValueEqual(fresh.poll(),ModeDestinations.Status.FAILED,"Restoring a withdrawn ready course cannot revive that request");
+            c.assertTrue(fresh.selected()==null,"A withdrawn ready course cannot expose an old destination");
+        } finally {ModeMaps.AVAILABLE.add("sprint");}
         c.succeed();
     }
 

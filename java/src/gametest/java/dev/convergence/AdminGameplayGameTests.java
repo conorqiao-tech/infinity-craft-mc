@@ -34,7 +34,7 @@ public class AdminGameplayGameTests {
         player.closeContainer();
         Memberships.get(server).revokeAdmin(player.getUUID());
         GameModes.PENDING.remove(player.getUUID());
-        CommunityServer.get(server).pending.remove(player.getUUID());
+        CommunityServer.get(server).cancelPending(player);
         OperatorGameTests.deop(player);
         server.getPlayerList().remove(player);
     }

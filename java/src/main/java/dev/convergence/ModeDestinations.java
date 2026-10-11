@@ -64,6 +64,14 @@ final class ModeDestinations implements AutoCloseable {
         onServerThread();
         if (closed) throw new IllegalStateException("Mode destinations are closed");
         if (status == Status.FAILED) return status;
+        // A frozen command/default course can be withdrawn after its first
+        // poll as well as before it. Never revive or substitute that route.
+        if (CourseSelector.supports(mode)) {
+            var spec = ModeMaps.MAPS.get(map);
+            if (spec == null || spec.mode() != mode || !ModeMaps.available(map))
+                return fail(new GameModes.DestinationUnavailable(
+                    "The selected course is unavailable in " + mode + ". Ask the host to check its map."));
+        }
         int columns = 0;
         while (true) {
             if (candidate == null) {

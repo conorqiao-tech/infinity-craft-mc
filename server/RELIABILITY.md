@@ -1,4 +1,4 @@
-# Reliability and helper work — explore.34
+# Reliability and helper work — explore.35
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
 
@@ -6,7 +6,7 @@ This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. I
 
 | Trigger | Previous behavior | Corrected behavior and regression |
 | --- | --- | --- |
-| A cross-mode move returns to a saved location whose terrain has unloaded. | Safety checks synchronously wait for native FULL chunks while the server thread is handling the move. | Shared native loading leases prepare the exact saved location across ticks. At most four new native requests start per server tick; no lease operation invokes the blocking native `getChunkFuture`. Inventory capture and participant saving happen only after a ready destination and successful teleport. |
+| A cross-mode move returns to a saved location whose terrain has unloaded. | Safety checks synchronously wait for native FULL chunks while the server thread is handling the move. | Shared native loading leases prepare the exact saved location across ticks. At most four new native requests start per server tick; no lease operation invokes the blocking native `getChunkFuture`. Capture the old inventory profile only after readiness; commit/restore profiles and save the participant only after native teleport succeeds. |
 | A Creative or Hardcore default search crosses missing collision chunks. | The search can synchronously generate many columns and their collision neighbors in one call. | Preserve all 1,089 original nearest-ring candidates, read at most 64 loaded columns per poll, and retain the actual one-block collision halo. The origin grid occupies 100 distinct chunks; a distant saved position can add four. This bounds requests and scanning, not total native generation work or whole-server lag. |
 | A course becomes unavailable before the first preparation poll, then available again before the countdown ends. | A fallback course can supply the retained location, while the later final check accepts the originally chosen course. | Resolve the course once and reject its unavailability without fallback. A refused request stays terminal; a fresh request can recover after that exact course is repaired. |
 | Movement, damage, death, disconnect or replacement of a player occurs during preparation. | A late loading result risks applying to a changed player/session. | Ordinary transfers cancel before profile capture. Jobs bind the actual player object, native connection, origin world/mode and request. Stale callers and late disconnect callbacks cannot cancel a newer session. OPs retain their gameplay bypass but still wait for technical loading and lose a pending privileged request if that permission is revoked. |
@@ -15,7 +15,7 @@ This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. I
 
 Preparation times out after 600 game ticks, which is not a wall-clock deadline. The native nonpersistent loading ticket lasts 1,200 ticks and overlapping leases renew the same ticket. Canceling releases this module's tickets without canceling shared native generation futures. Runtime renewal/removal failure branches are source-reviewed; shutdown cleanup is best-effort after a native removal exception.
 
-The explore.33 path covers cross-mode moves and first-visit routing. Explore.34 also prepares same-mode Hub arrivals across ticks, as described below. Homes, default-spawn commands outside the Hub and native respawn fallbacks retain their synchronous paths. The explore.32 packet measurements below remain historical evidence; they are not explore.34 timing measurements. The live server remains explore.26 pending installation approval.
+The explore.33 path covers cross-mode moves and first-visit routing. Explore.34 also prepares same-mode Hub arrivals across ticks, as described below. Explore.35 extends preparation to homes, warps, accepted visits and command spawns; native death respawn keeps its separate synchronous contract. The explore.32 packet measurements below remain historical evidence; they are not explore.35 timing measurements. The live server remains explore.26 pending installation approval.
 
 ## Connection-local capacity refreshes in explore.32
 
@@ -59,7 +59,7 @@ Measurement records, reports, logs and their hashes remain under `research/capac
 | A full Creative inventory has no gear picker. | The registered tick checks once, then its recovery method checks again. | Call recovery once: one scan of 36 slots. Real direct slot replacement, full inventory and next-tick recovery checks preserve immediate behavior without relying on an inventory revision counter. |
 | A navigator checks ownership. | It copies custom NBT twice and parses the owner UUID before comparison. | One copy checks the recovery-compass item, native numeric marker and exact canonical owner UUID. Native tests retain accepted numeric marker types and reject malformed/foreign ownership without changing the tag. |
 
-The counters establish fewer repeated operations, not a whole-server TPS or latency improvement. Capacity-packet amplification during unchanged armor effect renewals remains a separate optimization candidate. Both chestplate choices and the existing artwork remain available. No live installation is implied by the source version.
+The counters establish fewer repeated operations, not a whole-server TPS or latency improvement. At explore.30, capacity-packet amplification during unchanged armor effect renewals remained a separate optimization candidate; explore.32 implements the connection-local fix described above. Both chestplate choices and the existing artwork remain available. No live installation is implied by the source version.
 
 ## Player checks after an approved installation
 
@@ -72,7 +72,7 @@ The counters establish fewer repeated operations, not a whole-server TPS or late
 
 The opt-in `tools/benchmark_helpers.py` compares prebuilt explore.28 and explore.29 mod jars with a prebuilt test jar, Java 25 and a complete pinned cached runtime. It uses fresh temporary GameTest worlds, registers only its measurement test there, and never copies live worlds, credentials or settings. It records file hashes, raw counters and instrumented timings. The normal native suite explicitly excludes this expensive benchmark.
 
-This does not make the server immune to lag, disk failure or client crashes. Native durability APIs still log some storage errors rather than raising them; trades retain explicit file verification. The atomic telemetry rename has a narrow shutdown guard. A disk that never returns can still delay that final rename/shutdown. A cold spawn search can still synchronously request up to 81 chunks. Controlled Regular-helper measurements do not establish Ultimate Finals performance, real multiplayer TPS, iPad rendering or public remote joins. An empty server normally pauses after 60 seconds, so an old roster snapshot is unavailable rather than proof of a stopped server. See VALIDATION.md for measured checks and the separately verified live version.
+This does not make the server immune to lag, disk failure or client crashes. Native durability APIs still log some storage errors rather than raising them; trades retain explicit file verification. The atomic telemetry rename has a narrow shutdown guard. A disk that never returns can still delay that final rename/shutdown. Native death respawn can still synchronously request terrain. Controlled Regular-helper measurements do not establish Ultimate Finals performance, real multiplayer TPS, iPad rendering or public remote joins. An empty server normally pauses after 60 seconds, so an old roster snapshot is unavailable rather than proof of a stopped server. See VALIDATION.md for measured checks and the separately verified live version.
 
 
 ## Additional client-update and tick fixes in explore.31
@@ -84,7 +84,7 @@ This does not make the server immune to lag, disk failure or client crashes. Nat
 | A grouped update uses a one-shot iterable whose children need no projection. | Projection consumes the iterator and returns the exhausted input. | The generic single-pass path always materializes its already-collected children, so subsequent encoding can traverse them again. Native tests cover unchanged and changed one-shot inputs, one input traversal and repeatable output. |
 | The normal Convergence tick updates the online players. | A fresh HashSet and one UUID insertion per player are constructed only to prune offline state. | Native PlayerList UUID lookup prunes state without rebuilding that set. Four native lifecycle cases preserve living selections/cooldowns/fall tracking, remove actual death/disconnect state and retain existing same-UUID reconnect/age-reset semantics. |
 
-Capacity update packets still refresh the HUD, including true-capacity changes above the shared 40-point display and resets to ordinary values. Suppressing repeated refresh packets is deferred until connection-local tracking, respawn, dimension change and removal invalidation are separately verified. No real-client frame-rate, multiplayer capacity or lag-proof result is claimed.
+Capacity update packets still refresh the HUD, including true-capacity changes above the shared 40-point display and resets to ordinary values. Explore.31 deferred duplicate-refresh suppression until connection-local tracking, respawn, dimension change and removal invalidation were verified; explore.32 adds that verification and suppression as described above. No real-client frame-rate, multiplayer capacity or lag-proof result is claimed.
 
 
 ## Same-mode lobby preparation and Hardcore exits in explore.34
@@ -96,4 +96,17 @@ Capacity update packets still refresh the HUD, including true-capacity changes a
 | A prepared lobby move outlives its player session, OP privilege or another native teleport. | Direct arrivals had no delayed operation to bind or clean up. | Bind the exact player/listener/world, close only that session's preparation on cancellation, and retain owned leases through the native teleport return. New hall choices replace old ones; timeout is 600 game ticks. |
 | An ordinary Hardcore player dies, respawns to spectate, then leaves before the fatal hit's combat timer expires. | The exit is accepted, but subsequent polling cancels it because of inherited combat. | Apply the same eliminated-spectator exception at request and polling. The ordinary three-second deadline, living combat rules, one-life marker and mode inventory isolation remain. Native actual damage/respawn and player-file checks cover the original failure and living controls. |
 
-These are source changes, not a live installation. Default-spawn commands outside the Hub, homes and native respawn still have synchronous terrain paths. Authentic Java/iPad play, visuals and multiplayer performance remain device checks.
+These are source changes, not a live installation. At explore.34, homes and default-spawn commands outside the Hub still used synchronous terrain paths. Explore.35 prepares those command routes; native death respawn remains separate. Authentic Java/iPad play, visuals and multiplayer performance remain device checks.
+
+
+## Command teleports and consent in explore.35
+
+| Trigger | Previous behavior | Corrected behavior and acceptance checks |
+| --- | --- | --- |
+| A saved home, warp, accepted visit or Survival spawn has unloaded terrain. | Ordinary acceptance and completion synchronously request native chunks; OP native teleport can also wait for missing terrain. | Prepare and retain the exact collision footprint across ticks without choosing a fallback. Commit through native teleport only after FULL readiness; retain leases until its result. Ordinary warmup 60 and cooldown 200 remain, with a 600-tick technical deadline. |
+| `/spawn` is refused for combat/cooldown or ordinary course rules. | A Creative/Hardcore default search can read/generate terrain before those gameplay gates. | Apply gates before constructing the default selector. Search only origin defaults, preserving bounded nearest-ring order and never substituting an inactive saved profile. Survival keeps exact yaw/pitch; Hub keeps its existing arrival route. |
+| A player reconnects while an old teleport/consent/disconnect callback remains. | UUID-only records can act on the replacement player, or erase the new session's state. | Bind the actual players, listeners, origin worlds and modes. Identity-safe cancellation releases only matching jobs/consent; stale disconnects preserve fresh countdown/combat/chat state. |
+| An accepted host moves, dies, leaves, reconnects or changes worlds/modes. | Frozen coordinates are retained, but only the host UUID's online presence is checked at completion. | Keep the exact accepted coordinates while that host moves within its world. Reject session replacement, disconnect, death and changed world/mode; consent cannot transfer to another session. |
+| A course is withdrawn after its default selector becomes ready. | Selector readiness itself does not recheck course availability on later polls. | Refuse the frozen course before commit and keep refusal terminal; restoring it requires a new request. Never substitute another course. |
+
+These source changes keep existing OP inventory capture/restore hooks and both AI approvals. Native death respawn, bed/anchor resolution and credits return are outside this command change. Current proof and unverified client behavior are recorded in VALIDATION.md.

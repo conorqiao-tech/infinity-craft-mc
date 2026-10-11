@@ -1,4 +1,8 @@
-# Infinity Armor Exploration Server source — 2.13.0-explore.31
+# Infinity Armor Exploration Server source — 2.13.0-explore.35
+
+The current source candidate prepares homes, warps, accepted player visits and command spawns across native game ticks. Exact saved addresses and Survival spawn orientation remain fixed; Creative/Hardcore default search keeps its origin and bounded nearest-ring order. Exact player/host sessions bind requests and consent, so replacement, disconnect or world/mode changes cannot revive old jobs. Ordinary countdown/combat/movement/cooldown rules remain; OP exact-location travel keeps its existing bypass and immediate FULL destination behavior. Missing terrain still needs technical preparation. Native death respawn retains its separate synchronous contract. This source/package is **explore.35**; the playable world remains **explore.26** pending separate installation approval.
+
+The candidate also retains explore.34's prepared same-mode Hub arrivals, bounded fall-rescue retries and eliminated-Hardcore exits; explore.33's prepared cross-mode/first-visit destinations and completed-only Odyssey discovery; and explore.32's connection-local suppression of unchanged capacity refreshes. Explore.31's lazy packet copies and native player-state cleanup remain. The original Infinity artwork, separate solid Convergence chestplate, existing wings, inventory collections and both AI approvals are preserved. Current validation covers 467 unique native tests, 196 Python launcher/resource tests, Geyser registration/local UDP response and two disposable full-stack restart cycles. See `server/VALIDATION.md` for exact evidence, rejected preliminary fixtures and remaining authentic Java/iPad checks; these results do not establish live TPS or client visuals.
 
 Explore.30 contains failed-save recovery for automatic helper-order revocations, one exact RC-plane collision query per safe candidate, immediate deduplicated backpack serialization with codec/overstack validation, direct helper identity checks, and single-scan picker/single-copy navigator ownership checks. All server-changing AI actions retain both approvals and required synchronous consumption saves. The changes use the existing Minecraft 26.3 / Java 25 stack; the installed world remains explore.26 pending a separately approved update.
 
@@ -39,7 +43,7 @@ Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. T
 ```sh
 python3 tools/generate_odyssey_assets.py --check
 python3 tools/check_crossplay.py --java /path/to/java
-python3 -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
+python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
 python3 tools/smoke_geyser.py --java /path/to/java > research/geyser-smoke.log 2>&1
 python3 tools/smoke_fullstack.py --java /path/to/java > research/fullstack-smoke.log 2>&1
 python3 tools/package_crossplay.py
