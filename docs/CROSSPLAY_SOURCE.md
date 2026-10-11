@@ -1,4 +1,4 @@
-# Infinity Armor Exploration Server source — 2.13.0-explore.30
+# Infinity Armor Exploration Server source — 2.13.0-explore.31
 
 Explore.30 contains failed-save recovery for automatic helper-order revocations, one exact RC-plane collision query per safe candidate, immediate deduplicated backpack serialization with codec/overstack validation, direct helper identity checks, and single-scan picker/single-copy navigator ownership checks. All server-changing AI actions retain both approvals and required synchronous consumption saves. The changes use the existing Minecraft 26.3 / Java 25 stack; the installed world remains explore.26 pending a separately approved update.
 

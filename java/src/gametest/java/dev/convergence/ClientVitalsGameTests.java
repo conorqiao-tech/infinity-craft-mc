@@ -63,6 +63,149 @@ public class ClientVitalsGameTests {
         }
     }
 
+    @GameTest public void unchangedTrackingListsAvoidAllProjectionCopies(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-copy-free")) {
+            var metadata = new ClientboundSetEntityDataPacket(f.player.getId(), List.of(
+                SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), 20f),
+                SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), 0f)));
+            var attributes = new ClientboundUpdateAttributesPacket(f.player.getId(),
+                List.of(f.player.getAttribute(Attributes.MOVEMENT_SPEED), f.player.getAttribute(Attributes.ARMOR)));
+            var children = new ArrayList<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>>();
+            for (int i = 0; i < 100; i++) { children.add(metadata); children.add(attributes); }
+            var bundle = new ClientboundBundlePacket(children);
+            var sample = ClientVitalsPerformanceProbe.begin();
+            try {
+                c.assertTrue(ClientVitals.rewrite(bundle, f.player) == bundle, "Unchanged 200-child native list returns the original bundle");
+                c.assertValueEqual(sample.lists, 0, "No projection output lists are copied");
+                c.assertValueEqual(sample.attributeCopies, 0, "No unused attribute packet is constructed");
+                c.assertValueEqual(sample.metadataValues, 0, "Unchanged health and absorption entries are not recreated");
+            } finally { ClientVitalsPerformanceProbe.end(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest public void changedTrackingCopiesOnlyAffectedListsAndPreservesSharedEntries(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-lazy-copy")) {
+            f.set(c, "max_health", 400); f.set(c, "absorption", 100); f.player.setHealth(20);
+            var prefix = new ClientboundUpdateAttributesPacket(f.player.getId(), List.of(f.player.getAttribute(Attributes.ARMOR)));
+            var untouched = new SynchedEntityData.DataValue<>(250, EntityDataSerializers.FLOAT, 123f);
+            var health = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), 20f);
+            var absorption = SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), 100f);
+            var metadata = new ClientboundSetEntityDataPacket(f.player.getId(), List.of(untouched, health, absorption));
+            var source = List.<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>>of(prefix, prefix, metadata);
+            var bundle = new ClientboundBundlePacket(source);
+            var sample = ClientVitalsPerformanceProbe.begin();
+            try {
+                var rewritten = (ClientboundBundlePacket)ClientVitals.rewrite(bundle, f.player);
+                var output = new ArrayList<Packet<?>>(); rewritten.subPackets().forEach(output::add);
+                c.assertTrue(output.get(0) == prefix && output.get(1) == prefix, "Late changes preserve the untouched prefix and order");
+                var projected = (ClientboundSetEntityDataPacket)output.get(2);
+                c.assertTrue(projected.packedItems().get(0) == untouched, "Unrelated shared metadata remains identical");
+                c.assertValueEqual(projected.packedItems().get(1).value(), 2f, "Health keeps the true capacity ratio");
+                c.assertValueEqual(projected.packedItems().get(2).value(), 40f, "Absorption retains its display bound");
+                c.assertTrue(metadata.packedItems().get(1) == health && metadata.packedItems().get(2) == absorption,
+                    "Projection never overwrites another viewer's source metadata");
+                c.assertValueEqual(sample.lists, 2, "Exactly one metadata list and one enclosing bundle list are copied");
+                c.assertValueEqual(sample.attributeCopies, 0, "Unrelated armor attributes remain copy-free");
+                c.assertValueEqual(sample.metadataValues, 2, "Only the two changed vitals entries are recreated");
+            } finally { ClientVitalsPerformanceProbe.end(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest public void unchangedCapacityStillRefreshesHudWithoutCopyingAttributes(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-cap-refresh")) {
+            var capacity = new ClientboundUpdateAttributesPacket(f.player.getId(),
+                List.of(f.player.getAttribute(Attributes.MAX_HEALTH), f.player.getAttribute(Attributes.MAX_ABSORPTION)));
+            var sample = ClientVitalsPerformanceProbe.begin();
+            try {
+                for (int i = 0; i < 2; i++) {
+                    var bundle = (ClientboundBundlePacket)ClientVitals.rewrite(capacity, f.player);
+                    var packets = new ArrayList<Packet<?>>(); bundle.subPackets().forEach(packets::add);
+                    c.assertTrue(packets.get(0) == capacity, "Ordinary capacity keeps the original attributes");
+                    c.assertTrue(packets.get(1) instanceof ClientboundSetHealthPacket h && h.getHealth() == 20,
+                        "Every capacity observation still refreshes the owner's HUD");
+                    c.assertTrue(packets.get(2) instanceof ClientboundSetEntityDataPacket, "Absorption refresh is preserved");
+                }
+                c.assertValueEqual(sample.attributeCopies, 0, "No unused attribute copy is allocated for unchanged capacity");
+            } finally { ClientVitalsPerformanceProbe.end(); }
+            f.set(c, "max_health", 400); f.set(c, "absorption", 100);
+            var mixed = new ClientboundUpdateAttributesPacket(f.player.getId(), List.of(
+                f.player.getAttribute(Attributes.ARMOR), f.player.getAttribute(Attributes.MAX_HEALTH),
+                f.player.getAttribute(Attributes.MAX_ABSORPTION), f.player.getAttribute(Attributes.ATTACK_DAMAGE)));
+            var original = new ArrayList<>(mixed.getValues());
+            sample = ClientVitalsPerformanceProbe.begin();
+            try {
+                var projected = (ClientboundBundlePacket)ClientVitals.rewrite(mixed, f.player);
+                var children = new ArrayList<Packet<?>>(); projected.subPackets().forEach(children::add);
+                var attributes = (ClientboundUpdateAttributesPacket)children.getFirst();
+                c.assertValueEqual(sample.attributeCopies, 1, "Two projected capacities share exactly one attribute copy");
+                c.assertTrue(attributes != mixed, "The positive-control observer sees a real copy");
+                c.assertTrue(attributes.getValues().get(0) == original.get(0) && attributes.getValues().get(3) == original.get(3),
+                    "Ordinary prefix and tail snapshots retain identity and order");
+                for (int i = 1; i <= 2; i++) {
+                    c.assertValueEqual(attributes.getValues().get(i).base(), 40d, "Each projected capacity uses the native display maximum");
+                    c.assertTrue(attributes.getValues().get(i).modifiers().isEmpty(), "Client capacity snapshots contain no true-capacity modifiers");
+                }
+                c.assertValueEqual(mixed.getValues(), original, "The shared input attributes stay unchanged");
+            } finally { ClientVitalsPerformanceProbe.end(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest public void nestedTrackingBundlesFlattenAndOneShotIterablesAreTraversedOnce(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-flatten")) {
+            var health = new ClientboundSetHealthPacket(20, 20, 5);
+            var attributes = new ClientboundUpdateAttributesPacket(f.player.getId(), List.of(f.player.getAttribute(Attributes.ARMOR)));
+            var nested = new ClientboundBundlePacket(List.of(attributes));
+            var children = List.<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>>of(health, nested, health);
+            var lists = (ClientboundBundlePacket)ClientVitals.rewrite(new ClientboundBundlePacket(children), f.player);
+            var output = new ArrayList<Packet<?>>(); lists.subPackets().forEach(output::add);
+            c.assertValueEqual(output, List.of(health, attributes, health), "Even unchanged nested bundles are flattened in order");
+            c.assertTrue(children.get(1) == nested, "Original nested bundle remains unmodified");
+            f.player.connection.send(new ClientboundBundlePacket(children));
+            c.assertValueEqual(f.drain(), List.of(health, attributes, health), "The actual outbound handler emits the flattened children");
+            var traversals = new java.util.concurrent.atomic.AtomicInteger();
+            Iterable<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>> oneShot = () -> {
+                if (traversals.incrementAndGet() != 1) throw new IllegalStateException("Second traversal");
+                return children.iterator();
+            };
+            var generic = (ClientboundBundlePacket)ClientVitals.rewrite(new ClientboundBundlePacket(oneShot), f.player);
+            output.clear(); generic.subPackets().forEach(output::add);
+            c.assertValueEqual(output, List.of(health, attributes, health), "Generic iterable preserves every child exactly once");
+            c.assertValueEqual(traversals.get(), 1, "Generic iterable is never rescanned for a changed prefix");
+            var unchangedTraversals = new java.util.concurrent.atomic.AtomicInteger();
+            Iterable<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>> unchanged = () -> {
+                if (unchangedTraversals.incrementAndGet() != 1) throw new IllegalStateException("Second unchanged traversal");
+                return List.<Packet<? super net.minecraft.network.protocol.game.ClientGamePacketListener>>of(health, attributes, health).iterator();
+            };
+            var materialized = (ClientboundBundlePacket)ClientVitals.rewrite(new ClientboundBundlePacket(unchanged), f.player);
+            output.clear(); materialized.subPackets().forEach(output::add);
+            c.assertValueEqual(output, List.of(health, attributes, health), "Even unchanged one-shot input remains serializable after projection");
+            output.clear(); materialized.subPackets().forEach(output::add);
+            c.assertValueEqual(output.size(), 3, "The encoder can traverse the owned result again");
+            c.assertValueEqual(unchangedTraversals.get(), 1, "Unchanged one-shot input is consumed once");
+        }
+        c.succeed();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    @GameTest public void metadataEqualityPreservesSignedZeroNanAndNativeSerializers(GameTestHelper c) {
+        try (var f = new Fixture(c, "hud-float-data")) {
+            var negativeZero = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), -0f);
+            var nan = SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), Float.NaN);
+            SynchedEntityData.DataValue<?> wrongSerializer = new SynchedEntityData.DataValue(
+                LivingVitalsAccess.infinity$health().id(), EntityDataSerializers.INT, 20f);
+            var packet = new ClientboundSetEntityDataPacket(f.player.getId(), List.of(negativeZero, nan, wrongSerializer));
+            var result = (ClientboundSetEntityDataPacket)ClientVitals.rewrite(packet, f.player);
+            c.assertValueEqual(Float.floatToIntBits((Float)result.packedItems().get(0).value()), Float.floatToIntBits(0f), "Dead signed zero is canonicalized as before");
+            c.assertTrue(result.packedItems().get(1) == nan, "Equal NaN absorption avoids a pointless replacement");
+            c.assertTrue(result.packedItems().get(2).serializer() == LivingVitalsAccess.infinity$health().serializer(), "Matching vitals retain the native float serializer correction");
+            c.assertTrue(packet.packedItems().get(0) == negativeZero && packet.packedItems().get(2) == wrongSerializer, "Source entries stay untouched");
+        }
+        c.succeed();
+    }
+
     @GameTest public void enormousHealthUsesBoundedRealNetworkPacketsWithoutChangingSavedStats(GameTestHelper c) {
         try (var f = new Fixture(c, "hud-giant")) {
             f.set(c, "health", 1e21);

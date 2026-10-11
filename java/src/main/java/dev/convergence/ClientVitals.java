@@ -37,16 +37,30 @@ public final class ClientVitals {
     public static Packet<?> rewrite(Packet<?> packet, ServerPlayer player) {
         if (player == null) return packet;
         if (packet instanceof ClientboundBundlePacket bundle) {
+            // Native tracking bundles normally use a list. Copy only when projection or
+            // flattening changes a child; arbitrary iterables retain the single-pass path.
+            if (bundle.subPackets() instanceof List<?> children && children instanceof java.util.RandomAccess) {
+                ArrayList<Packet<? super ClientGamePacketListener>> output = null;
+                for (int i = 0; i < children.size(); i++) {
+                    var child = (Packet<?>)children.get(i);
+                    var replacement = rewrite(child, player);
+                    if (output == null && (replacement != child || replacement instanceof ClientboundBundlePacket)) {
+                        output = new ArrayList<>();
+                        for (int prefix = 0; prefix < i; prefix++) output.add(playPacket((Packet<?>)children.get(prefix)));
+                    }
+                    if (output != null) append(output, replacement);
+                }
+                return output == null ? packet : new ClientboundBundlePacket(output);
+            }
             var output = new ArrayList<Packet<? super ClientGamePacketListener>>();
-            boolean changed = false;
             for (var child : bundle.subPackets()) {
                 var replacement = rewrite(child, player);
-                changed |= replacement != child;
                 // Bundles cannot contain another bundle on the wire.
-                if (replacement instanceof ClientboundBundlePacket nested) nested.subPackets().forEach(output::add);
-                else output.add(playPacket(replacement));
+                append(output, replacement);
             }
-            return changed ? new ClientboundBundlePacket(output) : packet;
+            // The iterable may be one-shot. Own the collected children even when
+            // unchanged, so the encoder never has to traverse an exhausted input.
+            return new ClientboundBundlePacket(output);
         }
         if (packet instanceof ClientboundSetHealthPacket update) {
             float value = health(update.getHealth(), player.getMaxHealth());
@@ -58,41 +72,59 @@ public final class ClientVitals {
         if (packet instanceof ClientboundUpdateAttributesPacket attributes) {
             var target = visibleTarget(player, attributes.getEntityId());
             if (target == null) return packet;
-            var copy = new ClientboundUpdateAttributesPacket(target.getId(), List.of());
-            boolean changed = false;
+            ClientboundUpdateAttributesPacket copy = null;
             boolean capacity = false;
-            for (var entry : attributes.getValues()) {
+            var original = attributes.getValues();
+            for (int i = 0; i < original.size(); i++) {
+                var entry = original.get(i);
                 capacity |= entry.attribute().equals(Attributes.MAX_HEALTH) || entry.attribute().equals(Attributes.MAX_ABSORPTION);
                 double display = entry.attribute().equals(Attributes.MAX_HEALTH) ? target.getMaxHealth()
                     : entry.attribute().equals(Attributes.MAX_ABSORPTION) ? target.getMaxAbsorption() : -1;
                 if (display > DISPLAY_MAXIMUM) {
-                    copy.getValues().add(new ClientboundUpdateAttributesPacket.AttributeSnapshot(entry.attribute(), DISPLAY_MAXIMUM, List.of()));
-                    changed = true;
-                } else copy.getValues().add(entry);
+                    if (copy == null) {
+                        copy = new ClientboundUpdateAttributesPacket(target.getId(), List.of());
+                        copy.getValues().addAll(original);
+                    }
+                    copy.getValues().set(i, new ClientboundUpdateAttributesPacket.AttributeSnapshot(entry.attribute(), DISPLAY_MAXIMUM, List.of()));
+                }
             }
             // A capacity-only edit does not change native lastSentHealth. Refresh the HUD anyway.
             if (!capacity) return packet;
             return target == player
-                ? new ClientboundBundlePacket(List.of(changed ? copy : attributes, healthPacket(player), absorptionPacket(player)))
-                : new ClientboundBundlePacket(List.of(changed ? copy : attributes, trackedVitals(target)));
+                ? new ClientboundBundlePacket(List.of(copy == null ? attributes : copy, healthPacket(player), absorptionPacket(player)))
+                : new ClientboundBundlePacket(List.of(copy == null ? attributes : copy, trackedVitals(target)));
         }
         if (packet instanceof ClientboundSetEntityDataPacket tracker) {
             var target = visibleTarget(player, tracker.id());
             if (target == null) return packet;
-            var values = new ArrayList<SynchedEntityData.DataValue<?>>();
-            boolean changed = false;
-            for (var entry : tracker.packedItems()) {
-                var replacement = entry;
-                if (entry.id() == LivingVitalsAccess.infinity$health().id() && entry.value() instanceof Float value)
-                    replacement = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), health(value, target.getMaxHealth()));
-                else if (target instanceof Player && entry.id() == PlayerVitalsAccess.infinity$absorption().id() && entry.value() instanceof Float value)
-                    replacement = SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), absorption(value));
-                changed |= !replacement.equals(entry);
-                values.add(replacement);
+            ArrayList<SynchedEntityData.DataValue<?>> values = null;
+            var original = tracker.packedItems();
+            int i = 0;
+            for (var entry : original) {
+                SynchedEntityData.DataValue<?> replacement = null;
+                if (entry.id() == LivingVitalsAccess.infinity$health().id() && entry.value() instanceof Float value) {
+                    float projected = health(value, target.getMaxHealth());
+                    if (Float.compare(projected, value) != 0 || !entry.serializer().equals(LivingVitalsAccess.infinity$health().serializer()))
+                        replacement = SynchedEntityData.DataValue.create(LivingVitalsAccess.infinity$health(), projected);
+                } else if (target instanceof Player && entry.id() == PlayerVitalsAccess.infinity$absorption().id() && entry.value() instanceof Float value) {
+                    float projected = absorption(value);
+                    if (Float.compare(projected, value) != 0 || !entry.serializer().equals(PlayerVitalsAccess.infinity$absorption().serializer()))
+                        replacement = SynchedEntityData.DataValue.create(PlayerVitalsAccess.infinity$absorption(), projected);
+                }
+                if (replacement != null) {
+                    if (values == null) values = new ArrayList<>(original);
+                    values.set(i, replacement);
+                }
+                i++;
             }
-            return changed ? new ClientboundSetEntityDataPacket(tracker.id(), values) : packet;
+            return values == null ? packet : new ClientboundSetEntityDataPacket(tracker.id(), values);
         }
         return packet;
+    }
+
+    private static void append(List<Packet<? super ClientGamePacketListener>> output, Packet<?> packet) {
+        if (packet instanceof ClientboundBundlePacket nested) nested.subPackets().forEach(output::add);
+        else output.add(playPacket(packet));
     }
 
     private static LivingEntity visibleTarget(ServerPlayer viewer, int id) {

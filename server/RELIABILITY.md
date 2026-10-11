@@ -1,4 +1,4 @@
-# Reliability and helper work — explore.30
+# Reliability and helper work — explore.31
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
 
@@ -46,3 +46,15 @@ The counters establish fewer repeated operations, not a whole-server TPS or late
 The opt-in `tools/benchmark_helpers.py` compares prebuilt explore.28 and explore.29 mod jars with a prebuilt test jar, Java 25 and a complete pinned cached runtime. It uses fresh temporary GameTest worlds, registers only its measurement test there, and never copies live worlds, credentials or settings. It records file hashes, raw counters and instrumented timings. The normal native suite explicitly excludes this expensive benchmark.
 
 This does not make the server immune to lag, disk failure or client crashes. Native durability APIs still log some storage errors rather than raising them; trades retain explicit file verification. The atomic telemetry rename has a narrow shutdown guard. A disk that never returns can still delay that final rename/shutdown. A cold spawn search can still synchronously request up to 81 chunks. Controlled Regular-helper measurements do not establish Ultimate Finals performance, real multiplayer TPS, iPad rendering or public remote joins. An empty server normally pauses after 60 seconds, so an old roster snapshot is unavailable rather than proof of a stopped server. See VALIDATION.md for measured checks and the separately verified live version.
+
+
+## Additional client-update and tick fixes in explore.31
+
+| Trigger | Previous behavior | Corrected behavior and regression |
+| --- | --- | --- |
+| Unchanged health/absorption metadata or non-capacity armor/movement attributes pass through a tracking bundle. | Projection eagerly allocates discarded lists, attribute packets and metadata values for unchanged inputs. | Random-access list bundles copy only after their first changed child; attribute copies begin only when capacity needs projection; metadata compares value and native serializer first. Native copy-site counters cover 200 unchanged children, late changes, source identity/order and unchanged capacity refresh. These are allocation-site counts, not JVM memory or live TPS measurements. |
+| An original grouped update contains an unchanged nested bundle. | The temporary list flattens children, but an unchanged flag returns the original nested bundle that cannot be sent as nested wire bundles. | The outer group treats nesting as a change and owns a flat list. Native outbound tests preserve child order and shared originals. |
+| A grouped update uses a one-shot iterable whose children need no projection. | Projection consumes the iterator and returns the exhausted input. | The generic single-pass path always materializes its already-collected children, so subsequent encoding can traverse them again. Native tests cover unchanged and changed one-shot inputs, one input traversal and repeatable output. |
+| The normal Convergence tick updates the online players. | A fresh HashSet and one UUID insertion per player are constructed only to prune offline state. | Native PlayerList UUID lookup prunes state without rebuilding that set. Four native lifecycle cases preserve living selections/cooldowns/fall tracking, remove actual death/disconnect state and retain existing same-UUID reconnect/age-reset semantics. |
+
+Capacity update packets still refresh the HUD, including true-capacity changes above the shared 40-point display and resets to ordinary values. Suppressing repeated refresh packets is deferred until connection-local tracking, respawn, dimension change and removal invalidation are separately verified. No real-client frame-rate, multiplayer capacity or lag-proof result is claimed.

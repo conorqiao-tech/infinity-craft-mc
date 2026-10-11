@@ -23,6 +23,6 @@ Aurora, Ember and backpack artwork remains cosmetic. Backpack storage, mode inve
 
 ## Device check after installation
 
-Rejoin and accept resource revision **[2,12,27]**. Inspect all four equipped pieces of each set, the inventory icons and ordinary leather/netherite beside them. Swap the solid Convergence chestplate for wings, launch with rockets, glide and land, then re-equip the solid armor. Test collection pickup with an occupied hotbar and a full inventory. Reconnect and check your items.
+Rejoin and accept the updated server resource pack. Each prepared update advances the pack and module revisions so Bedrock can refresh its cached artwork. Inspect all four equipped pieces of each set, the inventory icons and ordinary leather/netherite beside them. Swap the solid Convergence chestplate for wings, launch with rockets, glide and land, then re-equip the solid armor. Test collection pickup with an occupied hotbar and a full inventory. Reconnect and check your items.
 
 Automated resource/native/bridge checks cannot prove Java/iPad rendering, touch input or authenticated flight. Report the piece and edition if an appearance is wrong. Source/package and live installation states are reported separately; this document is not proof of installation.

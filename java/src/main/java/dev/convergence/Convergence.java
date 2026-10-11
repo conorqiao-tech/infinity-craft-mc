@@ -589,10 +589,9 @@ public class Convergence implements ModInitializer {
    }
 
    static void tick(MinecraftServer server) {
-      Set<UUID> online = new HashSet<>();
+      var players = server.getPlayerList();
 
-      for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-         online.add(p.getUUID());
+      for (ServerPlayer p : players.getPlayers()) {
          if (!p.isAlive()) {
             STATES.remove(p.getUUID());
          } else {
@@ -620,7 +619,7 @@ public class Convergence implements ModInitializer {
          }
       }
 
-      STATES.keySet().retainAll(online);
+      STATES.keySet().removeIf(id -> players.getPlayer(id) == null);
    }
 
    static void effect(Player p, Holder<MobEffect> e, int a, int d) {

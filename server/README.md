@@ -1,8 +1,10 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.30
+# Infinity Armor Exploration Server — 2.13.0-explore.31
+
+Explore.31 avoids unused client-vitals copies, preserves every required capacity/HUD refresh, safely flattens grouped updates and uses native UUID membership for offline player-state cleanup. It keeps the original artwork, separate solid Convergence chestplate and existing wings. Source/package is **explore.31**; the live server remains **explore.26** pending separate installation approval.
 
 Explore.30 reduces repeated plane, backpack and menu/helper work, and retries failed automatic AI-order revocation saves safely. Explicit action execution still requires both reviews and a successful save. It retains the original Infinity artwork, Aurora/Convergence inventory filters, the separate solid Convergence chestplate and existing wings. See [RELIABILITY.md](RELIABILITY.md) and [VALIDATION.md](VALIDATION.md) for the actual checks and remaining client limits.
 
-Explore.28 improves dashboard responsiveness, safe server-process cleanup and logging, participant-only native saves, minigame selection/leaderboard persistence and background host-status writes. It also fixes duplicate grants of worn/offhand gear and restores earned backpack colors. See [RELIABILITY.md](RELIABILITY.md) for reproductions, tests and remaining limits. Source/package is **explore.28**; the live server remains **explore.26** pending separate installation approval.
+Explore.28 improves dashboard responsiveness, safe server-process cleanup and logging, participant-only native saves, minigame selection/leaderboard persistence and background host-status writes. It also fixes duplicate grants of worn/offhand gear and restores earned backpack colors. See [RELIABILITY.md](RELIABILITY.md) for reproductions, tests and remaining limits. Those explore.28 changes are retained in this source; the live installation state is listed above.
 
 Explore.27 adds original armor, item and block artwork, separate **Aurora Set** and **Convergence Set** buttons, five labeled inventory boxes and a solid **Convergence Armor Chestplate** alongside the existing flight item. Static Bedrock armor has item-specific attachables; ordinary leather/netherite stay normal. See [ORIGINAL_ARTWORK.md](ORIGINAL_ARTWORK.md). The live server runs **explore.26**; installing these new source/package changes requires separate approval.
 
