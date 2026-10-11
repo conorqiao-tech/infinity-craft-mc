@@ -1,0 +1,17 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.wings": {
+      "geometry": "Geometry.wing",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.wing_enchanted : Material.wing"
+        }
+      ],
+      "textures": [
+        "Texture.wing",
+        "Texture.enchanted"
+      ]
+    }
+  }
+}

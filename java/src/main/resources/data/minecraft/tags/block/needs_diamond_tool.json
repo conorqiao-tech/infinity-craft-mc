@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:infinity_block",
+    "convergence:polished_infinity",
+    "convergence:infinity_bricks",
+    "convergence:radiant_infinity"
+  ]
+}
