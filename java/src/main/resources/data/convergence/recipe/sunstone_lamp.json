@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SMS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:stone",
+    "M": "minecraft:glowstone"
+  },
+  "result": {
+    "id": "convergence:sunstone_lamp",
+    "count": 8
+  }
+}

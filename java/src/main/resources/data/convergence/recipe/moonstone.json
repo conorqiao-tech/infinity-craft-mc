@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SMS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:stone",
+    "M": "minecraft:quartz"
+  },
+  "result": {
+    "id": "convergence:moonstone",
+    "count": 8
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "places": [
+    ["hub", "Main Hub", "lobby", "Meet friends, choose a mode, and return whenever you want.", "/hub", "assets/aurora_tiles.png"],
+    ["survival", "Survival", "mode", "Build your world, craft Infinity gear, and explore the Nether and End.", "/play survival", "assets/infinity_block.png"],
+    ["creative", "Creative", "mode", "Build freely in a separate flat world with custom blocks and tools.", "/play creative", "assets/builder_wand.png"],
+    ["hardcore", "Hardcore", "mode", "A separate one-life challenge. Your other modes stay available.", "/play hardcore", "assets/obsidian_lattice.png"],
+    ["survival-lobby", "Survival Lobby", "lobby", "Meet before heading into the shared Survival world.", "/lobby survival", "assets/infinity_bricks.png"],
+    ["creative-lobby", "Creative Lobby", "lobby", "Choose the building world and preview custom blocks.", "/lobby creative", "assets/builder_wand.png"],
+    ["hardcore-lobby", "Hardcore Lobby", "lobby", "Prepare for the separate one-life challenge.", "/lobby hardcore", "assets/obsidian_lattice.png"],
+    ["minigames", "Minigame Hall", "lobby", "Find four short courses and replay for a faster personal best.", "/lobby minigames", "assets/sunstone_lamp.png"],
+    ["adventure", "Adventure Hall", "lobby", "Explore two built-in maps with puzzles and landmarks.", "/lobby adventure", "assets/moonstone.png"],
+    ["parkour", "Sky Steps", "minigame", "Jump across checkpoints above the void.", "/minigame parkour", "assets/aurora_tiles.png"],
+    ["sprint", "Switchback Sprint", "minigame", "Race a winding course and beat your best time.", "/minigame sprint", "assets/copper_circuit.png"],
+    ["dropper", "Prism Dropper", "minigame", "Fall through obstacles into the landing water.", "/minigame dropper", "assets/infinity_bricks.png"],
+    ["redlight", "Red Light Run", "minigame", "Move on green and freeze on red. Text cues support touch play.", "/minigame redlight", "assets/verdant_mosaic.png"],
+    ["ruins", "The Five Seals", "map", "Find the seals hidden through an ancient ruin.", "/adventure ruins", "assets/radiant_infinity.png"],
+    ["maze", "Lantern Labyrinth", "map", "Navigate a maze and find your way out.", "/adventure maze", "assets/moonstone.png"]
+  ],
+  "powers": [
+    [
+      "hacks",
+      "Hacks",
+      "How Did We Get Here?",
+      "Flight, night vision and Resistance II."
+    ],
+    [
+      "fireguard",
+      "Fireguard",
+      "Into Fire",
+      "Fire Resistance while enabled."
+    ],
+    [
+      "windstep",
+      "Windstep",
+      "Take Aim",
+      "Speed II and Jump Boost II for 15 seconds, with a 45-second cooldown."
+    ],
+    [
+      "explorer",
+      "Explorer",
+      "Adventuring Time",
+      "Speed II, Jump Boost II and night vision."
+    ],
+    [
+      "aquatic",
+      "Aquatic",
+      "Tactical Fishing",
+      "Water Breathing and Dolphin\u2019s Grace."
+    ],
+    [
+      "nether",
+      "Nether",
+      "Hot Tourist Destinations",
+      "Fire Resistance, Resistance I and night vision."
+    ]
+  ],
+  "cosmetics": [
+    [
+      "wither",
+      "Wither aura",
+      "Withering Heights",
+      "Soul particles celebrate summoning the Wither."
+    ],
+    [
+      "diamond",
+      "Diamond shimmer",
+      "Diamonds!",
+      "A bright sparkle for your first diamond."
+    ],
+    [
+      "dragon",
+      "Dragon aura",
+      "Free the End",
+      "Dragon particles for defeating the Ender Dragon."
+    ],
+    [
+      "explorer",
+      "Explorer trail",
+      "Adventuring Time",
+      "A trail for exploring the Overworld biomes."
+    ],
+    [
+      "totem",
+      "Totem sparks",
+      "Postmortal",
+      "Golden particles for surviving with a Totem of Undying."
+    ],
+    [
+      "emerald",
+      "Emerald glimmer",
+      "What a Deal!",
+      "Emerald particles for trading with a villager."
+    ],
+    [
+      "ocean",
+      "Ocean bubbles",
+      "Tactical Fishing",
+      "A bubble trail for catching a fish in a bucket."
+    ],
+    [
+      "nether",
+      "Nether embers",
+      "Into Fire",
+      "Ember particles for obtaining a blaze rod."
+    ]
+  ],
+  "trades": [
+    [
+      "rank-go",
+      "Go rank",
+      "16 iron ingots + 8 emeralds"
+    ],
+    [
+      "rank-plus",
+      "Plus rank",
+      "8 diamonds + 16 emeralds"
+    ],
+    [
+      "rank-pro",
+      "Pro rank",
+      "16 ender pearls + 8 blaze rods + 32 emeralds"
+    ],
+    [
+      "rank-ultra",
+      "Ultra rank",
+      "1 nether star + 16 diamonds + 64 emeralds"
+    ],
+    [
+      "hacks",
+      "Hacks",
+      "1 nether star + 1 dragon breath + 64 diamonds"
+    ],
+    [
+      "fireguard",
+      "Fireguard",
+      "4 blaze rods + 8 emeralds"
+    ],
+    [
+      "windstep",
+      "Windstep",
+      "32 arrows + 8 emeralds"
+    ],
+    [
+      "explorer",
+      "Explorer",
+      "32 emeralds + 4 ender pearls"
+    ],
+    [
+      "aquatic",
+      "Aquatic",
+      "16 prismarine shards + 8 emeralds"
+    ],
+    [
+      "nether",
+      "Nether",
+      "8 blaze rods + 16 gold ingots + 16 emeralds"
+    ]
+  ]
+}

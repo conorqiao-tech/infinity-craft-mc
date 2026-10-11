@@ -1,0 +1,63 @@
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0
+
+1. Extract the entire ZIP into a folder you will keep.
+2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
+3. In the browser, accept the Minecraft EULA if you agree, then click Start shared world.
+
+Python and Java are set up automatically. First setup needs internet and may take a few minutes.
+Keep the launcher/Terminal window open while playing.
+
+When the panel says WORLD IS RUNNING:
+- Java 1.21.11: copy the Java address into Multiplayer > Direct Connection.
+- Bedrock 26.30–26.51: add a server using the Bedrock address and port in the panel.
+- Use devices on the same Wi-Fi. Accept the offered texture packs.
+
+Finished? Click Save & Stop, wait for Ready to start, then Close launcher.
+Next time, open the same launcher. Your world and settings stay in this folder.
+
+Linux: run bash start.sh.
+More help: README.md. Test results and preview limitations: VALIDATION.md.
+
+NEW SERVER FEATURES
+Homes, spawn, shared warps, teleport requests, rules, moderation, and backups.
+In Minecraft: /serverhelp
+As an operator in a clear 25x25 grassy area: /community buildspawn
+Host panel: set your server name, rules, player slots and allowlist.
+32 slots is the default limit; real capacity depends on your hardware.
+
+For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.command after the world starts. It installs the verified free helper on first use, then shows separate temporary Java and Bedrock addresses in the panel. No account sign-in is needed. See PINGGY_JOINING.md. For always-on hosting, read HOSTING.md.
+
+IN MINECRAFT
+New players start in the Main Hub. Existing players can use /hub.
+/lobbies — list mode lobbies; /lobby <mode> — visit one.
+/play — Survival, Creative, Hardcore, Minigames, Adventure
+/minigame parkour, sprint, dropper, or redlight
+/adventure ruins or /adventure maze
+/guide — directions for your current place; /best — personal minigame times
+/leaderboard <map> — fastest saved times on that minigame
+/ranks — all achievement rank requirements; /rank — your progress and missing achievements
+
+Every game mode and rank is free. Complete all three achievements in a group, or exchange Survival items with /trades:
+Go — stone pickaxe, iron ingot, Monster Hunter (kill a hostile mob).
+Plus — iron pickaxe, diamond, enchant an item.
+Pro — enter the Nether, blaze rod, enter the End.
+Ultra — defeat the Ender Dragon, enter an End gateway, find an End city.
+The highest completed group wins; lower groups are not prerequisites. Earned ranks stay unlocked.
+Creative inventory items can trigger item milestones; ranks are not proof of Survival-only play.
+New downloads start with Admin-code redemption disabled. Save & Stop, then set a private code in the local host panel. Existing private configuration is retained.
+Use /admincode <code> in Minecraft; do not post your code publicly.
+Admin is limited moderation, not full operator access.
+NEW REWARDS AND TRADES
+/rewards — six power presets and eight cosmetics, earned separately from ranks.
+/power <id> or /power off — one Survival-only power preset at a time.
+/cosmetic <id> or /cosmetic off — choose or hide one earnable particle aura.
+/trades — item costs for ranks and powers. /trade <id> previews; /trade <id> confirm pays.
+Details: LOBBIES.md, MODES.md, MEMBERSHIPS.md, REWARDS.md and TRADING.md.
+
+HELPERS AND FULL OPERATOR ACCESS
+/ai <question> — built-in server help, no API key needed.
+Level-4 operators: /agent spawn buddy, /agent follow buddy, /agent guard buddy, /agent stay buddy, /agent dismiss buddy, /agent list.
+Operators can use any power/cosmetic without earning it and switch modes immediately.
+More details: AGENTS_GUIDE.md.
+
+New: /convergence kit building, /wardrobe, /backpack, /ptrade <player>, /minigame dropper and /minigame redlight. Read EXPANSION.md and EXPLORATION.md.
