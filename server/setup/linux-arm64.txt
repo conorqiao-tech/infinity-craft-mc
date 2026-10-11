@@ -1,0 +1,2 @@
+https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz
+5ad58156cbec94e5643c13caa792e92df72a23f33d3a6425d4cbff5c4b7a040c

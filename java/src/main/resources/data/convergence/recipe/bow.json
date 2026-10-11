@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:bow",
+    "count": 1
+  },
+  "pattern": [
+    " IS",
+    "I S",
+    " IS"
+  ],
+  "key": {
+    "I": "convergence:ingot",
+    "S": "minecraft:string"
+  }
+}

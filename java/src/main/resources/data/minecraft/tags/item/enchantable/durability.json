@@ -1,0 +1,20 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:helmet",
+    "convergence:chestplate",
+    "convergence:leggings",
+    "convergence:boots",
+    "convergence:sword",
+    "convergence:mace",
+    "convergence:spear",
+    "convergence:pickaxe",
+    "convergence:axe",
+    "convergence:shovel",
+    "convergence:hoe",
+    "convergence:totem",
+    "convergence:shield",
+    "convergence:bow",
+    "convergence:crossbow"
+  ]
+}

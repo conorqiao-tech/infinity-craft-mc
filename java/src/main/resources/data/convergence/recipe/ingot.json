@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:ingot",
+    "count": 8
+  },
+  "ingredients": [
+    "minecraft:diamond",
+    "minecraft:gold_ingot",
+    "minecraft:redstone",
+    "minecraft:amethyst_shard",
+    "minecraft:nether_star",
+    "minecraft:netherite_ingot"
+  ]
+}
