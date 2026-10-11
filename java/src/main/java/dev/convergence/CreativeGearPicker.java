@@ -229,7 +229,7 @@ final class CreativeGearPicker {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (var player : server.getPlayerList().getPlayers()) {
                 UUID id = player.getUUID();
-                if (allowed(player) && !hasPicker(player)) ensurePicker(player);
+                if (allowed(player)) ensurePicker(player);
                 Integer at = OPEN_AFTER.get(id);
                 if (at != null && server.getTickCount() >= at) {
                     OPEN_AFTER.remove(id);

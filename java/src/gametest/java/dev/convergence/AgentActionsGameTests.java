@@ -112,6 +112,19 @@ public class AgentActionsGameTests {
         }
 
         ServerLevel cWorld() { return context.getLevel(); }
+
+        Path obstructSave() throws Exception {
+            Path backup = queue.file.resolveSibling(queue.file.getFileName() + ".previous");
+            Files.deleteIfExists(backup);
+            Files.createDirectory(backup);
+            Files.writeString(backup.resolve("keep.txt"), "do not overwrite");
+            return backup;
+        }
+
+        void repairSave(Path backup) throws Exception {
+            Files.delete(backup.resolve("keep.txt"));
+            Files.delete(backup);
+        }
     }
 
     @GameTest public void playerTargetNeedsBothApprovalsAndCannotReplay(GameTestHelper c) throws Exception {
@@ -275,6 +288,115 @@ public class AgentActionsGameTests {
             f.clock.advance(AgentActions.LIFETIME_MS); f.queue.codexApprove(f.core.server.createCommandSourceStack(), expired);
             c.assertValueEqual(f.queue.data.proposals.get(expired).state, AgentActions.State.EXPIRED, "The proposal lifetime is enforced at the final gate");
             c.assertTrue(f.core.validPlayerTarget(f.owner) == null, "Cancelled and expired requests never establish player combat");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void automaticExpiryRetainsRevocationAndRetriesFailedStorage(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, "expiryDisk")) {
+            f.queue.suggest(f.owner, "set day");
+            String id = f.queue.data.proposals.keySet().iterator().next();
+            f.queue.ownerApprove(f.owner, id);
+            String original = Files.readString(f.queue.file);
+            Path backup = f.obstructSave();
+            f.clock.advance(AgentActions.LIFETIME_MS);
+            f.queue.expire();
+            c.assertValueEqual(f.queue.data.proposals.get(id).state, AgentActions.State.EXPIRED, "Expiry stays terminal even when its real file backup fails");
+            c.assertTrue(f.queue.maintenanceDirty && f.queue.maintenanceFailureReported, "The failed automatic write remains queued for bounded retry");
+            c.assertValueEqual(Files.readString(f.queue.file), original, "A failed backup cannot overwrite the durable original");
+            c.assertValueEqual(Files.readString(backup.resolve("keep.txt")), "do not overwrite", "Automatic persistence cannot erase an obstructing directory");
+            f.queue.codexApprove(f.core.server.createCommandSourceStack(), id);
+            c.assertTrue(f.commands.isEmpty(), "An expired request cannot dispatch while its terminal save is pending");
+            f.repairSave(backup);
+            f.queue.expire();
+            c.assertTrue(f.queue.maintenanceDirty, "Another game tick cannot retry storage before five seconds");
+            c.assertValueEqual(Files.readString(f.queue.file), original, "Removing the obstruction does not bypass retry timing");
+            f.clock.advance(AgentActions.MAINTENANCE_RETRY_MS);
+            f.queue.expire();
+            c.assertFalse(f.queue.maintenanceDirty || f.queue.maintenanceFailureReported, "A successful retry clears dirty and failure-streak state");
+            c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(id).state, AgentActions.State.EXPIRED, "Recovered storage durably retains the original revocation");
+            var reloaded = new AgentActions(f.core.server, f.queue.file, f.clock, f.commands::add);
+            reloaded.codexApprove(f.core.server.createCommandSourceStack(), id);
+            c.assertTrue(f.commands.isEmpty(), "Reloading the saved expiry never reactivates a command");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void lifecycleTargetCancellationSurvivesStorageFailure(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, "cancelDisk")) {
+            String id = f.propose(f.owner, f.target);
+            f.queue.ownerApprove(f.owner, id);
+            String original = Files.readString(f.queue.file);
+            Path backup = f.obstructSave();
+            var previous = AgentActions.INSTANCES.put(f.core.server, f.queue);
+            try { AgentActions.invalidatePlayer(f.target); }
+            finally {
+                if (previous == null) AgentActions.INSTANCES.remove(f.core.server);
+                else AgentActions.INSTANCES.put(f.core.server, previous);
+            }
+            c.assertValueEqual(f.queue.data.proposals.get(id).state, AgentActions.State.CANCELLED, "The real lifecycle cancellation does not throw through a failed storage write");
+            c.assertFalse(f.queue.targetSessions.containsKey(id), "The exact live target session is removed immediately");
+            c.assertTrue(f.queue.maintenanceDirty, "Cancellation is retained for retry");
+            c.assertValueEqual(Files.readString(f.queue.file), original, "The failed lifecycle write preserves the saved queue");
+            boolean startupRejected = false;
+            try { new AgentActions(f.core.server, f.queue.file, f.clock, f.commands::add); }
+            catch (IllegalStateException expected) { startupRejected = true; }
+            c.assertTrue(startupRejected, "Restart cannot reopen a saved active target when required startup cancellation cannot be persisted");
+            c.assertValueEqual(Files.readString(f.queue.file), original, "Fail-closed startup preserves the original for recovery");
+            f.queue.codexApprove(f.core.server.createCommandSourceStack(), id);
+            c.assertTrue(f.core.validPlayerTarget(f.owner) == null && f.commands.isEmpty(), "An unwritten revocation still blocks combat and command dispatch");
+            f.repairSave(backup);
+            f.clock.advance(AgentActions.MAINTENANCE_RETRY_MS);
+            f.queue.expire();
+            c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(id).state, AgentActions.State.CANCELLED, "The later automatic retry persists the cancelled player target");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void shutdownRetriesOnlyDirtyRevocationsBeforeDiscardingQueue(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, "stopDisk")) {
+            f.queue.suggest(f.owner, "set day");
+            String id = f.queue.data.proposals.keySet().iterator().next();
+            Path backup = f.obstructSave();
+            f.clock.advance(AgentActions.LIFETIME_MS);
+            f.queue.expire();
+            f.repairSave(backup);
+            f.queue.flushMaintenanceBeforeStop();
+            c.assertFalse(f.queue.maintenanceDirty, "The registered shutdown callback retries a dirty queue even during backoff");
+            c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(id).state, AgentActions.State.EXPIRED, "Shutdown recovery retains terminal state durably");
+            String original = Files.readString(f.queue.file);
+            backup = f.obstructSave();
+            f.queue.flushMaintenanceBeforeStop();
+            c.assertFalse(f.queue.maintenanceFailureReported, "A clean shutdown callback attempts no unnecessary save");
+            c.assertValueEqual(Files.readString(f.queue.file), original, "A clean queue remains unchanged even with obstructed storage");
+            c.assertValueEqual(Files.readString(backup.resolve("keep.txt")), "do not overwrite", "Clean shutdown cannot touch backup storage");
+            c.assertTrue(f.commands.isEmpty(), "A shutdown retry never approves or dispatches a command");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void dispatchStillRequiresSuccessfulSynchronousPersistence(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, "requiredDisk")) {
+            f.queue.suggest(f.owner, "set day");
+            String id = f.queue.data.proposals.keySet().iterator().next();
+            f.queue.ownerApprove(f.owner, id);
+            Path backup = f.obstructSave();
+            boolean rejected = false;
+            try { f.queue.codexApprove(f.core.server.createCommandSourceStack(), id); }
+            catch (IllegalStateException expected) { rejected = true; }
+            c.assertTrue(rejected, "A required consumption write remains synchronous and fails closed");
+            c.assertTrue(f.commands.isEmpty(), "No command is dispatched after an actual storage failure");
+            c.assertFalse(f.queue.maintenanceDirty, "The required approval write is never silently converted to an automatic retry");
+            c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(id).state, AgentActions.State.OWNER_APPROVED, "Failed consumption leaves the durable original intact");
+            f.repairSave(backup);
+            f.queue.suggest(f.owner, "set night");
+            String next = f.queue.data.proposals.keySet().stream().filter(key -> !key.equals(id)).findFirst().orElseThrow();
+            f.queue.codexApprove(f.core.server.createCommandSourceStack(), next);
+            c.assertTrue(f.commands.isEmpty(), "Repairing storage cannot substitute for owner approval of a new exact ID");
+            f.queue.ownerApprove(f.owner, next);
+            f.queue.codexApprove(f.core.server.createCommandSourceStack(), next);
+            c.assertValueEqual(f.commands, List.of("time set night"), "After recovery a separately owner-approved exact action dispatches once");
+            c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(next).state, AgentActions.State.DISPATCHED, "Successful dispatch is consumed durably before execution");
         }
         c.succeed();
     }

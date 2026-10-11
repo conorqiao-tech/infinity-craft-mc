@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.29",
+  "version": "2.13.0-explore.30",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -38,11 +38,22 @@
       "dev.convergence.PhysicsSafetyGameTests",
       "dev.convergence.OdysseyGameTests",
       "dev.convergence.CreativeStudioGameTests",
-      "dev.convergence.PlaygroundGameTests"
+      "dev.convergence.PlaygroundGameTests",
+      "dev.convergence.RcPlaneGameTests",
+      "dev.convergence.MenuTrackingGameTests"
     ]
   },
-  "mixins": ["helper-performance.mixins.json"],
-  "custom": {"infinity-opt-in-gametests": ["dev.convergence.HelperPerformanceBenchmark"]},
+  "mixins": [
+    "helper-performance.mixins.json",
+    "rc-plane-performance.mixins.json",
+    "menu-tracking.mixins.json",
+    "backpack-serialization.mixins.json"
+  ],
+  "custom": {
+    "infinity-opt-in-gametests": [
+      "dev.convergence.HelperPerformanceBenchmark"
+    ]
+  },
   "depends": {
     "convergence": "*"
   }

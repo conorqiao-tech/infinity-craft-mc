@@ -1,4 +1,4 @@
-# Reliability and helper work — explore.29
+# Reliability and helper work — explore.30
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
 
@@ -20,6 +20,19 @@ This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. I
 | A dead Hardcore player requests respawn while its fallback destination is unavailable. | Native respawn can remove the old player before the mod's destination finder fails. | A passive preflight runs before that replacement. Failure sends a host-repair message and closes normally with the original player saved. A real 26.3 login task reloads that realm and inventory; repairing the border permits normal respawn. Anchor death consumes one charge; preflight, alive requests and End credits consume no extra charge. Ordinary Survival keeps its native single search. |
 | A connection faults with the outbound STATUS encoder installed. | Native error handling tries a disconnect packet that STATUS cannot encode, causing a second encoder error. | Close through native completion with the original fault details. Eleven in-process codec tests cover response/pong, faults, phase changes, other disconnect protocols, timeout, skipped packets and closed channels. The specific trigger of the earlier live connection fault is still unknown. |
 | Six Regular helpers compare several hostile targets. | Each tie comparison can scan the loaded helper roster again for shared focus. | Build one lazy identity set per helper control only when a comparison needs it. Later helpers still observe earlier helpers' current targets. Native tests keep independent candidate queries, sight/range checks, target priority and both player-target approvals. |
+
+## Additional maintenance and tick fixes in explore.30
+
+| Trigger | Previous behavior | Corrected behavior and regression |
+| --- | --- | --- |
+| A helper proposal expires, or a target dies/leaves, while its backup cannot be written. | An automatic save throws through a tick or lifecycle callback. | Revocation immediately removes the live session and makes the request terminal. Failed writes retry after five seconds with one diagnostic per failure streak; shutdown makes one dirty-only final attempt. Real filesystem obstruction tests preserve the original, prove recovery and reject reopening a stale target when startup cancellation cannot be saved. Explicit approval/consumption saves still fail before dispatch. |
+| A clear RC plane candidate checks its nine overlapping parts. | Each part repeats a living-entity query; an obstruction overlay repeats each tick. | One broad query is followed by all nine exact native intersections, preserving empty union corners and alive/spectator exclusions. Block, border and loaded guards run first. Warnings are immediate and refresh every ten ticks; clearance resets them. Native query counters and world fixtures cover rotations, obstructions, recall and permission loss. |
+| Native backpack shift-transfer repeatedly notifies the same final contents. | Each notification encodes all 27 slots again. Codec partial output can replace storage; an overstack accepted by the codec cannot be reopened. | A bounded copied-stack snapshot skips identical saves. Component changes persist immediately. Codec errors and invalid per-item counts leave original NBT and the snapshot intact. Real transfers, player serialization and count100/count65 fault/recovery checks verify conservation and retry. |
+| API helper history validates up to 24 saved identities each tick. | Every identity searches the roster again by owner/name. | Direct saved-ID lookup still requires the same record object, exact owner/name and current OP4. Native tracking observes 24 lookups with no roster-entry traversal and rejects replaced/recreated records and permission loss. |
+| A full Creative inventory has no gear picker. | The registered tick checks once, then its recovery method checks again. | Call recovery once: one scan of 36 slots. Real direct slot replacement, full inventory and next-tick recovery checks preserve immediate behavior without relying on an inventory revision counter. |
+| A navigator checks ownership. | It copies custom NBT twice and parses the owner UUID before comparison. | One copy checks the recovery-compass item, native numeric marker and exact canonical owner UUID. Native tests retain accepted numeric marker types and reject malformed/foreign ownership without changing the tag. |
+
+The counters establish fewer repeated operations, not a whole-server TPS or latency improvement. Capacity-packet amplification during unchanged armor effect renewals remains a separate optimization candidate. Both chestplate choices and the existing artwork remain available. No live installation is implied by the source version.
 
 ## Player checks after an approved installation
 

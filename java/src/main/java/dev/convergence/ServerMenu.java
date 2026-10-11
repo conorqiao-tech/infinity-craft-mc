@@ -72,8 +72,12 @@ final class ServerMenu {
     }
 
     private static boolean owned(ItemStack stack, ServerPlayer player) {
-        return isNavigator(stack) && stack.get(DataComponents.CUSTOM_DATA).copyTag()
-            .getStringOr(OWNER, "").equals(player.getStringUUID());
+        if (!stack.is(Items.RECOVERY_COMPASS)) return false;
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (data == null) return false;
+        var nbt = data.copyTag();
+        // Equality with the player's canonical UUID already guarantees a valid owner.
+        return nbt.getIntOr(MARKER, 0) == 1 && nbt.getStringOr(OWNER, "").equals(player.getStringUUID());
     }
 
     private static boolean menuControl(ItemStack stack) {

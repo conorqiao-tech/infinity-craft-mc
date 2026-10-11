@@ -1,4 +1,6 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.28
+# Infinity Armor Exploration Server — 2.13.0-explore.30
+
+Explore.30 reduces repeated plane, backpack and menu/helper work, and retries failed automatic AI-order revocation saves safely. Explicit action execution still requires both reviews and a successful save. It retains the original Infinity artwork, Aurora/Convergence inventory filters, the separate solid Convergence chestplate and existing wings. See [RELIABILITY.md](RELIABILITY.md) and [VALIDATION.md](VALIDATION.md) for the actual checks and remaining client limits.
 
 Explore.28 improves dashboard responsiveness, safe server-process cleanup and logging, participant-only native saves, minigame selection/leaderboard persistence and background host-status writes. It also fixes duplicate grants of worn/offhand gear and restores earned backpack colors. See [RELIABILITY.md](RELIABILITY.md) for reproductions, tests and remaining limits. Source/package is **explore.28**; the live server remains **explore.26** pending separate installation approval.
 
@@ -12,7 +14,7 @@ Explore.22 adds **The Odyssey**: rare circuit ruins in new Overworld, Nether and
 
 
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 6, 2026. The combined 26.3 build retains the refreshed Java and native Bedrock armor, tools, menus, stats and helpers. Accept the updated resource pack when joining.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 11, 2026. The combined 26.3 build retains the refreshed Java and native Bedrock armor, tools, menus, stats and helpers. Accept the updated resource pack when joining.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 

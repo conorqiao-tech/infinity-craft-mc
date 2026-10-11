@@ -107,16 +107,34 @@ final class BackpackStorage {
     }
     static void write(ServerPlayer p,String mode,List<ItemStack> stacks) {
         if(stacks.size()!=SIZE)throw new IllegalArgumentException("Backpack size");
-        var view=TagValueOutput.createWithContext(ProblemReporter.DISCARDING,p.registryAccess());view.store("items",ItemStack.OPTIONAL_CODEC.listOf(),stacks);
+        var problems=new ProblemReporter.Collector();
+        var view=TagValueOutput.createWithContext(problems,p.registryAccess());view.store("items",ItemStack.OPTIONAL_CODEC.listOf(),stacks);
+        if(!problems.isEmpty())throw new IllegalStateException("Backpack serialization failed; original storage preserved: "+problems.getReport());
+        if(stacks.stream().anyMatch(s->!s.isEmpty()&&(s.getCount()<1||s.getCount()>s.getMaxStackSize())))
+            throw new IllegalStateException("Invalid saved backpack size/count; original storage preserved");
         var all=GameModes.state(p).getCompoundOrEmpty(STORAGE);all.put(mode,view.buildResult());GameModes.state(p).put(STORAGE,all);
     }
     static final class Storage extends SimpleContainer {
         final ServerPlayer owner;final String mode;boolean loading=true;
+        private ItemStack[] lastSerialized;
         Storage(ServerPlayer owner) {
             super(SIZE);this.owner=owner;this.mode=modeKey(owner);var saved=read(owner,mode);
-            for(int i=0;i<SIZE;i++)super.setItem(i,saved.get(i));loading=false;
+            for(int i=0;i<SIZE;i++)super.setItem(i,saved.get(i));
+            lastSerialized=copyContents();loading=false;
         }
-        @Override public void setChanged(){super.setChanged();if(!loading){var stacks=new ArrayList<ItemStack>();for(int i=0;i<SIZE;i++)stacks.add(getItem(i));write(owner,mode,stacks);}}
+        private ItemStack[] copyContents() {
+            var copy=new ItemStack[SIZE];for(int i=0;i<SIZE;i++)copy[i]=getItem(i).copy();return copy;
+        }
+        @Override public void setChanged() {
+            super.setChanged();if(loading)return;
+            boolean unchanged=true;
+            for(int i=0;i<SIZE;i++)if(!ItemStack.matches(getItem(i),lastSerialized[i])){unchanged=false;break;}
+            if(unchanged)return;
+            var stacks=new ArrayList<ItemStack>(SIZE);for(int i=0;i<SIZE;i++)stacks.add(getItem(i));
+            write(owner,mode,stacks);
+            // Native slots notify repeatedly; only a successful immediate save advances this snapshot.
+            lastSerialized=copyContents();
+        }
         @Override public boolean stillValid(Player p){return p==owner&&storageAllowed(owner)&&modeKey(owner).equals(mode);}
     }
     static int open(ServerPlayer p) {

@@ -13,9 +13,9 @@ See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iP
 
 The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.26**, installed with a verified stopped-world backup on October 11, 2026. Its new features are available through Infinity Menu. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
 
-## Prepared next update: explore.29
+## Prepared next update: explore.30
 
-The source includes original Infinity artwork, **Aurora Set** and **Convergence Set** inventory filters, a separate solid Convergence chestplate and the existing winged item. Dashboard reads and status writes avoid blocking normal game ticks; progression saves only the players involved. Unsafe mode changes preserve inventory, failed death respawns close with a repair message before replacing the player, and STATUS connections close without encoding an unsupported disconnect packet. Helper focus selection avoids repeated peer scans while retaining range, sight and player-target approvals. See [reliability details](server/RELIABILITY.md) and [validation](server/VALIDATION.md). The owner's running server remains explore.26 until a separately approved installation.
+The source includes original Infinity artwork, **Aurora Set** and **Convergence Set** inventory filters, a separate solid Convergence chestplate and the existing winged item. Dashboard reads and status writes avoid blocking normal game ticks; progression saves only the players involved. Unsafe mode changes preserve inventory, failed death respawns close with a repair message before replacing the player, and STATUS connections close without encoding an unsupported disconnect packet. Helper focus selection avoids repeated peer scans while retaining range, sight and player-target approvals. RC planes use one exact collision query per clear candidate, backpack saves skip unchanged contents, and helper/menu tracking avoids duplicate scans. Automatic AI-order revocations retry failed saves without crashing game ticks; execution still requires both approvals and a successful synchronous save. See [reliability details](server/RELIABILITY.md) and [validation](server/VALIDATION.md). The owner's running server remains explore.26 until a separately approved installation.
 
 ## New in explore.25
 

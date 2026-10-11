@@ -41,9 +41,9 @@ final class AgentChat {
     record Identity(String id, AgentCompanions.Agent record) {
         boolean current(AgentCompanions companions, ServerPlayer owner, String name) {
             if (!AgentCompanions.operator(owner.createCommandSourceStack())) return false;
-            var entry = companions.owned(owner, name);
             // Record identity also rejects a dismiss/recreate or profile change away and back.
-            return entry != null && entry.getKey().equals(id) && entry.getValue() == record;
+            return record != null && companions.data.agents.get(id) == record
+                && record.owner().equals(owner.getStringUUID()) && record.name().equals(name);
         }
     }
 
