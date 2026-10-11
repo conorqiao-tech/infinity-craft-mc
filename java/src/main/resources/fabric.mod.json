@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "convergence",
+  "version": "${version}",
+  "name": "Infinity Armor Crossplay",
+  "description": "Infinity armor, custom tools and blocks, shared Java-Bedrock game modes, minigames, adventure maps, and earnable rewards.",
+  "authors": [
+    "ShioCoder project"
+  ],
+  "environment": "server",
+  "entrypoints": {
+    "main": [
+      "dev.convergence.Convergence"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "polymer-core": ">=0.15.2",
+    "polymer-blocks": ">=0.15.2",
+    "polymer-resource-pack": ">=0.15.2",
+    "floodgate": "*"
+  },
+  "mixins": [
+    "infinity.mixins.json"
+  ]
+}
