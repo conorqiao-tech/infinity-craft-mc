@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "convergence:aurora_refresh19"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "convergence:aurora_refresh19"
+      }
+    ]
+  }
+}
