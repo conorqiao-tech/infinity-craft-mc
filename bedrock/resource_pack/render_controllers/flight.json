@@ -1,0 +1,17 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.flight_chest": {
+      "geometry": "Geometry.infinity_armor",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.infinity_armor_enchanted : Material.infinity_armor"
+        }
+      ],
+      "textures": [
+        "Texture.infinity_armor",
+        "Texture.enchanted"
+      ]
+    }
+  }
+}

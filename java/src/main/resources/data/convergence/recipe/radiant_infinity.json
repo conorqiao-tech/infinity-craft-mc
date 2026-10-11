@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "result": {
+    "id": "convergence:radiant_infinity",
+    "count": 1
+  },
+  "pattern": [
+    " G ",
+    "GIG",
+    " G "
+  ],
+  "key": {
+    "G": "minecraft:glowstone_dust",
+    "I": "convergence:infinity_block"
+  }
+}

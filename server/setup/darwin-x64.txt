@@ -1,0 +1,2 @@
+https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-apple-darwin-install_only_stripped.tar.gz
+327814efd865a0b6a99c149b12a261e9d0ad409183515c745d41bda2d07282e9
