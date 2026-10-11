@@ -1,0 +1,15 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.flight_wings": {
+      "geometry": "Geometry.default",
+      "materials": [{"*": "variable.convergence_flight_visual == 2 ? Material.enchanted : Material.default"}],
+      "textures": ["Texture.infinity_wings", "Texture.enchanted"]
+    },
+    "controller.render.convergence.flight_chest": {
+      "geometry": "Geometry.infinity_armor",
+      "materials": [{"*": "variable.convergence_flight_visual == 2 ? Material.infinity_armor_enchanted : Material.infinity_armor"}],
+      "textures": ["Texture.infinity_armor", "Texture.enchanted"]
+    }
+  }
+}
