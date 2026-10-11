@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SMS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:stone",
+    "M": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "convergence:aurora_tiles",
+    "count": 8
+  }
+}

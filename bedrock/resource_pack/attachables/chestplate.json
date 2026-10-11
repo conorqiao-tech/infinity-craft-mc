@@ -1,0 +1,41 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "convergence:chestplate",
+      "materials": {
+        "default": "armor",
+        "enchanted": "armor_enchanted",
+        "wing": "elytra",
+        "wing_enchanted": "elytra_glint"
+      },
+      "textures": {
+        "default": "textures/convergence/models/armor/armor_1",
+        "enchanted": "textures/misc/enchanted_actor_glint",
+        "wing": "textures/convergence/models/armor/armor_wings"
+      },
+      "geometry": {
+        "default": "geometry.humanoid.armor.chestplate",
+        "wing": "geometry.elytra"
+      },
+      "scripts": {
+        "parent_setup": "variable.chest_layer_visible = 0.0;",
+        "animate": [
+          "wing_controller"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.armor",
+        "controller.render.convergence.wings"
+      ],
+      "animations": {
+        "wing_controller": "controller.animation.elytra.default",
+        "default": "animation.elytra.default",
+        "gliding": "animation.elytra.gliding",
+        "sneaking": "animation.elytra.sneaking",
+        "sleeping": "animation.elytra.sleeping",
+        "swimming": "animation.elytra.swimming"
+      }
+    }
+  }
+}
