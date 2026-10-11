@@ -1,0 +1,21 @@
+{
+  "required": true,
+  "package": "dev.convergence.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ModePlayerMixin",
+    "ModeEntityMixin",
+    "ModeDifficultyMixin",
+    "AgentGoalAccess",
+    "AgentConsoleSourceAccess",
+    "AdminStatGolemMixin",
+    "AdminAttributeMixin",
+    "AgentFlightAccess",
+    "AgentWeaponMixin",
+    "AgentPierceMixin",
+    "AgentMaceMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

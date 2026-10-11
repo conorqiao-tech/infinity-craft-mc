@@ -1,0 +1,38 @@
+{
+  "resource_pack_name": "convergence_one_set",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "convergence_infinity_block": {
+      "textures": "textures/convergence/blocks/infinity_block"
+    },
+    "convergence_polished_infinity": {
+      "textures": "textures/convergence/blocks/polished_infinity"
+    },
+    "convergence_infinity_bricks": {
+      "textures": "textures/convergence/blocks/infinity_bricks"
+    },
+    "convergence_radiant_infinity": {
+      "textures": "textures/convergence/blocks/radiant_infinity"
+    },
+    "convergence_moonstone": {
+      "textures": "textures/convergence/blocks/moonstone"
+    },
+    "convergence_aurora_tiles": {
+      "textures": "textures/convergence/blocks/aurora_tiles"
+    },
+    "convergence_obsidian_lattice": {
+      "textures": "textures/convergence/blocks/obsidian_lattice"
+    },
+    "convergence_verdant_mosaic": {
+      "textures": "textures/convergence/blocks/verdant_mosaic"
+    },
+    "convergence_sunstone_lamp": {
+      "textures": "textures/convergence/blocks/sunstone_lamp"
+    },
+    "convergence_copper_circuit": {
+      "textures": "textures/convergence/blocks/copper_circuit"
+    }
+  }
+}

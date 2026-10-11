@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "convergence:ember_armor"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "convergence:ember_armor"
+      }
+    ]
+  }
+}
