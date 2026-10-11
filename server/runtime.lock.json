@@ -1,0 +1,66 @@
+{
+  "python_version": "3.13.15+20260924",
+  "java_version": "25.0.4.1+1",
+  "platforms": {
+    "darwin-arm64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "sha256": "064afb7c2fc0bbf511d886288adf98696af5105e36c138cdf2c199c0146fcf68",
+        "filename": "cpython-3.13.15+20260924-aarch64-apple-darwin-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_aarch64_mac_hotspot_25.0.4.1_1.tar.gz",
+        "sha256": "5b02bcc908da092e7e00b9772d4f9bbb87f44a60b7c90f7cf5a91a1d98f37e1b",
+        "filename": "OpenJDK25U-jre_aarch64_mac_hotspot_25.0.4.1_1.tar.gz"
+      }
+    },
+    "darwin-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-apple-darwin-install_only_stripped.tar.gz",
+        "sha256": "327814efd865a0b6a99c149b12a261e9d0ad409183515c745d41bda2d07282e9",
+        "filename": "cpython-3.13.15+20260924-x86_64-apple-darwin-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_mac_hotspot_25.0.4.1_1.tar.gz",
+        "sha256": "099cbc182af99ab454991a4230f0bdbf2b2ee3f61ce462d637aceaa12709380d",
+        "filename": "OpenJDK25U-jre_x64_mac_hotspot_25.0.4.1_1.tar.gz"
+      }
+    },
+    "linux-arm64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "5ad58156cbec94e5643c13caa792e92df72a23f33d3a6425d4cbff5c4b7a040c",
+        "filename": "cpython-3.13.15+20260924-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_aarch64_linux_hotspot_25.0.4.1_1.tar.gz",
+        "sha256": "34828cbb93ed31c281c84ecb31ddab655d11a802f263c1fc019d42e9e0230fed",
+        "filename": "OpenJDK25U-jre_aarch64_linux_hotspot_25.0.4.1_1.tar.gz"
+      }
+    },
+    "linux-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "d0b640eed27fbdd6f5f2bd33444aee53df2c8863f8b2a96f4094717411e3de9c",
+        "filename": "cpython-3.13.15+20260924-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz",
+        "sha256": "1731a34baadec5479258ea0202e4d5d865d2efeee60cb0c7d7eb056fe96ca219",
+        "filename": "OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz"
+      }
+    },
+    "windows-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+        "sha256": "e42fa944748a50e9ff481cbb817ef8a6e3da6fbcf0cf6f29b554e1acb8c7384d",
+        "filename": "cpython-3.13.15+20260924-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip",
+        "sha256": "4c95451cea98556def2c54f7782933f52a26d4a36bd85e1d59f0364464828b07",
+        "filename": "OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip"
+      }
+    }
+  }
+}

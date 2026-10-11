@@ -1,0 +1,7 @@
+{
+  "type": "convergence:odyssey_ruin",
+  "biomes": "#convergence:has_structure/odyssey_ruin",
+  "step": "surface_structures",
+  "spawn_overrides": {},
+  "terrain_adaptation": "none"
+}

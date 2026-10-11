@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:mace",
+    "count": 1
+  },
+  "pattern": [
+    "IHI",
+    "IBI",
+    " S "
+  ],
+  "key": {
+    "I": "convergence:ingot",
+    "S": "minecraft:stick",
+    "H": "minecraft:heavy_core",
+    "B": "minecraft:breeze_rod"
+  }
+}

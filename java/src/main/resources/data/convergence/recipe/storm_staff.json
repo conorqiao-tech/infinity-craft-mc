@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [" I ", "IAI", " B "],
+  "key": {
+    "I": "convergence:ingot",
+    "A": "minecraft:amethyst_shard",
+    "B": "minecraft:blaze_rod"
+  },
+  "result": {"id": "convergence:storm_staff", "count": 1}
+}
