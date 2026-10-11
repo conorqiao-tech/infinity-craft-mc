@@ -363,7 +363,7 @@ public class AdminStatsMenuGameTests {
                 wire.set(net.minecraft.core.component.DataComponents.EQUIPPABLE,item.components().get(net.minecraft.core.component.DataComponents.EQUIPPABLE));
                 CrossplaySupport.wearableFallback(wire,wire.getItem(),true,true);
                 c.assertValueEqual(wire.get(net.minecraft.core.component.DataComponents.EQUIPPABLE),wire.getItem().components().get(net.minecraft.core.component.DataComponents.EQUIPPABLE),"Bedrock always uses native armor assets even if Java pack state is enabled");
-                c.assertTrue(CrossplaySupport.nativeAppearance("aurora_"+part,true,true),"Bedrock cosmetic icon uses its native wearable model");
+                c.assertFalse(CrossplaySupport.nativeAppearance("aurora_"+part,true,true),"Bedrock selects item-specific artwork while retaining the native equip slot");
             }
             c.assertFalse(CrossplaySupport.nativeAppearance("sword",true,false),"Mapped weapon artwork remains custom on Bedrock");
         } finally {cleanup(admin);}

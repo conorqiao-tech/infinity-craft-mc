@@ -64,7 +64,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "EXPERIENCE_POLISH.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
@@ -98,7 +98,7 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/odyssey", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/odyssey", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()

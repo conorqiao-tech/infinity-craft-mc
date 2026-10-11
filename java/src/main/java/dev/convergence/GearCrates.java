@@ -27,7 +27,11 @@ final class GearCrates {
     private GearCrates() {}
 
     static final List<String> STARTER=List.of("sword","mace","spear","pickaxe","axe","shovel","hoe",
-        "helmet","chestplate","leggings","boots","shield","totem","bow","crossbow","builder_wand","sculptor_wand");
+        "helmet","cuirass","chestplate","leggings","boots","shield","totem","bow","crossbow","builder_wand","sculptor_wand");
+    static final List<String> CONVERGENCE_SET=List.of("helmet","cuirass","leggings","boots","chestplate");
+    static final List<String> AURORA_SET=List.of("aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots");
+    static final List<String> EMBER_SET=List.of("ember_helmet","ember_chestplate","ember_leggings","ember_boots");
+    private static final int CATALOG_REVISION=27;
     /** Real equipment goes into empty player slots; never replace or drop owned items. */
     static int giveDirect(ServerPlayer player) {
         if(!ServerMenu.gearAllowed(player)||player.containerMenu!=player.inventoryMenu
@@ -44,32 +48,43 @@ final class GearCrates {
             player.getInventory().setItem(slot,new ItemStack(item));added++;
         }
         player.inventoryMenu.sendAllDataToRemote();
+        if(missing==0)GameModes.state(player).putBoolean("direct_gear27_"+GameModes.current(player).name().toLowerCase(java.util.Locale.ROOT),true);
         player.sendSystemMessage(Component.literal("Added "+added+" armor pieces, weapons and tools directly to your inventory."
             +(missing>0?" Clear "+missing+" slots, then use Armor & tools → inventory to collect the rest.":" Open your inventory to move or equip them; no boxes or command needed.")));
         return missing==0?1:0;
     }
 
     static List<ItemStack> crates() {
-        var gear=new ArrayList<ItemStack>();
-        Convergence.ITEMS.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry->{
-            var item=entry.getValue();gear.add(new ItemStack(item,item.getDefaultMaxStackSize()>1?item.getDefaultMaxStackSize():1));
-        });
-        gear.add(new ItemStack(Items.FIREWORK_ROCKET,64));gear.add(new ItemStack(Items.WHEAT_SEEDS,64));
         var result=new ArrayList<ItemStack>();
+        result.add(crate(Items.DYED_SHULKER_BOX.purple(),"Convergence Set • Armor & Wings",CONVERGENCE_SET.stream().map(GearCrates::stack).toList()));
+        result.add(crate(Items.DYED_SHULKER_BOX.cyan(),"Aurora Set • All Four Pieces",AURORA_SET.stream().map(GearCrates::stack).toList()));
+        result.add(crate(Items.DYED_SHULKER_BOX.orange(),"Ember Set • All Four Pieces",EMBER_SET.stream().map(GearCrates::stack).toList()));
+        var grouped=new java.util.HashSet<String>(CONVERGENCE_SET);grouped.addAll(AURORA_SET);grouped.addAll(EMBER_SET);
+        var gear=new ArrayList<ItemStack>();
+        Convergence.ITEMS.keySet().stream().map(name->name.split(":")[1]).filter(path->!grouped.contains(path)).sorted().forEach(path->gear.add(stack(path)));
+        gear.add(new ItemStack(Items.FIREWORK_ROCKET,64));gear.add(new ItemStack(Items.WHEAT_SEEDS,64));
         for(int start=0;start<gear.size();start+=27) {
-            var crate=new ItemStack(start==0?Items.DYED_SHULKER_BOX.purple():Items.DYED_SHULKER_BOX.cyan());
-            crate.set(DataComponents.CONTAINER,ItemContainerContents.fromItems(gear.subList(start,Math.min(start+27,gear.size()))));
-            crate.set(DataComponents.CUSTOM_NAME,Component.literal("Convergence Set • Box "+(result.size()+1)));
-            crate.set(DataComponents.LORE,new ItemLore(List.of(Component.literal("Place this box and open it to take real Infinity gear."))));
-            var marker=new CompoundTag();marker.putBoolean("infinity_gear_crate",true);
-            crate.set(DataComponents.CUSTOM_DATA,CustomData.of(marker));result.add(crate);
+            result.add(crate(Items.DYED_SHULKER_BOX.cyan(),"Infinity Tools & Blocks • Box "+(start/27+1),gear.subList(start,Math.min(start+27,gear.size()))));
         }
         return List.copyOf(result);
     }
 
+    private static ItemStack stack(String path) {
+        var item=Convergence.ITEMS.get("convergence:"+path);
+        return new ItemStack(item,item.getDefaultMaxStackSize());
+    }
+
+    private static ItemStack crate(net.minecraft.world.item.Item item,String name,List<ItemStack> contents) {
+        var box=new ItemStack(item);box.set(DataComponents.CONTAINER,ItemContainerContents.fromItems(contents));
+        box.set(DataComponents.CUSTOM_NAME,Component.literal(name));
+        box.set(DataComponents.LORE,new ItemLore(List.of(Component.literal("Place this box and open it to take real Infinity gear."))));
+        var marker=new CompoundTag();marker.putBoolean("infinity_gear_crate",true);marker.putInt("infinity_catalog_revision",CATALOG_REVISION);
+        box.set(DataComponents.CUSTOM_DATA,CustomData.of(marker));return box;
+    }
+
     static boolean isCrate(ItemStack stack) {
         var data=stack.get(DataComponents.CUSTOM_DATA);
-        return (stack.is(Items.DYED_SHULKER_BOX.purple())||stack.is(Items.DYED_SHULKER_BOX.cyan()))&&data!=null
+        return (stack.is(Items.DYED_SHULKER_BOX.purple())||stack.is(Items.DYED_SHULKER_BOX.cyan())||stack.is(Items.DYED_SHULKER_BOX.orange()))&&data!=null
             &&data.copyTag().getBooleanOr("infinity_gear_crate",false);
     }
 
@@ -103,10 +118,11 @@ final class GearCrates {
             || !player.inventoryMenu.getCarried().isEmpty())return 0;
         var boxes=crates();var empty=new ArrayList<Integer>();
         for(int i=0;i<36;i++)if(player.getInventory().getItem(i).isEmpty())empty.add(i);
-        if(empty.size()<boxes.size()) { player.sendSystemMessage(Component.literal("Clear "+boxes.size()+" inventory slots for the Convergence Set boxes. Your items were preserved."));return 0; }
+        if(empty.size()<boxes.size()) { player.sendSystemMessage(Component.literal("Clear "+boxes.size()+" inventory slots for the labeled armor, tools and blocks boxes. Your items were preserved."));return 0; }
         for(int i=0;i<boxes.size();i++)player.getInventory().setItem(empty.get(i),boxes.get(i));
+        GameModes.state(player).putBoolean("gear_crates27_"+GameModes.current(player).name().toLowerCase(java.util.Locale.ROOT),true);
         player.inventoryMenu.sendAllDataToRemote();
-        player.sendSystemMessage(Component.literal("Convergence Set added to your inventory. Place the labeled shulker boxes and open them for weapons, armor, tools and blocks."));return 1;
+        player.sendSystemMessage(Component.literal("Convergence, Aurora and Ember sets added to your inventory with the tools and blocks boxes. Place a labeled box and open it."));return 1;
     }
 
     static void register() {
@@ -124,13 +140,12 @@ final class GearCrates {
                 }
                 if(CHECKED.get(player.getUUID())==mode || player.containerMenu!=player.inventoryMenu)continue;
                 CHECKED.put(player.getUUID(),mode);
-                String direct="direct_gear14_"+mode.name().toLowerCase(java.util.Locale.ROOT);
+                String direct="direct_gear27_"+mode.name().toLowerCase(java.util.Locale.ROOT);
                 if(!GameModes.state(player).getBooleanOr(direct,false)) {
-                    giveDirect(player);GameModes.state(player).putBoolean(direct,true);
+                    if(giveDirect(player)==1)GameModes.state(player).putBoolean(direct,true);
                 }
-                String flag="gear_crates_"+mode.name().toLowerCase(java.util.Locale.ROOT);
-                boolean present=false;for(int i=0;i<36;i++)if(isCrate(player.getInventory().getItem(i)))present=true;
-                if(present || GameModes.state(player).getBooleanOr(flag,false))continue;
+                String flag="gear_crates27_"+mode.name().toLowerCase(java.util.Locale.ROOT);
+                if(GameModes.state(player).getBooleanOr(flag,false))continue;
                 if(give(player)==1)GameModes.state(player).putBoolean(flag,true);
                 // A full inventory can always retry from the main menu; avoid per-tick notices.
             }

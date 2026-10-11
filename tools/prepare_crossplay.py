@@ -10,7 +10,7 @@ import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.26"
+VERSION = "2.13.0-explore.27"
 
 
 def expected_native_tests():
@@ -56,7 +56,9 @@ def prepare():
         if re.fullmatch(r"textures/models/armor/(netherite|leather)_[12]\.png",name) or re.fullmatch(r"textures/items/(netherite|leather)_(helmet|chestplate|leggings|boots)\.png",name):
             del files[name]
             continue
-        if name.startswith("attachables/") and name not in ["attachables/helmet.json", "attachables/leggings.json", "attachables/boots.json", "attachables/elytra.json"]:
+        # Only item-specific static armor and the existing native flight attachable.
+        # Exclude legacy duplicates and unsupported custom-glider definitions.
+        if name.startswith("attachables/") and name != "attachables/elytra.json" and not name.startswith("attachables/refresh27/"):
             del files[name]
         if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json"]:
             del files[name]
@@ -76,11 +78,11 @@ def prepare():
     atlas = json.loads(files["textures/item_texture.json"])
     for texture in sorted((resources / "textures/convergence/blocks").glob("*.png")):
         name = texture.stem
-        atlas["texture_data"]["convergence_" + name] = {"textures": "textures/convergence/blocks/" + name}
+        atlas["texture_data"].setdefault("convergence_" + name, {"textures": "textures/convergence/blocks/" + name})
     files["textures/item_texture.json"] = (json.dumps(atlas, indent=2) + "\n").encode()
     terrain = json.loads(files["textures/terrain_texture.json"])
     for texture in sorted((resources / "textures/convergence/blocks").glob("*.png")):
-        terrain["texture_data"]["convergence_" + texture.stem] = {"textures": "textures/convergence/blocks/" + texture.stem}
+        terrain["texture_data"].setdefault("convergence_" + texture.stem, {"textures": "textures/convergence/blocks/" + texture.stem})
     files["textures/terrain_texture.json"] = (json.dumps(terrain, indent=2) + "\n").encode()
     language = json.loads((ROOT / "java/src/main/resources/assets/convergence/lang/en_us.json").read_text())
     files["texts/en_US.lang"] += ("\n" + "\n".join(k + "=" + v for k, v in language.items()) + "\n").encode()

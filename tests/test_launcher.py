@@ -217,7 +217,7 @@ class LauncherTests(unittest.TestCase):
                     self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
                 for slot in ("helmet", "chestplate", "leggings", "boots"):
                     self.assertNotIn(f"textures/items/{material}_{slot}.png",pack.namelist())
-            chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh19/chestplate.png"
+            chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh27/chestplate.png"
             for name in ("elytra", "broken_elytra"):
                 self.assertEqual(pack.read(f"textures/items/{name}.png"), chest_icon.read_bytes())
             desc = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
@@ -246,11 +246,16 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 20)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 20)
+        self.assertEqual(len(definitions), 38)
+        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 38)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
-        native_wearables={"helmet","chestplate","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
-        self.assertTrue(native_wearables.isdisjoint({entry["bedrock_identifier"].split(":")[-1] for entry in definitions}), "Native equipment assets must not be replaced by broken custom wearable definitions")
+        static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
+        mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}
+        self.assertNotIn("chestplate",mapped,"Keep the existing glider on native elytra behavior")
+        self.assertTrue(static_wearables.issubset(mapped))
+        for path in static_wearables:
+            self.assertEqual(mapped[path]["components"]["minecraft:max_stack_size"],1,"Bedrock custom wearables require max stack one")
+            self.assertIn("slot",mapped[path]["components"]["minecraft:equippable"])
         self.assertTrue(all(not entry["display_name"].startswith(("item.","block.")) for entry in definitions), "Custom mappings use literal human names")
         blocks = json.loads((exports / "infinity-blocks.json").read_text())
         self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 10)

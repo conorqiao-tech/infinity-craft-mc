@@ -211,7 +211,7 @@ public class Convergence implements ModInitializer {
 
          b.set(DataComponents.ATTRIBUTE_MODIFIERS, armor.build());
          ResourceKey<EquipmentAsset> model = ResourceKey.create(
-            ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft", "equipment_asset")), Identifier.fromNamespaceAndPath(id.getNamespace(), "armor")
+            ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft", "equipment_asset")), Identifier.fromNamespaceAndPath(id.getNamespace(), id.getPath().equals("cuirass") ? "cuirass" : "armor")
          );
          b.set(DataComponents.EQUIPPABLE, Equippable.builder(eq.slot()).setAsset(model).setDamageOnHurt(false).build());
       });
@@ -632,7 +632,8 @@ public class Convergence implements ModInitializer {
 
    static void armor(ServerPlayer p) {
       boolean head = id(p.getItemBySlot(EquipmentSlot.HEAD)).equals("convergence:helmet");
-      boolean chest = id(p.getItemBySlot(EquipmentSlot.CHEST)).equals("convergence:chestplate");
+      String chestId = id(p.getItemBySlot(EquipmentSlot.CHEST));
+      boolean chest = chestId.equals("convergence:chestplate") || chestId.equals("convergence:cuirass");
       boolean legs = id(p.getItemBySlot(EquipmentSlot.LEGS)).equals("convergence:leggings");
       boolean feet = id(p.getItemBySlot(EquipmentSlot.FEET)).equals("convergence:boots");
       if (head) {

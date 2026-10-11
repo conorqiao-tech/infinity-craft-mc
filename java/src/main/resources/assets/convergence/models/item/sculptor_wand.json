@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "convergence:item/refresh19/sculptor_wand"
+    "layer0": "convergence:item/refresh27/sculptor_wand"
   }
 }

@@ -45,12 +45,10 @@ final class CrossplaySupport {
     static final Map<String, Item> BASES = new LinkedHashMap<>();
     static final Map<String, BlockState> BLOCK_STATES = new LinkedHashMap<>();
     // Bedrock custom items cannot reproduce all native shield/glider/projectile behavior.
-    // Preserve native controls. The Bedrock pack restyles shared native armor textures
-    // and the elytra attachable; native ranged/offhand artwork remains unchanged.
-    static final Set<String> NATIVE_BEDROCK = Set.of("helmet", "chestplate", "leggings", "boots", "shield", "totem", "bow", "crossbow",
-        "infinity_arrow", "void_arrow", "starfire_arrow", "backpack",
-        "aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots",
-        "ember_helmet","ember_chestplate","ember_leggings","ember_boots","blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
+    // Static armor uses item-specific attachables, never shared native armor textures.
+    // Keep native flight, ranged and offhand behavior where a custom definition loses it.
+    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate", "shield", "totem", "bow", "crossbow",
+        "infinity_arrow", "void_arrow", "starfire_arrow");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
         "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
 
@@ -73,6 +71,7 @@ final class CrossplaySupport {
     static void register() {
         BASES.put("helmet", Items.NETHERITE_HELMET);
         BASES.put("chestplate", Items.ELYTRA);
+        BASES.put("cuirass", Items.NETHERITE_CHESTPLATE);
         BASES.put("leggings", Items.NETHERITE_LEGGINGS);
         BASES.put("boots", Items.NETHERITE_BOOTS);
         BASES.put("sword", Items.NETHERITE_SWORD);
@@ -122,9 +121,9 @@ final class CrossplaySupport {
                     out.set(DataComponents.ITEM_NAME,GearNames.text(entry.getKey()));
                     var customName=stack.get(DataComponents.CUSTOM_NAME);
                     if(customName!=null)out.set(DataComponents.CUSTOM_NAME,GearNames.readableName(customName));
-                    // A custom Java equipment asset is invisible/missing when its pack
-                    // was declined, and unsupported for native Bedrock wearable mappings.
-                    // Keep a complete native wearable asset until the Java pack is loaded.
+                    // A native equipment component preserves the slot on Bedrock; its
+                    // item-model mapping selects the custom attachable. Java without
+                    // the pack still needs the complete native worn asset.
                     wearableFallback(out,entry.getValue(),bedrock(PolymerCommonUtils.getPlayer(context)),PolymerResourcePackUtils.hasMainPack(context));
                 }
                 @Override public boolean handleMiningOnServer(ItemStack tool, BlockState state, BlockPos pos, ServerPlayer player) {
@@ -214,7 +213,7 @@ final class CrossplaySupport {
             // Geyser 2.11 cannot translate a Bedrock Creative-list drag for custom
             // definitions back to a Java item. Keep the item mapping and texture,
             // but grant real gear into the player inventory from server controls.
-            int protection = switch (path) { case "helmet", "boots" -> 6; case "leggings" -> 8; default -> 0; };
+            int protection = switch (path) { case "helmet", "boots" -> 6; case "cuirass" -> 10; case "leggings" -> 8; default -> 0; };
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);
             var components = new JsonObject();

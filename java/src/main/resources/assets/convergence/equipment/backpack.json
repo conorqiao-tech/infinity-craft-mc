@@ -2,10 +2,12 @@
   "layers": {
     "humanoid": [
       {
-        "texture": "convergence:backpack",
-        "dyeable": {
-          "color_when_undyed": 4831653
-        }
+        "texture": "convergence:backpack_refresh27"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "convergence:backpack_refresh27"
       }
     ]
   }

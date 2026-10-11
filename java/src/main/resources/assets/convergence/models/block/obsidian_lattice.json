@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "convergence:block/obsidian_lattice"
+    "all": "convergence:block/refresh27/obsidian_lattice"
   }
 }

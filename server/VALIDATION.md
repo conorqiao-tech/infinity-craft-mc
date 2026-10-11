@@ -1,3 +1,29 @@
+# Original collection artwork and inventory — 2.13.0-explore.27
+
+Validated October 11, 2026 on the unchanged **Minecraft 26.3 / Java 25** stack: **381/381 native GameTests**, **151/151 Python launcher/resource tests**, all **21** reproducible one-chest Odyssey templates, Geyser registration of **38 exported custom item definitions plus its built-in mapping**, **209** block overrides and local UDP response, and **two isolated full-stack startup/cold-lobby/save/backup/restart/clean-shutdown cycles**. Full-stack and Geyser logs contain no ERROR entries. Exact native provenance matches every current Java source and the packaged mod bytes. The owner's playable world was not used for these development checks.
+
+Original artwork now covers four humanoid armor/backpack atlases, 36 registered nonblock gear sprites and ten Infinity block tiles. The source image also contains six supplemental Studio motifs without new gameplay implementations. Thirteen static Bedrock wearables have item-specific attachables and nonstackable slot components. Ordinary leather/netherite remain normal. The new solid Convergence chestplate completes the existing armor powers; the old winged item ID, native flight, original recipe and saved items remain intact. A distinct netherite-chestplate upgrade recipe and native armor/enchantment tags support the solid piece. The Aurora and Convergence filters deliver real items, and five real named shulker boxes cover every registered item exactly once.
+
+## Glitches found and repaired
+
+- With a full inventory, normal tick delivery formerly set the direct-gear completion flag even though items could not be delivered. It now records completion only after all pieces are present. A real server-tick regression fills every slot, checks no false receipt or overwrite, clears room and retries through the actual grant path.
+- Alphabetically mixed generic Convergence boxes hid the Aurora set. Separate Convergence, Aurora and Ember boxes now contain complete named sets; native save/reload and real box placement retain the actual contents. Collection menu transfers, permission loss, preserved previous equipment and pagination pass native checks.
+- Simple equal-height source-atlas crops included small fragments of neighboring icons. Connected sprite bounds now preserve the correct object and paired boots/legs without those fragments. The finished artwork/UV/tiling contact sheets were visually inspected; they are not Minecraft render screenshots.
+- Preparation replaced the newly selected block-atlas references with older root-level PNGs. It now retains explicit refreshed references; the regression reads the actual prepared pack and verifies both item and terrain atlases.
+- Shared native leather/netherite textures cannot distinguish Infinity armor from ordinary armor. Static pieces now select custom identifiers and complete UV faces, without overriding native armor. Geyser accepts all definitions; a real client must still validate appearance.
+
+The first new equipment fixture checked armor before a native player tick installed equipment modifiers; the corrected fixture runs the actual lifecycle tick. Its full-set powers and both chest choices then passed. The initial test compilation also used a collection method on a native stream; that test was corrected. Failed preliminary runs are superseded by the complete passing source-bound report, not reported as passes.
+
+## Limits and delivery state
+
+**Local source/package:** explore.27. **Live server:** explore.26, running after its separately approved installation. This development did not stop, install on, reset or replace the playable world. No new public release or website deployment has been made. See ORIGINAL_ARTWORK.md for the player controls and later installation/device checks.
+
+Actual Java/iPad rendered armor, touch input, authenticated crafting/flight, multiplayer desync and performance under load remain unverified. Native tests and UDP probes do not establish client rendering or joining. The existing native wing item still shares elytra artwork on Bedrock; native shield/totem/bow/crossbow/arrows retain their ordinary Bedrock images and behavior. Java without its resource pack retains native wearable fallback. Tidewarden and other native Studio outfits remain their established equipment. Backpack skins are flat equipment layers, not new 3D bags.
+
+The previously documented Polymer mock-player packet-context warning remains in the native harness; no suppression or dependency upgrade was applied. The normal full-stack and Geyser smoke logs are clean. No claim of a glitch-free game, unlimited capacity or verified public login is made. Installing requires the owner's approval, a fresh verified stopped-world backup and the existing protected terrain policy; saves, inventory, private settings, helpers and both AI approvals must be preserved.
+
+Reproduce with the existing commands below. Rebuild generated art only when needed with Python/Pillow and artwork/refresh27/pack_art.py, before rebuilding and rerunning source-bound checks.
+
 # Inventory, navigation and menu improvements — 2.13.0-explore.26
 
 Validated October 11, 2026 on the unchanged Minecraft **26.3 / Java 25** stack: **377/377 native Minecraft GameTests**, **146/146 Python launcher tests**, all **21** reproducible one-chest Odyssey templates, Geyser mapping/resource validation and local Bedrock UDP response, and **two isolated full-stack startup, cold-lobby, save, backup, restart and clean-shutdown cycles**. Geyser and full-stack logs have no ERROR records. Final native provenance matches every current Java source and the exact prepared mod. All checks used disposable worlds; the owner's running save was not used for these tests.

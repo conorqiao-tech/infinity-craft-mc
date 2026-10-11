@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "convergence:item/refresh19/builder_wand"
+    "layer0": "convergence:item/refresh27/builder_wand"
   }
 }

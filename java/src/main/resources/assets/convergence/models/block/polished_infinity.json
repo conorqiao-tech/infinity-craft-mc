@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "convergence:block/polished_infinity"
+    "all": "convergence:block/refresh27/polished_infinity"
   }
 }

@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "all": "convergence:block/copper_circuit"
+    "all": "convergence:block/refresh27/copper_circuit"
   }
 }

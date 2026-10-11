@@ -24,6 +24,89 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 public class EquipmentGameTests {
+    @GameTest public void separateConvergenceArmorKeepsOldWingsAndFullSetPowers(GameTestHelper c) {
+        var p=new ModeGameTests().player(c,"solid-armor27");
+        try {
+            var chest=gear("cuirass");var wings=gear("chestplate");
+            c.assertFalse(chest.has(DataComponents.GLIDER),"The new solid armor is not a custom glider");
+            c.assertTrue(wings.has(DataComponents.GLIDER),"Existing winged chestplate keeps its saved ID and flight component");
+            c.assertValueEqual(chest.get(DataComponents.EQUIPPABLE).slot(),EquipmentSlot.CHEST,"Solid armor fits the real chest slot");
+            c.assertValueEqual(chest.get(DataComponents.EQUIPPABLE).assetId().orElseThrow().identifier(),CrossplaySupport.id("cuirass"),"Solid armor has a dedicated equipment asset without wings");
+            p.setItemSlot(EquipmentSlot.HEAD,gear("helmet"));p.setItemSlot(EquipmentSlot.CHEST,chest);
+            p.setItemSlot(EquipmentSlot.LEGS,gear("leggings"));p.setItemSlot(EquipmentSlot.FEET,gear("boots"));
+            p.doTick(); // Native equipment modifiers are installed during the player lifecycle tick.
+            c.assertValueEqual(p.getArmorValue(),30,"All four real armor pieces contribute their protection");
+            Convergence.armor(p);c.assertTrue(p.hasEffect(MobEffects.HEALTH_BOOST)&&p.hasEffect(MobEffects.RESISTANCE),"A full solid set activates the established armor powers");
+            var ops=net.minecraft.resources.RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE,c.getLevel().registryAccess());
+            for(var item:java.util.List.of(chest,wings))c.assertTrue(ItemStack.isSameItemSameComponents(item,ItemStack.CODEC.parse(ops,ItemStack.CODEC.encodeStart(ops,item).getOrThrow()).getOrThrow()),"Both separate items save and reload unchanged");
+        } finally {p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+
+    @GameTest public void creativeCollectionsDeliverRealItemsAndPreserveMenuGuards(GameTestHelper c) {
+        var p=creative(c,"collections27");
+        try {
+            p.closeContainer();p.getInventory().clearContent();CreativeGearPicker.open(p);
+            var all=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            all.clicked(CreativeGearPicker.AURORA,0,ContainerInput.QUICK_MOVE,p);
+            var aurora=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            c.assertValueEqual(aurora.collection,CreativeGearPicker.Collection.AURORA,"Touch transfer opens the Aurora collection");
+            c.assertValueEqual(aurora.paths.size(),4,"All four Aurora pieces are visible together");
+            aurora.clicked(1,0,ContainerInput.PICKUP,p);
+            c.assertTrue(p.getMainHandItem().is(Convergence.ITEMS.get("convergence:aurora_chestplate")),"Collection selection gives the actual Aurora chestplate");
+            p.closeContainer();CreativeGearPicker.open(p);var current=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            current.clicked(CreativeGearPicker.CONVERGENCE,0,ContainerInput.PICKUP,p);
+            var convergence=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            c.assertValueEqual(convergence.paths.size(),5,"Convergence includes four solid armor pieces plus the existing flight item");
+            convergence.clicked(convergence.paths.indexOf("convergence:cuirass"),0,ContainerInput.PICKUP,p);
+            c.assertTrue(p.getMainHandItem().is(Convergence.ITEMS.get("convergence:cuirass")),"Choosing solid armor grants its distinct real ID");
+            c.assertTrue(p.getInventory().contains(gear("aurora_chestplate")),"Choosing another item preserves the previous chestplate");
+            CreativeGearPicker.open(p);var next=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            next.clicked(53,0,ContainerInput.QUICK_MOVE,p);var page=(CreativeGearPicker.PickerHandler)p.containerMenu;
+            c.assertValueEqual(page.pageIndex,1,"All 46 registered items remain reachable through pagination");
+            page.clicked(CreativeGearPicker.CONVERGENCE,0,ContainerInput.PICKUP,p);
+            var stale=(CreativeGearPicker.PickerHandler)p.containerMenu;p.setGameMode(GameType.SURVIVAL);
+            var before=p.getMainHandItem().copy();stale.clicked(0,0,ContainerInput.PICKUP,p);
+            c.assertTrue(ItemStack.isSameItemSameComponents(before,p.getMainHandItem()),"Permission loss refuses a pending collection selection");
+            c.assertTrue(p.containerMenu==p.inventoryMenu,"The denied stale menu closes");
+        } finally {p.closeContainer();p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+
+    @GameTest public void namedCollectionBoxesCoverEveryItemOnceAndSurviveNativeSave(GameTestHelper c) {
+        var counts=new java.util.HashMap<net.minecraft.world.item.Item,Integer>();
+        var boxes=GearCrates.crates();c.assertValueEqual(boxes.size(),5,"Separate three armor sets and two tools/block boxes");
+        var ops=net.minecraft.resources.RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE,c.getLevel().registryAccess());
+        for(var box:boxes) {
+            c.assertTrue(GearCrates.isCrate(box),"Every labeled box is recognized, including Ember's orange box");
+            var restored=ItemStack.CODEC.parse(ops,ItemStack.CODEC.encodeStart(ops,box).getOrThrow()).getOrThrow();
+            c.assertTrue(ItemStack.isSameItemSameComponents(box,restored),"Labels and real custom contents survive native save/reload");
+            box.get(DataComponents.CONTAINER).itemCopies().forEach(item->counts.merge(item.getItem(),1,Integer::sum));
+        }
+        for(var item:Convergence.ITEMS.values())c.assertValueEqual(counts.getOrDefault(item,0),1,"Every registered gear item occurs in exactly one box");
+        c.assertTrue(boxes.get(0).getHoverName().getString().startsWith("Convergence Set"),"Convergence is clearly labeled");
+        c.assertTrue(boxes.get(1).getHoverName().getString().startsWith("Aurora Set"),"Aurora is clearly labeled");
+        c.assertValueEqual(boxes.get(1).get(DataComponents.CONTAINER).itemCopies().count(),4L,"Aurora contains all four pieces");
+        c.succeed();
+    }
+
+    @GameTest(maxTicks=60) public void fullInventoryDoesNotConsumeTheAutomaticGearReceipt(GameTestHelper c) {
+        var p=new ModeGameTests().player(c,"gear-retry27");p.setGameMode(GameType.CREATIVE);
+        p.closeContainer();for(int i=0;i<36;i++)p.getInventory().setItem(i,new ItemStack(Items.DIRT,64));
+        var flag="direct_gear27_"+GameModes.current(p).name().toLowerCase(java.util.Locale.ROOT);
+        GameModes.state(p).putBoolean(flag,false);
+        c.runAfterDelay(25,()->{
+            try {
+                c.assertFalse(GameModes.state(p).getBooleanOr(flag,false),"Normal tick delivery must not mark an unsuccessful full-inventory grant complete");
+                for(int i=0;i<36;i++)c.assertTrue(p.getInventory().getItem(i).is(Items.DIRT),"Automatic delivery preserves each occupied slot");
+                p.closeContainer();p.getInventory().clearContent();
+                c.assertValueEqual(GearCrates.giveDirect(p),1,"After making room, the normal inventory action collects every missing piece");
+                c.assertTrue(GameModes.state(p).getBooleanOr(flag,false),"Only a completed grant records its receipt");
+                c.assertTrue(p.getInventory().contains(gear("cuirass")),"Retry includes the new solid chestplate");c.succeed();
+            } finally {p.closeContainer();p.level().getServer().getPlayerList().remove(p);}
+        });
+    }
+
     ItemStack gear(String path){return new ItemStack(Convergence.ITEMS.get("convergence:"+path));}
     ServerPlayer creative(GameTestHelper c,String name){
         var p=new ModeGameTests().player(c,name);GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);return p;
@@ -87,7 +170,8 @@ public class EquipmentGameTests {
             var chest=p.getItemBySlot(EquipmentSlot.CHEST);
             c.assertFalse(chest.has(DataComponents.GLIDER),"Cosmetic chest is not an elytra");
             c.assertValueEqual(chest.get(DataComponents.EQUIPPABLE).assetId().orElseThrow().identifier(),CrossplaySupport.id(outfit+"_armor"),"Each outfit resolves its own Java worn artwork");
-            c.assertTrue(CrossplaySupport.NATIVE_BEDROCK.contains(outfit+"_chestplate"),"Bedrock retains native wearable controls and dyed leather appearance");
+            c.assertFalse(CrossplaySupport.NATIVE_BEDROCK.contains(outfit+"_chestplate"),"Bedrock selects the item's own static armor attachable instead of changing ordinary leather");
+            c.assertValueEqual(chest.getMaxStackSize(),1,"Custom Bedrock wearables are never stackable");
         }
         c.assertFalse(gear("aurora_helmet").get(DataComponents.DYED_COLOR).equals(gear("ember_helmet").get(DataComponents.DYED_COLOR)),"Native dyed fallback distinguishes the outfits");c.succeed();
     }
@@ -268,7 +352,7 @@ public class EquipmentGameTests {
         try {
             var context=p.connection.getPacketContext();
             c.assertFalse(eu.pb4.polymer.resourcepack.api.PolymerResourcePackUtils.hasMainPack(context),"Fixture has not accepted Java pack");
-            for(String path:java.util.List.of("helmet","chestplate","leggings","boots","backpack","aurora_helmet","aurora_chestplate","ember_leggings")) {
+            for(String path:java.util.List.of("helmet","cuirass","chestplate","leggings","boots","backpack","aurora_helmet","aurora_chestplate","ember_leggings")) {
                 var original=gear(path);var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original,context,c.getLevel().registryAccess());
                 c.assertValueEqual(wire.get(DataComponents.EQUIPPABLE),CrossplaySupport.BASES.get(path).components().get(DataComponents.EQUIPPABLE),"Native wearable asset is complete when Java art is unavailable: "+path);
                 var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,c.getLevel().registryAccess());

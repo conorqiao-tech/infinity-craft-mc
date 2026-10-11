@@ -223,7 +223,7 @@ final class ServerMenu {
                 "Admin/OP4: edit players or loaded AI helpers.",
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
-            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
+            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Armor, tools & blocks • inventory boxes","Five labeled boxes: Convergence, Aurora, Ember, tools and blocks.","Place and open the boxes to take items. Requires Creative or gear permission.");
             icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
             icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
             icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
@@ -243,7 +243,8 @@ final class ServerMenu {
             title="Infinity Armor Sets";
             icon(view,10,Items.LEATHER_CHESTPLATE,"Aurora • all four pieces","Helmet, chestplate, leggings and boots.","Earn Enchanter or use Admin access. Clear four inventory slots.");
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
-            icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Uses native elytra artwork and flight on Bedrock.","Choose Aurora or Ember above for a chestplate appearance.","Requires Creative, Admin or OP2.");
+            icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Keeps native elytra flight on Bedrock.","Choose the separate Convergence armor chestplate for solid armor.","Requires Creative, Admin or OP2.");
+            icon(view,16,Items.NETHERITE_CHESTPLATE,"Convergence Armor Chestplate","Solid custom armor; the wings remain a separate item.","Requires Creative, Admin or OP2.");
         } else if(page==Page.RANKS) {
             title="Ranks & subscriptions";var memberships=Memberships.get(player.level().getServer());
             memberships.syncAchievements(player);
@@ -352,6 +353,7 @@ final class ServerMenu {
             if(page==Page.ARMOR) {
                 if(slot==10 || slot==12) { owner.closeContainer();BackpackStorage.armor(owner,slot==10?"aurora":"ember"); }
                 else if(slot==14) { owner.closeContainer();Convergence.holdCreativeItem(owner,"chestplate"); }
+                else if(slot==16) { owner.closeContainer();Convergence.holdCreativeItem(owner,"cuirass"); }
                 return;
             }
             if (page != Page.MAIN) return;

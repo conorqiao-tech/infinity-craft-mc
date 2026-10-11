@@ -1,0 +1,2089 @@
+{
+  "format": 1,
+  "mode": "imagegen source; mechanical nearest-neighbor crop/UV packing",
+  "armor": {
+    "convergence": {
+      "size": [
+        128,
+        64
+      ],
+      "uv_rectangles": {
+        "head_top": [
+          8,
+          0,
+          16,
+          8
+        ],
+        "head_bottom": [
+          16,
+          0,
+          24,
+          8
+        ],
+        "head_right": [
+          0,
+          8,
+          8,
+          16
+        ],
+        "head_front": [
+          8,
+          8,
+          16,
+          16
+        ],
+        "head_left": [
+          16,
+          8,
+          24,
+          16
+        ],
+        "head_back": [
+          24,
+          8,
+          32,
+          16
+        ],
+        "leg_top": [
+          4,
+          16,
+          8,
+          20
+        ],
+        "leg_bottom": [
+          8,
+          16,
+          12,
+          20
+        ],
+        "leg_right": [
+          0,
+          20,
+          4,
+          32
+        ],
+        "leg_front": [
+          4,
+          20,
+          8,
+          32
+        ],
+        "leg_left": [
+          8,
+          20,
+          12,
+          32
+        ],
+        "leg_back": [
+          12,
+          20,
+          16,
+          32
+        ],
+        "body_top": [
+          20,
+          16,
+          28,
+          20
+        ],
+        "body_bottom": [
+          28,
+          16,
+          36,
+          20
+        ],
+        "body_right": [
+          16,
+          20,
+          20,
+          32
+        ],
+        "body_front": [
+          20,
+          20,
+          28,
+          32
+        ],
+        "body_left": [
+          28,
+          20,
+          32,
+          32
+        ],
+        "body_back": [
+          32,
+          20,
+          40,
+          32
+        ],
+        "arm_top": [
+          44,
+          16,
+          48,
+          20
+        ],
+        "arm_bottom": [
+          48,
+          16,
+          52,
+          20
+        ],
+        "arm_right": [
+          40,
+          20,
+          44,
+          32
+        ],
+        "arm_front": [
+          44,
+          20,
+          48,
+          32
+        ],
+        "arm_left": [
+          48,
+          20,
+          52,
+          32
+        ],
+        "arm_back": [
+          52,
+          20,
+          56,
+          32
+        ]
+      },
+      "source_rectangles": {
+        "head_top": [
+          11,
+          0,
+          21,
+          4
+        ],
+        "head_bottom": [
+          11,
+          9,
+          21,
+          12
+        ],
+        "head_right": [
+          1,
+          4,
+          10,
+          12
+        ],
+        "head_front": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "head_left": [
+          22,
+          4,
+          31,
+          12
+        ],
+        "head_back": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "leg_top": [
+          1,
+          13,
+          7,
+          17
+        ],
+        "leg_bottom": [
+          1,
+          28,
+          7,
+          31
+        ],
+        "leg_right": [
+          0,
+          15,
+          4,
+          31
+        ],
+        "leg_front": [
+          2,
+          13,
+          7,
+          31
+        ],
+        "leg_left": [
+          7,
+          15,
+          10,
+          31
+        ],
+        "leg_back": [
+          10,
+          13,
+          15,
+          31
+        ],
+        "body_top": [
+          26,
+          13,
+          38,
+          17
+        ],
+        "body_bottom": [
+          26,
+          28,
+          38,
+          31
+        ],
+        "body_right": [
+          18,
+          14,
+          24,
+          31
+        ],
+        "body_front": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "body_left": [
+          40,
+          14,
+          44,
+          31
+        ],
+        "body_back": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "arm_top": [
+          47,
+          13,
+          53,
+          17
+        ],
+        "arm_bottom": [
+          47,
+          28,
+          53,
+          31
+        ],
+        "arm_right": [
+          44,
+          14,
+          48,
+          31
+        ],
+        "arm_front": [
+          48,
+          14,
+          54,
+          31
+        ],
+        "arm_left": [
+          54,
+          14,
+          58,
+          31
+        ],
+        "arm_back": [
+          58,
+          14,
+          63,
+          31
+        ]
+      }
+    },
+    "aurora": {
+      "size": [
+        128,
+        64
+      ],
+      "uv_rectangles": {
+        "head_top": [
+          8,
+          0,
+          16,
+          8
+        ],
+        "head_bottom": [
+          16,
+          0,
+          24,
+          8
+        ],
+        "head_right": [
+          0,
+          8,
+          8,
+          16
+        ],
+        "head_front": [
+          8,
+          8,
+          16,
+          16
+        ],
+        "head_left": [
+          16,
+          8,
+          24,
+          16
+        ],
+        "head_back": [
+          24,
+          8,
+          32,
+          16
+        ],
+        "leg_top": [
+          4,
+          16,
+          8,
+          20
+        ],
+        "leg_bottom": [
+          8,
+          16,
+          12,
+          20
+        ],
+        "leg_right": [
+          0,
+          20,
+          4,
+          32
+        ],
+        "leg_front": [
+          4,
+          20,
+          8,
+          32
+        ],
+        "leg_left": [
+          8,
+          20,
+          12,
+          32
+        ],
+        "leg_back": [
+          12,
+          20,
+          16,
+          32
+        ],
+        "body_top": [
+          20,
+          16,
+          28,
+          20
+        ],
+        "body_bottom": [
+          28,
+          16,
+          36,
+          20
+        ],
+        "body_right": [
+          16,
+          20,
+          20,
+          32
+        ],
+        "body_front": [
+          20,
+          20,
+          28,
+          32
+        ],
+        "body_left": [
+          28,
+          20,
+          32,
+          32
+        ],
+        "body_back": [
+          32,
+          20,
+          40,
+          32
+        ],
+        "arm_top": [
+          44,
+          16,
+          48,
+          20
+        ],
+        "arm_bottom": [
+          48,
+          16,
+          52,
+          20
+        ],
+        "arm_right": [
+          40,
+          20,
+          44,
+          32
+        ],
+        "arm_front": [
+          44,
+          20,
+          48,
+          32
+        ],
+        "arm_left": [
+          48,
+          20,
+          52,
+          32
+        ],
+        "arm_back": [
+          52,
+          20,
+          56,
+          32
+        ]
+      },
+      "source_rectangles": {
+        "head_top": [
+          11,
+          0,
+          21,
+          4
+        ],
+        "head_bottom": [
+          11,
+          9,
+          21,
+          12
+        ],
+        "head_right": [
+          1,
+          4,
+          10,
+          12
+        ],
+        "head_front": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "head_left": [
+          22,
+          4,
+          31,
+          12
+        ],
+        "head_back": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "leg_top": [
+          1,
+          13,
+          7,
+          17
+        ],
+        "leg_bottom": [
+          1,
+          28,
+          7,
+          31
+        ],
+        "leg_right": [
+          0,
+          15,
+          4,
+          31
+        ],
+        "leg_front": [
+          2,
+          13,
+          7,
+          31
+        ],
+        "leg_left": [
+          7,
+          15,
+          10,
+          31
+        ],
+        "leg_back": [
+          10,
+          13,
+          15,
+          31
+        ],
+        "body_top": [
+          26,
+          13,
+          38,
+          17
+        ],
+        "body_bottom": [
+          26,
+          28,
+          38,
+          31
+        ],
+        "body_right": [
+          18,
+          14,
+          24,
+          31
+        ],
+        "body_front": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "body_left": [
+          40,
+          14,
+          44,
+          31
+        ],
+        "body_back": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "arm_top": [
+          47,
+          13,
+          53,
+          17
+        ],
+        "arm_bottom": [
+          47,
+          28,
+          53,
+          31
+        ],
+        "arm_right": [
+          44,
+          14,
+          48,
+          31
+        ],
+        "arm_front": [
+          48,
+          14,
+          54,
+          31
+        ],
+        "arm_left": [
+          54,
+          14,
+          58,
+          31
+        ],
+        "arm_back": [
+          58,
+          14,
+          63,
+          31
+        ]
+      }
+    },
+    "ember": {
+      "size": [
+        128,
+        64
+      ],
+      "uv_rectangles": {
+        "head_top": [
+          8,
+          0,
+          16,
+          8
+        ],
+        "head_bottom": [
+          16,
+          0,
+          24,
+          8
+        ],
+        "head_right": [
+          0,
+          8,
+          8,
+          16
+        ],
+        "head_front": [
+          8,
+          8,
+          16,
+          16
+        ],
+        "head_left": [
+          16,
+          8,
+          24,
+          16
+        ],
+        "head_back": [
+          24,
+          8,
+          32,
+          16
+        ],
+        "leg_top": [
+          4,
+          16,
+          8,
+          20
+        ],
+        "leg_bottom": [
+          8,
+          16,
+          12,
+          20
+        ],
+        "leg_right": [
+          0,
+          20,
+          4,
+          32
+        ],
+        "leg_front": [
+          4,
+          20,
+          8,
+          32
+        ],
+        "leg_left": [
+          8,
+          20,
+          12,
+          32
+        ],
+        "leg_back": [
+          12,
+          20,
+          16,
+          32
+        ],
+        "body_top": [
+          20,
+          16,
+          28,
+          20
+        ],
+        "body_bottom": [
+          28,
+          16,
+          36,
+          20
+        ],
+        "body_right": [
+          16,
+          20,
+          20,
+          32
+        ],
+        "body_front": [
+          20,
+          20,
+          28,
+          32
+        ],
+        "body_left": [
+          28,
+          20,
+          32,
+          32
+        ],
+        "body_back": [
+          32,
+          20,
+          40,
+          32
+        ],
+        "arm_top": [
+          44,
+          16,
+          48,
+          20
+        ],
+        "arm_bottom": [
+          48,
+          16,
+          52,
+          20
+        ],
+        "arm_right": [
+          40,
+          20,
+          44,
+          32
+        ],
+        "arm_front": [
+          44,
+          20,
+          48,
+          32
+        ],
+        "arm_left": [
+          48,
+          20,
+          52,
+          32
+        ],
+        "arm_back": [
+          52,
+          20,
+          56,
+          32
+        ]
+      },
+      "source_rectangles": {
+        "head_top": [
+          11,
+          0,
+          21,
+          4
+        ],
+        "head_bottom": [
+          11,
+          9,
+          21,
+          12
+        ],
+        "head_right": [
+          1,
+          4,
+          10,
+          12
+        ],
+        "head_front": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "head_left": [
+          22,
+          4,
+          31,
+          12
+        ],
+        "head_back": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "leg_top": [
+          1,
+          13,
+          7,
+          17
+        ],
+        "leg_bottom": [
+          1,
+          28,
+          7,
+          31
+        ],
+        "leg_right": [
+          0,
+          15,
+          4,
+          31
+        ],
+        "leg_front": [
+          2,
+          13,
+          7,
+          31
+        ],
+        "leg_left": [
+          7,
+          15,
+          10,
+          31
+        ],
+        "leg_back": [
+          10,
+          13,
+          15,
+          31
+        ],
+        "body_top": [
+          26,
+          13,
+          38,
+          17
+        ],
+        "body_bottom": [
+          26,
+          28,
+          38,
+          31
+        ],
+        "body_right": [
+          18,
+          14,
+          24,
+          31
+        ],
+        "body_front": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "body_left": [
+          40,
+          14,
+          44,
+          31
+        ],
+        "body_back": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "arm_top": [
+          47,
+          13,
+          53,
+          17
+        ],
+        "arm_bottom": [
+          47,
+          28,
+          53,
+          31
+        ],
+        "arm_right": [
+          44,
+          14,
+          48,
+          31
+        ],
+        "arm_front": [
+          48,
+          14,
+          54,
+          31
+        ],
+        "arm_left": [
+          54,
+          14,
+          58,
+          31
+        ],
+        "arm_back": [
+          58,
+          14,
+          63,
+          31
+        ]
+      }
+    },
+    "backpack": {
+      "size": [
+        128,
+        64
+      ],
+      "uv_rectangles": {
+        "head_top": [
+          8,
+          0,
+          16,
+          8
+        ],
+        "head_bottom": [
+          16,
+          0,
+          24,
+          8
+        ],
+        "head_right": [
+          0,
+          8,
+          8,
+          16
+        ],
+        "head_front": [
+          8,
+          8,
+          16,
+          16
+        ],
+        "head_left": [
+          16,
+          8,
+          24,
+          16
+        ],
+        "head_back": [
+          24,
+          8,
+          32,
+          16
+        ],
+        "leg_top": [
+          4,
+          16,
+          8,
+          20
+        ],
+        "leg_bottom": [
+          8,
+          16,
+          12,
+          20
+        ],
+        "leg_right": [
+          0,
+          20,
+          4,
+          32
+        ],
+        "leg_front": [
+          4,
+          20,
+          8,
+          32
+        ],
+        "leg_left": [
+          8,
+          20,
+          12,
+          32
+        ],
+        "leg_back": [
+          12,
+          20,
+          16,
+          32
+        ],
+        "body_top": [
+          20,
+          16,
+          28,
+          20
+        ],
+        "body_bottom": [
+          28,
+          16,
+          36,
+          20
+        ],
+        "body_right": [
+          16,
+          20,
+          20,
+          32
+        ],
+        "body_front": [
+          20,
+          20,
+          28,
+          32
+        ],
+        "body_left": [
+          28,
+          20,
+          32,
+          32
+        ],
+        "body_back": [
+          32,
+          20,
+          40,
+          32
+        ],
+        "arm_top": [
+          44,
+          16,
+          48,
+          20
+        ],
+        "arm_bottom": [
+          48,
+          16,
+          52,
+          20
+        ],
+        "arm_right": [
+          40,
+          20,
+          44,
+          32
+        ],
+        "arm_front": [
+          44,
+          20,
+          48,
+          32
+        ],
+        "arm_left": [
+          48,
+          20,
+          52,
+          32
+        ],
+        "arm_back": [
+          52,
+          20,
+          56,
+          32
+        ]
+      },
+      "source_rectangles": {
+        "head_top": [
+          11,
+          0,
+          21,
+          4
+        ],
+        "head_bottom": [
+          11,
+          9,
+          21,
+          12
+        ],
+        "head_right": [
+          1,
+          4,
+          10,
+          12
+        ],
+        "head_front": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "head_left": [
+          22,
+          4,
+          31,
+          12
+        ],
+        "head_back": [
+          10,
+          2,
+          22,
+          12
+        ],
+        "leg_top": [
+          1,
+          13,
+          7,
+          17
+        ],
+        "leg_bottom": [
+          1,
+          28,
+          7,
+          31
+        ],
+        "leg_right": [
+          0,
+          15,
+          4,
+          31
+        ],
+        "leg_front": [
+          2,
+          13,
+          7,
+          31
+        ],
+        "leg_left": [
+          7,
+          15,
+          10,
+          31
+        ],
+        "leg_back": [
+          10,
+          13,
+          15,
+          31
+        ],
+        "body_top": [
+          26,
+          13,
+          38,
+          17
+        ],
+        "body_bottom": [
+          26,
+          28,
+          38,
+          31
+        ],
+        "body_right": [
+          18,
+          14,
+          24,
+          31
+        ],
+        "body_front": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "body_left": [
+          40,
+          14,
+          44,
+          31
+        ],
+        "body_back": [
+          24,
+          14,
+          40,
+          31
+        ],
+        "arm_top": [
+          47,
+          13,
+          53,
+          17
+        ],
+        "arm_bottom": [
+          47,
+          28,
+          53,
+          31
+        ],
+        "arm_right": [
+          44,
+          14,
+          48,
+          31
+        ],
+        "arm_front": [
+          48,
+          14,
+          54,
+          31
+        ],
+        "arm_left": [
+          54,
+          14,
+          58,
+          31
+        ],
+        "arm_back": [
+          58,
+          14,
+          63,
+          31
+        ]
+      }
+    }
+  },
+  "icons": {
+    "helmet": {
+      "cell": [
+        0,
+        0
+      ],
+      "source_bounds": [
+        37,
+        63,
+        170,
+        207
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "cuirass": {
+      "cell": [
+        1,
+        0
+      ],
+      "source_bounds": [
+        221,
+        68,
+        378,
+        203
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "chestplate": {
+      "cell": [
+        2,
+        0
+      ],
+      "source_bounds": [
+        400,
+        68,
+        571,
+        200
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "leggings": {
+      "cell": [
+        3,
+        0
+      ],
+      "source_bounds": [
+        610,
+        63,
+        739,
+        207
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "boots": {
+      "cell": [
+        4,
+        0
+      ],
+      "source_bounds": [
+        800,
+        82,
+        945,
+        200
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "sword": {
+      "cell": [
+        5,
+        0
+      ],
+      "source_bounds": [
+        980,
+        46,
+        1142,
+        210
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "mace": {
+      "cell": [
+        6,
+        0
+      ],
+      "source_bounds": [
+        1165,
+        55,
+        1328,
+        210
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "aurora_helmet": {
+      "cell": [
+        0,
+        1
+      ],
+      "source_bounds": [
+        29,
+        231,
+        182,
+        394
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "aurora_chestplate": {
+      "cell": [
+        1,
+        1
+      ],
+      "source_bounds": [
+        226,
+        243,
+        385,
+        388
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "aurora_leggings": {
+      "cell": [
+        2,
+        1
+      ],
+      "source_bounds": [
+        427,
+        242,
+        544,
+        390
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "aurora_boots": {
+      "cell": [
+        3,
+        1
+      ],
+      "source_bounds": [
+        600,
+        259,
+        756,
+        375
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "spear": {
+      "cell": [
+        4,
+        1
+      ],
+      "source_bounds": [
+        777,
+        221,
+        958,
+        402
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "shield": {
+      "cell": [
+        5,
+        1
+      ],
+      "source_bounds": [
+        973,
+        221,
+        1131,
+        398
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "pickaxe": {
+      "cell": [
+        6,
+        1
+      ],
+      "source_bounds": [
+        1180,
+        238,
+        1328,
+        390
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "axe": {
+      "cell": [
+        0,
+        2
+      ],
+      "source_bounds": [
+        40,
+        412,
+        187,
+        566
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "shovel": {
+      "cell": [
+        1,
+        2
+      ],
+      "source_bounds": [
+        222,
+        417,
+        378,
+        570
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "hoe": {
+      "cell": [
+        2,
+        2
+      ],
+      "source_bounds": [
+        408,
+        417,
+        563,
+        567
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "ingot": {
+      "cell": [
+        3,
+        2
+      ],
+      "source_bounds": [
+        602,
+        434,
+        757,
+        550
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "totem": {
+      "cell": [
+        4,
+        2
+      ],
+      "source_bounds": [
+        789,
+        413,
+        944,
+        570
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "bow": {
+      "cell": [
+        5,
+        2
+      ],
+      "source_bounds": [
+        979,
+        417,
+        1126,
+        574
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "crossbow": {
+      "cell": [
+        6,
+        2
+      ],
+      "source_bounds": [
+        1173,
+        430,
+        1328,
+        557
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "ember_helmet": {
+      "cell": [
+        0,
+        3
+      ],
+      "source_bounds": [
+        38,
+        583,
+        178,
+        741
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "ember_chestplate": {
+      "cell": [
+        1,
+        3
+      ],
+      "source_bounds": [
+        226,
+        591,
+        387,
+        733
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "ember_leggings": {
+      "cell": [
+        2,
+        3
+      ],
+      "source_bounds": [
+        387,
+        588,
+        556,
+        741
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "ember_boots": {
+      "cell": [
+        3,
+        3
+      ],
+      "source_bounds": [
+        603,
+        613,
+        750,
+        741
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "backpack": {
+      "cell": [
+        4,
+        3
+      ],
+      "source_bounds": [
+        793,
+        585,
+        945,
+        742
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "infinity_arrow": {
+      "cell": [
+        5,
+        3
+      ],
+      "source_bounds": [
+        979,
+        587,
+        1134,
+        750
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "void_arrow": {
+      "cell": [
+        6,
+        3
+      ],
+      "source_bounds": [
+        1171,
+        588,
+        1325,
+        750
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "starfire_arrow": {
+      "cell": [
+        0,
+        4
+      ],
+      "source_bounds": [
+        29,
+        774,
+        182,
+        931
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "builder_wand": {
+      "cell": [
+        1,
+        4
+      ],
+      "source_bounds": [
+        217,
+        759,
+        368,
+        933
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "sculptor_wand": {
+      "cell": [
+        2,
+        4
+      ],
+      "source_bounds": [
+        407,
+        766,
+        564,
+        929
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "blink_wand": {
+      "cell": [
+        3,
+        4
+      ],
+      "source_bounds": [
+        599,
+        773,
+        752,
+        933
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "party_wand": {
+      "cell": [
+        4,
+        4
+      ],
+      "source_bounds": [
+        794,
+        763,
+        954,
+        933
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "plane_remote": {
+      "cell": [
+        5,
+        4
+      ],
+      "source_bounds": [
+        982,
+        772,
+        1124,
+        924
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "blueprint_wand": {
+      "cell": [
+        6,
+        4
+      ],
+      "source_bounds": [
+        1164,
+        767,
+        1329,
+        930
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "storm_staff": {
+      "cell": [
+        0,
+        5
+      ],
+      "source_bounds": [
+        29,
+        939,
+        190,
+        1119
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "gust_glove": {
+      "cell": [
+        1,
+        5
+      ],
+      "source_bounds": [
+        199,
+        954,
+        380,
+        1118
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "anchor_charm": {
+      "cell": [
+        2,
+        5
+      ],
+      "source_bounds": [
+        409,
+        943,
+        559,
+        1110
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "tidewarden_helmet": {
+      "cell": [
+        3,
+        5
+      ],
+      "source_bounds": [
+        606,
+        960,
+        739,
+        1110
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "tidewarden_chestplate": {
+      "cell": [
+        4,
+        5
+      ],
+      "source_bounds": [
+        777,
+        959,
+        947,
+        1107
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "tidewarden_leggings": {
+      "cell": [
+        5,
+        5
+      ],
+      "source_bounds": [
+        988,
+        955,
+        1127,
+        1115
+      ],
+      "size": [
+        64,
+        64
+      ]
+    },
+    "tidewarden_boots": {
+      "cell": [
+        6,
+        5
+      ],
+      "source_bounds": [
+        1173,
+        977,
+        1328,
+        1114
+      ],
+      "size": [
+        64,
+        64
+      ]
+    }
+  },
+  "blocks": {
+    "infinity_block": {
+      "cell": [
+        0,
+        0
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "infinity_bricks": {
+      "cell": [
+        1,
+        0
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "polished_infinity": {
+      "cell": [
+        2,
+        0
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "radiant_infinity": {
+      "cell": [
+        3,
+        0
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "aurora_tiles": {
+      "cell": [
+        4,
+        0
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "obsidian_lattice": {
+      "cell": [
+        0,
+        1
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "copper_circuit": {
+      "cell": [
+        1,
+        1
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "moonstone": {
+      "cell": [
+        2,
+        1
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "sunstone_lamp": {
+      "cell": [
+        3,
+        1
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "verdant_mosaic": {
+      "cell": [
+        4,
+        1
+      ],
+      "size": [
+        32,
+        32
+      ]
+    }
+  },
+  "sha256": {
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/totem.png": "ab956fc7078316b61ebf2125b0a255824a620b4ea088ef40ebe7aa154b36dd71",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/boots.png": "0a5e45296d091e5e5691b36a3cb45b21eba26b59e30879c5c6268714c2bd418f",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/gust_glove.png": "206bf88ec2da8948381af3e7e17a0f6a5e3d901e3774b13d763c4897ec8d8f4c",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/bow.png": "d46a021b78b097e606eb3f416f3a60d88aa2aac566d3b9378feecae811334fba",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/sculptor_wand.png": "8d85c0000bb676e1d765ba729ff27167a7cd8a5ffc2a4e3520505abdd54af605",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/void_arrow.png": "89d44ac441831d0d9d880b3a45450434f82792e118b0c66718eaf9ec853754a2",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/builder_wand.png": "85e0f3fa37f7c630dc5321bdf95d9a8739da959f49267be40e699bbdd191f514",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/ember_boots.png": "48aba17a908bbd73dcaa6f1a7f33eb54ebedade78a5a0dc7f0c288c5db73d6d5",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/shield.png": "d5d0967c0e263b7bc9d986e2cda5b8716e518b928f27fe18228f3e02ccd0b13d",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/aurora_chestplate.png": "8be23b4fc18d48364d3cdef7f02427960e7b923d67ebd29b1899847f9323b9fb",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/blueprint_wand.png": "99956e5973411aec5c14798a06d0788c881e61b494a8311234323dd602baa79b",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/aurora_leggings.png": "ebd4b2aa5ffd92aafaeb086df7a0fed67dfc3fdcb8655f32e65179f094894b24",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/chestplate.png": "2de35937d8458d503d445ccd8d020e739a8d74c2da71f6441d34a5b273535a17",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/backpack.png": "c052c5cf93b8b6c48a966c9789b37727e0be3da258d8044c5af955cca0bf81c9",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/crossbow.png": "4ca241689722e06338cb7875e69508b4708dcaedf5c86c917eafa7a3c3d68900",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/leggings.png": "d9407a02b1f8a6b6964b582707f279ebd7e46f5bb629c9da19bc84108e8fa2b8",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/tidewarden_chestplate.png": "2adc531f605cae36390949df373b2e8633c7d64caacc0431d0b427dff24c28e5",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/starfire_arrow.png": "762ce3c223eef1a30298fbec6fced6af5ea5d9ed906bd16a4c9da2caf667b52d",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/blink_wand.png": "78e45dfa30fe8e6736f3ddf2300ddbaf13d95407709638e30d3ed359c9b33ee1",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/party_wand.png": "3433a29686d2a71ddec8b8f1daea3010b2960657e394a27ea79741927ac5f8b3",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/infinity_arrow.png": "787257aec77e767932d6f0d62ad9392ff1ea1021d4f9a06b14f655af6fdc8c4e",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/sword.png": "0ef3b5b3dc3de75349f80439cc7c7733f3b0fad69d95f0c57d4d903c35cb1962",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/aurora_boots.png": "8792e9e25bf7a7ddb84cf0246d5c48b04cbee7f5906c199cff6356459e7f448c",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/storm_staff.png": "05a7c495f7020ed6772c2537b29fcf9f133e7470c3c331d96fc30cc59825662d",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/mace.png": "8adeb4bdb79d8dfa3dd0848c6ed954a4b2cd5b86ce791781913b4569bd20c8c2",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/axe.png": "cb1f9a52bea40c6a675b23ce981218e456e5b0dceab4ae75d462fa5003ede310",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/tidewarden_helmet.png": "537cb3aad918e0f5911213d6726b80278253fb15a879b93072e913750e0b2a38",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/plane_remote.png": "d68c544e9cbc2fd4ca2d63963fe653fce40df383f67de8ab4542f9d44a990373",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/helmet.png": "02b45fc98de1077fc12fad3ff0eebc4bbd4ffe356f552aa965c10f60dd9df4e7",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/shovel.png": "494523e7cf2eae3af85a9cc45e8c6318b8d872f44536c35bc4c72390cd602f09",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/cuirass.png": "43d1c0424d68bab1ae1199786f195b0ec5d1bc798d820410fada3d9d31ed7c76",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/ember_helmet.png": "5d2b59f5effc8955686c17d08e13ae12adff923fd92caabf95ba3b6ca9f23fba",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/ingot.png": "c952b0b0b4cad2fb5e86e90fd30a41ecd0c375c73e060b207ddce13c6f9b6d8f",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/spear.png": "280604fdd194be92ab7c5b7c0edcbf40d5dcef95baf45696d37d18fd22768da0",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/pickaxe.png": "8938fa1a31242dc2c1e1b9723a1681a963f4043ab8b2f5abdc9c2f7532b4b24e",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/aurora_helmet.png": "3cb617eeab17bfed18421b1792f238263ea2899c7b1e4422f2010a70ebb5d5a4",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/hoe.png": "97a3f40c9a775eadc4d03d2f62c5dd25be3c1f9b1042abd3da232039cb9025f1",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/ember_leggings.png": "bd4e1f6960a997d17b23e6174b5dd032f5b9a68015bbd406ab864cf48eaf97ad",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/anchor_charm.png": "6ac2e39a7b49be7cfd2b36e5d943e61136501711f4799bfd0826271a1263b1cd",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/ember_chestplate.png": "8a43566e658d2d600f282219d97d30addcf5d51d9170f23246f68fab23c2ea41",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/tidewarden_boots.png": "dee8b5a9d95f2c3b4c25ad945335e2dd229603858e796f66843237cb9dfaafc9",
+    "java/src/main/resources/assets/convergence/textures/item/refresh27/tidewarden_leggings.png": "6c1c9d072051aea5244fcb1e9b72e6b58168987fd32db57281414a5badbaa970",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/moonstone.png": "30e4eeb4ec12e1998bfd9906b419afcc4a74e89ab2f6c9079198b9ce6856d757",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/aurora_tiles.png": "599d9c37fe6fc6ecc468801adb608a95f120a95d154786e4766ed40712a5d25a",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/radiant_infinity.png": "dab13205c7c0237bdabe23665031680ab2eab1da6c07c6123b618294c0a71ccb",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/infinity_block.png": "0f082a8cfbb399ad84413f87dec11e109af1cb9310825c31a810fe23bc453cf3",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/polished_infinity.png": "73f3b628855fe737659fcf1de4879ddff81243eb0977ae3bc6b574fd42974fd6",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/obsidian_lattice.png": "411a7a8a833ffedf3699972a0862ea41137e92b756e61b8b6cb26cc057250d05",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/verdant_mosaic.png": "01697afd87a26152b9caa9a7cd045a824814363f663f2826ead95e170aa8aaa3",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/sunstone_lamp.png": "380f2f24ae8d9b8d53f97abb2bcfd801b7d6f97baa24b3a4a44a12a5f7a6c2a5",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/infinity_bricks.png": "04a425f0409d5c9e869cbb0d0df3ec4617e9c47d3c88c83d03cb25f2902cc3a1",
+    "java/src/main/resources/assets/convergence/textures/block/refresh27/copper_circuit.png": "8caad94f661359f6c6e925bf3d7ddeaa135e6ade4d6130dfb113e22c4eedaf91",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/moonstone.png": "30e4eeb4ec12e1998bfd9906b419afcc4a74e89ab2f6c9079198b9ce6856d757",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/aurora_tiles.png": "599d9c37fe6fc6ecc468801adb608a95f120a95d154786e4766ed40712a5d25a",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/radiant_infinity.png": "dab13205c7c0237bdabe23665031680ab2eab1da6c07c6123b618294c0a71ccb",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/infinity_block.png": "0f082a8cfbb399ad84413f87dec11e109af1cb9310825c31a810fe23bc453cf3",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/polished_infinity.png": "73f3b628855fe737659fcf1de4879ddff81243eb0977ae3bc6b574fd42974fd6",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/obsidian_lattice.png": "411a7a8a833ffedf3699972a0862ea41137e92b756e61b8b6cb26cc057250d05",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/verdant_mosaic.png": "01697afd87a26152b9caa9a7cd045a824814363f663f2826ead95e170aa8aaa3",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/sunstone_lamp.png": "380f2f24ae8d9b8d53f97abb2bcfd801b7d6f97baa24b3a4a44a12a5f7a6c2a5",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/infinity_bricks.png": "04a425f0409d5c9e869cbb0d0df3ec4617e9c47d3c88c83d03cb25f2902cc3a1",
+    "bedrock/resource_pack/textures/convergence/blocks/refresh27/copper_circuit.png": "8caad94f661359f6c6e925bf3d7ddeaa135e6ade4d6130dfb113e22c4eedaf91",
+    "bedrock/resource_pack/textures/convergence/models/armor/refresh27/ember_refresh27.png": "da8176c82a5a575f6733bfa155f3b3f7316f84528bd1ddc45609cbb18a57411b",
+    "bedrock/resource_pack/textures/convergence/models/armor/refresh27/aurora_refresh27.png": "46da6d807119562ff36469cdd975b417cefd648fd189a5c3e1d58f30be830e14",
+    "bedrock/resource_pack/textures/convergence/models/armor/refresh27/convergence_refresh27.png": "90e51717c10d041273c01f3ca9eb3ece9d45a64b10e9f1a20befac92ec3a5b6a",
+    "bedrock/resource_pack/textures/convergence/models/armor/refresh27/backpack_refresh27.png": "abe4d8805fe3f9dd2d91c115e242b4ae14ca14ff62514868bf3330d54d6c7e18",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/totem.png": "ab956fc7078316b61ebf2125b0a255824a620b4ea088ef40ebe7aa154b36dd71",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/boots.png": "0a5e45296d091e5e5691b36a3cb45b21eba26b59e30879c5c6268714c2bd418f",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/gust_glove.png": "206bf88ec2da8948381af3e7e17a0f6a5e3d901e3774b13d763c4897ec8d8f4c",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/bow.png": "d46a021b78b097e606eb3f416f3a60d88aa2aac566d3b9378feecae811334fba",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/sculptor_wand.png": "8d85c0000bb676e1d765ba729ff27167a7cd8a5ffc2a4e3520505abdd54af605",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/void_arrow.png": "89d44ac441831d0d9d880b3a45450434f82792e118b0c66718eaf9ec853754a2",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/builder_wand.png": "85e0f3fa37f7c630dc5321bdf95d9a8739da959f49267be40e699bbdd191f514",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/ember_boots.png": "48aba17a908bbd73dcaa6f1a7f33eb54ebedade78a5a0dc7f0c288c5db73d6d5",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/shield.png": "d5d0967c0e263b7bc9d986e2cda5b8716e518b928f27fe18228f3e02ccd0b13d",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/aurora_chestplate.png": "8be23b4fc18d48364d3cdef7f02427960e7b923d67ebd29b1899847f9323b9fb",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/blueprint_wand.png": "99956e5973411aec5c14798a06d0788c881e61b494a8311234323dd602baa79b",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/aurora_leggings.png": "ebd4b2aa5ffd92aafaeb086df7a0fed67dfc3fdcb8655f32e65179f094894b24",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/chestplate.png": "2de35937d8458d503d445ccd8d020e739a8d74c2da71f6441d34a5b273535a17",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/backpack.png": "c052c5cf93b8b6c48a966c9789b37727e0be3da258d8044c5af955cca0bf81c9",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/crossbow.png": "4ca241689722e06338cb7875e69508b4708dcaedf5c86c917eafa7a3c3d68900",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/leggings.png": "d9407a02b1f8a6b6964b582707f279ebd7e46f5bb629c9da19bc84108e8fa2b8",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/tidewarden_chestplate.png": "2adc531f605cae36390949df373b2e8633c7d64caacc0431d0b427dff24c28e5",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/starfire_arrow.png": "762ce3c223eef1a30298fbec6fced6af5ea5d9ed906bd16a4c9da2caf667b52d",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/blink_wand.png": "78e45dfa30fe8e6736f3ddf2300ddbaf13d95407709638e30d3ed359c9b33ee1",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/party_wand.png": "3433a29686d2a71ddec8b8f1daea3010b2960657e394a27ea79741927ac5f8b3",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/infinity_arrow.png": "787257aec77e767932d6f0d62ad9392ff1ea1021d4f9a06b14f655af6fdc8c4e",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/sword.png": "0ef3b5b3dc3de75349f80439cc7c7733f3b0fad69d95f0c57d4d903c35cb1962",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/aurora_boots.png": "8792e9e25bf7a7ddb84cf0246d5c48b04cbee7f5906c199cff6356459e7f448c",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/storm_staff.png": "05a7c495f7020ed6772c2537b29fcf9f133e7470c3c331d96fc30cc59825662d",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/mace.png": "8adeb4bdb79d8dfa3dd0848c6ed954a4b2cd5b86ce791781913b4569bd20c8c2",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/axe.png": "cb1f9a52bea40c6a675b23ce981218e456e5b0dceab4ae75d462fa5003ede310",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/tidewarden_helmet.png": "537cb3aad918e0f5911213d6726b80278253fb15a879b93072e913750e0b2a38",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/plane_remote.png": "d68c544e9cbc2fd4ca2d63963fe653fce40df383f67de8ab4542f9d44a990373",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/helmet.png": "02b45fc98de1077fc12fad3ff0eebc4bbd4ffe356f552aa965c10f60dd9df4e7",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/shovel.png": "494523e7cf2eae3af85a9cc45e8c6318b8d872f44536c35bc4c72390cd602f09",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/cuirass.png": "43d1c0424d68bab1ae1199786f195b0ec5d1bc798d820410fada3d9d31ed7c76",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/ember_helmet.png": "5d2b59f5effc8955686c17d08e13ae12adff923fd92caabf95ba3b6ca9f23fba",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/ingot.png": "c952b0b0b4cad2fb5e86e90fd30a41ecd0c375c73e060b207ddce13c6f9b6d8f",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/spear.png": "280604fdd194be92ab7c5b7c0edcbf40d5dcef95baf45696d37d18fd22768da0",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/pickaxe.png": "8938fa1a31242dc2c1e1b9723a1681a963f4043ab8b2f5abdc9c2f7532b4b24e",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/aurora_helmet.png": "3cb617eeab17bfed18421b1792f238263ea2899c7b1e4422f2010a70ebb5d5a4",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/hoe.png": "97a3f40c9a775eadc4d03d2f62c5dd25be3c1f9b1042abd3da232039cb9025f1",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/ember_leggings.png": "bd4e1f6960a997d17b23e6174b5dd032f5b9a68015bbd406ab864cf48eaf97ad",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/anchor_charm.png": "6ac2e39a7b49be7cfd2b36e5d943e61136501711f4799bfd0826271a1263b1cd",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/ember_chestplate.png": "8a43566e658d2d600f282219d97d30addcf5d51d9170f23246f68fab23c2ea41",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/tidewarden_boots.png": "dee8b5a9d95f2c3b4c25ad945335e2dd229603858e796f66843237cb9dfaafc9",
+    "bedrock/resource_pack/textures/convergence/items/refresh27/tidewarden_leggings.png": "6c1c9d072051aea5244fcb1e9b72e6b58168987fd32db57281414a5badbaa970"
+  },
+  "source_sha256": {
+    "armor-source.png": "8c00eebd3649b11a42063ead328d7fdbafdfe2404878770bdeeed25142043345",
+    "blocks-source.png": "d9588eca11748bad79b4c3cff6ec6b2bb4bc4fcece536565cdf50e6cbc510735",
+    "icons-source.png": "e4c1375f3968dc44478529316a06784aa71193613330aea151713eafcbaf5775"
+  }
+}
