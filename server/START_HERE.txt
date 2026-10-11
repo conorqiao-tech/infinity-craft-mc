@@ -1,0 +1,82 @@
+INFINITY ARMOR — EXPLORATION SERVER 2.12.0-explore.17
+
+1. Extract the entire ZIP into a folder you will keep.
+2. Double-click Start-Mac.command (Mac) or start.bat (Windows).
+3. In the browser, accept the Minecraft EULA if you agree, then click Start shared world.
+
+Python and Java are set up automatically. First setup needs internet and may take a few minutes.
+Keep the launcher/Terminal window open while playing.
+
+When the panel says WORLD IS RUNNING:
+- Java 1.21.11: copy the Java address into Multiplayer > Direct Connection.
+- Bedrock 26.30–26.51: add a server using the Bedrock address and port in the panel.
+- Use devices on the same Wi-Fi. Accept the offered texture packs.
+
+Finished? Click Save & Stop, wait for Ready to start, then Close launcher.
+Next time, open the same launcher. Your world and settings stay in this folder.
+
+Linux: run bash start.sh.
+More help: README.md. Test results and preview limitations: VALIDATION.md.
+
+NEW SERVER FEATURES
+Homes, spawn, shared warps, teleport requests, rules, moderation, and backups.
+In Minecraft: /serverhelp
+As an operator in a clear 25x25 grassy area: /community buildspawn
+Host panel: set your server name, rules, player slots and allowlist.
+32 slots is the default limit; real capacity depends on your hardware.
+
+For outside-network friends on an Apple Silicon Mac, open Start-Pinggy-Mac.command after the world starts. It installs the verified free helper on first use, then shows separate temporary Java and Bedrock addresses in the panel. No account sign-in is needed. See PINGGY_JOINING.md. For always-on hosting, read HOSTING.md.
+
+For a fixed joining name on Mac, follow DYNU_JOINING.md: reserve your own free Dynu hostname, save its private API key locally, and forward Java TCP 25565 plus Bedrock UDP 19132 in your router. Start-Dynu-Mac.command keeps that name's IPv4 current while open. Keep the Mac awake and test both editions from another Internet connection. DNS alone does not make the games reachable or guarantee a name forever.
+
+IN MINECRAFT
+Admin/OP4: Infinity Menu > Admin editor > choose a player or loaded AI helper > choose a stat > Review > Confirm. Edit health, max health, speed, damage, armor, size, hunger, XP and other supported stats. Enter health or absorption directly; the same confirmation raises its capacity when needed. Equipment bonuses remain separate; reset restores recorded attribute bases. Setting health to zero kills the selected target. AI helpers have their own supported stats; hunger and XP apply to players.
+Select the Infinity Menu compass for modes, gear, powers, cosmetics and helpers. INFINITY MENU signs in the themed lobbies open the same controls. /menu remains a shortcut.
+New players start in the Main Hub. Existing players can use /hub.
+/lobbies — list mode lobbies; /lobby <mode> — visit one.
+/play — Survival, Creative, Hardcore, Minigames, Adventure
+Tap or right-click the Minigames or Adventure hub entry sign, or use /play minigames or /play adventure, for a chest-like course menu. Tap a course icon. SELECT COURSE signs at course starts reopen the menu.
+/minigame parkour, sprint, dropper, redlight, crystalhunt, or colorrush
+/adventure ruins or /adventure maze
+/guide — directions for your current place; /best — personal minigame times
+/leaderboard <map> — fastest saved times on any of the six minigames
+Crystal Hunt: touch five amethyst pads once each, in any order. Color Rush: reach the named color before each five-second pulse expires. Your chosen map stays selected after reconnecting, but an unfinished run starts over. Menus and signs still need a real iPad playtest.
+/ranks — all achievement rank requirements; /rank — your progress and missing achievements
+Enter Creative from its lobby or menu. Select Infinity Menu for the gear catalogue, tool activation, hand swapping and kits. Tap a vanilla icon to equip real Infinity gear. Your previous held item is restored when opening the menu. No /convergence command is required; optional command shortcuts remain. This update still needs a live iPad menu playtest.
+
+Every game mode and rank is free. Complete all three achievements in a group, or exchange Survival items with /trades:
+Go — stone pickaxe, iron ingot, Monster Hunter (kill a hostile mob).
+Plus — iron pickaxe, diamond, enchant an item.
+Pro — enter the Nether, blaze rod, enter the End.
+Ultra — defeat the Ender Dragon, enter an End gateway, find an End city.
+The highest completed group wins; lower groups are not prerequisites. Earned ranks stay unlocked.
+Creative inventory items can trigger item milestones; ranks are not proof of Survival-only play.
+New downloads start with Admin-code redemption disabled. Save & Stop, then set a private code in the local host panel. Existing private configuration is retained.
+Use /admincode <code> in Minecraft; do not post your code publicly.
+Admin grants full OP level 4 and bypasses Infinity gameplay unlocks and ability cooldowns. Keep the code with trusted staff. AI changes still require both reviews. See MEMBERSHIPS.md for revocation.
+NEW REWARDS AND TRADES
+/rewards — six power presets and eight cosmetics, earned separately from ranks.
+/power <id> or /power off — one Survival-only power preset at a time.
+/cosmetic <id> or /cosmetic off — choose or hide one earnable particle aura.
+/trades — item costs for ranks and powers. /trade <id> previews; /trade <id> confirm pays.
+Details: LOBBIES.md, MODES.md, MEMBERSHIPS.md, REWARDS.md and TRADING.md.
+
+HELPERS AND FULL OPERATOR ACCESS
+Infinity Menu > AI Helpers > Create your first helper makes a named golem appear nearby on clear ground. Existing helpers appear in your roster.
+In the stopped-world panel, the host can connect their installed, signed-in native Codex CLI 0.155.1. Ask Codex then sends explicit questions plus limited game facts to OpenAI using that host account. No API key is required for this provider; account usage limits still apply.
+/ai help always answers locally. Ordinary players retain built-in server guidance.
+Level-4 operators: /agent spawn buddy, /agent follow buddy, /agent guard buddy, /agent stay buddy, /agent dismiss buddy, /agent list.
+Separate OP4 helper action queue: /agent suggest set day; /agent pending; /agent approve <id>. No action runs until a live Codex session reviews and approves the exact proposal from the local console. The six fixed requests are day, night, clear weather, rain, list players, and save world. See AGENTS_GUIDE.md.
+Operators can use any power/cosmetic without earning it and switch modes immediately.
+Helper menu: /agent menu. Six named helpers per OP4 owner; six AI profiles; /agent ask <name> <question>; /agent squad follow|guard|stay. CLI code-change requests require in-game owner approval and live Codex source review/testing. API asks send a limited Minecraft snapshot; /agent data <name> previews it. More details: AGENTS_GUIDE.md.
+
+Also available through Infinity Menu: building kits, wardrobe and backpack controls. /ptrade <player> starts a mutually confirmed player trade. Try Crystal Hunt and Color Rush. Read EXPANSION.md and EXPLORATION.md.
+
+Missing AI helpers: Infinity Menu > AI Helpers > choose a loaded helper > Bring here. This preserves the existing golem and resumes Follow beside you. Unloaded helpers need their area visited first.
+
+FIXES IN EXPLORE.13
+My stats on Bedrock/iPad now uses native buttons and an exact-number form, then Confirm changes. Manual stat edits do not wait for Codex approval. Change Health capacity first, then Current health.
+Infinity Menu > Armor sets offers Aurora/Ember with all four pieces, including chestplates. Clear four slots. Bedrock uses native dyed-leather wearables; reconnect for the refreshed pack.
+Ultimate Finals equips native spear, mace and elytra mechanics. Golem bodies do not render held gear/wings. Player targeting still requires both approvals.
+
+Creative: real armor, weapons and tools enter empty inventory slots. Infinity Menu > Armor & tools > inventory retries safely. Ranks & subscriptions shows your actual badge and permanent rank. AI Helpers now have native player avatars displaying weapons and elytra; combat remains server AI. Player-target orders still need owner approval and a separate live Codex review.

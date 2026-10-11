@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Infinity Armor | Resources",
+    "description": "Infinity armor, powered tools, four building blocks, totem, shield, bow, crossbow, and three enchanted arrows.",
+    "uuid": "691396d6-a658-59ee-85bf-de6b953bcd3c",
+    "version": [
+      2,
+      3,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      90
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "5df25acc-4a5c-58b5-9ee2-01d3709748b1",
+      "version": [
+        2,
+        3,
+        0
+      ]
+    }
+  ]
+}
