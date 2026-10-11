@@ -37,3 +37,15 @@ class NativeGroupTests(unittest.TestCase):
                 self.assertEqual(current, manifest)
                 for name in ("native.class", "fixture.json"):
                     self.assertEqual(jar.read(name), original.read(name))
+
+    def test_exclusive_fixture_classes_each_receive_their_own_world(self):
+        manifest = {"entrypoints": {"fabric-gametest": ["A", "B", "C", "D"]},
+                    "custom": {"infinity-isolated-gametests": ["B"],
+                               "infinity-exclusive-gametests": ["D", "C"]}}
+        self.assertEqual(check_crossplay.test_groups(manifest),
+                         [("default", ["A"]), ("native-play", ["B"]),
+                          ("exclusive-0", ["D"]), ("exclusive-1", ["C"])])
+        for invalid in (["missing"], ["C", "C"], ["B"], "C", [True]):
+            manifest["custom"]["infinity-exclusive-gametests"] = invalid
+            with self.assertRaises(ValueError):
+                check_crossplay.test_groups(manifest)

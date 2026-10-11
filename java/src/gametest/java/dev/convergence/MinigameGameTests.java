@@ -21,6 +21,26 @@ import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.Vec3;
 
 public class MinigameGameTests {
+    @GameTest public void failedNativeTeleportKeepsCourseSelectionRunFoodAndSave(GameTestHelper c) throws Exception {
+        var p=player(c,"course-failure","parkour");var server=p.level().getServer();
+        try {
+            p.getFoodData().setFoodLevel(9);p.getFoodData().setSaturation(2);
+            PlayerPersistence.save(p);
+            var file=GameModes.savedPlayerFile(server,p.getUUID());var saved=Files.readAllBytes(file);
+            var before=GameModes.state(p).copy();var run=ModeMaps.RUNS.get(p.getUUID());var origin=p.position();
+            // Pinned native ServerPlayer.teleport returns null for a removed entity.
+            // Exercise that real refusal instead of faking a successful course start.
+            p.remove(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_WITH_PLAYER);
+            ModeMaps.begin(p,"redlight");
+            c.assertValueEqual(GameModes.state(p),before,"A refused native teleport does not save another course selection");
+            c.assertTrue(ModeMaps.RUNS.get(p.getUUID())==run,"The prior run is retained");
+            c.assertValueEqual(p.position(),origin,"The refused teleport leaves the position unchanged");
+            c.assertValueEqual(p.getFoodData().getFoodLevel(),9,"Failure does not reset food");
+            c.assertValueEqual(p.getFoodData().getSaturationLevel(),2f,"Failure does not reset saturation");
+            c.assertTrue(java.util.Arrays.equals(saved,Files.readAllBytes(file)),"Failure never rewrites the native player save");
+        } finally {ModeMaps.RUNS.remove(p.getUUID());server.getPlayerList().remove(p);}
+        c.succeed();
+    }
     private ServerPlayer player(GameTestHelper c,String name,String map) {
         var p=new ModeGameTests().player(c,name);
         GameModes.switchNow(p,GameModes.Mode.MINIGAMES,map);

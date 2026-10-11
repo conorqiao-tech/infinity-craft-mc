@@ -6,6 +6,8 @@ In explore.26, course icons include their actual instructions and personal bests
 
 Use **`/play`** in Minecraft. Java has clickable choices; the same short commands work on Bedrock. Mode changes take three seconds. Stay still, leave vehicles, and let shoulder pets dismount. Taking damage cancels the change, and you must wait ten seconds after damage before trying again.
 
+The explore.33 source candidate starts preparing an unavailable destination during that countdown. If it is still loading after three seconds, stay still until the preparation message clears. Your current world and inventory remain active until the verified move. A cold saved return position is loaded and checked before choosing a default spawn. The server starts at most four new destination chunk loads per game tick; a request still pending after 600 game ticks cancels without moving or capturing your profile. Game ticks are not a guaranteed wall-clock duration. This preparation covers changes between modes and first-visit Hub routing; same-mode lobby movement, homes and respawn still use their existing native paths.
+
 | Mode | Command | What you get |
 |---|---|---|
 | Survival | `/play survival` | Your existing main world, crafting, Infinity gear, homes, Nether and End. |
@@ -23,6 +25,8 @@ Inventories, equipped armor/offhand, Ender Chests, personal backpack storage, ex
 ## Operator access
 
 Level-4 operators can switch game worlds immediately, including during combat, and are not forced back to a prescribed game mode by the mod. Operator teleporting across game worlds updates the matching mode profile. Operators can enter Hardcore after elimination; ordinary players keep the one-life rule. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for operator controls.
+
+In the explore.33 source candidate, OPs still skip the countdown and combat delay. If destination chunks are unavailable, they wait only for terrain preparation; losing OP access cancels that pending privileged request. The selected destination must still pass the existing cross-mode safety check.
 
 ## Hardcore
 

@@ -252,7 +252,7 @@ final class CommunityServer {
         if (place == null) return say(p, "That location is not set. Ask staff or use /sethome.");
         if (Memberships.operator(p)) {
             var destination=world(place);if(destination==null)return say(p,"That destination is invalid or its world is missing.");
-            pending.remove(p.getUUID());GameModes.PENDING.remove(p.getUUID());p.stopRiding();
+            pending.remove(p.getUUID());GameModes.cancelPending(p);p.stopRiding();
             if(p.teleportTo(destination,place.x,place.y,place.z,Set.of(),place.yaw,place.pitch,true)) {
                 p.fallDistance=0;p.setDeltaMovement(Vec3.ZERO);return say(p,"Teleported with OP access.");
             }

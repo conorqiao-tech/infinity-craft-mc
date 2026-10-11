@@ -30,6 +30,7 @@ public class ModeGameTests {
         return player(c,name,connection);
     }
     ServerPlayer player(GameTestHelper c,String name,net.minecraft.network.Connection connection) {
+        warmLegacyDestinations(c);
         var server=c.getLevel().getServer();var profile=new com.mojang.authlib.GameProfile(UUID.randomUUID(),name);
         var data=net.minecraft.server.network.CommonListenerCookie.createInitial(profile,false);
         var p=new ServerPlayer(server,c.getLevel(),profile,data.clientInformation());
@@ -37,7 +38,24 @@ public class ModeGameTests {
         p.connection.handleAcceptPlayerLoad(new net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket());
         var feet=c.absolutePos(new BlockPos(2,2,2));c.getLevel().setBlockAndUpdate(feet.below(),Blocks.STONE.defaultBlockState());
         c.getLevel().setBlockAndUpdate(feet,Blocks.AIR.defaultBlockState());c.getLevel().setBlockAndUpdate(feet.above(),Blocks.AIR.defaultBlockState());
-        p.setPos(feet.getX()+.5,feet.getY(),feet.getZ()+.5);p.setNoGravity(true);return p;
+        p.setPos(feet.getX()+.5,feet.getY(),feet.getZ()+.5);p.setNoGravity(true);
+        warmHalo(server,CommunityServer.Place.of(p));return p;
+    }
+    /** These synchronous legacy cases exercise committed gameplay, not cold loading.
+     * ModeTransferGameTests independently starts with a physically unloaded saved destination.
+     */
+    private static void warmLegacyDestinations(GameTestHelper c) {
+        var server=c.getLevel().getServer();
+        for(var mode:List.of(GameModes.Mode.CREATIVE,GameModes.Mode.HARDCORE))
+            warmHalo(server,GameModes.defaultPlace(server,mode));
+        for(var spec:ModeMaps.MAPS.values())if(ModeMaps.available(spec.id()))
+            warmHalo(server,GameModes.mapPlace(server,spec.mode(),spec.id()));
+        for(var hall:LobbyServer.LOBBIES.keySet())warmHalo(server,LobbyServer.place(server,hall));
+    }
+    private static void warmHalo(net.minecraft.server.MinecraftServer server,CommunityServer.Place place) {
+        var world=CommunityServer.get(server).world(place);
+        int cx=((int)Math.floor(place.x()))>>4,cz=((int)Math.floor(place.z()))>>4;
+        for(int x=cx-1;x<=cx+1;x++)for(int z=cz-1;z<=cz+1;z++)world.getChunk(x,z);
     }
     Memberships members(GameTestHelper c) {
         try {var dir=Files.createTempDirectory("infinity-memberships-test-");return new Memberships(c.getLevel().getServer(),dir.resolve("members.json"),dir.resolve("config.json"));}
@@ -125,7 +143,9 @@ public class ModeGameTests {
         c.assertTrue(GameModes.PENDING.containsKey(next.getUUID()),"Spectator can choose a course after Hardcore elimination");
         GameModes.PENDING.remove(next.getUUID());
         GameModes.switchNow(next,GameModes.Mode.SURVIVAL,null);
-        c.assertValueEqual(next.gameMode(),GameType.SURVIVAL,"Can continue Survival after losing Hardcore");c.succeed();
+        c.assertValueEqual(next.gameMode(),GameType.SURVIVAL,"Can continue Survival after losing Hardcore; pending="+GameModes.PENDING.containsKey(next.getUUID())
+            +", joined="+(c.getLevel().getServer().getPlayerList().getPlayer(next.getUUID())==next)+", accepting="+next.connection.isAcceptingMessages()
+            +", alive="+next.isAlive()+", removed="+next.isRemoved()+", health="+next.getHealth());c.succeed();
     }
     @GameTest public void adminRoleGrantsActualOperatorCommands(GameTestHelper c) {
         var p=player(c,"admin-commands");var s=Memberships.get(c.getLevel().getServer());

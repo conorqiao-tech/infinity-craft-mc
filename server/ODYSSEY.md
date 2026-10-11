@@ -28,6 +28,8 @@ Delivery uses an empty slot, saves a receipt with native player data and retries
 
 The new journal adds progression to the established prophecy without changing its four pages, the original loot book, ruin layout or one-chest rule. Open **Infinity Menu → The Odyssey • journal & prophecy** to see discoveries and claim gifts. The journal records your position and biome palette when you physically enter a registered generated Odyssey ruin in Survival or Hardcore. Merely holding the prophecy, walking near a ruin, or building a copy does not count. Creative and the lobby/game dimensions do not count.
 
+The explore.33 source candidate reads only completed terrain for discovery. A loading local chunk or referenced structure start is skipped and retried by the normal journal check every 20 game ticks. This does not generate a ruin, grant progress early or change its loot; enter an actual generated piece once its terrain has finished loading.
+
 This added quest is called the **Circuit Keepers journey**. Rediscover a circuit in each of the Overworld, Nether and End, then prove memory and timing in the two new minigames. Discoveries and claimed gifts save with your native player data across mode changes and reconnects. Hardcore has only an Overworld; continue the Nether and End discoveries in Survival.
 
 | Gift | Requirement | Reward |

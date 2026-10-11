@@ -366,7 +366,10 @@ final class ModeMaps {
     static void begin(ServerPlayer p, String id) {
         var map=MAPS.get(id); if(map==null || GameModes.current(p)!=map.mode) return;
         if (!available(id)) { CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log."); return; }
-        var pos=start(id); p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true);
+        var pos=start(id);
+        if(!p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true)) {
+            CommunityServer.say(p,"The course could not start because teleporting failed. Your selection and current run are unchanged.");return;
+        }
         p.setDeltaMovement(Vec3.ZERO); p.fallDistance=0;
         p.getFoodData().setFoodLevel(20); p.getFoodData().setSaturation(5);
         String selection="selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map";

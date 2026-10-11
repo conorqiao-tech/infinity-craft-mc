@@ -1,6 +1,21 @@
-# Reliability and helper work — explore.32
+# Reliability and helper work — explore.33
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
+
+## Destination preparation and discovery in explore.33
+
+| Trigger | Previous behavior | Corrected behavior and regression |
+| --- | --- | --- |
+| A cross-mode move returns to a saved location whose terrain has unloaded. | Safety checks synchronously wait for native FULL chunks while the server thread is handling the move. | Shared native loading leases prepare the exact saved location across ticks. At most four new native requests start per server tick; no lease operation invokes the blocking native `getChunkFuture`. Inventory capture and participant saving happen only after a ready destination and successful teleport. |
+| A Creative or Hardcore default search crosses missing collision chunks. | The search can synchronously generate many columns and their collision neighbors in one call. | Preserve all 1,089 original nearest-ring candidates, read at most 64 loaded columns per poll, and retain the actual one-block collision halo. The origin grid occupies 100 distinct chunks; a distant saved position can add four. This bounds requests and scanning, not total native generation work or whole-server lag. |
+| A course becomes unavailable before the first preparation poll, then available again before the countdown ends. | A fallback course can supply the retained location, while the later final check accepts the originally chosen course. | Resolve the course once and reject its unavailability without fallback. A refused request stays terminal; a fresh request can recover after that exact course is repaired. |
+| Movement, damage, death, disconnect or replacement of a player occurs during preparation. | A late loading result risks applying to a changed player/session. | Ordinary transfers cancel before profile capture. Jobs bind the actual player object, native connection, origin world/mode and request. Stale callers and late disconnect callbacks cannot cancel a newer session. OPs retain their gameplay bypass but still wait for technical loading and lose a pending privileged request if that permission is revoked. |
+| An Odyssey discovery check reaches an incomplete local/reference chunk. | A periodic journal scan can ask for a synchronous FULL chunk. | Query only actually published chunks; defer incomplete data to the normal 20-tick retry. Existing discovery bounds, lore, progress, loot and saving remain unchanged. |
+| Native course teleport refuses the move. | Food, course selection or the run can change despite the failed teleport. | Check native teleport success first; retain the prior course, run, food and saved state on refusal. |
+
+Preparation times out after 600 game ticks, which is not a wall-clock deadline. The native nonpersistent loading ticket lasts 1,200 ticks and overlapping leases renew the same ticket. Canceling releases this module's tickets without canceling shared native generation futures. Runtime renewal/removal failure branches are source-reviewed; shutdown cleanup is best-effort after a native removal exception.
+
+This path covers cross-mode moves and first-visit routing. Same-mode Hub arrivals, home/default-spawn commands and native respawn fallbacks retain their existing synchronous paths. The explore.32 packet measurements below are preserved historical evidence; they are not a new explore.33 timing measurement. The live server remains explore.26 pending installation approval.
 
 ## Connection-local capacity refreshes in explore.32
 
@@ -12,7 +27,7 @@ This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. I
 
 `tools/benchmark_capacity.py` compares prebuilt explore.31 and explore.32 jars through real registered armor upkeep in fresh disposable worlds. Both connection/player tick counts and the server tick count advance exactly 120 after 40 warmup ticks; actual native effect renewals and observer tracking must remain present. Receipts are recorded only after native encoding succeeds. Two baseline/optimized pairs alternate order. In each run both viewers received three capacity packets. Each baseline viewer received three synthetic health/absorption refresh groups; each explore.32 viewer received zero. True health/absorption, attribute bases, native saved attributes/equipment and every equipped item component stayed unchanged. This is a count of eliminated duplicate groups, not live TPS, latency or total allocation evidence.
 
-Measurement records, reports, logs and their hashes remain under `research/capacity-performance/2.13.0-explore.32/`; the packaged summary/provenance bind the exact tested mod, test jar and Java sources. Packaging rejects missing/replaced native test jars, zero/incomplete comparison pairs, changed raw evidence or summary/report disagreement. Full-stack and authentic device checks remain separate from this controlled measurement. The earlier fixture lacking native connection ticking failed its renewal assertion and was corrected; its quiet output was never accepted as a performance result.
+Measurement records, reports, logs and their hashes remain under `research/capacity-performance/2.13.0-explore.32/`; the explore.32 packages retain summary/provenance binding that version's exact tested mod, test jar and Java sources. Packaging rejects missing/replaced native test jars, zero/incomplete comparison pairs, changed raw evidence or summary/report disagreement. Full-stack and authentic device checks remain separate from this controlled measurement. The earlier fixture lacking native connection ticking failed its renewal assertion and was corrected; its quiet output was never accepted as a performance result.
 
 ## Reproductions and fixes
 

@@ -21,11 +21,17 @@ FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gamet
 def test_groups(manifest):
     registered = manifest["entrypoints"]["fabric-gametest"]
     isolated = manifest.get("custom", {}).get("infinity-isolated-gametests", [])
+    exclusive = manifest.get("custom", {}).get("infinity-exclusive-gametests", [])
     if (not isinstance(isolated, list) or any(not isinstance(name, str) for name in isolated)
         or len(set(isolated)) != len(isolated) or not set(isolated) <= set(registered)):
         raise ValueError("Isolated tests must be unique registered native test classes")
-    regular = [name for name in registered if name not in isolated]
-    return [(label, names) for label, names in (("default", regular), ("native-play", isolated)) if names]
+    if (not isinstance(exclusive, list) or any(not isinstance(name, str) for name in exclusive)
+        or len(set(exclusive)) != len(exclusive) or not set(exclusive) <= set(registered)
+        or set(exclusive) & set(isolated)):
+        raise ValueError("Exclusive tests must be unique registered classes outside the shared isolated group")
+    regular = [name for name in registered if name not in isolated and name not in exclusive]
+    shared = [(label, names) for label, names in (("default", regular), ("native-play", isolated)) if names]
+    return shared + [("exclusive-" + str(i), [name]) for i, name in enumerate(exclusive)]
 
 
 def selected_test_jar(source, destination, classes):
@@ -118,7 +124,9 @@ def main():
             group_log = runtime / ("integration-" + label + ".log")
             with group_log.open("w") as log:
                 tmp = __import__("os").environ.get("GAMETEST_TMPDIR")
-                result = subprocess.run([args.java, "-Xmx2G", *(["-Djava.io.tmpdir=" + tmp] if tmp else []), "-Dfabric-api.gametest",
+                paced = label.startswith("exclusive-")
+                result = subprocess.run([args.java, "-Xmx2G", *(["-Djava.io.tmpdir=" + tmp] if tmp else []),
+                    *(["-Dinfinity.gametest.paced=true"] if paced else []), "-Dfabric-api.gametest",
                     "-Dfabric-api.gametest.report-file=" + str(group_report), "-jar", "fabric-server-launch.jar", "nogui"],
                     cwd=target, stdout=log, stderr=subprocess.STDOUT, timeout=300)
             combined_log.write(group_log.read_text()); combined_log.flush()
@@ -130,7 +138,7 @@ def main():
             if result.returncode or len(cases) != expected_group or failures:
                 raise RuntimeError(f"Native group {label} failed: {len(cases)}/{expected_group} cases, {failures}; see {group_log}")
             assert hashlib.sha256(selected.read_bytes()).hexdigest() == selected_sha, "Selected native test jar changed during its group"
-            group_records.append(dict(name=label, registered_classes=classes, native_tests=len(cases),
+            group_records.append(dict(name=label, registered_classes=classes, native_tests=len(cases), pacing_ms=50 if paced else 0,
                 report_sha256=hashlib.sha256(group_report.read_bytes()).hexdigest(), selected_test_sha256=selected_sha))
             # Each independent world runs Vanilla's same baseline. Verify it every
             # time, then include it once in the aggregate instead of inflating coverage.

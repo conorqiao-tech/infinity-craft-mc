@@ -50,12 +50,16 @@ final class OdysseyJournal {
             ||(GameModes.current(p)!=GameModes.Mode.SURVIVAL&&GameModes.current(p)!=GameModes.Mode.HARDCORE))return false;
         var world=p.level();var pos=p.blockPosition();
         var ruin=world.registryAccess().lookupOrThrow(Registries.STRUCTURE).getOrThrow(OdysseyStructure.KEY).value();
-        var local=world.getChunkAt(pos);var references=new HashSet<Long>();references.add(local.getPos().pack());
+        // A FULL ticket can exist before its chunk future completes. Discovery must
+        // never wait for terrain; the normal journal tick retries incomplete chunks.
+        var source=world.getChunkSource();var local=source.getChunkNow(pos.getX()>>4,pos.getZ()>>4);
+        if(local==null)return false;
+        var references=new HashSet<Long>();references.add(local.getPos().pack());
         for(long reference:local.getReferencesForStructure(ruin))references.add(reference);
         for(long reference:references){
             var chunk=new net.minecraft.world.level.ChunkPos((int)reference,(int)(reference>>>32));
-            if(!world.isLoaded(new BlockPos(chunk.x()<<4,pos.getY(),chunk.z()<<4)))continue;
-            var start=world.getChunk(chunk.x(),chunk.z()).getStartForStructure(ruin);
+            var ready=source.getChunkNow(chunk.x(),chunk.z());if(ready==null)continue;
+            var start=ready.getStartForStructure(ruin);
             if(start==null||!start.isValid())continue;
             for(var piece:start.getPieces())if(piece instanceof OdysseyStructure.Piece&&piece.getBoundingBox().isInside(pos)){
                 String biome=world.getBiome(pos).unwrapKey().orElseThrow().identifier().toString();
