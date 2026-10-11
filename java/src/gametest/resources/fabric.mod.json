@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.28",
+  "version": "2.13.0-explore.29",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -9,6 +9,7 @@
       "dev.convergence.InfinityGameTests",
       "dev.convergence.CommunityGameTests",
       "dev.convergence.PlayerPersistenceGameTests",
+      "dev.convergence.SpawnSafetyGameTests",
       "dev.convergence.StatusWriterGameTests",
       "dev.convergence.ModeGameTests",
       "dev.convergence.LobbyGameTests",
@@ -28,6 +29,8 @@
       "dev.convergence.CodexTransportGameTests",
       "dev.convergence.AdminGameplayGameTests",
       "dev.convergence.AgentTacticsGameTests",
+      "dev.convergence.HelperPerformanceGameTests",
+      "dev.convergence.ConnectionProtocolGameTests",
       "dev.convergence.AdminStatsGameTests",
       "dev.convergence.AdminStatsMenuGameTests",
       "dev.convergence.AdminHelperStatsGameTests",
@@ -38,6 +41,8 @@
       "dev.convergence.PlaygroundGameTests"
     ]
   },
+  "mixins": ["helper-performance.mixins.json"],
+  "custom": {"infinity-opt-in-gametests": ["dev.convergence.HelperPerformanceBenchmark"]},
   "depends": {
     "convergence": "*"
   }

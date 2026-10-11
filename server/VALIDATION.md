@@ -1,4 +1,35 @@
-# Reliability and efficiency — 2.13.0-explore.28
+# Reliability, spawn safety and helper work — 2.13.0-explore.29
+
+Validated October 11, 2026 on **Minecraft 26.3 / Java 25** with the unchanged pinned stack: **414/414 native GameTests**, **188/188 Python launcher/resource tests** with resource warnings treated as errors, **21** reproducible one-chest Odyssey templates, Geyser registration of **38 exported custom definitions plus its built-in item**, **209** block overrides and local Bedrock UDP response, and **two isolated full-stack startup/cold-lobby/save/backup/restart/clean-shutdown cycles**. The final report has no failures, errors or skipped tests. Exact provenance binds the current Java source/resources, mod bytes and native report. Geyser and full-stack logs have no ERROR entries. The playable world was not used.
+
+New native checks reproduce unavailable or blocked mode destinations without changing inventory, worn/offhand equipment, cursor items, profiles or terrain. A refused death respawn retains the original player and uses native disconnect cleanup; Minecraft 26.3's actual login preparation reloads its dead Hardcore realm and inventory, and a repaired destination permits native respawn. Real charged-anchor preflight and death consume exactly one charge overall. Alive requests and End credits retain native behavior. Review caught a redundant Survival spawn search; an early return and native lookup-counter regression keep that search solely in actual respawn.
+
+Eleven in-process EmbeddedChannel/codec tests verify STATUS response/pong and fault closure, original fault details, outbound phase changes, native disconnect encoding in LOGIN/CONFIGURATION/PLAY, timeout, skipped packets and repeated/closed faults. The pinned native STATUS codec has no disconnect packet; the fix closes through native completion instead. The precise trigger of the earlier empty-server live fault remains unclassified. No external protocol probes or authenticated client login were performed.
+
+Three native helper regressions verify six independent controls/queries, unchanged candidate/sight work, lazy focus peer scans, live earlier-helper targets, owner-threat priority, paused/passive/dead targets, walls, range and player-damage refusal. The expensive opt-in Regular-helper comparison is excluded from the normal suite explicitly. Three Python tests verify the runner's offline pinned-cache refusal, selective disposable copy and temporary-only benchmark registration. Controlled measurements are recorded below separately from gameplay correctness.
+
+### Controlled Regular-helper comparison
+
+One baseline/optimized pair used six registered helpers, 20 warmup batches and 100 measured batches at each population, with normal native helper movement/combat between batches. Each subject passed both native report cases and wrote all 400 raw samples. Input mod/test jars and 58 cached runtime jar hashes were unchanged. The explore.28 baseline mod was `8793c3e9f4c0ee95ae7374ab4c4d880aef611b0aced3f5ad52004689b9e979fe`; the explore.29 subject was `c685f239226d48eeaf8786b3bef610ef0821b15bfac485b5d0e9c5d31a8c8c72`.
+
+| Eligible hostiles | Native queries per six-helper batch, both | Uncached sight rays, both | Baseline focus peer visits, mean (range) | Explore.29 focus peer visits |
+| --- | --- | --- | --- | --- |
+| 0 | 6 | 0 | 0 | 0 |
+| 1 | 6 | 6 | 0 | 0 |
+| 4 | 6 | 24 | 148.12 (127–163) | 36 |
+| 128 | 6 | 768 | 5,978.37 (5,623–6,702) | 36 |
+
+Dense instrumented control-batch p50/p95/p99/max were **0.835/0.963/1.051/1.094 ms** for the baseline and **0.424/0.600/0.641/4.364 ms** for explore.29. These are unpaced, control-only GameTest measurements. The counter itself runs more often in the baseline; JVM/physics/order noise and one comparison pair prevent an isolated speedup or TPS claim. The optimized maximum was higher. Both variants made six dense navigation requests per batch; actual native path searches varied (148 versus 218 total), so no navigation reduction is claimed. The verified result is fewer repeated focus peer visits with the same query/sight workload. Ultimate Finals and whole-server load were not measured.
+
+Local raw samples, XML reports, logs, summary and provenance are retained in `research/helper-performance/comparison-20261011/`. The corrected short check also passed both subjects before this longer run. Reproduce with the source runner and prebuilt validated jars; no owner world or private settings are required or copied.
+
+Preliminary native checks failed before the final passing run: a test-only initialized shadow overwrote the native server field; it is now an uninitialized shadow. A flooded-column fixture initially misread unloaded terrain and later attempted a same-state WATER write, which correctly returned false. The corrected owned column verifies native bounds and heightmap and restores its blocks. A refused-respawn fixture initially completed disconnect cleanup before its assertion and bypassed the real login NBT loader; it now gates native completion and uses `PrepareSpawnTask`. A closed-channel protocol fixture now invokes the original native handler context after pipeline removal. The first opt-in measurement marked success outside the framework's reporting tick, producing an incomplete XML report; its runner rejected the result before running the optimized subject. Completion now runs inside a scheduled framework tick, and the final normal suite was rebuilt and passed again. These failures were investigated and repaired; their failed reports are not passes.
+
+**Delivery:** local source/package explore.29; the live server remains **explore.26**, running and unchanged. Installation, terrain refresh, restart, public release and website deployment were not performed. Explore.27 artwork/inventory and explore.28 reliability changes are retained. Both the separate solid Convergence chestplate and existing winged item remain available.
+
+**Unverified/remaining:** real Java/iPad rendering, touch movement, crafting, flight, public joining and multiplayer TPS need client checks. The controlled Regular profile does not establish Ultimate Finals or whole-server performance. A cold spawn search can still synchronously request up to 81 chunks. Native durability APIs can log storage errors without throwing; trade verification remains intact. The existing mock-player Polymer warnings and native/Gradle deprecations remain. No lag-proof or glitch-free claim is made.
+
+## Previous reliability and efficiency — 2.13.0-explore.28
 
 Validated October 11, 2026 on the unchanged **Minecraft 26.3 / Java 25** stack: **391/391 native GameTests**, **182/182 Python launcher/resource tests** with resource warnings treated as errors, all **21** reproducible one-chest Odyssey templates, Geyser registration of **38 exported custom definitions plus its built-in item**, **209** block overrides and local UDP response, and **two isolated full-stack startup/cold-lobby/save/backup/restart/clean-shutdown cycles**. Final native provenance matches all current Java source/resource bytes, the tested mod and the report. Geyser and full-stack logs contain no ERROR entries. The real playable world was not used for these checks.
 

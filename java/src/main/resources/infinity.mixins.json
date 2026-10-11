@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ModePlayerMixin",
+    "ModeRespawnMixin",
     "PlayerSaveAccess",
     "ModeEntityMixin",
     "ModeDifficultyMixin",
@@ -17,6 +18,7 @@
     "AgentPierceMixin",
     "AgentMaceMixin",
     "ClientVitalsMixin",
+    "StatusConnectionMixin",
     "LivingVitalsAccess",
     "PlayerVitalsAccess",
     "ItemPropertiesAccess",

@@ -11,6 +11,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -40,6 +41,24 @@ public final class GameModes {
     static final Map<UUID,Switch> PENDING=new HashMap<>();
     record OperatorTransfer(Mode previous,CompoundTag profile) {}
     static final Map<UUID,OperatorTransfer> OPERATOR_TRANSFERS=new HashMap<>();
+    static final List<BlockPos> DEFAULT_SPAWN_CANDIDATES=spawnCandidates();
+    private static final Map<MinecraftServer,EnumMap<Mode,CommunityServer.Place>> DEFAULT_SPAWNS=new WeakHashMap<>();
+    static final class DestinationUnavailable extends IllegalStateException {
+        DestinationUnavailable(String message) {super(message);}
+    }
+    private static List<BlockPos> spawnCandidates() {
+        var positions=new ArrayList<BlockPos>();
+        // Preserve the first occurrence in the old radius search, without revisiting its interior.
+        for(int r=0;r<=64;r+=4) for(int x=-r;x<=r;x+=4) for(int z=-r;z<=r;z+=4)
+            if(Math.max(Math.abs(x),Math.abs(z))==r)positions.add(new BlockPos(x,0,z));
+        return List.copyOf(positions);
+    }
+    private static CommunityServer.Place verifiedPlace(MinecraftServer server,Mode mode,CommunityServer.Place place) {
+        var destination=CommunityServer.get(server).world(place);
+        if(destination==null || of(destination)!=mode || !CommunityServer.safe(destination,place))
+            throw new DestinationUnavailable("No safe destination is available in "+mode+". Ask the host to check its spawn, course and world border.");
+        return place;
+    }
     public static boolean operator(ServerPlayer player) {return Memberships.operator(player);}
     /** Vanilla /tp and dimension commands still save and restore each world's inventory. */
     public static void beforeOperatorTeleport(ServerPlayer p,ServerLevel destination) {
@@ -89,6 +108,7 @@ public final class GameModes {
     }
     static CommunityServer.Place defaultPlace(MinecraftServer server, Mode mode) {
         var w=world(server,mode);
+        if(w==null)throw new DestinationUnavailable("The "+mode+" world is unavailable. Ask the host to check the server data pack.");
         if(mode==Mode.HUB) return LobbyServer.place(server,"main");
         if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) return mapPlace(server,mode,ModeMaps.defaultMap(mode));
         if(mode==Mode.SURVIVAL) {
@@ -96,18 +116,24 @@ public final class GameModes {
             var s=server.getRespawnData(); var pos=s.pos();
             if(s.dimension().equals(Level.OVERWORLD)) return new CommunityServer.Place("minecraft:overworld",pos.getX()+.5,pos.getY(),pos.getZ()+.5,0,0);
         }
-        for(int r=0;r<=64;r+=4) for(int x=-r;x<=r;x+=4) for(int z=-r;z<=r;z+=4) {
+        var cached=DEFAULT_SPAWNS.computeIfAbsent(server,key->new EnumMap<>(Mode.class));
+        var previous=cached.remove(mode);
+        if(previous!=null && CommunityServer.safe(w,previous)){cached.put(mode,previous);return previous;}
+        for(var candidate:DEFAULT_SPAWN_CANDIDATES) {
+            if(!w.getWorldBorder().isWithinBounds(candidate))continue;
+            int x=candidate.getX(),z=candidate.getZ();
             w.getChunk(x>>4,z>>4); int y=w.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,x,z);
             var p=new CommunityServer.Place(w.dimension().identifier().toString(),x+.5,y,z+.5,0,0);
-            if(CommunityServer.safe(w,p)) return p;
+            if(CommunityServer.safe(w,p)){cached.put(mode,p);return p;}
         }
-        throw new IllegalStateException("No safe spawn in "+mode+". Ask the host to choose a dry spawn.");
+        throw new DestinationUnavailable("No dry, safe spawn is available in "+mode+" within 64 blocks of its origin. Ask the host to choose a dry spawn inside its world border.");
     }
     static CommunityServer.Place mapPlace(MinecraftServer server, Mode mode, String id) {
         var spec=ModeMaps.MAPS.get(id);
         if(spec==null || spec.mode()!=mode || !ModeMaps.available(id))id=ModeMaps.defaultMap(mode);
-        if(id==null)throw new IllegalStateException("No verified built-in course is available in "+mode+". Check the map preservation warnings in the server log.");
+        if(id==null)throw new DestinationUnavailable("No verified built-in course is available in "+mode+". Ask the host to check the map preservation warnings in the server log.");
         var world=world(server,mode);var pos=ModeMaps.start(id);
+        if(world==null)throw new DestinationUnavailable("The "+mode+" world is unavailable. Ask the host to check the server data pack.");
         return new CommunityServer.Place(world.dimension().identifier().toString(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,0,0);
     }
     public static TeleportTransition respawnTarget(ServerPlayer p, TeleportTransition vanilla, TeleportTransition.PostTeleportTransition callback) {
@@ -117,6 +143,17 @@ public final class GameModes {
             ? mapPlace(p.level().getServer(),mode,ModeMaps.selectedMap(p,mode))
             : defaultPlace(p.level().getServer(),mode);
         return new TeleportTransition(world(p.level().getServer(),mode),new Vec3(place.x(),place.y(),place.z()),Vec3.ZERO,place.yaw(),place.pitch(),callback);
+    }
+    /** Resolve without consuming a respawn-anchor charge, before vanilla removes the old player. */
+    public static boolean preflightRespawn(ServerPlayer p) {
+        // Survival never substitutes a mode destination. Let vanilla search once,
+        // rather than repeating its potentially asynchronous default-spawn search.
+        if(current(p)==Mode.SURVIVAL)return true;
+        try {p.findRespawnPositionAndUseSpawnBlock(false,TeleportTransition.DO_NOTHING);return true;}
+        catch(DestinationUnavailable unavailable) {
+            p.connection.disconnect(Component.literal("Respawn is unavailable: "+unavailable.getMessage()+" Ask the host to repair the destination, then reconnect."));
+            return false;
+        }
     }
     static CompoundTag capture(ServerPlayer p) {
         AchievementRewards.beforeModeCapture(p);
@@ -190,8 +227,11 @@ public final class GameModes {
         CommunityServer.Place place=null;
         if(mode!=Mode.MINIGAMES && mode!=Mode.ADVENTURE && mode!=Mode.HUB && next.contains("place")) place=CommunityServer.GSON.fromJson(next.getStringOr("place", ""),CommunityServer.Place.class);
         var c=CommunityServer.get(server);
-        if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) place=mapPlace(server,mode,map==null?ModeMaps.selectedMap(p,mode):map);
-        if(place==null || c.world(place)==null || of(c.world(place))!=mode || !CommunityServer.safe(c.world(place),place)) place=defaultPlace(server,mode);
+        try {
+            if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) place=mapPlace(server,mode,map==null?ModeMaps.selectedMap(p,mode):map);
+            if(place==null || c.world(place)==null || of(c.world(place))!=mode || !CommunityServer.safe(c.world(place),place)) place=defaultPlace(server,mode);
+            verifiedPlace(server,mode,place);
+        } catch(DestinationUnavailable unavailable) {CommunityServer.say(p,unavailable.getMessage()+" Your current mode and inventory are unchanged.");return;}
         // Return the carried cursor stack in the old world before capturing its profile.
         // Vanilla can leave that stack on playerScreenHandler when no container is open.
         var cursor=p.containerMenu.getCarried();
@@ -258,11 +298,24 @@ public final class GameModes {
         };
     }
     static int guide(ServerPlayer p) { return CommunityServer.say(p,guideText(p)); }
+    static void tickPlayer(ServerPlayer p) {
+        var server=p.level().getServer();
+        if(routeFirstVisit(p))return;
+        var change=PENDING.get(p.getUUID());
+        if(change!=null) {
+            var c=CommunityServer.get(server);
+            if(!p.isAlive()||p.isPassenger()||p.isSleeping()||CommunityServer.moved(change.origin,p)||c.combat.getOrDefault(p.getUUID(),0)>server.getTickCount()) {PENDING.remove(p.getUUID());CommunityServer.say(p,"Mode change cancelled. Stay still and avoid damage.");}
+            else if(server.getTickCount()>=change.finish) {PENDING.remove(p.getUUID());switchNow(p,change.mode,change.map);}
+        }
+        if(!operator(p)&&current(p)!=Mode.SURVIVAL && p.gameMode()!=gameMode(p))p.setGameMode(gameMode(p));
+        ModeMaps.tick(p);
+        LobbyServer.tick(p);
+    }
     static void register() {
         MinigameRecords.register();
         CourseSelector.register();
         ServerLifecycleEvents.SERVER_STARTED.register(server->{ModeMaps.build(server);LobbyServer.build(server);CourseSelector.installSigns(server);LobbyServer.installMenuSigns(server);System.out.println("[Infinity] Community and crossplay ready.");});
-        ServerLifecycleEvents.SERVER_STOPPED.register(server->{PENDING.clear();TRANSITIONS.clear();FIRST_VISITS.clear();OPERATOR_TRANSFERS.clear();ModeMaps.RUNS.clear();});
+        ServerLifecycleEvents.SERVER_STOPPED.register(server->{PENDING.clear();TRANSITIONS.clear();FIRST_VISITS.clear();OPERATOR_TRANSFERS.clear();ModeMaps.RUNS.clear();DEFAULT_SPAWNS.remove(server);});
         ServerPlayConnectionEvents.JOIN.register((handler,sender,server)->{
             var p=handler.player;
             if(!operator(p)&&current(p)!=Mode.SURVIVAL) p.setGameMode(gameMode(p));
@@ -288,18 +341,7 @@ public final class GameModes {
             return true;
         });
         ServerTickEvents.END_SERVER_TICK.register(server->{
-            for(var p:server.getPlayerList().getPlayers()) {
-                if(routeFirstVisit(p)) continue;
-                var change=PENDING.get(p.getUUID());
-                if(change!=null) {
-                    var c=CommunityServer.get(server);
-                    if(!p.isAlive()||p.isPassenger()||p.isSleeping()||CommunityServer.moved(change.origin,p)||c.combat.getOrDefault(p.getUUID(),0)>server.getTickCount()) {PENDING.remove(p.getUUID());CommunityServer.say(p,"Mode change cancelled. Stay still and avoid damage.");}
-                    else if(server.getTickCount()>=change.finish) {PENDING.remove(p.getUUID());switchNow(p,change.mode,change.map);}
-                }
-                if(!operator(p)&&current(p)!=Mode.SURVIVAL && p.gameMode()!=gameMode(p))p.setGameMode(gameMode(p));
-                ModeMaps.tick(p);
-                LobbyServer.tick(p);
-            }
+            for(var p:server.getPlayerList().getPlayers())tickPlayer(p);
         });
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->{
             dispatcher.register(Commands.literal("guide").executes(ctx->guide(ctx.getSource().getPlayerOrException())));

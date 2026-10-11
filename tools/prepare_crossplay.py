@@ -10,7 +10,7 @@ import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.28"
+VERSION = "2.13.0-explore.29"
 
 
 def expected_native_tests():
@@ -19,7 +19,10 @@ def expected_native_tests():
     sources = ROOT / "java/src/gametest/java"
     annotated = {p.relative_to(sources).with_suffix("").as_posix().replace("/", ".")
                  for p in sources.rglob("*.java") if re.search(r"@GameTest\b", p.read_text())}
-    assert annotated == set(manifest["entrypoints"]["fabric-gametest"]), "Register every native test class"
+    registered = set(manifest["entrypoints"]["fabric-gametest"])
+    opt_in = set(manifest.get("custom", {}).get("infinity-opt-in-gametests", []))
+    assert not registered & opt_in, "Opt-in benchmarks must stay outside the normal native suite"
+    assert annotated == registered | opt_in, "Register every native test class or explicitly declare its opt-in benchmark"
     return 1 + sum(len(re.findall(r"@GameTest\b", (ROOT / "java/src/gametest/java" / (name.replace(".", "/") + ".java")).read_text()))
                    for name in manifest["entrypoints"]["fabric-gametest"])
 

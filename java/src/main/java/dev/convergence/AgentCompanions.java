@@ -598,14 +598,18 @@ public final class AgentCompanions {
         }
         if (aerial.containsKey(golem.getUUID())) return;
         double sensing = agent.profile == Profile.PRIMITIVE ? 12 : 10;
-        LivingEntity target = order != null && playerCombatProfile(agent.profile)
-            ? playerPursuitReady(golem, agent, owner, order.target) ? order.target : null
-            : !agent.profile.combat ? null : world.getEntitiesOfClass(Mob.class, new AABB(center, center).inflate(sensing), mob -> hostile(mob)
-            && mob.position().distanceToSqr(center) <= sensing * sensing && mob.distanceToSqr(golem) <= 24 * 24 && golem.getSensing().hasLineOfSight(mob))
-            .stream().min(Comparator.comparing((Mob mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
-                .thenComparingInt(mob -> agent.profile != Profile.PRIMITIVE ? sharedFocusRank(golem, agent, owner, mob) : 0)
+        LivingEntity target;
+        if (order != null && playerCombatProfile(agent.profile)) target = playerPursuitReady(golem, agent, owner, order.target) ? order.target : null;
+        else if (!agent.profile.combat) target = null;
+        else {
+            var candidates = world.getEntitiesOfClass(Mob.class, new AABB(center, center).inflate(sensing), mob -> hostile(mob)
+                && mob.position().distanceToSqr(center) <= sensing * sensing && mob.distanceToSqr(golem) <= 24 * 24 && golem.getSensing().hasLineOfSight(mob));
+            var focus = agent.profile != Profile.PRIMITIVE && candidates.size() > 1 ? new FocusLookup() : null;
+            target = candidates.stream().min(Comparator.comparing((Mob mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
+                .thenComparingInt(mob -> focus != null ? sharedFocusRank(golem, agent, owner, mob, focus) : 0)
                 .thenComparingDouble(mob -> mob.distanceToSqr(agent.profile == Profile.ULTIMATE_FINALS ? owner : golem))
                 .thenComparing(Mob::getUUID)).orElse(null);
+        }
         if (target instanceof ServerPlayer player) APPROVED_TARGETS.put(golem, player);
         else APPROVED_TARGETS.remove(golem);
         golem.setTarget(target);
@@ -783,13 +787,25 @@ public final class AgentCompanions {
         if (!landingClear(golem, move.landing) || !airClear(golem, move.agent, owner, golem.position(), next, 0)) { cancelAerial(golem); return; }
         golem.setDeltaMovement(velocity); golem.needsSync = true;
     }
-    int sharedFocusRank(IronGolem self, Agent agent, ServerPlayer owner, Mob target) {
-        for (var entry : loaded.entrySet()) {
-            var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
-            if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile.combat
-                && pauseReason(owner, peer, record) == null && peer.getTarget() == target) return 0;
+    private static final class FocusLookup {
+        Set<LivingEntity> targets;
+    }
+    int sharedFocusRank(IronGolem self, Agent agent, ServerPlayer owner, Mob target, FocusLookup focus) {
+        if (focus.targets == null) {
+            // Local to this control call: later helpers must see targets selected by
+            // earlier helpers in the same tick. No scan for zero/one candidates or
+            // when owner-threat priority already decides the comparison.
+            focus.targets = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (var entry : loaded.entrySet()) {
+                var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
+                if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile.combat
+                    && pauseReason(owner, peer, record) == null) {
+                    var peerTarget = peer.getTarget();
+                    if (peerTarget != null) focus.targets.add(peerTarget);
+                }
+            }
         }
-        return 1;
+        return focus.targets.contains(target) ? 0 : 1;
     }
     Vec3 flankPoint(IronGolem self, Agent agent, ServerPlayer owner, LivingEntity target) {
         var order = target instanceof ServerPlayer ? validPlayerTarget(owner) : null;

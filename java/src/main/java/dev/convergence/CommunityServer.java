@@ -218,7 +218,10 @@ final class CommunityServer {
     int home(ServerPlayer p, String name) { return queue(p, homes(p).get(name), null); }
     int spawn(ServerPlayer p) {
         if (GameModes.current(p) == GameModes.Mode.HUB) return LobbyServer.arrive(p,"main");
-        if (GameModes.current(p) != GameModes.Mode.SURVIVAL) return queue(p, GameModes.defaultPlace(server, GameModes.current(p)), null);
+        if (GameModes.current(p) != GameModes.Mode.SURVIVAL) {
+            try {return queue(p, GameModes.defaultPlace(server, GameModes.current(p)), null);}
+            catch(GameModes.DestinationUnavailable unavailable) {return say(p,unavailable.getMessage());}
+        }
         Place spawn = data.spawn;
         if (spawn == null) {
             var point = server.getRespawnData(); var pos = point.pos();

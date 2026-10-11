@@ -104,7 +104,7 @@ def main():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py",
-        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py",
+        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()
