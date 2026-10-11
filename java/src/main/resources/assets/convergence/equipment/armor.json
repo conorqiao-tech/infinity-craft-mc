@@ -1,0 +1,22 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "convergence:armor"
+      },
+      {
+        "texture": "convergence:infinity_visor"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "convergence:armor"
+      }
+    ],
+    "wings": [
+      {
+        "texture": "convergence:armor"
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:starfire_arrow",
+    "count": 2
+  },
+  "pattern": [
+    " B ",
+    " A ",
+    " G "
+  ],
+  "key": {
+    "B": "minecraft:blaze_powder",
+    "A": "convergence:infinity_arrow",
+    "G": "minecraft:glowstone_dust"
+  }
+}

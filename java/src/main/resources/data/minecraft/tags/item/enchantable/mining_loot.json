@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "convergence:sword",
+    "convergence:pickaxe",
+    "convergence:axe",
+    "convergence:shovel",
+    "convergence:hoe"
+  ]
+}
