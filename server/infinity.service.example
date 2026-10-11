@@ -1,0 +1,22 @@
+# Linux systemd TEMPLATE. Adjust the user/path and complete a manual start first.
+# Not installed or enabled by the launcher.
+[Unit]
+Description=Infinity Armor Java and Bedrock community server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=minecraft
+WorkingDirectory=/srv/infinity
+ExecStart=/usr/bin/bash /srv/infinity/start.sh --console
+Restart=on-failure
+RestartSec=15
+KillSignal=SIGINT
+KillMode=mixed
+TimeoutStopSec=180
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
