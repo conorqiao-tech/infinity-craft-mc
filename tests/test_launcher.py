@@ -208,15 +208,18 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual((self.root / "geyser/key.pem").read_bytes(), key.read_bytes())
 
 
-    def test_bedrock_pack_preserves_vanilla_armor_and_custom_wings(self):
+    def test_bedrock_native_armor_refresh_targets_live_native_assets(self):
         import zipfile
         root = Path(__file__).resolve().parents[1]
         with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
-            for material in ("netherite", "leather"):
-                for layer in (1, 2):
-                    self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
+            for material, collection in [("netherite", "convergence"), ("leather", "aurora")]:
+                for layer, kind in [(1, "humanoid"), (2, "humanoid_leggings")]:
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/entity/equipment/{kind}/{collection}_refresh19.png"
+                    self.assertEqual(pack.read(f"textures/models/armor/{material}_{layer}.png"), expected.read_bytes())
                 for slot in ("helmet", "chestplate", "leggings", "boots"):
-                    self.assertNotIn(f"textures/items/{material}_{slot}.png",pack.namelist())
+                    name = slot if collection == "convergence" else "aurora_" + slot
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/item/refresh19/{name}.png"
+                    self.assertEqual(pack.read(f"textures/items/{material}_{slot}.png"), expected.read_bytes())
             chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh19/chestplate.png"
             for name in ("elytra", "broken_elytra"):
                 self.assertEqual(pack.read(f"textures/items/{name}.png"), chest_icon.read_bytes())

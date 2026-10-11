@@ -50,9 +50,8 @@ final class CrossplaySupport {
     static final Set<String> NATIVE_BEDROCK = Set.of("helmet", "chestplate", "leggings", "boots", "shield", "totem", "bow", "crossbow",
         "infinity_arrow", "void_arrow", "starfire_arrow", "backpack",
         "aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots",
-        "ember_helmet","ember_chestplate","ember_leggings","ember_boots","blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
-    private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
-        "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
+        "ember_helmet","ember_chestplate","ember_leggings","ember_boots");
+    private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand");
 
     static boolean bedrock(ServerPlayer player) {
         var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
@@ -91,7 +90,6 @@ final class CrossplaySupport {
         BASES.putAll(ExpandedGear.COSMETIC_ARMOR);
         BASES.put("builder_wand",Items.BLAZE_ROD);
         BASES.put("sculptor_wand",Items.STICK);
-        BASES.putAll(ExpandedGear.STUDIO_ITEMS);
         for (String path : ExpandedGear.ARROWS.stream().sorted().toList()) BASES.put(path, Items.ARROW);
         for (String path : ExpandedGear.BLOCKS.stream().sorted().toList()) {
             var block = BuiltInRegistries.BLOCK.getValue(id(path));
@@ -157,13 +155,6 @@ final class CrossplaySupport {
         String name = Convergence.id(player.getMainHandItem());
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());
-        if (!CreativeStudio.controlKind(player, player.getMainHandItem()).isEmpty()) {
-            if (!CreativeStudio.allowed(player)) {
-                player.sendSystemMessage(Component.literal("This gadget requires Creative Studio access."));
-                return 0;
-            }
-            return CreativeStudio.useControl(player, player.getMainHandItem());
-        }
         if(PoweredTools.CREATIVE_TOOLS.contains(name)&&!PoweredTools.creativeAllowed(player,name)) {
             player.sendSystemMessage(Component.literal("Building wands require Creative in the Creative world; OP4 may use /gamemode creative in any world."));return 0;
         }

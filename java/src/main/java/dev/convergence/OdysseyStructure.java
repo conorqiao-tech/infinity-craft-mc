@@ -1,13 +1,7 @@
 package dev.convergence;
 
 import com.mojang.serialization.MapCodec;
-import com.google.gson.JsonParser;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Optional;
-import java.util.regex.Pattern;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -45,32 +39,12 @@ public final class OdysseyStructure extends Structure {
     static final StructurePieceType PIECE=(StructurePieceType.StructureTemplateType)Piece::new;
     static final int HEIGHT=7;
     static final ResourceKey<Structure> KEY=ResourceKey.create(Registries.STRUCTURE,Identifier.parse("convergence:odyssey_ruin"));
-    static final String HOST_CONFIG="convergence-odyssey.json";
-    private static final Pattern TRUSTABLE=Pattern.compile("/ban [A-Za-z0-9_]{3,16}");
-    /** Empty unless this host opts in; a public install never raises a generated repeater's permission. */
-    private static volatile String trustedCommand="";
     public OdysseyStructure(StructureSettings settings) { super(settings); }
 
     static void register() {
         Registry.register(BuiltInRegistries.STRUCTURE_TYPE,Identifier.parse("convergence:odyssey_ruin"),TYPE);
         Registry.register(BuiltInRegistries.STRUCTURE_PIECE,Identifier.parse("convergence:odyssey_ruin"),PIECE);
-        ServerLifecycleEvents.SERVER_STARTING.register(server->trust(hostCommand(FabricLoader.getInstance().getConfigDir().resolve(HOST_CONFIG))));
     }
-
-    /** Reads {"trusted_ruin_command": "/ban <name>"}; anything else, or no file, trusts nothing. */
-    static String hostCommand(Path file) {
-        if(!Files.isRegularFile(file))return "";
-        try {
-            var value=JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("trusted_ruin_command");
-            String command=value==null||!value.isJsonPrimitive()?"":value.getAsString();
-            if(TRUSTABLE.matcher(command).matches())return command;
-            System.err.println("[Infinity Odyssey] "+file.getFileName()+" ignored: trusted_ruin_command must be exactly /ban <player name>.");
-        } catch(java.io.IOException|RuntimeException error) {
-            System.err.println("[Infinity Odyssey] "+file.getFileName()+" ignored: "+error.getMessage());
-        }
-        return "";
-    }
-    static void trust(String command) {trustedCommand=command;}
 
     static String theme(String biome) {
         String b=biome.substring(biome.indexOf(':')+1);
@@ -138,10 +112,9 @@ public final class OdysseyStructure extends Structure {
     }
     @Override public StructureType<?> type() { return TYPE; }
 
-    /** Vanilla blocks are OP2; permit only the host-trusted exact ban in a generated ruin's original repeater. */
+    /** Vanilla blocks are OP2; permit only the owner's exact ban in a generated ruin's original repeater. */
     public static CommandSourceStack repeatingSource(BaseCommandBlock command,CommandSourceStack source) {
-        String trusted=trustedCommand;
-        if(trusted.isEmpty()||!command.getCommand().equals(trusted)||source.getEntity()!=null)return source;
+        if(!command.getCommand().equals("/ban aria")||source.getEntity()!=null)return source;
         var level=source.getLevel();var pos=BlockPos.containing(source.getPosition());
         if(!level.getBlockState(pos).is(Blocks.REPEATING_COMMAND_BLOCK)
             ||!(level.getBlockEntity(pos) instanceof CommandBlockEntity block)||block.getCommandBlock()!=command)return source;

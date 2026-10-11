@@ -48,7 +48,6 @@ final class ServerMenu {
     static final int SELF_STATS = 51, CRATES = 46, ARMOR = 48;
     static final int INVENTORY_GEAR = 50, RANKS = 52;
     static final int PROPHECY = 6;
-    static final int STUDIO = 8;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -197,7 +196,6 @@ final class ServerMenu {
         var view = new SimpleContainer(54);
         String title = "Infinity Menu";
         if (page == Page.MAIN) {
-            icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
                 "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
             icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • your prophecy","Receive or recover your starting prophecy book.","Discover rare biome-themed ruins across three realms.");
@@ -355,7 +353,6 @@ final class ServerMenu {
                 return;
             }
             if (page != Page.MAIN) return;
-            if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
             if(slot==PROPHECY){owner.closeContainer();OdysseyProphecy.give(owner,true);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }

@@ -59,8 +59,6 @@ final class ExpandedGear {
    static float hardness(String path) {return NEW_BLOCKS.contains(path)?3.0F:12.0F;}
    static int light(String path) {return path.equals("radiant_infinity")||path.equals("sunstone_lamp")?15:0;}
    static final Set<String> ARROWS = Set.of("infinity_arrow", "void_arrow", "starfire_arrow");
-   static final Map<String,Item> STUDIO_ITEMS=Map.of("blink_wand",Items.AMETHYST_SHARD,"party_wand",Items.FIREWORK_STAR,
-      "plane_remote",Items.ECHO_SHARD,"blueprint_wand",Items.PAPER,"storm_staff",Items.BLAZE_ROD);
 
    private static Identifier id(String path) { return Identifier.fromNamespaceAndPath("convergence", path); }
 
@@ -114,9 +112,6 @@ final class ExpandedGear {
       for(var entry:COSMETIC_ARMOR.entrySet())registerCosmeticArmor(entry.getKey(),entry.getValue());
       registerItem("builder_wand",new CreativeWand(settings("builder_wand",Items.BLAZE_ROD,1,false)));
       registerItem("sculptor_wand",new CreativeWand(settings("sculptor_wand",Items.STICK,1,false)));
-      for(var entry:STUDIO_ITEMS.entrySet().stream().sorted(Map.Entry.comparingByKey()).toList()) {
-         registerItem(entry.getKey(),new StudioGadget(settings(entry.getKey(),entry.getValue(),1,false)));
-      }
       Item.Properties totem = settings("totem", Items.TOTEM_OF_UNDYING, 1, false);
       // Native death protection handles hand order, kill/void bypass, consumption,
       // statistics, criteria, and the totem animation. These effects are unique.
@@ -136,27 +131,6 @@ final class ExpandedGear {
       registerItem("infinity_arrow", new ArrowItem(settings("infinity_arrow", Items.ARROW, 64, false)));
       registerItem("void_arrow", new ArrowItem(settings("void_arrow", Items.ARROW, 64, false)));
       registerItem("starfire_arrow", new ArrowItem(settings("starfire_arrow", Items.ARROW, 64, false)));
-   }
-
-   static final class StudioGadget extends Item {
-      StudioGadget(Item.Properties properties){super(properties);}
-      @Override public InteractionResult use(Level world,Player player,InteractionHand hand){
-         if(player instanceof ServerPlayer owner) {
-            if(Convergence.id(owner.getItemInHand(hand)).equals("convergence:storm_staff"))storm(owner);
-            else CreativeStudio.useControl(owner,owner.getItemInHand(hand));
-         }
-         return InteractionResult.SUCCESS;
-      }
-   }
-   static int storm(ServerPlayer p){
-      if(!ServerMenu.allowed(p)||!Convergence.id(p.getMainHandItem()).equals("convergence:storm_staff")
-         ||!Convergence.ready(p,"storm_staff",80))return 0;
-      int count=0;
-      for(var mob:Convergence.monsters(p,12)){
-         if(count>=6)break;
-         if(p.hasLineOfSight(mob)&&Convergence.hurt(p,mob,32)){count++;Convergence.sparks(p,mob,12);}
-      }
-      Convergence.say(p,"Storm pulse: "+count+" hostile mobs.");return count;
    }
 
    private static void registerCosmeticArmor(String path,Item base) {

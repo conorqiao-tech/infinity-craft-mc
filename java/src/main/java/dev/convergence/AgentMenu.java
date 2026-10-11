@@ -121,8 +121,6 @@ final class AgentMenu {
                 }
             }
             movement(view, "Squad");
-            icon(view,RECALL,Items.ENDER_PEARL,"Bring your loaded squad here");
-            description(view,RECALL,"Moves existing loaded helpers to clear ground beside you. Keeps health, stats and profiles. Clears player-target orders. Unloaded helpers stay saved.");
             icon(view, INFO, Items.BOOK, "Help • chat and approval commands");
             hive(view, helpers, player);
             icon(view, BACK, Items.ARROW, "Back to Infinity Menu");
@@ -173,7 +171,7 @@ final class AgentMenu {
         icon(view, slot, Items.IRON_INGOT,
             agent.name() + " • " + agent.profile().label() + " • " + agent.mode().name().toLowerCase(java.util.Locale.ROOT));
         var golem = helpers.loaded.get(UUID.fromString(id));
-        description(view, slot, helpers.brief(helpers.server.getPlayerList().getPlayer(UUID.fromString(agent.owner())),id,agent)+" • "+AgentCompanions.location(golem, agent)
+        description(view, slot, AgentCompanions.location(golem, agent)
             + (golem != null && golem.isAlive() && !golem.isRemoved()
                 ? " • select, then Bring here to move it beside you" : " • return nearby to load this helper"));
     }
@@ -296,7 +294,7 @@ final class AgentMenu {
                         if (name != null) {
                             helpers.spawn(owner, name);
                             if (helpers.owned(owner, name) != null) {
-                                var message = Component.literal(name + " appeared beside you. Look for the named player avatar.");
+                                var message = Component.literal(name + " appeared beside you. Look for the named iron golem.");
                                 owner.sendSystemMessage(message);
                                 owner.sendOverlayMessage(message);
                             }
@@ -321,7 +319,6 @@ final class AgentMenu {
                         + "Every server-changing proposal also waits for live Codex review; this menu cannot run it."));
                     return;
                 }
-                if(clicked==RECALL){owner.closeContainer();helpers.recallSquad(owner);return;}
             } else {
                 if (clicked == BACK) { reopen(Page.ROSTER, null); return; }
                 var agent = selected(helpers, helperId);

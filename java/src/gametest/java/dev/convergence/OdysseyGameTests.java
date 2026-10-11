@@ -137,9 +137,6 @@ public class OdysseyGameTests {
             c.assertFalse(source.permissions().hasPermission(admin),"Native command block stays OP2");
             c.assertTrue(OdysseyStructure.repeatingSource(command,source)==source,"A placed copy outside generation gains no permission");
             chunk.setStartForStructure(ruin,start);chunk.addReferenceForStructure(ruin,chunk.getPos().pack());
-            OdysseyStructure.trust("");
-            c.assertTrue(OdysseyStructure.repeatingSource(command,source)==source,"Without the host's opt-in even the original ruin repeater stays OP2");
-            OdysseyStructure.trust("/ban aria");
             c.assertTrue(OdysseyStructure.repeatingSource(command,source).permissions().hasPermission(admin),"Exact original rotated ruin repeater can run requested ban");
             command.setCommand("/ban someone_else");
             c.assertTrue(OdysseyStructure.repeatingSource(command,source)==source,"Another player cannot be banned using this exception");
@@ -151,26 +148,10 @@ public class OdysseyGameTests {
             c.assertFalse(OdysseyStructure.repeatingSource(other,other.createCommandSourceStack(world,net.minecraft.commands.CommandSource.NULL)).permissions().hasPermission(admin),"A different block inside the same ruin is not privileged");
             world.removeBlock(moved,false);
         } finally {
-            OdysseyStructure.trust("");
             chunk.setStartForStructure(ruin,oldStart==null?net.minecraft.world.level.levelgen.structure.StructureStart.INVALID_START:oldStart);
             chunk.getReferencesForStructure(ruin).clear();chunk.getReferencesForStructure(ruin).addAll(oldReferences);
             world.removeBlock(pos,false);
         }
-        c.succeed();
-    }
-
-    @GameTest public void hostOptInTrustsOnlyOneExactBanAndIgnoresEverythingElse(GameTestHelper c) throws Exception {
-        var dir=java.nio.file.Files.createTempDirectory("infinity-odyssey-config");var file=dir.resolve(OdysseyStructure.HOST_CONFIG);
-        try {
-            c.assertValueEqual(OdysseyStructure.hostCommand(file),"","No file trusts nothing: public installs stay OP2");
-            for(String rejected:List.of("{\"trusted_ruin_command\":\"/op aria\"}","{\"trusted_ruin_command\":\"/ban aria\\nstop\"}",
-                    "{\"trusted_ruin_command\":\"/ban @a\"}","{\"trusted_ruin_command\":\"/ban aria extra\"}","{\"trusted_ruin_command\":7}","[]","not json")) {
-                java.nio.file.Files.writeString(file,rejected);
-                c.assertValueEqual(OdysseyStructure.hostCommand(file),"","Rejected host setting: "+rejected);
-            }
-            java.nio.file.Files.writeString(file,"{\"trusted_ruin_command\":\"/ban aria\"}");
-            c.assertValueEqual(OdysseyStructure.hostCommand(file),"/ban aria","Host can opt in to its own exact ban");
-        } finally {java.nio.file.Files.deleteIfExists(file);java.nio.file.Files.deleteIfExists(dir);}
         c.succeed();
     }
 

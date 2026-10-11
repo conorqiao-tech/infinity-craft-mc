@@ -5,9 +5,6 @@ server/backups/
 server/settings.json
 server/launcher.lock
 server/.dashboard.json
-server/.world-refresh.json
-server/.world-refresh-transaction.json
-server/.owner-join-rules.json
 server/.runtime/
 server/.pinggy/
 server/.remote/

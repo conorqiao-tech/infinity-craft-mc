@@ -305,8 +305,6 @@ public class Convergence implements ModInitializer {
       AgentCompanions.initialize();
       ServerAssistant.initialize();
       ServerMenu.register();
-      CreativeStudio.register();
-      RcPlanes.register();
       GearCrates.register();
       OdysseyProphecy.register();
       AdminStatsMenu.register();
