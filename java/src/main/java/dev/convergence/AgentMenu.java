@@ -25,6 +25,7 @@ final class AgentMenu {
     static final int CONFIRM = 11, CANCEL = 15;
     static final int ORDERS = 19;
     static final int FORMATION = 46;
+    static final int SQUAD_PRIMITIVE = 48, SQUAD_REGULAR = 50, SQUAD_ULTIMATE = 52;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -126,6 +127,7 @@ final class AgentMenu {
             description(view,RECALL,"Moves existing loaded helpers to clear ground beside you. Keeps health, stats and profiles. Clears player-target orders. Unloaded helpers stay saved.");
             icon(view, INFO, Items.BOOK, "Help • chat and approval commands");
             hive(view, helpers, player);
+            squadProfiles(view, helpers, player);
             icon(view, BACK, Items.ARROW, "Back to Infinity Menu");
         } else {
             title = selected.name() + (page == Page.DISMISS ? " • Dismiss?" : " • Helper");
@@ -189,6 +191,17 @@ final class AgentMenu {
         }
     }
 
+    private static void squadProfiles(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
+        var profiles = new AgentCompanions.Profile[]{AgentCompanions.Profile.PRIMITIVE, AgentCompanions.Profile.REGULAR, AgentCompanions.Profile.ULTIMATE_FINALS};
+        var slots = new int[]{SQUAD_PRIMITIVE, SQUAD_REGULAR, SQUAD_ULTIMATE};
+        for (int i = 0; i < profiles.length; i++) {
+            var profile = profiles[i];
+            long selected = helpers.data.agents.values().stream().filter(agent -> agent.owner().equals(owner.getStringUUID()) && agent.profile() == profile).count();
+            icon(view, slots[i], profileIcon(profile), "Set squad: " + profile.label() + " • " + selected + "/" + helpers.count(owner));
+            description(view, slots[i], "Changes all your saved helpers to this combat profile, including passive and unloaded helpers. Movement, health and edited stats stay unchanged. Tap Follow to resume Stay helpers. Player targeting still needs both approvals. " + profile.description());
+        }
+    }
+
     private static void hive(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
         icon(view,FORMATION,Items.COMPASS,"Follow formation: "+AgentCompanions.formation(owner));
         description(view,FORMATION,"Cycle Escort, Wedge and Ring. Spreads idle followers onto safe loaded ground. Combat and target approvals stay separate.");
@@ -207,6 +220,7 @@ final class AgentMenu {
         final Page page;
         final String helperId;
         final Map<Integer, String> choices;
+        final net.minecraft.world.level.Level world;
 
         Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner,
                 Page page, String helperId, Map<Integer, String> choices) {
@@ -218,10 +232,12 @@ final class AgentMenu {
             this.page = page;
             this.helperId = helperId;
             this.choices = Map.copyOf(choices);
+            this.world = owner.level();
         }
 
         @Override public boolean stillValid(Player player) {
-            return player == owner && ownerId.equals(player.getUUID()) && owner.connection == ownerConnection && allowed(owner);
+            return player == owner && owner.containerMenu == this && owner.level() == world
+                && ownerId.equals(player.getUUID()) && owner.connection == ownerConnection && allowed(owner);
         }
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
@@ -249,6 +265,7 @@ final class AgentMenu {
                     rosterIcon(view, choice.getKey(), helpers, choice.getValue(), agent);
                 }
                 hive(view, helpers, owner);
+                squadProfiles(view, helpers, owner);
             } else if (page == Page.HELPER) {
                 var agent = selected(helpers, helperId);
                 if (agent == null) { stale(); return; }
@@ -286,6 +303,10 @@ final class AgentMenu {
                 return;
             }
             if (page == Page.ROSTER) {
+                var squadProfile = clicked == SQUAD_PRIMITIVE ? AgentCompanions.Profile.PRIMITIVE
+                    : clicked == SQUAD_REGULAR ? AgentCompanions.Profile.REGULAR
+                    : clicked == SQUAD_ULTIMATE ? AgentCompanions.Profile.ULTIMATE_FINALS : null;
+                if (squadProfile != null) { helpers.squadProfile(owner, squadProfile); refresh(); return; }
                 if (clicked == BACK) { owner.closeContainer(); ServerMenu.open(owner); return; }
                 if (clicked >= helperSlot(0) && clicked < helperSlot(AgentCompanions.LIMIT)) {
                     String id = choices.get(clicked);

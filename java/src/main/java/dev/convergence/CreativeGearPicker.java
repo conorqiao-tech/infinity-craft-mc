@@ -30,6 +30,7 @@ import net.minecraft.world.item.Items;
 /** Vanilla chest icons and a vanilla compass keep the picker usable through Geyser. */
 final class CreativeGearPicker {
     static final int STUDIO=47;
+    static final int ADMIN_BLOCKS=48;
     private static final String PICKER_NAME = "Infinity Gear Picker";
     private static final Map<UUID,Integer> OPEN_AFTER = new HashMap<>();
     private static final Set<UUID> SELECTED = new HashSet<>();
@@ -136,6 +137,8 @@ final class CreativeGearPicker {
         }
         if(pageIndex>0)CreativeStudio.icon(view,45,Items.ARROW,"Previous gear page");
         CreativeStudio.icon(view,STUDIO,Items.PAINTING,"Creative Studio");
+        if (Memberships.operator(player)) CreativeStudio.icon(view,ADMIN_BLOCKS,Items.COMMAND_BLOCK,"Get Admin Blocks • inventory toolbox",
+            "Real command blocks, barriers, lights and structure tools.","Requires Creative and OP4. Clear one inventory slot.");
         CreativeStudio.icon(view,49,Items.RECOVERY_COMPASS,"Infinity Menu");
         if((pageIndex+1)*45<paths.size())CreativeStudio.icon(view,53,Items.ARROW,"Next gear page");
         player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
@@ -195,6 +198,7 @@ final class CreativeGearPicker {
                 if(slot==45&&pageIndex>0){owner.closeContainer();open(owner,pageIndex-1);return;}
                 if(slot==53&&(pageIndex+1)*45<paths.size()){owner.closeContainer();open(owner,pageIndex+1);return;}
                 if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
+                if(slot==ADMIN_BLOCKS){owner.closeContainer();GearCrates.giveAdmin(owner);return;}
                 if(slot==49){owner.closeContainer();ServerMenu.open(owner);return;}
                 int index=pageIndex*45+slot;
                 if(slot>=45||index>=paths.size()){sendAllDataToRemote();return;}

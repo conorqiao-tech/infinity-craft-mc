@@ -318,7 +318,10 @@ public class Convergence implements ModInitializer {
          FabricCreativeModeTab.builder()
             .title(Component.literal("Infinity Armor"))
             .icon(() -> new ItemStack((ItemLike)ITEMS.get("convergence:mace")))
-            .displayItems((ctx, e) -> ITEMS.values().forEach(e::accept))
+            .displayItems((ctx, e) -> {
+               ITEMS.values().forEach(e::accept);
+               if (ctx.hasPermissions()) GearCrates.ADMIN_ITEMS.forEach(e::accept);
+            })
             .build()
       );
       CommandRegistrationCallback.EVENT
@@ -345,6 +348,7 @@ public class Convergence implements ModInitializer {
                      )
                )
          );
+      ShortCommands.register();
       ServerTickEvents.START_SERVER_TICK.register(server -> clock++);
       ServerTickEvents.END_SERVER_TICK.register(Convergence::tick);
       AttackEntityCallback.EVENT.register((p, w, hand, entity, hit) -> {

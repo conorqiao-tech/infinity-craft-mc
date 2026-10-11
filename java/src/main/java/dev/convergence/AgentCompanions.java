@@ -476,6 +476,20 @@ public final class AgentCompanions {
         validatePlayerTargets();
         return reply(owner, "Squad " + mode.name().toLowerCase(Locale.ROOT) + ": " + changed.size() + " changed; " + skipped + " skipped (unloaded or another dimension).");
     }
+    int squadProfile(ServerPlayer owner, Profile profile) {
+        if (!AgentMenu.allowed(owner) || profile == null || !profile.combat) return 0;
+        int changed = 0;
+        for (var entry : data.agents.entrySet()) {
+            var agent = entry.getValue();
+            if (!agent.owner().equals(owner.getStringUUID()) || agent.profile() == profile) continue;
+            agent = agent.profile(profile); entry.setValue(agent); changed++;
+            var golem = loaded.get(UUID.fromString(entry.getKey()));
+            if (golem != null && golem.isAlive() && !golem.isRemoved()) { tags(golem, agent); halt(golem); }
+        }
+        if (changed > 0) save();
+        validatePlayerTargets();
+        return reply(owner, "Squad profile: " + profile.label() + "; " + changed + " changed. Movement stays unchanged. Choose Follow to resume paused helpers. Player combat still requires both approvals.");
+    }
     int dismiss(ServerPlayer owner, String name) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can dismiss helpers.");
         var entry = owned(owner, name);

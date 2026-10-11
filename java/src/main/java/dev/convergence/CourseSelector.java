@@ -16,6 +16,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -36,6 +38,7 @@ import net.minecraft.world.level.storage.LevelResource;
 /** A native chest menu so Java and Geyser players can choose every built-in course. */
 final class CourseSelector {
     private static final String SIGN_TITLE = "SELECT COURSE";
+    static final int RETRY = 24, RECORDS = 25, BACK = 26;
     private CourseSelector() {}
 
     static boolean supports(GameModes.Mode mode) {
@@ -67,8 +70,25 @@ final class CourseSelector {
         };
     }
 
-    static int open(ServerPlayer player, GameModes.Mode mode) {
-        if (!supports(mode) || !player.isAlive()
+    static boolean allowed(ServerPlayer player) {
+        // Hardcore elimination must still permit choosing another mode from its existing exit menu.
+        return player.isAlive() && !player.isRemoved() && !player.hasDisconnected()
+            && player.level().getServer().getPlayerList().getPlayer(player.getUUID()) == player
+            && !GameModes.TRANSITIONS.contains(player.getUUID()) && !GameModes.PENDING.containsKey(player.getUUID())
+            && !GameModes.OPERATOR_TRANSFERS.containsKey(player.getUUID())
+            && (!player.isSpectator() || GameModes.current(player) == GameModes.Mode.HARDCORE
+                && GameModes.state(player).getBooleanOr("eliminated", false));
+    }
+
+    static int open(ServerPlayer player, GameModes.Mode mode) { return open(player, mode, false); }
+
+    static String best(ServerPlayer player, String id) {
+        long millis = GameModes.state(player).getCompoundOrEmpty("scores").getLongOr(id, 0);
+        return millis > 0 && millis < Long.MAX_VALUE ? MinigameRecords.time(millis) : "Not finished";
+    }
+
+    private static int open(ServerPlayer player, GameModes.Mode mode, boolean recordsPage) {
+        if (!supports(mode) || !allowed(player)
             || player.containerMenu != player.inventoryMenu
             || !player.containerMenu.getCarried().isEmpty())
             return CommunityServer.say(player, "Close your current screen and empty the cursor before choosing a course.");
@@ -76,15 +96,47 @@ final class CourseSelector {
         if (choices.isEmpty()) return CommunityServer.say(player, "No verified courses are available in this world. Ask the host to check the server log.");
         if (choices.size() > 8) throw new IllegalStateException("Course selector exceeds eight slots");
         var view = new SimpleContainer(27);
+        MinigameRecords records = null;
+        if (recordsPage && mode == GameModes.Mode.MINIGAMES) {
+            try { records = MinigameRecords.get(player.level().getServer()); }
+            catch (IllegalStateException error) { CommunityServer.say(player, "Public records are unavailable. Your personal times remain saved."); }
+        }
         for (int index = 0; index < choices.size(); index++) {
             var spec = choices.get(index);
-            var icon = new ItemStack(icon(spec.id()));
-            icon.set(DataComponents.CUSTOM_NAME, Component.literal(spec.title()));
-            view.setItem(slot(index, choices.size()), icon);
+            int slot = slot(index, choices.size());
+            CreativeStudio.icon(view, slot, icon(spec.id()), spec.title());
+            var lines = new ArrayList<Component>();
+            lines.add(Component.literal("Your best: " + best(player, spec.id())));
+            if (recordsPage) {
+                if (records != null) {
+                    var board = records.ordered(spec.id());
+                    if (board.isEmpty()) lines.add(Component.literal("No public finishes yet."));
+                    for (int rank = 0; rank < Math.min(5, board.size()); rank++) {
+                        var row = board.get(rank);
+                        lines.add(Component.literal("#" + MinigameRecords.rankAt(board, rank) + " " + row.name() + " • " + MinigameRecords.time(row.millis())));
+                    }
+                }
+                lines.add(Component.literal("Read-only records • choose Back to courses to play."));
+            } else {
+                AgentMenu.description(view, slot, ModeMaps.instructions(spec));
+                lines.addAll(view.getItem(slot).getOrDefault(DataComponents.LORE, net.minecraft.world.item.component.ItemLore.EMPTY).lines());
+                lines.add(Component.literal("Tap to start • no special equipment needed."));
+            }
+            view.getItem(slot).set(DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(lines));
         }
+        long completed = choices.stream().filter(spec -> !best(player, spec.id()).equals("Not finished")).count();
+        CreativeStudio.icon(view, 4, Items.BOOK, "Courses completed: " + completed + "/" + choices.size(),
+            "Each mode keeps its own inventory. Your best times survive reconnecting.");
+        String selected = ModeMaps.selectedMap(player, mode);
+        CreativeStudio.icon(view, RETRY, Items.CLOCK,
+            (GameModes.current(player) == mode ? "Retry: " : "Play: ") + ModeMaps.MAPS.get(selected).title(),
+            "Start your most recently selected course in this mode.");
+        CreativeStudio.icon(view, RECORDS, Items.PAPER, recordsPage ? "Back to courses" : "View saved records",
+            mode == GameModes.Mode.MINIGAMES ? "Personal bests and the server's top five finishes." : "Your saved adventure times.");
+        CreativeStudio.icon(view, BACK, Items.ARROW, player.isSpectator() ? "Return to Main Hub" : "Back to Infinity Menu");
         player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new Handler(sync, inventory, view, player, mode, choices),
-            Component.literal(mode == GameModes.Mode.MINIGAMES ? "Choose a Minigame" : "Choose an Adventure")));
+            new Handler(sync, inventory, view, player, mode, choices, recordsPage),
+            Component.literal(recordsPage ? "Course Records" : mode == GameModes.Mode.MINIGAMES ? "Choose a Minigame" : "Choose an Adventure")));
         return 1;
     }
 
@@ -191,22 +243,41 @@ final class CourseSelector {
         final ServerPlayer owner;
         final GameModes.Mode mode;
         final List<ModeMaps.MapSpec> choices;
+        final ServerGamePacketListenerImpl connection;
+        final Level world;
+        final boolean recordsPage;
 
         Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner,
-                GameModes.Mode mode, List<ModeMaps.MapSpec> choices) {
+                GameModes.Mode mode, List<ModeMaps.MapSpec> choices, boolean recordsPage) {
             super(MenuType.GENERIC_9x3, sync, inventory, view, 3);
             this.owner = owner;
             this.mode = mode;
             this.choices = choices;
+            this.connection = owner.connection;
+            this.world = owner.level();
+            this.recordsPage = recordsPage;
         }
 
-        @Override public boolean stillValid(Player player) { return player == owner && owner.isAlive(); }
+        @Override public boolean stillValid(Player player) {
+            return player == owner && owner.containerMenu == this && owner.connection == connection
+                && owner.level() == world && allowed(owner);
+        }
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) { }
 
         @Override public void clicked(int clicked, int button, ContainerInput action, Player player) {
-            if (player != owner || owner.containerMenu != this || !owner.isAlive()) return;
-            if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE) && getCarried().isEmpty()) {
+            if (player != owner || owner.containerMenu != this || owner.connection != connection) return;
+            if (!stillValid(player)) { owner.closeContainer(); return; }
+            if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE) && button >= 0 && button <= 1 && getCarried().isEmpty()) {
+                if (clicked == BACK) {
+                    owner.closeContainer();
+                    if (owner.isSpectator()) GameModes.request(owner, GameModes.Mode.HUB, null);
+                    else ServerMenu.open(owner);
+                    return;
+                }
+                if (clicked == RECORDS) { owner.closeContainer(); open(owner, mode, !recordsPage); return; }
+                if (clicked == RETRY) { owner.closeContainer(); GameModes.request(owner, mode, ModeMaps.selectedMap(owner, mode)); return; }
+                if (recordsPage) { sendAllDataToRemote(); return; }
                 for (int index = 0; index < choices.size(); index++) if (clicked == slot(index, choices.size())) {
                     String id = choices.get(index).id();
                     owner.closeContainer();

@@ -2,6 +2,8 @@
 
 Use **`/hub`** for the Main Hub, **`/lobbies`** for the five mode lobbies, or **`/play`** to enter a game world. See **LOBBIES.md** for navigation.
 
+In explore.26, course icons include their actual instructions and personal bests. **View saved records** opens a read-only records page; minigames include the server's top five. **Retry** starts the selected course again without erasing saved times. **Back to Infinity Menu** returns to the main controls; eliminated Hardcore spectators instead see **Return to Main Hub**. Shortcuts such as `/mg memory`, `/adv maze` and `/lb parkour` accept the same arguments and permissions as their originals. See [EXPERIENCE_POLISH.md](EXPERIENCE_POLISH.md).
+
 Use **`/play`** in Minecraft. Java has clickable choices; the same short commands work on Bedrock. Mode changes take three seconds. Stay still, leave vehicles, and let shoulder pets dismount. Taking damage cancels the change, and you must wait ten seconds after damage before trying again.
 
 | Mode | Command | What you get |

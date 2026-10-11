@@ -1,4 +1,6 @@
-# Infinity Armor Exploration Server source — 2.13.0-explore.25
+# Infinity Armor Exploration Server source — 2.13.0-explore.26
+
+Explore.26 adds bounded loaded-structure scans and native owned compasses in `OdysseyCompass.java`, course instructions/records/retry controls in `CourseSelector.java`, and three persistent roster-wide combat-profile controls. The course and helper screens now retain their actual menu/world session. `GearCrates.java` supplies real vanilla Admin Blocks toolboxes to OP4 Creative players; `CreativeGearPicker.java` exposes recovery, and the modded Java Creative tab includes the native blocks when authorized. `ShortCommands.java` redirects aliases to native nodes, preserves original names/permissions/suggestions and provides four gamemode presets. The existing `/ai` command remains unchanged. See `server/EXPERIENCE_POLISH.md` for controls and client limits.
 
 `CreativeStudio.java` adds native menu-controlled brushes, atomic item kits, conflict-aware session undo, exact reviewed blueprints, teleport/effect gadgets and trimmed native outfits. `RcPlanes.java` manages bounded native falling-block assemblies with collision checks and cleanup; its mixins prevent plane parts from placing blocks or dropping items. `BlastSafety.java` queues primed TNT globally and bounds excessive single-explosion radii. These controls and the restored ordinary Bedrock armor textures are documented in `server/CREATIVE_STUDIO.md`. All five new gadget IDs are actual registered items with native icons; the Storm Staff has a real crafting recipe.
 

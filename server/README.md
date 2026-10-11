@@ -1,4 +1,6 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.24
+# Infinity Armor Exploration Server — 2.13.0-explore.26
+
+Explore.26 adds **Admin Blocks** directly to an OP4 Creative player's inventory, short command aliases, course instructions/records/retry controls, a loaded-ruin Odyssey compass and squad-wide combat profile buttons. See [EXPERIENCE_POLISH.md](EXPERIENCE_POLISH.md). These source/package changes require an approved installation before they appear on the owner's live explore.25 server.
 
 Explore.24 adds **Creative Studio**: five themed building palettes, adjustable brushes with undo, reviewed blueprints, an RC voxel plane, five usable Infinity gadgets and three full native armor outfits. The gear picker links to the Studio and supports additional pages. Helpers gain loaded-squad recall and visible reasons for pausing. Primed TNT chains queue across ticks, and ordinary Bedrock leather/netherite textures return to Minecraft's normal appearance. See [CREATIVE_STUDIO.md](CREATIVE_STUDIO.md) for controls and limits.
 
@@ -12,7 +14,7 @@ This server build lets Java and Bedrock players share **one Fabric server with s
 
 Select the named **Infinity Menu** recovery compass in your hotbar to open gear, powers, worlds and AI helpers. Every `/convergence` feature has a menu button; typing that command is optional. If the compass is in your main inventory, move it to the hotbar first. Tap or right-click an **INFINITY MENU** sign in the Main Hub or a mode lobby to reopen the menu and recover a missing compass. Clear one inventory slot if your inventory is full; the server never replaces your items to make room.
 
-Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/guide` gives directions for your current location, `/best` shows personal times, and `/leaderboard <map>` shows saved minigame records. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
+Choose **Minigames** or **Adventure maps**, then tap a course icon to play. Each icon shows instructions and your saved best; **View saved records** shows the minigame top five, and **Retry** restarts your selected course. `/guide`, `/best` and `/leaderboard <map>` remain optional. `/shortcuts` lists the short commands your permissions allow. See [EXPLORATION.md](EXPLORATION.md) for navigation and scores.
 
 ## Restarting after a crash
 

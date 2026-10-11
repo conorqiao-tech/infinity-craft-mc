@@ -1,3 +1,26 @@
+# Inventory, navigation and menu improvements — 2.13.0-explore.26
+
+Validated October 11, 2026 on the unchanged Minecraft **26.3 / Java 25** stack: **377/377 native Minecraft GameTests**, **146/146 Python launcher tests**, all **21** reproducible one-chest Odyssey templates, Geyser mapping/resource validation and local Bedrock UDP response, and **two isolated full-stack startup, cold-lobby, save, backup, restart and clean-shutdown cycles**. Geyser and full-stack logs have no ERROR records. Final native provenance matches every current Java source and the exact prepared mod. All checks used disposable worlds; the owner's running save was not used for these tests.
+
+Twelve added native regressions cover real registered structure scans, owned/offhand compasses, dimension-aware pointers and native inventory persistence; no fabricated discovery, no distant chunk generation, full inventories and busy cursors; real course instructions, personal/public records and Retry; foreign/malformed/transition/wrong-world course clicks; the eliminated-Hardcore exit; saved squad profile changes with unchanged health, attributes, Stay and both player-target gates; wrong-world helper controls; native alias arguments, suggestions, existing `/ai`, permissions and command-name collisions; toolbox permission/cursor/full-inventory guards, menu recovery and native save/reload; placing the real box with all ten actual contents; and normal server-tick delivery without repeated automatic gifts. Existing stats, equipment, native combat, resource/name, mode inventory, trading and AI approval regressions passed.
+
+## Glitches fixed in this update
+
+- Course and helper screens could remain valid across a world change. Both now capture the original world, connection and exact current menu; delayed old clicks cannot move or reconfigure a player/helper in a later session.
+- A course menu's ordinary Back button would not open Infinity Menu for an eliminated Hardcore spectator. That player now receives an explicit Main Hub transfer through the existing mode-change path.
+- Locked, already claimed and Creative-mode journal rewards returned silently. The journal now explains the missing requirement, claimed receipt or required Survival/Hardcore abilities without changing rewards.
+- Short-command registration preserves existing names, including the original `/ai` chat command. `/ag` opens helper controls; aliases do not replace another command or relax its permission checks.
+
+## Unresolved and unverified
+
+Native runs log Polymer's **"chunk update packet, without the packet context present"** warning from `PlayerChunkSender` while using embedded mock player connections. A separate fresh disposable control with the exact prior explore.25 mod (SHA-256 `845035c4b37d1021f1279485b1d8c2b047732924305c77e9027410dff38a897a`) reproduced the same stack and passed all **365/365** baseline tests. The warning remains unresolved; this comparison does not prove it is harmless for real clients. The normal full-stack and Geyser smoke logs did not show it. No dependency upgrade or warning suppression was applied.
+
+Authenticated Java/iPad joining, rendered visuals, touch input, multiplayer play under load and public capacity still need a real-client check. Native menu and item-use tests do not establish client rendering. The toolbox uses native items and a real shulker inventory on both editions; a custom Java Creative tab requires the Fabric client, and native debug-stick controls have limited Bedrock support. The compass searches only completed loaded chunks within 96 horizontal blocks; it never generates distant chunks or awards progress. Existing armor textures, helper skin, original loot and separate AI approvals remain unchanged.
+
+**Delivery state:** the source and built package are explore.26. The live Mac server remains **explore.25** and is running. Its separately requested October 11 chunk refresh committed after a verified stopped-world backup; unprotected terrain regenerates while the small protected player/helper/pet/hub/End areas remain. Nothing in these development checks installed explore.26 or changed that private policy. Installing the new mod requires the owner's approval, a fresh verified stopped-world backup and the existing protected refresh workflow.
+
+Try the new controls after installation using [EXPERIENCE_POLISH.md](EXPERIENCE_POLISH.md). Reproduce with the same build/native/launcher/Geyser/full-stack/package commands below. The packaged checks and source provenance are the evidence; these results do not mean every possible glitch has been removed.
+
 # Circuit Keepers and playground expansion — 2.13.0-explore.25
 
 Validated October 10, 2026 with Minecraft Java **26.3**, **Java 25** and the pinned Fabric/Geyser release dependencies. Fresh checks passed **365/365 native Minecraft GameTests**, **146/146 Python launcher tests**, all **21** reproducible Odyssey templates, Geyser mapping/resource validation and Bedrock UDP response, and **two isolated full-stack startup, cold-lobby, save, backup, restart and clean-shutdown cycles** without ERROR entries. The final native report and provenance bind the exact source and packaged mod bytes. These checks used disposable test worlds, not the owner's running save.

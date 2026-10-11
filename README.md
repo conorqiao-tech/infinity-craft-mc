@@ -13,6 +13,10 @@ See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iP
 
 The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.25**, installed with a verified stopped-world backup on October 10, 2026. Its new features are available through Infinity Menu. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
 
+## Prepared next update: explore.26
+
+The source adds an **Admin Blocks** inventory toolbox for OP4 Creative players, shorter commands, course instructions with saved records and a Retry button, and squad-wide combat profile controls. **Odyssey Journal → Scan for a nearby circuit** gives a native compass to a real loaded ruin within 96 blocks; it never generates terrain or counts as discovering the ruin. See [the new controls](server/EXPERIENCE_POLISH.md) and [validation](server/VALIDATION.md). The owner's running server remains explore.25 until a separately approved installation.
+
 ## New in explore.25
 
 Creative Studio adds an **Infinity Gust Glove**, **Infinity Anchor Charm** and complete **Tidewarden armor**. The [Odyssey journal](server/ODYSSEY.md) tracks physical ruin discoveries across the Overworld, Nether and End, with four one-time rewards. **Memory Circuit** and **Laser Gate Dash** join the course menu and saved leaderboards. Helpers gain saved **Escort, Wedge and Ring formations**, plus shared hostile focus for Regular squads. All are controlled through Infinity Menu; the original shrine loot, mode inventories and AI approval gates remain intact. See [Creative Studio](server/CREATIVE_STUDIO.md), [modes](server/MODES.md) and [validation](server/VALIDATION.md).

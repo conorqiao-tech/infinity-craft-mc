@@ -352,6 +352,17 @@ final class ModeMaps {
         Run(String map, int tick, Vec3 previous) { this.map=map; this.startedTick=tick; this.previous=previous; }
     }
     static final Map<UUID,Run> RUNS=new HashMap<>();
+    static String instructions(MapSpec map) {
+        return switch(map.kind) {
+            case MEMORY -> "Memorize the five colors shown for five seconds. Touch those pads in order; a wrong pad restarts. Leave each pad before stepping onto the next.";
+            case GATE_DASH -> "Cross the three gates on GREEN; RED contact resets the run. Follow checkpoints east to the finish.";
+            case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
+            case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
+            case CRYSTAL_HUNT -> "Touch the five glowing amethyst pads in any order. Each pad counts once; collect them all to finish.";
+            case COLOR_RUSH -> "Watch the action bar. Reach the named color within five seconds to start the next pulse. Clear five pulses to finish; a timeout restarts the run.";
+            default -> "Visit each glowing checkpoint in order.";
+        };
+    }
     static void begin(ServerPlayer p, String id) {
         var map=MAPS.get(id); if(map==null || GameModes.current(p)!=map.mode) return;
         if (!available(id)) { CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log."); return; }
@@ -370,19 +381,10 @@ final class ModeMaps {
             run.colorDeadline=run.startedTick+(map.kind==Kind.MEMORY?100:COLOR_ROUND_TICKS);
         }
         RUNS.put(p.getUUID(),run);
-        String instructions = switch(map.kind) {
-            case MEMORY -> "Memorize the five colors shown for five seconds. Touch those pads in order; a wrong pad restarts. Leave each pad before stepping onto the next.";
-            case GATE_DASH -> "Cross the three gates on GREEN; RED contact resets the run. Follow checkpoints east to the finish.";
-            case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
-            case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
-            case CRYSTAL_HUNT -> "Touch the five glowing amethyst pads in any order. Each pad counts once; collect them all to finish.";
-            case COLOR_RUSH -> "Watch the action bar. Reach the named color within five seconds to start the next pulse. Clear five pulses to finish; a timeout restarts the run.";
-            default -> "Visit each glowing checkpoint in order.";
-        };
         String selectorHint=map.kind==Kind.DROPPER
             ? "Right-click the glowing start or pool-center lantern to choose a different course."
             : "Right-click a glowing checkpoint lantern to choose a different course.";
-        CommunityServer.say(p,map.title+": "+instructions+" "+selectorHint+" /retry "+id+" restarts; /play survival leaves. No special items are needed.");
+        CommunityServer.say(p,map.title+": "+instructions(map)+" "+selectorHint+" Infinity Menu → Minigames / Adventure offers Retry and records. No special items are needed.");
         if(map.kind==Kind.MEMORY) memoryHint(p,run,run.startedTick);
         else if(map.kind==Kind.GATE_DASH) gateHint(p,run,run.startedTick);
         else if(map.kind==Kind.CRYSTAL_HUNT) crystalHint(p,run);

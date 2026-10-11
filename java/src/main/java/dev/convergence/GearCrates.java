@@ -20,6 +20,10 @@ import net.minecraft.world.item.component.ItemLore;
 /** Real inventory containers, not client-only Creative catalogue preview entries. */
 final class GearCrates {
     private static final Map<UUID,GameModes.Mode> CHECKED = new HashMap<>();
+    private static final Map<UUID,GameModes.Mode> ADMIN_CHECKED = new HashMap<>();
+    static final List<net.minecraft.world.item.Item> ADMIN_ITEMS = List.of(Items.COMMAND_BLOCK, Items.REPEATING_COMMAND_BLOCK,
+        Items.CHAIN_COMMAND_BLOCK, Items.COMMAND_BLOCK_MINECART, Items.STRUCTURE_BLOCK, Items.STRUCTURE_VOID,
+        Items.JIGSAW, Items.BARRIER, Items.LIGHT, Items.DEBUG_STICK);
     private GearCrates() {}
 
     static final List<String> STARTER=List.of("sword","mace","spear","pickaxe","axe","shovel","hoe",
@@ -69,6 +73,31 @@ final class GearCrates {
             &&data.copyTag().getBooleanOr("infinity_gear_crate",false);
     }
 
+    static boolean isAdminBox(ItemStack stack) {
+        var data = stack.get(DataComponents.CUSTOM_DATA);
+        return stack.is(Items.DYED_SHULKER_BOX.red()) && data != null && data.copyTag().getBooleanOr("infinity_admin_blocks", false);
+    }
+
+    static int giveAdmin(ServerPlayer player) {
+        if (!ServerMenu.allowed(player) || !player.isCreative() || !Memberships.operator(player)
+            || player.containerMenu != player.inventoryMenu || !player.inventoryMenu.getCarried().isEmpty()) return 0;
+        int slot = player.getInventory().getFreeSlot();
+        if (slot < 0) { CommunityServer.say(player, "Clear one inventory slot for Admin Blocks. Your items are preserved."); return 0; }
+        var box = new ItemStack(Items.DYED_SHULKER_BOX.red());
+        box.set(DataComponents.CUSTOM_NAME, Component.literal("Admin Blocks • Creative Toolbox"));
+        box.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(ADMIN_ITEMS.stream()
+            .map(item -> new ItemStack(item, item.getDefaultMaxStackSize())).toList()));
+        box.set(DataComponents.LORE, new ItemLore(List.of(Component.literal("Place and open for real command blocks, barriers, lights and structure tools."),
+            Component.literal("Native operator permissions apply. Java's debug stick has limited Bedrock support."))));
+        var tag = new CompoundTag(); tag.putBoolean("infinity_admin_blocks", true);
+        box.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        player.getInventory().setItem(slot, box); player.inventoryMenu.sendAllDataToRemote();
+        GameModes.state(player).putBoolean("admin_blocks_" + GameModes.current(player).name(), true);
+        player.level().getServer().getPlayerList().saveAll();
+        CommunityServer.say(player, "Admin Blocks added to Creative inventory. Place the red toolbox and open it. Recover it from Infinity Gear → Admin Blocks.");
+        return 1;
+    }
+
     static int give(ServerPlayer player) {
         if(!ServerMenu.gearAllowed(player) || player.containerMenu!=player.inventoryMenu
             || !player.inventoryMenu.getCarried().isEmpty())return 0;
@@ -81,12 +110,18 @@ final class GearCrates {
     }
 
     static void register() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->CHECKED.remove(handler.player.getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{CHECKED.remove(handler.player.getUUID());ADMIN_CHECKED.remove(handler.player.getUUID());});
         ServerTickEvents.END_SERVER_TICK.register(server->{
             if(server.getTickCount()%20!=0)return;
             for(var player:server.getPlayerList().getPlayers()) {
                 var mode=GameModes.current(player);
-                if(!player.isCreative() || !ServerMenu.allowed(player)) { CHECKED.remove(player.getUUID());continue; }
+                if(!player.isCreative() || !ServerMenu.allowed(player)) { CHECKED.remove(player.getUUID());ADMIN_CHECKED.remove(player.getUUID());continue; }
+                if (!Memberships.operator(player)) ADMIN_CHECKED.remove(player.getUUID());
+                else if (ADMIN_CHECKED.get(player.getUUID()) != mode && player.containerMenu == player.inventoryMenu && player.inventoryMenu.getCarried().isEmpty()) {
+                    ADMIN_CHECKED.put(player.getUUID(), mode);
+                    boolean present = java.util.stream.IntStream.range(0, 36).anyMatch(i -> isAdminBox(player.getInventory().getItem(i)));
+                    if (!present && !GameModes.state(player).getBooleanOr("admin_blocks_" + mode.name(), false)) giveAdmin(player);
+                }
                 if(CHECKED.get(player.getUUID())==mode || player.containerMenu!=player.inventoryMenu)continue;
                 CHECKED.put(player.getUUID(),mode);
                 String direct="direct_gear14_"+mode.name().toLowerCase(java.util.Locale.ROOT);

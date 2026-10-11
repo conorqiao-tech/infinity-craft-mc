@@ -40,16 +40,14 @@ def main():
     assert testlog_file.stat().st_mtime >= max(p.stat().st_mtime for p in [
         *(ROOT / "server").glob("*.py"), *(ROOT / "tests").glob("test_*.py")])
     mod = ROOT / f"server/fabric/mods/Infinity-Armor-{VERSION}.jar"
-    if options.launcher_patch:
-        # Git checkouts can change source mtimes while Gradle correctly reuses
-        # identical compiled output. Bind this patch to the real tested bytes.
-        provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
-        assert provenance["java_sources"] == {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                                               for p in (ROOT / "java/src").rglob("*") if p.is_file()}
-        assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
-        assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
-        assert provenance["native_tests"] == len(tests)
-    else:
+    # Bind every package to the exact tested source, mod and report, including ordinary releases.
+    provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
+    assert provenance["java_sources"] == {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                                           for p in (ROOT / "java/src").rglob("*") if p.is_file()}
+    assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
+    assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
+    assert provenance["native_tests"] == len(tests)
+    if not options.launcher_patch:
         assert mod.stat().st_mtime >= max(p.stat().st_mtime for p in (ROOT / "java/src/main").rglob("*") if p.is_file())
     assert report.stat().st_mtime >= mod.stat().st_mtime
     geyser_log_file = ROOT / "research/geyser-smoke.log"
@@ -66,7 +64,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "EXPERIENCE_POLISH.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
@@ -76,8 +74,7 @@ def main():
         assert hashlib.sha256(data).hexdigest() == file["sha256"]
         entries[file["path"]] = data
     entries["checks/java-gametest-results.xml"] = report.read_bytes()
-    if options.launcher_patch:
-        entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
+    entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
     entries["checks/launcher-tests.txt"] = testlog.encode()
     fullstack_log_file = ROOT / "research/fullstack-smoke.log"
     fullstack = fullstack_log_file.read_text()

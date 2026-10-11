@@ -1,6 +1,6 @@
 # The Odyssey ruins and starting prophecy
 
-Version: **2.13.0-explore.25**, for the combined Minecraft Java **26.3** server and its existing Bedrock bridge.
+Version: **2.13.0-explore.26** source, for the combined Minecraft Java **26.3** server and its existing Bedrock bridge. The owner's running server remains explore.25 until the next approved installation.
 
 The ruin follows the owner's compact circuit structure: the same 46-block arrangement, glowing center, lower repeating command block and **one single chest**. The upper chest and two detached torches are excluded. The owner's existing build is never edited.
 
@@ -39,7 +39,15 @@ This added quest is called the **Circuit Keepers journey**. Rediscover a circuit
 
 Each gift can be claimed once. Return to Survival or Hardcore, leave the cursor empty and keep enough empty inventory slots before claiming. A full inventory retains the unclaimed gift and never drops or replaces items. The trident and mace are named native weapons using normal Minecraft combat. The Tidewarden outfit uses native diamond equipment; it does not inherit Infinity powers. You can also obtain the outfit in Creative Studio, separately from earned progress.
 
-Ruins remain rare in newly generated terrain. The journal records places you discover; it is not a locator for undiscovered ruins. Existing terrain follows the host's explicit refresh policy during upgrades. The protected player/helper areas remain preserved by that policy.
+Ruins remain rare in newly generated terrain. Existing terrain follows the host's explicit refresh policy during upgrades. The protected player/helper areas remain preserved by that policy.
+
+## Circuit compass — explore.26
+
+Choose **Scan for a nearby circuit** in the journal. It scans completed, already loaded chunks for real registered Odyssey structure pieces within **96 horizontal blocks**. It neither generates distant terrain nor guarantees a ruin nearby. With no signal, continue exploring natural Overworld, Nether or End terrain and try again. Lobby and game-map dimensions have no natural circuits.
+
+A signal places an **Odyssey Circuit Compass** in one empty inventory slot, with the actual coordinates in its description. It uses Minecraft's dimension-aware lodestone pointer without requiring an actual lodestone block in the ruin. The pointer can spin when carried into a different dimension. An existing compass owned by you is updated, including in the offhand; an anvil name is retained. A full inventory still gets the coordinates in chat. The compass and pointer save with your native inventory.
+
+The scan does not record discovery, grant a gift or teleport you. Enter the generated ruin in Survival or Hardcore for journal progression. The pointer does not promise safe passage through terrain; do not dig straight down.
 
 ## Authoring and checks
 

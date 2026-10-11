@@ -31,6 +31,8 @@ The following commands remain available for named creation, questions and advanc
 
 Names use 1–24 lowercase letters, digits, `_` or `-`. Each helper has its own name, saved owner, AI profile and movement setting. `/agent list` lists your roster. `/agent profile <name> <profile>` changes a saved profile, including an unloaded helper; movement changes need a loaded helper in your dimension. `/agent squad follow`, `guard`, or `stay` affects your loaded helpers in your dimension and reports skipped helpers.
 
+Explore.26 adds **Set squad: Primitive**, **Regular** and **Ultimate Finals** buttons to the roster. They change every helper owned by you, including unloaded or passive-profile helpers, and save the profile immediately. The matching/total count shows which helpers already use that profile. Existing positions, health, edited attributes and Follow/Guard/Stay settings remain. A helper on Stay still needs **Follow** to resume. These buttons do not authorize attacking a player or approve a queued action. `/ag` is an optional shortcut for `/agent`; the existing `/ai` chat command is unchanged.
+
 | AI profile | What it does |
 | --- | --- |
 | `primitive` | Combat-ready: proactively seeks nearby hostile mobs within 12 blocks. Follow, Guard and Stay remain available; questions use Codex when enabled, otherwise local guidance. |

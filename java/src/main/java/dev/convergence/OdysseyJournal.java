@@ -80,8 +80,11 @@ final class OdysseyJournal {
         return count(p)==3&&scores.getLongOr("memory",0)>0&&scores.getLongOr("gatedash",0)>0;
     }
     static int claim(ServerPlayer p,int tier){
-        if(!ServerMenu.allowed(p)||p.isCreative()||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty()
-            ||!earned(p,tier)||state(p).getBooleanOr("claimed_"+tier,false))return 0;
+        if(!ServerMenu.allowed(p)||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty()
+            ||tier<1||tier>4)return 0;
+        if(p.isCreative()){CommunityServer.say(p,"Leave Creative abilities and return to Survival or Hardcore to claim your Odyssey gift.");return 0;}
+        if(state(p).getBooleanOr("claimed_"+tier,false)){CommunityServer.say(p,"This Odyssey gift has already been claimed.");return 0;}
+        if(!earned(p,tier)){CommunityServer.say(p,tier<=3?"Discover "+tier+" different realms before claiming this gift.":"Discover all three realms and finish Memory Circuit and Laser Gate Dash first.");return 0;}
         if(GameModes.current(p)!=GameModes.Mode.SURVIVAL&&GameModes.current(p)!=GameModes.Mode.HARDCORE){CommunityServer.say(p,"Return to Survival or Hardcore to claim your gift.");return 0;}
         var stacks=reward(p,tier);var slots=new ArrayList<Integer>();
         for(int i=0;i<36;i++)if(p.getInventory().getItem(i).isEmpty())slots.add(i);
@@ -101,6 +104,12 @@ final class OdysseyJournal {
             tier<=3?"Discover "+tier+" different realms.":"Discover all realms and finish Memory Circuit and Laser Gate Dash.",
             tier==2?"Complete four-piece Tidewarden armor.":tier==3?"Odyssey Circuit Trident.":tier==4?"Odyssey Memory Mace.":"Eight echo shards.");
         CreativeStudio.icon(view,4,Items.WRITTEN_BOOK,"Receive or recover your prophecy","Your original book and the shrine's chest contents are preserved.");
+        CreativeStudio.icon(view,6,Items.COMPASS,"Scan for a nearby circuit","Search loaded natural terrain within "+OdysseyCompass.RANGE+" blocks.","Creates or updates your native Odyssey compass.","Never generates distant terrain or grants journal progress.");
+        var scores=GameModes.state(p).getCompoundOrEmpty("scores");
+        CreativeStudio.icon(view,15,Items.CLOCK,"Trials for the final gift",
+            "Memory Circuit: "+(scores.getLongOr("memory",0)>0?"Finished":"Not finished"),
+            "Laser Gate Dash: "+(scores.getLongOr("gatedash",0)>0?"Finished":"Not finished"),
+            "Find both through Infinity Menu → Minigames.");
         CreativeStudio.icon(view,26,Items.ARROW,"Back to Infinity Menu");
         p.openMenu(new SimpleMenuProvider((sync,inv,who)->new Handler(sync,inv,view,p),Component.literal("The Odyssey • Journal")));return 1;
     }
@@ -116,6 +125,7 @@ final class OdysseyJournal {
             if((action!=ContainerInput.PICKUP&&action!=ContainerInput.QUICK_MOVE)||button<0||button>1||!getCarried().isEmpty())return;
             if(slot==26){owner.closeContainer();ServerMenu.open(owner);}
             else if(slot==4){owner.closeContainer();OdysseyProphecy.give(owner,true);}
+            else if(slot==6){owner.closeContainer();OdysseyCompass.scan(owner);}
             else if(slot>=19&&slot<=22){owner.closeContainer();claim(owner,slot-18);open(owner);}
         }
     }
