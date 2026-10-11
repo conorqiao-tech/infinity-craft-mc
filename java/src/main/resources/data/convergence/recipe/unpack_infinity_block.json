@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "result": {
+    "id": "convergence:ingot",
+    "count": 9
+  },
+  "pattern": [
+    "B"
+  ],
+  "key": {
+    "B": "convergence:infinity_block"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "python_version": "3.13.15+20260924",
+  "java_version": "21.0.12.1+1",
+  "platforms": {
+    "darwin-arm64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-aarch64-apple-darwin-install_only_stripped.tar.gz",
+        "sha256": "064afb7c2fc0bbf511d886288adf98696af5105e36c138cdf2c199c0146fcf68",
+        "filename": "cpython-3.13.15+20260924-aarch64-apple-darwin-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "dec50fc6f9fcd4fe3ae8cabf5a5fa68f6afc48841f7698e468e9aa5d54beed84",
+        "filename": "OpenJDK21U-jre_aarch64_mac_hotspot_21.0.12.1_1.tar.gz"
+      }
+    },
+    "darwin-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-apple-darwin-install_only_stripped.tar.gz",
+        "sha256": "327814efd865a0b6a99c149b12a261e9d0ad409183515c745d41bda2d07282e9",
+        "filename": "cpython-3.13.15+20260924-x86_64-apple-darwin-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "6717ec641fd9ce0bb209ca083ee23b42202ac68cb6fcc5753496e0e4a0f41989",
+        "filename": "OpenJDK21U-jre_x64_mac_hotspot_21.0.12.1_1.tar.gz"
+      }
+    },
+    "linux-arm64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "5ad58156cbec94e5643c13caa792e92df72a23f33d3a6425d4cbff5c4b7a040c",
+        "filename": "cpython-3.13.15+20260924-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "14be1f35ebdbd1f6e8d57eb911a3ffb74d6d9aa255abc5daf2b1302002cf2cf2",
+        "filename": "OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz"
+      }
+    },
+    "linux-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "d0b640eed27fbdd6f5f2bd33444aee53df2c8863f8b2a96f4094717411e3de9c",
+        "filename": "cpython-3.13.15+20260924-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "2413149700df0f7d440500a84a8f764c535f21e5a5e87d38328b64eec2c5b500",
+        "filename": "OpenJDK21U-jre_x64_linux_hotspot_21.0.12.1_1.tar.gz"
+      }
+    },
+    "windows-x64": {
+      "python": {
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.13.15%2B20260924-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+        "sha256": "e42fa944748a50e9ff481cbb817ef8a6e3da6fbcf0cf6f29b554e1acb8c7384d",
+        "filename": "cpython-3.13.15+20260924-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+      },
+      "java": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip",
+        "sha256": "d35f31e712f0fcf6ac5a093edc90204fbff22f720ba3950bd09d331d5e621636",
+        "filename": "OpenJDK21U-jre_x64_windows_hotspot_21.0.12.1_1.zip"
+      }
+    }
+  }
+}

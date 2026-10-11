@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SMS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:stone",
+    "M": "minecraft:moss_block"
+  },
+  "result": {
+    "id": "convergence:verdant_mosaic",
+    "count": 8
+  }
+}
