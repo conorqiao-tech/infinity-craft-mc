@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.util.*;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -16,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** Small built-in maps, generated once in dedicated dimensions, never over survival builds. */
 final class ModeMaps {
-    enum Kind { CHECKPOINTS, DROPPER, REDLIGHT, CRYSTAL_HUNT, COLOR_RUSH }
+    enum Kind { CHECKPOINTS, DROPPER, REDLIGHT, CRYSTAL_HUNT, COLOR_RUSH, MEMORY, GATE_DASH }
     record MapSpec(String id, GameModes.Mode mode, String title, List<BlockPos> points, Kind kind) {
         MapSpec(String id, GameModes.Mode mode, String title, List<BlockPos> points) { this(id, mode, title, points, Kind.CHECKPOINTS); }
     }
@@ -44,6 +45,10 @@ final class ModeMaps {
         MAPS.put("colorrush", new MapSpec("colorrush", GameModes.Mode.MINIGAMES, "Color Rush", List.of(
             new BlockPos(354,81,0), new BlockPos(354,81,-8), new BlockPos(362,81,0),
             new BlockPos(354,81,8), new BlockPos(346,81,0)), Kind.COLOR_RUSH));
+        MAPS.put("memory",new MapSpec("memory",GameModes.Mode.MINIGAMES,"Memory Circuit",List.of(
+            new BlockPos(422,81,0),new BlockPos(422,81,-8),new BlockPos(430,81,0),new BlockPos(422,81,8),new BlockPos(414,81,0)),Kind.MEMORY));
+        MAPS.put("gatedash",new MapSpec("gatedash",GameModes.Mode.MINIGAMES,"Laser Gate Dash",List.of(
+            new BlockPos(480,81,0),new BlockPos(488,81,0),new BlockPos(496,81,0),new BlockPos(504,81,0),new BlockPos(512,81,0)),Kind.GATE_DASH));
         MAPS.put("ruins", new MapSpec("ruins", GameModes.Mode.ADVENTURE, "The Five Seals", List.of(
             new BlockPos(0,81,0), new BlockPos(10,81,0), new BlockPos(10,81,10), new BlockPos(-10,81,10), new BlockPos(-10,81,-10), new BlockPos(10,81,-10), new BlockPos(0,81,0))));
         MAPS.put("maze", new MapSpec("maze", GameModes.Mode.ADVENTURE, "Lantern Labyrinth", List.of(
@@ -136,6 +141,21 @@ final class ModeMaps {
         if (spec.kind == Kind.REDLIGHT) { buildRedlight(plan); return plan; }
         if (spec.kind == Kind.CRYSTAL_HUNT) { buildCrystalHunt(plan); return plan; }
         if (spec.kind == Kind.COLOR_RUSH) { buildColorRush(plan); return plan; }
+        if(spec.kind==Kind.MEMORY){
+            var color=new BlockPlan();buildColorRush(color);
+            for(var entry:color.blocks.entrySet())plan.put(entry.getKey().offset(68,0,0),entry.getValue());
+            return plan;
+        }
+        if(spec.kind==Kind.GATE_DASH){
+            for(int x=477;x<=515;x++)for(int z=-4;z<=4;z++){
+                plan.put(x,80,z,Blocks.QUARTZ_BLOCK.defaultBlockState());
+                if(Math.abs(z)==4)for(int y=81;y<=84;y++)plan.put(x,y,z,Blocks.GLASS.defaultBlockState());
+            }
+            for(var point:spec.points)plan.put(point.below(),Blocks.SEA_LANTERN.defaultBlockState());
+            for(int i=1;i<spec.points.size()-1;i++)for(int z:new int[]{-4,4})for(int y=81;y<=84;y++)
+                plan.put(spec.points.get(i).getX(),y,z,(y==84?Blocks.REDSTONE_LAMP:Blocks.CONCRETE.red()).defaultBlockState());
+            return plan;
+        }
         int base = spec.points.getFirst().getX();
         if (!spec.id.equals("parkour")) {
             int min = spec.id.equals("ruins") ? -14 : base - 3;
@@ -220,6 +240,8 @@ final class ModeMaps {
         var world=GameModes.world(server,spec.mode);
         if(world==null) throw new IllegalStateException("Infinity dimension missing: "+spec.mode);
         BlockPos min=switch(spec.kind) {
+            case MEMORY -> new BlockPos(408,80,-13);
+            case GATE_DASH -> new BlockPos(476,80,-5);
             case DROPPER -> new BlockPos(154,40,-9);
             case REDLIGHT -> new BlockPos(221,80,-5);
             case CRYSTAL_HUNT -> new BlockPos(284,80,-12);
@@ -227,6 +249,8 @@ final class ModeMaps {
             default -> throw new IllegalStateException("No dedicated build volume for "+spec.id);
         };
         BlockPos max=switch(spec.kind) {
+            case MEMORY -> new BlockPos(436,86,13);
+            case GATE_DASH -> new BlockPos(516,86,5);
             case DROPPER -> new BlockPos(176,123,9);
             case REDLIGHT -> new BlockPos(255,85,5);
             case CRYSTAL_HUNT -> new BlockPos(310,85,12);
@@ -324,7 +348,7 @@ final class ModeMaps {
     static final class Run {
         final String map; final long started=System.nanoTime(); int next=1;
         final int startedTick; Vec3 previous; Vec3 redAnchor; int lastPhase=-1;
-        int foundMask; int colorDeadline; final int[] colors=new int[COLOR_ROUNDS];
+        int foundMask; int colorDeadline; int memoryLast=-1; final int[] colors=new int[COLOR_ROUNDS];
         Run(String map, int tick, Vec3 previous) { this.map=map; this.startedTick=tick; this.previous=previous; }
     }
     static final Map<UUID,Run> RUNS=new HashMap<>();
@@ -336,17 +360,19 @@ final class ModeMaps {
         p.getFoodData().setFoodLevel(20); p.getFoodData().setSaturation(5);
         GameModes.state(p).putString("selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map",id);
         var run=new Run(id,p.level().getServer().getTickCount(),p.position());
-        if(map.kind==Kind.COLOR_RUSH) {
+        if(map.kind==Kind.COLOR_RUSH||map.kind==Kind.MEMORY) {
             var random=new SplittableRandom(p.getUUID().getMostSignificantBits()^p.getUUID().getLeastSignificantBits()^run.startedTick);
             for(int i=0;i<COLOR_ROUNDS;i++) {
                 int color=random.nextInt(COLORS.size());
                 if(i>0 && color==run.colors[i-1]) color=(color+1+random.nextInt(COLORS.size()-1))%COLORS.size();
                 run.colors[i]=color;
             }
-            run.colorDeadline=run.startedTick+COLOR_ROUND_TICKS;
+            run.colorDeadline=run.startedTick+(map.kind==Kind.MEMORY?100:COLOR_ROUND_TICKS);
         }
         RUNS.put(p.getUUID(),run);
         String instructions = switch(map.kind) {
+            case MEMORY -> "Memorize the five colors shown for five seconds. Touch those pads in order; a wrong pad restarts. Leave each pad before stepping onto the next.";
+            case GATE_DASH -> "Cross the three gates on GREEN; RED contact resets the run. Follow checkpoints east to the finish.";
             case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
             case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
             case CRYSTAL_HUNT -> "Touch the five glowing amethyst pads in any order. Each pad counts once; collect them all to finish.";
@@ -357,7 +383,9 @@ final class ModeMaps {
             ? "Right-click the glowing start or pool-center lantern to choose a different course."
             : "Right-click a glowing checkpoint lantern to choose a different course.";
         CommunityServer.say(p,map.title+": "+instructions+" "+selectorHint+" /retry "+id+" restarts; /play survival leaves. No special items are needed.");
-        if(map.kind==Kind.CRYSTAL_HUNT) crystalHint(p,run);
+        if(map.kind==Kind.MEMORY) memoryHint(p,run,run.startedTick);
+        else if(map.kind==Kind.GATE_DASH) gateHint(p,run,run.startedTick);
+        else if(map.kind==Kind.CRYSTAL_HUNT) crystalHint(p,run);
         else if(map.kind==Kind.COLOR_RUSH) colorHint(p,run,run.startedTick);
         else hint(p,run);
     }
@@ -388,6 +416,8 @@ final class ModeMaps {
         var run=RUNS.get(p.getUUID()); if(run==null) return;
         var spec=MAPS.get(run.map); if(GameModes.current(p)!=spec.mode) { RUNS.remove(p.getUUID()); return; }
         if(!p.isAlive() || p.isSpectator()) return;
+        if(spec.kind==Kind.MEMORY){memory(p,run,spec,tick);return;}
+        if(spec.kind==Kind.GATE_DASH){gateDash(p,run,spec,tick);return;}
         if(spec.kind==Kind.DROPPER) { dropper(p,run,spec,tick); return; }
         if(spec.kind==Kind.CRYSTAL_HUNT) { crystalHunt(p,run,spec,tick); return; }
         if(spec.kind==Kind.COLOR_RUSH) { colorRush(p,run,spec,tick); return; }
@@ -432,6 +462,54 @@ final class ModeMaps {
             colorHint(p,run,tick);
         } else if(tick==run.colorDeadline) restart(p,run,"The color pulse expired.");
         else if(tick%10==0) colorHint(p,run,tick);
+    }
+    static void memoryHint(ServerPlayer p,Run run,int tick){
+        String text=tick<run.colorDeadline?"Remember: "+java.util.Arrays.stream(run.colors).mapToObj(COLORS::get).collect(java.util.stream.Collectors.joining(" → ")):
+            "Memory Circuit: step "+run.next+"/"+COLOR_ROUNDS+" | Reproduce the sequence";
+        p.sendOverlayMessage(Component.literal(text).withStyle(ChatFormatting.LIGHT_PURPLE));
+    }
+    static void memory(ServerPlayer p,Run run,MapSpec spec,int tick){
+        var now=p.position();
+        if(now.x<409||now.x>435||Math.abs(now.z)>12.9||now.y<77||now.y>86){restart(p,run,"You left the memory arena.");return;}
+        int pad=-1;
+        if(p.onGround())for(int i=0;i<COLORS.size();i++)if(onColorPad(now,spec.points.get(i+1))){pad=i;break;}
+        if(tick<run.colorDeadline){run.memoryLast=pad;if(tick%10==0)memoryHint(p,run,tick);return;}
+        if(pad<0){run.memoryLast=-1;}else if(pad!=run.memoryLast){
+            run.memoryLast=pad;
+            if(pad!=run.colors[run.next-1]){restart(p,run,"That was not the next memory color.");return;}
+            run.next++;
+            if(run.next>COLOR_ROUNDS){finish(p,run,tick);return;}
+            memoryHint(p,run,tick);
+        }
+        if(tick%20==0)memoryHint(p,run,tick);
+    }
+    static boolean gateGreen(Run run,int gate,int tick){return Math.floorMod(tick-run.startedTick+(gate-1)*15,100)<60;}
+    static void gateHint(ServerPlayer p,Run run,int tick){
+        StringBuilder text=new StringBuilder("Laser gates: ");
+        var spec=MAPS.get(run.map);
+        for(int i=1;i<=3;i++){
+            boolean green=gateGreen(run,i,tick);text.append(i).append(green?" GREEN  ":" RED  ");
+            // Each runner has their own timer: particles must go only to that runner.
+            var dust=new DustParticleOptions(green?0x40e070:0xf04455,1);
+            var at=spec.points.get(i);
+            for(int z=-3;z<=3;z+=3)for(int y=0;y<3;y++)
+                p.level().sendParticles(p,dust,false,false,at.getX()+.5,at.getY()+.4+y,z+.5,1,0,0,0,0);
+        }
+        p.sendOverlayMessage(Component.literal(text.toString()).withStyle(ChatFormatting.AQUA));
+    }
+    static void gateDash(ServerPlayer p,Run run,MapSpec spec,int tick){
+        var now=p.position();var before=run.previous;run.previous=now;
+        if(now.x<477||now.x>515||Math.abs(now.z)>3.9||now.y<77||now.y>85){restart(p,run,"You left the laser lane.");return;}
+        for(int i=1;i<spec.points.size()-1;i++){
+            double gate=spec.points.get(i).getX()+.5;
+            boolean crossing=(before.x<gate&&now.x>=gate)||(before.x>gate&&now.x<=gate)||Math.abs(now.x-gate)<.7;
+            if(crossing&&!gateGreen(run,i,tick)){restart(p,run,"You touched a red laser gate.");return;}
+        }
+        if(tick%10==0)gateHint(p,run,tick);
+        if(p.onGround()&&now.distanceToSqr(Vec3.atBottomCenterOf(spec.points.get(run.next)))<=1.4){
+            run.next++;
+            if(run.next==spec.points.size()){finish(p,run,tick);return;}
+        }
     }
     static void dropper(ServerPlayer p,Run run,MapSpec spec,int tick) {
         Vec3 now=p.position(),previous=run.previous;run.previous=now;

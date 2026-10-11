@@ -154,6 +154,7 @@ final class CrossplaySupport {
 
     static int usePower(ServerPlayer player, boolean alternate) {
         if (player.isSpectator() || !player.isAlive()) return 0;
+        if(!CreativeStudio.controlKind(player,player.getMainHandItem()).isEmpty())return CreativeStudio.useControl(player,player.getMainHandItem());
         String name = Convergence.id(player.getMainHandItem());
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());

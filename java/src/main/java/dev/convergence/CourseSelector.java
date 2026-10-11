@@ -47,6 +47,7 @@ final class CourseSelector {
     }
 
     static int slot(int index, int count) {
+        if(count>6)return 10+index%4+(index/4)*9;
         return count <= 2 ? 11 + index * 4 : 10 + index + (index >= 3 ? 1 : 0);
     }
 
@@ -58,6 +59,8 @@ final class CourseSelector {
             case "redlight" -> Items.REDSTONE_TORCH;
             case "crystalhunt" -> Items.AMETHYST_SHARD;
             case "colorrush" -> Items.GLAZED_TERRACOTTA.magenta();
+            case "memory" -> Items.ECHO_SHARD;
+            case "gatedash" -> Items.REDSTONE_LAMP;
             case "ruins" -> Items.CHISELED_STONE_BRICKS;
             case "maze" -> Items.LANTERN;
             default -> Items.MAP;
@@ -71,7 +74,7 @@ final class CourseSelector {
             return CommunityServer.say(player, "Close your current screen and empty the cursor before choosing a course.");
         var choices = courses(mode);
         if (choices.isEmpty()) return CommunityServer.say(player, "No verified courses are available in this world. Ask the host to check the server log.");
-        if (choices.size() > 6) throw new IllegalStateException("Course selector exceeds six slots");
+        if (choices.size() > 8) throw new IllegalStateException("Course selector exceeds eight slots");
         var view = new SimpleContainer(27);
         for (int index = 0; index < choices.size(); index++) {
             var spec = choices.get(index);

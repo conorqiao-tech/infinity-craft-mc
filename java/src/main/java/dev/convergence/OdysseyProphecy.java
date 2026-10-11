@@ -53,6 +53,7 @@ final class OdysseyProphecy {
         return true;
     }
     static void register() {
+        OdysseyJournal.register();
         ServerTickEvents.END_SERVER_TICK.register(server->{
             if(server instanceof net.minecraft.gametest.framework.GameTestServer||server.getTickCount()%20!=0)return;
             for(var player:server.getPlayerList().getPlayers())give(player,false);

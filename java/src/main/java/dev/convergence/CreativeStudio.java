@@ -35,6 +35,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.DyedItemColor;
 import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.equipment.trim.ArmorTrim;
 import net.minecraft.world.item.equipment.trim.TrimMaterials;
 import net.minecraft.world.item.equipment.trim.TrimPatterns;
@@ -69,6 +70,7 @@ final class CreativeStudio {
     static final int PLANE=28, HOVER=30, SPEED=32, RECALL=34, REMOTE=29;
     static final int STORM=37, EMBER=39, SAKURA=41, CREATIVE=43, BACK=49, CONFIRM=11, CANCEL=15;
     static final int BLUEPRINT_WAND=46, STORM_STAFF=48;
+    static final int GUST=0, ANCHOR=1, SET_ANCHOR=2, TIDE=3;
 
     private CreativeStudio() {}
 
@@ -144,10 +146,11 @@ final class CreativeStudio {
         Item[] items=switch(style){case 0->new Item[]{Items.DIAMOND_HELMET,Items.DIAMOND_CHESTPLATE,Items.DIAMOND_LEGGINGS,Items.DIAMOND_BOOTS};
             case 1->new Item[]{Items.NETHERITE_HELMET,Items.NETHERITE_CHESTPLATE,Items.NETHERITE_LEGGINGS,Items.NETHERITE_BOOTS};
             default->new Item[]{Items.LEATHER_HELMET,Items.LEATHER_CHESTPLATE,Items.LEATHER_LEGGINGS,Items.LEATHER_BOOTS};};
-        String name=switch(style){case 0->"Storm Sentinel";case 1->"Ember Knight";default->"Sakura Ranger";};
+        if(style==3)items=new Item[]{Items.DIAMOND_HELMET,Items.DIAMOND_CHESTPLATE,Items.DIAMOND_LEGGINGS,Items.DIAMOND_BOOTS};
+        String name=switch(style){case 0->"Storm Sentinel";case 1->"Ember Knight";case 3->"Tidewarden";default->"Sakura Ranger";};
         String[] parts={"Helmet","Chestplate","Leggings","Boots"};
-        var material=p.registryAccess().lookupOrThrow(Registries.TRIM_MATERIAL).getOrThrow(switch(style){case 0->TrimMaterials.LAPIS;case 1->TrimMaterials.GOLD;default->TrimMaterials.AMETHYST;});
-        var pattern=p.registryAccess().lookupOrThrow(Registries.TRIM_PATTERN).getOrThrow(switch(style){case 0->TrimPatterns.SPIRE;case 1->TrimPatterns.RIB;default->TrimPatterns.WILD;});
+        var material=p.registryAccess().lookupOrThrow(Registries.TRIM_MATERIAL).getOrThrow(switch(style){case 0->TrimMaterials.LAPIS;case 1->TrimMaterials.GOLD;case 3->TrimMaterials.COPPER;default->TrimMaterials.AMETHYST;});
+        var pattern=p.registryAccess().lookupOrThrow(Registries.TRIM_PATTERN).getOrThrow(switch(style){case 0->TrimPatterns.SPIRE;case 1->TrimPatterns.RIB;case 3->TrimPatterns.TIDE;default->TrimPatterns.WILD;});
         var out=new ArrayList<ItemStack>();
         for(int i=0;i<items.length;i++){
             var stack=new ItemStack(items[i]);stack.set(DataComponents.CUSTOM_NAME,Component.literal(name+" "+parts[i]));
@@ -158,11 +161,21 @@ final class CreativeStudio {
         return out;
     }
     static ItemStack control(ServerPlayer p,String kind){
+        if(kind.equals("gust")||kind.equals("anchor")){
+            var stack=new ItemStack(kind.equals("gust")?Items.FEATHER:Items.ECHO_SHARD);
+            stack.set(DataComponents.CUSTOM_NAME,Component.literal(kind.equals("gust")?"Infinity Gust Glove":"Infinity Anchor Charm"));
+            var tag=new CompoundTag();tag.putString("infinity_studio_gadget",kind);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));
+            stack.set(DataComponents.LORE,new ItemLore(List.of(Component.literal(kind.equals("gust")?"Creative • a short upward gust":"Creative • sneak-use to set; use to return within 48 blocks"))));
+            return stack;
+        }
         String path=switch(kind){case "blink"->"blink_wand";case "party"->"party_wand";case "blueprint"->"blueprint_wand";default->"plane_remote";};
         var stack=new ItemStack(Convergence.ITEMS.get("convergence:"+path));
         stack.set(DataComponents.LORE,new ItemLore(List.of(Component.literal("Creative Studio • Use to activate"))));return stack;
     }
     static String controlKind(ServerPlayer p,ItemStack stack){
+        var tag=stack.get(DataComponents.CUSTOM_DATA);
+        String nativeKind=tag==null?"":tag.copyTag().getStringOr("infinity_studio_gadget","");
+        if(nativeKind.equals("gust")&&stack.is(Items.FEATHER)||nativeKind.equals("anchor")&&stack.is(Items.ECHO_SHARD))return nativeKind;
         return switch(Convergence.id(stack)){case "convergence:blink_wand"->"blink";case "convergence:party_wand"->"party";
             case "convergence:plane_remote"->"remote";case "convergence:blueprint_wand"->"blueprint";default->"";};
     }
@@ -173,8 +186,40 @@ final class CreativeStudio {
             case "party"->{if(!Convergence.ready(p,"studio_party",10))yield 0;burst(p,24);yield 1;}
             case "blink"->blink(p);
             case "blueprint"->preview(p);
+            case "gust"->gust(p);
+            case "anchor"->p.isShiftKeyDown()?setAnchor(p):returnAnchor(p);
             default->0;
         };
+    }
+    static int gust(ServerPlayer p){
+        if(!allowed(p)||!Convergence.ready(p,"studio_gust",20))return 0;
+        var box=p.getBoundingBox().expandTowards(0,2,0);
+        if(!p.level().isInWorldBounds(p.blockPosition().above(4))||!AgentCompanions.loadedRoom(p.level(),box)
+            ||!p.level().getWorldBorder().isWithinBounds(box)||!p.level().noCollision(p,box)){
+            Convergence.say(p,"The gust needs two blocks of clear space above you.");return 0;
+        }
+        p.setDeltaMovement(p.getDeltaMovement().multiply(.5,0,.5).add(0,.7,0));p.needsSync=true;p.fallDistance=0;burst(p,12);return 1;
+    }
+    static int setAnchor(ServerPlayer p){
+        if(!allowed(p))return 0;
+        var tag=new CompoundTag();tag.putString("world",p.level().dimension().identifier().toString());
+        tag.putDouble("x",p.getX());tag.putDouble("y",p.getY());tag.putDouble("z",p.getZ());settings(p).put("anchor",tag);
+        Convergence.say(p,"Anchor saved here. Return from the same world within 48 blocks.");return 1;
+    }
+    static int returnAnchor(ServerPlayer p){
+        if(!allowed(p))return 0;
+        var tag=settings(p).getCompoundOrEmpty("anchor");
+        var at=new Vec3(tag.getDoubleOr("x",Double.NaN),tag.getDoubleOr("y",Double.NaN),tag.getDoubleOr("z",Double.NaN));
+        if(!tag.getStringOr("world","").equals(p.level().dimension().identifier().toString())||!Double.isFinite(at.x)||!Double.isFinite(at.y)||!Double.isFinite(at.z)||p.position().distanceToSqr(at)>48*48){
+            Convergence.say(p,"Set an anchor first, then return from this world within 48 blocks.");return 0;
+        }
+        var pos=BlockPos.containing(at);var box=p.getBoundingBox().move(at.subtract(p.position()));
+        if(!AgentCompanions.loadedRoom(p.level(),box)||!p.level().isInWorldBounds(pos.above(2))||!p.level().getWorldBorder().isWithinBounds(box)||!p.level().noCollision(p,box)
+            ||!p.level().getFluidState(pos).isEmpty()||!p.level().getFluidState(pos.above()).isEmpty()){
+            Convergence.say(p,"Your anchor is blocked or unloaded. Nothing moved.");return 0;
+        }
+        if(!p.teleportTo(p.level(),at.x,at.y,at.z,Set.of(),p.getYRot(),p.getXRot(),true))return 0;
+        p.setDeltaMovement(Vec3.ZERO);p.fallDistance=0;burst(p,12);return 1;
     }
     static int blink(ServerPlayer p){
         if(!allowed(p)||!Convergence.ready(p,"studio_blink",10))return 0;
@@ -255,6 +300,10 @@ final class CreativeStudio {
                 preview.blocks().size()+" blocks at "+preview.origin().toShortString(),"Only the shown empty footprint will change.","Confirm within 30 seconds; Undo is available.");
             icon(view,CONFIRM,Items.DYE.lime(),"Confirm building");icon(view,CANCEL,Items.DYE.red(),"Cancel preview");
         }else{
+            icon(view,GUST,Items.FEATHER,"Get Infinity Gust Glove","A short upward gust; requires clear headroom.");
+            icon(view,ANCHOR,Items.ECHO_SHARD,"Get Infinity Anchor Charm","Sneak-use to set an anchor. Use to return within 48 blocks.");
+            icon(view,SET_ANCHOR,Items.COMPASS,"Set anchor here","Saves this location for the Anchor Charm.");
+            icon(view,TIDE,Items.DIAMOND_CHESTPLATE,"Tidewarden armor","Complete diamond outfit with copper Tide trim.");
             icon(view,4,Items.NETHER_STAR,"Creative Studio",allowed(p)?"Build, dress up and pilot your own RC plane.":"Choose Play Creative to use these tools.");
             icon(view,BRUSH,Items.PAINTING,"Brush: "+brush(p),"Tap to cycle Plane, Line, Sphere, Cube, Ring.");
             icon(view,RADIUS,Items.SPYGLASS,"Brush radius: "+radius(p),"Radius 1, 2 or 3. At most 343 cells per edit.");
@@ -325,6 +374,10 @@ final class CreativeStudio {
                 case STORM->deliver(owner,outfit(owner,0));
                 case EMBER->deliver(owner,outfit(owner,1));
                 case SAKURA->deliver(owner,outfit(owner,2));
+                case TIDE->deliver(owner,outfit(owner,3));
+                case GUST->deliver(owner,List.of(control(owner,"gust")));
+                case ANCHOR->deliver(owner,List.of(control(owner,"anchor")));
+                case SET_ANCHOR->setAnchor(owner);
                 default->open(owner);
             }
         }

@@ -115,7 +115,7 @@ public class AssistantGameTests {
         c.assertTrue(guide.contains("/retry <map>")&&guide.contains("/best")&&guide.contains("/leaderboard <map>"),
             "Minigame guide includes replay and record commands");
         var overview=answer(normal(c),"Which game modes are there?");
-        c.assertTrue(overview.contains("six courses")&&overview.contains("Crystal Hunt")&&overview.contains("Color Rush"),
+        c.assertTrue(overview.contains("eight courses")&&overview.contains("Crystal Hunt")&&overview.contains("Color Rush")&&overview.contains("Memory Circuit")&&overview.contains("Laser Gate Dash"),
             "Mode overview includes the expanded six-course selection");
         c.succeed();
     }

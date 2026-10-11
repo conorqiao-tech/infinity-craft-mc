@@ -24,6 +24,7 @@ final class AgentMenu {
     static final int FOLLOW = 28, GUARD = 30, STAY = 32, INFO = 34, CEASEFIRE = 37, ASK = 39, RECALL = 41, DISMISS = 43, BACK = 49;
     static final int CONFIRM = 11, CANCEL = 15;
     static final int ORDERS = 19;
+    static final int FORMATION = 46;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -189,6 +190,8 @@ final class AgentMenu {
     }
 
     private static void hive(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
+        icon(view,FORMATION,Items.COMPASS,"Follow formation: "+AgentCompanions.formation(owner));
+        description(view,FORMATION,"Cycle Escort, Wedge and Ring. Spreads idle followers onto safe loaded ground. Combat and target approvals stay separate.");
         icon(view,ORDERS,Items.WRITABLE_BOOK,"Orders • targets and approvals");
         description(view,ORDERS,"Choose a player, propose an action, review, approve or cancel without typing a command. Live Codex review is still required.");
         icon(view, 22, Items.COMPASS, helpers.playerTargetStatus(owner));
@@ -275,6 +278,7 @@ final class AgentMenu {
             if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                 || button < 0 || button > 1 || !getCarried().isEmpty()) { sendAllDataToRemote(); return; }
             var helpers = AgentCompanions.get(owner.level().getServer());
+            if(clicked==FORMATION&&page!=Page.DISMISS){AgentCompanions.cycleFormation(owner);refresh();return;}
             if(clicked==ORDERS && page!=Page.DISMISS) { owner.closeContainer();AgentOrdersMenu.open(owner);return; }
             if (clicked == CEASEFIRE && page != Page.DISMISS) {
                 AgentActions.get(helpers.server).ceasefire(owner);

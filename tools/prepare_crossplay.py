@@ -10,7 +10,7 @@ import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.24"
+VERSION = "2.13.0-explore.25"
 
 
 def expected_native_tests():

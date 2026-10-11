@@ -357,7 +357,7 @@ public class LobbyGameTests {
         try {
             for(var mode:new GameModes.Mode[]{GameModes.Mode.MINIGAMES,GameModes.Mode.ADVENTURE}) {
                 var choices=CourseSelector.courses(mode);
-                c.assertValueEqual(choices.size(),mode==GameModes.Mode.MINIGAMES?6:2,"Every course appears in the native menu");
+                c.assertValueEqual(choices.size(),mode==GameModes.Mode.MINIGAMES?8:2,"Every course appears in the native menu");
                 for(int index=0;index<choices.size();index++) {
                     var spec=choices.get(index);
                     String hall=mode==GameModes.Mode.MINIGAMES?"minigames":"adventure";
@@ -403,7 +403,7 @@ public class LobbyGameTests {
             c.assertValueEqual(commands.execute("play minigames",p.createCommandSourceStack()),1,"/play minigames opens a course menu");
             c.assertTrue(p.containerMenu instanceof CourseSelector.Handler,"Minigame menu uses vanilla chest screen");
             var menu=(CourseSelector.Handler)p.containerMenu;
-            c.assertValueEqual(menu.choices.size(),6,"All six minigames are shown");
+            c.assertValueEqual(menu.choices.size(),8,"All eight minigames are shown");
             var icon=((net.minecraft.world.inventory.AbstractContainerMenu)menu).getSlot(CourseSelector.slot(1,menu.choices.size())).getItem().copy();
             ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ContainerInput.THROW,p);
             ((net.minecraft.world.inventory.AbstractContainerMenu)menu).clicked(CourseSelector.slot(1,menu.choices.size()),0,ContainerInput.PICKUP_ALL,p);

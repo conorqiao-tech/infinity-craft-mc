@@ -211,7 +211,9 @@ public class OdysseyGameTests {
         try {
             OperatorGameTests.deop(p);p.getInventory().clearContent();
             ServerMenu.open(p);p.containerMenu.clicked(ServerMenu.PROPHECY,0,ContainerInput.PICKUP,p);
-            c.assertTrue(p.containerMenu==p.inventoryMenu,"Prophecy action closes the menu");
+            c.assertTrue(p.containerMenu instanceof OdysseyJournal.Handler,"Odyssey opens the native journal");
+            p.containerMenu.clicked(4,0,ContainerInput.PICKUP,p);
+            c.assertTrue(p.containerMenu==p.inventoryMenu,"Recovery action closes the journal");
             c.assertTrue(p.getInventory().getNonEquipmentItems().stream().anyMatch(OdysseyProphecy::isBook),"Ordinary player receives the readable book");
         } finally {p.closeContainer();c.getLevel().getServer().getPlayerList().remove(p);}
         c.succeed();

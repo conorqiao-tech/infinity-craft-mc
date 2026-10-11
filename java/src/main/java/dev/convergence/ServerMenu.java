@@ -200,7 +200,7 @@ final class ServerMenu {
             icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
                 "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
-            icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • your prophecy","Receive or recover your starting prophecy book.","Discover rare biome-themed ruins across three realms.");
+            icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • journal & prophecy","Discover three realms, track your ruins and claim gifts.","Recover your prophecy through the journal.");
             icon(view, GEAR, Items.NETHERITE_SWORD, "Weapons, tools and blocks", "Choose any Infinity item.", "Requires Creative, Admin or OP2.", "Your old items are preserved.");
             icon(view, KIT, Items.CHEST, "Full Infinity kit", "All gear plus rockets and seeds.", "Requires Creative, Admin or OP2.");
             icon(view, BUILDING, Items.QUARTZ_BLOCK, "Building kit", "Building blocks and both wands.", "Requires Creative, Admin or OP4.");
@@ -356,7 +356,7 @@ final class ServerMenu {
             }
             if (page != Page.MAIN) return;
             if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
-            if(slot==PROPHECY){owner.closeContainer();OdysseyProphecy.give(owner,true);return;}
+            if(slot==PROPHECY){owner.closeContainer();OdysseyJournal.open(owner);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }

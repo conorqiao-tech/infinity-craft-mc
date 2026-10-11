@@ -134,7 +134,7 @@ public final class ServerAssistant {
             "/hub returns to Main Hub; /lobbies lists all five halls; /lobby survival, creative, hardcore, minigames, or adventure visits a hall.",
             "Use /play <mode> to enter its game world. /spawn returns to your current mode's spawn. Mode inventories stay separate; the hub uses an empty temporary inventory.",
             op?"OP4 mode and lobby changes are immediate.":"Game-world changes take three seconds. Stay still; damage cancels the change and starts a ten-second wait.");
-        if(any(w,"mode","modes","world","worlds","survival","creative","hardcore","minigame","minigames","adventure","parkour","sprint","ruins","maze","dropper","redlight","crystalhunt","colorrush"))return modes(w,op);
+        if(any(w,"mode","modes","world","worlds","survival","creative","hardcore","minigame","minigames","adventure","parkour","sprint","ruins","maze","dropper","redlight","crystalhunt","colorrush","memory","gatedash"))return modes(w,op);
         if(any(w,"home","homes","base","warp","warps","tpa","tpaccept","tpdeny","teleport"))return bounded(
             "/sethome [name] saves a base; /home [name] returns; /homes lists yours; /delhome <name> removes one. /warps and /warp <name> use shared destinations.",
             "/tpa <player> requests a visit. They use /tpaccept or /tpdeny within 30 seconds. Players must be in the same mode.",
@@ -205,13 +205,13 @@ public final class ServerAssistant {
         if(w.contains("creative"))return bounded("Select the Infinity Menu compass, then Play Creative, for a separate flat world with Creative flight and unlimited blocks. Choose Weapons, tools and blocks to equip Infinity gear; the named Infinity Gear Picker compass also works.",
             "Items, Ender Chest, XP, and other mode profiles stay separate. Use /play survival to restore your Survival items; Creative items do not transfer.",
             "Creative inventory items can trigger some vanilla item achievements. Cosmetic ranks are not proof of Survival-only play.");
-        if(any(w,"minigame","minigames","parkour","sprint","adventure","ruins","maze","dropper","redlight","crystalhunt","colorrush"))return bounded(
-            "/play minigames opens a menu for parkour, sprint, dropper, redlight, Crystal Hunt, and Color Rush. /play adventure opens a menu for ruins and maze.",
+        if(any(w,"minigame","minigames","parkour","sprint","adventure","ruins","maze","dropper","redlight","crystalhunt","colorrush","memory","gatedash"))return bounded(
+            "/play minigames opens a menu for parkour, sprint, dropper, redlight, Crystal Hunt, Color Rush, Memory Circuit and Laser Gate Dash. /play adventure opens a menu for ruins and maze.",
             "Tap a course icon or its in-world start sign. /retry <map> restarts; /best shows your times; /leaderboard <map> shows fastest times. /play survival leaves.",
             "Maps use Adventure mode with damage disabled for regular play. Earned Survival powers do not apply there.");
         return bounded("/play survival, creative, hardcore, minigames, or adventure selects a game world. /hub and /lobby <mode> visit the separate hub halls.",
             "Survival keeps the main world, Nether, End, crafting, gear, and earned presets. Creative has its own flat world. Hardcore is a separate one-life Overworld.",
-            "Minigames has six courses, including Crystal Hunt and Color Rush; Adventure has ruins and maze. Each mode has separate inventory, Ender Chest, XP, and potion effects.");
+            "Minigames has eight courses, including Crystal Hunt, Color Rush, Memory Circuit and Laser Gate Dash; Adventure has ruins and maze. Each mode has separate inventory, Ender Chest, XP, and potion effects.");
     }
     static List<String> agents(boolean op) {
         if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. Their bodies are server-controlled iron golems; the owner can connect their chat to real Codex.",

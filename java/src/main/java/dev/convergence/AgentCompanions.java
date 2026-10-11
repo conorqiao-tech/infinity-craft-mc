@@ -78,6 +78,13 @@ public final class AgentCompanions {
         ServerGamePacketListenerImpl targetConnection, ServerLevel world, long issuedAt, long expiresAt) {}
 
     enum Mode { FOLLOW, GUARD, STAY }
+    enum Formation { ESCORT, WEDGE, RING }
+    static Formation formation(ServerPlayer owner){return Formation.values()[Math.floorMod(GameModes.state(owner).getIntOr("helper_formation",0),Formation.values().length)];}
+    static void cycleFormation(ServerPlayer owner){
+        if(!AgentMenu.allowed(owner))return;
+        GameModes.state(owner).putInt("helper_formation",(formation(owner).ordinal()+1)%Formation.values().length);
+        owner.level().getServer().getPlayerList().saveAll();
+    }
     enum Profile {
         PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks; shares an explicitly approved player target with its squad. Never attacks pets.", true),
         REGULAR("Regular", "Follows or guards, attacking nearby hostile mobs.", true),
@@ -582,7 +589,7 @@ public final class AgentCompanions {
             : !agent.profile.combat ? null : world.getEntitiesOfClass(Mob.class, new AABB(center, center).inflate(sensing), mob -> hostile(mob)
             && mob.position().distanceToSqr(center) <= sensing * sensing && mob.distanceToSqr(golem) <= 24 * 24 && golem.getSensing().hasLineOfSight(mob))
             .stream().min(Comparator.comparing((Mob mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
-                .thenComparingInt(mob -> agent.profile == Profile.ULTIMATE_FINALS ? sharedFocusRank(golem, agent, owner, mob) : 0)
+                .thenComparingInt(mob -> agent.profile != Profile.PRIMITIVE ? sharedFocusRank(golem, agent, owner, mob) : 0)
                 .thenComparingDouble(mob -> mob.distanceToSqr(agent.profile == Profile.ULTIMATE_FINALS ? owner : golem))
                 .thenComparing(Mob::getUUID)).orElse(null);
         if (target instanceof ServerPlayer player) APPROVED_TARGETS.put(golem, player);
@@ -613,10 +620,27 @@ public final class AgentCompanions {
             else if (flank == null) golem.getNavigation().moveTo(target, 1.1);
             else golem.getNavigation().moveTo(flank.x, flank.y, flank.z, 1.1);
             if(agent.profile!=Profile.ULTIMATE_FINALS)strike(golem,target,ticks);
-        } else if (golem.position().distanceToSqr(center) > (agent.mode == Mode.FOLLOW ? 9 : 4)) {
+        } else {
+            var destination=agent.mode==Mode.FOLLOW?formationPoint(golem,agent,owner):center;
+            double tolerance=agent.mode==Mode.FOLLOW&&formation(owner)!=Formation.ESCORT?1:agent.mode==Mode.FOLLOW?9:4;
             AgentWeapons.stop(golem);
-            golem.getNavigation().moveTo(center.x, center.y, center.z, 1);
-        } else { AgentWeapons.stop(golem);golem.getNavigation().stop(); golem.stopInPlace(); }
+            if(golem.position().distanceToSqr(destination)>tolerance)golem.getNavigation().moveTo(destination.x,destination.y,destination.z,1);
+            else {golem.getNavigation().stop();golem.stopInPlace();}
+        }
+    }
+
+    Vec3 formationPoint(IronGolem self,Agent agent,ServerPlayer owner){
+        var shape=formation(owner);if(shape==Formation.ESCORT)return owner.position();
+        var peers=loaded.entrySet().stream().filter(entry->{
+            var record=data.agents.get(entry.getKey().toString());
+            return record!=null&&record.owner.equals(agent.owner)&&record.mode==Mode.FOLLOW&&pauseReason(owner,entry.getValue(),record)==null;
+        }).sorted(Comparator.comparing(entry->data.agents.get(entry.getKey().toString()).name)).map(Map.Entry::getKey).toList();
+        int index=peers.indexOf(self.getUUID());if(index<0)return owner.position();
+        double yaw=Math.toRadians(owner.getYRot()),side,behind;
+        if(shape==Formation.WEDGE){side=(index%2==0?-1:1)*(2+index/2.0);behind=3+index/2;}
+        else {double angle=2*Math.PI*index/Math.max(1,peers.size());side=Math.cos(angle)*4;behind=Math.sin(angle)*4;}
+        var destination=owner.position().add(Math.cos(yaw)*side+Math.sin(yaw)*behind,0,Math.sin(yaw)*side-Math.cos(yaw)*behind);
+        return insideLeash(agent,owner,destination)&&landingClear(self,destination)?destination:owner.position();
     }
 
     boolean strike(IronGolem golem, LivingEntity target, int ticks) {
@@ -748,7 +772,7 @@ public final class AgentCompanions {
     int sharedFocusRank(IronGolem self, Agent agent, ServerPlayer owner, Mob target) {
         for (var entry : loaded.entrySet()) {
             var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
-            if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile == Profile.ULTIMATE_FINALS
+            if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile.combat
                 && pauseReason(owner, peer, record) == null && peer.getTarget() == target) return 0;
         }
         return 1;

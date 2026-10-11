@@ -9,10 +9,10 @@ Use **`/play`** in Minecraft. Java has clickable choices; the same short command
 | Survival | `/play survival` | Your existing main world, crafting, Infinity gear, homes, Nether and End. |
 | Creative | `/play creative` | A separate flat building world with Creative flight, unlimited blocks, and an Infinity gear picker. |
 | Hardcore | `/play hardcore` | A separate natural Overworld, hard difficulty, one life per player. |
-| Minigames | `/play minigames` | A chest-like menu with Sky Steps, Switchback Sprint, Prism Dropper, Red Light Run, Crystal Hunt and Color Rush. |
+| Minigames | `/play minigames` | A chest-like menu with Sky Steps, Switchback Sprint, Prism Dropper, Red Light Run, Crystal Hunt, Color Rush, Memory Circuit and Laser Gate Dash. |
 | Adventure | `/play adventure` | A chest-like menu with The Five Seals and Lantern Labyrinth. |
 
-These dimensions live inside the same Java world save. Java and Bedrock players share each area. The eight built-in maps are small starter courses, generated automatically once; this is not a collection of large downloaded campaigns or a matchmaking network. In the Main Hub, tap or right-click the Minigames or Adventure entry sign to open the same course menu. At a course start, use the **SELECT COURSE** sign to switch maps. Direct `/minigame <map>` and `/adventure <map>` commands remain available.
+These dimensions live inside the same Java world save. Java and Bedrock players share each area. The ten built-in maps are small starter courses, generated automatically once; this is not a collection of large downloaded campaigns or a matchmaking network. In the Main Hub, tap or right-click the Minigames or Adventure entry sign to open the same course menu. At a course start, use the **SELECT COURSE** sign to switch maps. Direct `/minigame <map>` and `/adventure <map>` commands remain available.
 
 When you enter Creative through its lobby or `/play creative`, the server puts an Infinity sword in your hand, places a named compass in your hotbar, and opens a chest-like Infinity gear picker. Tap a familiar vanilla icon to equip the actual Infinity weapon, tool, or building wand. Switch away from and back to the compass slot to reopen the picker. No operator access or extra gear command is required. If the menu does not open, use `/convergence gear`; `/convergence hold sword` (or `mace`, `spear`, `pickaxe`, `axe`, `shovel`, `hoe`, `builder_wand`, or `sculptor_wand`) still equips one item directly. `/convergence kit` gives the full set. Bedrock players should use the server picker instead of trying to drag custom items from the built-in Creative catalogue. Infinity gear obtained in Creative stays in that mode's inventory when you switch worlds. The picker still needs a real Java and iPad playtest.
 
@@ -36,7 +36,7 @@ The item exchanges in [TRADING.md](TRADING.md) can be previewed anywhere, but co
 
 ## Play the maps
 
-Choose a course from the menu opened by `/play minigames`, `/play adventure`, or the corresponding hub entry sign. Tap its vanilla icon to start. Each course start has a **SELECT COURSE** sign; its glowing checkpoint lanterns also reopen the menu. The six minigames and two adventure maps share their physical spaces between players, but each player's run and timer are separate. Maps run in Adventure mode with damage disabled. Leaving or disconnecting ends an unfinished run; the selected map and saved personal best remain, and reconnecting starts a fresh run on that selected map. A real iPad device still needs to verify the menu and sign interactions.
+Choose a course from the menu opened by `/play minigames`, `/play adventure`, or the corresponding hub entry sign. Tap its vanilla icon to start. Each course start has a **SELECT COURSE** sign; its glowing checkpoint lanterns also reopen the menu. The eight minigames and two adventure maps share their physical spaces between players, but each player's run and timer are separate. Maps run in Adventure mode with damage disabled. Leaving or disconnecting ends an unfinished run; the selected map and saved personal best remain, and reconnecting starts a fresh run on that selected map. A real iPad device still needs to verify the menu and sign interactions.
 
 Sky Steps, Switchback Sprint, Prism Dropper, Red Light Run, The Five Seals and Lantern Labyrinth use ordered checkpoints. Chat gives the next coordinates; reaching only the final checkpoint does not finish a run. Falling off a course restarts the run.
 
@@ -46,12 +46,14 @@ Sky Steps, Switchback Sprint, Prism Dropper, Red Light Run, The Five Seals and L
 - `/retry redlight` — restart the stop/go race.
 - `/retry crystalhunt` — collect five glowing amethyst pads in any order, once each.
 - `/retry colorrush` — reach the named color before each five-second pulse expires, five times.
+- `/retry memory` — restart Memory Circuit. Memorize five colors during the five-second preview, then step onto their pads in order. Leave each pad before selecting the next; a wrong color restarts.
+- `/retry gatedash` — restart Laser Gate Dash. Cross three gates on green and reach the finish east of spawn. Red contact restarts; each runner sees their own gate colors.
 - `/retry ruins` — restart The Five Seals.
 - `/retry maze` — restart Lantern Labyrinth.
 - `/play survival` — leave and restore your Survival inventory.
 
-Prism Dropper requires downward passage through all three holes and a water finish. Red Light uses text and colored status indicators: move on green, stop on red, with a four-tick transition grace period. Crystal Hunt counts each of five amethyst pads once in any order. Color Rush names a color in the action bar; reach that pad within five seconds to advance through five pulses. Both new courses restart after leaving their arena or missing the timer. `/backpack` is unavailable in maps and cannot introduce stored gear. New courses are generated incrementally on upgrade; existing marked courses remain intact.
+Prism Dropper requires downward passage through all three holes and a water finish. Red Light uses text and colored status indicators: move on green, stop on red, with a four-tick transition grace period. Crystal Hunt counts each of five amethyst pads once in any order. Color Rush names a color in the action bar; reach that pad within five seconds to advance through five pulses. Crystal Hunt and Color Rush restart after leaving their arena or missing a timed pulse. Memory Circuit restarts after a wrong pad or leaving its arena; Laser Gate Dash restarts after red contact or leaving its lane. `/backpack` is unavailable in maps and cannot introduce stored gear. New courses are generated incrementally on upgrade; existing marked courses remain intact.
 
-`/best` shows your saved times, and `/leaderboard <map>` shows the fastest persisted records for parkour, sprint, dropper, redlight, crystalhunt, and colorrush. There is no match queue, team round system, or competitive reward currency in this release.
+`/best` shows your saved times, and `/leaderboard <map>` shows the fastest persisted records for parkour, sprint, dropper, redlight, crystalhunt, colorrush, memory, and gatedash. There is no match queue, team round system, or competitive reward currency in this release.
 
 The generation marker `fabric/world/infinity-built-in-maps.json` prevents automatic rebuilding over subsequent edits. Keep it with the world. Do not delete the marker in a used world to try to import a custom map: regeneration would replace the built-in map areas. Importing third-party maps requires a separate tested conversion/integration.

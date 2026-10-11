@@ -1,6 +1,6 @@
 # The Odyssey ruins and starting prophecy
 
-Version: **2.13.0-explore.22**, for the combined Minecraft Java **26.3** server and its existing Bedrock bridge.
+Version: **2.13.0-explore.25**, for the combined Minecraft Java **26.3** server and its existing Bedrock bridge.
 
 The ruin follows the owner's compact circuit structure: the same 46-block arrangement, glowing center, lower repeating command block and **one single chest**. The upper chest and two detached torches are excluded. The owner's existing build is never edited.
 
@@ -22,7 +22,24 @@ Vanilla command blocks have OP2 permission, while `/ban` needs OP3, so **by defa
 
 Players receive **The Odyssey: Prophecy**, a four-page native written book, after their mode inventory loads. It tells the chosen-traveler story, describes the changing biome palettes, points to all three realms and explains the single cache. The original loot book remains unchanged.
 
-Delivery uses an empty slot, saves a receipt with native player data and retries a full inventory. Each separate mode inventory receives its own starting copy once. Recover a lost copy with **Infinity Menu → The Odyssey • your prophecy**. Recovery preserves existing items and avoids duplicating a book already carried. No operator rank or typed command is needed.
+Delivery uses an empty slot, saves a receipt with native player data and retries a full inventory. Each separate mode inventory receives its own starting copy once. Recover a lost copy with **Infinity Menu → The Odyssey • journal & prophecy → Receive or recover your prophecy**. Recovery preserves existing items and avoids duplicating a book already carried. No operator rank or typed command is needed.
+
+## Circuit Keepers journal — explore.25 addition
+
+The new journal adds progression to the established prophecy without changing its four pages, the original loot book, ruin layout or one-chest rule. Open **Infinity Menu → The Odyssey • journal & prophecy** to see discoveries and claim gifts. The journal records your position and biome palette when you physically enter a registered generated Odyssey ruin in Survival or Hardcore. Merely holding the prophecy, walking near a ruin, or building a copy does not count. Creative and the lobby/game dimensions do not count.
+
+This added quest is called the **Circuit Keepers journey**. Rediscover a circuit in each of the Overworld, Nether and End, then prove memory and timing in the two new minigames. Discoveries and claimed gifts save with your native player data across mode changes and reconnects. Hardcore has only an Overworld; continue the Nether and End discoveries in Survival.
+
+| Gift | Requirement | Reward |
+| --- | --- | --- |
+| First circuit | Discover a ruin in one realm | Eight echo shards |
+| Twin circuits | Discover ruins in two different realms | Complete four-piece Tidewarden armor with copper Tide trim |
+| Three circuits | Discover ruins in all three realms | Odyssey Circuit Trident |
+| Keeper's trials | Three realms plus a finish in Memory Circuit and Laser Gate Dash | Odyssey Memory Mace |
+
+Each gift can be claimed once. Return to Survival or Hardcore, leave the cursor empty and keep enough empty inventory slots before claiming. A full inventory retains the unclaimed gift and never drops or replaces items. The trident and mace are named native weapons using normal Minecraft combat. The Tidewarden outfit uses native diamond equipment; it does not inherit Infinity powers. You can also obtain the outfit in Creative Studio, separately from earned progress.
+
+Ruins remain rare in newly generated terrain. The journal records places you discover; it is not a locator for undiscovered ruins. Existing terrain follows the host's explicit refresh policy during upgrades. The protected player/helper areas remain preserved by that policy.
 
 ## Authoring and checks
 
