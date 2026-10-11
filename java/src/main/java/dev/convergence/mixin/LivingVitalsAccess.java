@@ -1,12 +1,12 @@
 package dev.convergence.mixin;
 
-import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.data.TrackedData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(LivingEntity.class)
 public interface LivingVitalsAccess {
-    @Accessor("DATA_HEALTH_ID")
-    static EntityDataAccessor<Float> infinity$health() { throw new AssertionError(); }
+    @Accessor("HEALTH")
+    static TrackedData<Float> infinity$health() { throw new AssertionError(); }
 }

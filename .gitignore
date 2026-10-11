@@ -5,9 +5,6 @@ server/backups/
 server/settings.json
 server/launcher.lock
 server/.dashboard.json
-server/.world-refresh.json
-server/.world-refresh-transaction.json
-server/.owner-join-rules.json
 server/.runtime/
 server/.pinggy/
 server/.remote/
@@ -15,8 +12,6 @@ server/.remote/
 **/dynu-api-key.txt
 **/world/
 **/world_*/
-# GameTest worldgen fixture, not a saved world
-!java/src/gametest/resources/data/minecraft/worldgen/world_preset/
 **/eula.txt
 **/ops.json
 **/whitelist.json

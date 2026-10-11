@@ -4,7 +4,7 @@ You need Minecraft on the device you will play on. The server supplies the Infin
 
 ## Java
 
-Use **Minecraft Java 26.3**. Open **Multiplayer → Add Server** and enter:
+Use **Minecraft Java 1.21.11**. Open **Multiplayer → Add Server** and enter:
 
 `infinity-craft.remotewire.net:25565`
 

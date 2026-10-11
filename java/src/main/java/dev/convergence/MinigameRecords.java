@@ -14,10 +14,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.WorldSavePath;
 
 /** Public records index; each player's saved mode NBT remains the source of their best time. */
 final class MinigameRecords {
@@ -48,7 +48,7 @@ final class MinigameRecords {
         } catch(Exception e) {throw new IllegalStateException("Cannot read minigame records. The original file was not overwritten.",e);}
     }
     static MinigameRecords get(MinecraftServer server) {
-        return INSTANCES.computeIfAbsent(server,s->new MinigameRecords(s.getWorldPath(LevelResource.ROOT).resolve("infinity-minigame-records.json")));
+        return INSTANCES.computeIfAbsent(server,s->new MinigameRecords(s.getSavePath(WorldSavePath.ROOT).resolve("infinity-minigame-records.json")));
     }
     static boolean valid(Score score) {
         return score.player()!=null && score.millis()>0 && score.millis()<Long.MAX_VALUE && score.name()!=null
@@ -71,12 +71,12 @@ final class MinigameRecords {
         try {CommunityServer.atomicJson(file,Map.of("format",1,"boards",saved));}
         catch(IOException e) {throw new IllegalStateException("Could not save minigame records; player bests are still stored in player data.",e);}
     }
-    static void sync(ServerPlayer player) {
-        var records=get(player.level().getServer());
+    static void sync(ServerPlayerEntity player) {
+        var records=get(player.getEntityWorld().getServer());
         var scores=GameModes.state(player).getCompoundOrEmpty("scores");boolean changed=false;
         for(String id:MAP_IDS) {
-            long best=scores.getLongOr(id,Long.MAX_VALUE);
-            if(best>0 && best<Long.MAX_VALUE)changed|=records.upsert(id,new Score(player.getUUID(),player.getName().getString(),best));
+            long best=scores.getLong(id,Long.MAX_VALUE);
+            if(best>0 && best<Long.MAX_VALUE)changed|=records.upsert(id,new Score(player.getUuid(),player.getName().getString(),best));
         }
         if(changed)records.save();
     }
@@ -89,19 +89,19 @@ final class MinigameRecords {
         return index+1;
     }
     static String time(long millis) {return String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s";}
-    static int best(ServerPlayer player) {
+    static int best(ServerPlayerEntity player) {
         var scores=GameModes.state(player).getCompoundOrEmpty("scores");
         CommunityServer.say(player,"Your minigame bests:");
         for(String id:MAP_IDS) {
-            long best=scores.getLongOr(id,Long.MAX_VALUE);
+            long best=scores.getLong(id,Long.MAX_VALUE);
             CommunityServer.say(player,ModeMaps.MAPS.get(id).title()+": "+(best>0 && best<Long.MAX_VALUE?time(best):"not finished")+" | /minigame "+id);
         }
         return 1;
     }
-    static int leaderboard(ServerPlayer player,String id) {
+    static int leaderboard(ServerPlayerEntity player,String id) {
         if(id==null)return CommunityServer.say(player,"Choose a map: /leaderboard parkour, sprint, dropper, redlight, crystalhunt or colorrush. /best shows your own times.");
         try {sync(player);}catch(IllegalStateException e) {return CommunityServer.say(player,"Leaderboard is temporarily unavailable. Your personal best is still available with /best.");}
-        var scores=get(player.level().getServer()).ordered(id);
+        var scores=get(player.getEntityWorld().getServer()).ordered(id);
         if(scores.isEmpty())return CommunityServer.say(player,ModeMaps.MAPS.get(id).title()+": no finishes yet. /minigame "+id+" to set a time.");
         CommunityServer.say(player,ModeMaps.MAPS.get(id).title()+" top times:");
         for(int i=0;i<Math.min(5,scores.size());i++) {
@@ -112,9 +112,9 @@ final class MinigameRecords {
     }
     static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->{
-            dispatcher.register(Commands.literal("best").executes(ctx->best(ctx.getSource().getPlayerOrException())));
-            var root=Commands.literal("leaderboard").executes(ctx->leaderboard(ctx.getSource().getPlayerOrException(),null));
-            for(String id:MAP_IDS)root.then(Commands.literal(id).executes(ctx->leaderboard(ctx.getSource().getPlayerOrException(),id)));
+            dispatcher.register(CommandManager.literal("best").executes(ctx->best(ctx.getSource().getPlayerOrThrow())));
+            var root=CommandManager.literal("leaderboard").executes(ctx->leaderboard(ctx.getSource().getPlayerOrThrow(),null));
+            for(String id:MAP_IDS)root.then(CommandManager.literal(id).executes(ctx->leaderboard(ctx.getSource().getPlayerOrThrow(),id)));
             dispatcher.register(root);
         });
     }

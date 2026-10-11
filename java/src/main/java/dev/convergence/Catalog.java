@@ -1,6 +1,6 @@
 package dev.convergence;
 
-import net.minecraft.world.item.Items;
+import net.minecraft.item.Items;
 
 final class Catalog {
    static void register() {

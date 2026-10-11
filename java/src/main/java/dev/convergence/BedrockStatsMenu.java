@@ -10,9 +10,9 @@ import java.util.function.Predicate;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import org.geysermc.cumulus.form.CustomForm;
 import org.geysermc.cumulus.form.Form;
 import org.geysermc.cumulus.form.ModalForm;
@@ -27,7 +27,7 @@ final class BedrockStatsMenu {
     private BedrockStatsMenu() {}
 
     static void register() {
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{ACTIVE.remove(handler.player.getUUID());DELIVERIES.remove(handler.player.getUUID());});
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{ACTIVE.remove(handler.player.getUuid());DELIVERIES.remove(handler.player.getUuid());});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{
             ACTIVE.entrySet().removeIf(e->e.getValue().actor().world().getServer()==server);
             DELIVERIES.entrySet().removeIf(e->e.getValue().ticket().actor().world().getServer()==server);
@@ -35,7 +35,7 @@ final class BedrockStatsMenu {
         ServerTickEvents.END_SERVER_TICK.register(server->{
             for(var entry:DELIVERIES.entrySet()) {
                 var delivery=entry.getValue();var t=delivery.ticket();
-                if(t.actor().world().getServer()!=server || server.getTickCount()<delivery.due())continue;
+                if(t.actor().world().getServer()!=server || server.getTicks()<delivery.due())continue;
                 if(!DELIVERIES.remove(entry.getKey(),delivery) || ACTIVE.get(entry.getKey())!=t)continue;
                 if(!t.actor().valid() || !AdminStatsMenu.allowed(t.actor().player()) || !emptyScreen(t.actor().player())) {
                     response(t,()->{});continue;
@@ -47,25 +47,25 @@ final class BedrockStatsMenu {
             }
             ACTIVE.entrySet().removeIf(e->{
             var t=e.getValue();
-            return t.actor().world().getServer()==server && (!t.actor().valid() || server.getTickCount()>=t.expires());
+            return t.actor().world().getServer()==server && (!t.actor().valid() || server.getTicks()>=t.expires());
             });
         });
     }
 
-    static int open(ServerPlayer actor,LivingEntity target,String stat) {
+    static int open(ServerPlayerEntity actor,LivingEntity target,String stat) {
         return open(actor,target,stat,form->{
             // Let the Bedrock client finish closing its chest/previous form first.
-            var t=ACTIVE.get(actor.getUUID());
+            var t=ACTIVE.get(actor.getUuid());
             if(t==null)return false;
-            DELIVERIES.put(actor.getUUID(),new Delivery(t,form,actor.level().getServer().getTickCount()+3));return true;
+            DELIVERIES.put(actor.getUuid(),new Delivery(t,form,actor.getEntityWorld().getServer().getTicks()+3));return true;
         });
     }
 
     // A sender parameter lets native tests exercise the same encoded forms and callbacks.
-    static int open(ServerPlayer actor,LivingEntity target,String stat,Predicate<Form> sender) {
+    static int open(ServerPlayerEntity actor,LivingEntity target,String stat,Predicate<Form> sender) {
         if(!AdminStatsMenu.allowed(actor) || !emptyScreen(actor)) { message(actor,"Close other screens before editing stats. OP level 4 is required.");return 0; }
-        if(target!=null && AdminStats.accessError(actor.createCommandSourceStack(),target)!=null) {
-            message(actor,AdminStats.accessError(actor.createCommandSourceStack(),target));return 0;
+        if(target!=null && AdminStats.accessError(actor.getCommandSource(),target)!=null) {
+            message(actor,AdminStats.accessError(actor.getCommandSource(),target));return 0;
         }
         if(target==null) targets(actor,sender);
         else if(stat==null) stats(actor,target,sender);
@@ -73,34 +73,34 @@ final class BedrockStatsMenu {
         return 1;
     }
 
-    private static boolean emptyScreen(ServerPlayer actor) {
-        return actor.containerMenu==actor.inventoryMenu && actor.inventoryMenu.getCarried().isEmpty();
+    private static boolean emptyScreen(ServerPlayerEntity actor) {
+        return actor.currentScreenHandler==actor.playerScreenHandler && actor.playerScreenHandler.getCursorStack().isEmpty();
     }
-    private static void message(ServerPlayer actor,String text) { actor.sendSystemMessage(Component.literal(text)); }
-    private static Ticket begin(ServerPlayer actor,LivingEntity target) {
-        var t=new Ticket(UUID.randomUUID(),new AdminStatsMenu.Session(actor),target==null?null:new AdminStatsMenu.TargetSession(target),actor.level().getServer().getTickCount()+1800);
-        ACTIVE.put(actor.getUUID(),t);return t;
+    private static void message(ServerPlayerEntity actor,String text) { actor.sendMessage(Text.literal(text),false); }
+    private static Ticket begin(ServerPlayerEntity actor,LivingEntity target) {
+        var t=new Ticket(UUID.randomUUID(),new AdminStatsMenu.Session(actor),target==null?null:new AdminStatsMenu.TargetSession(target),actor.getEntityWorld().getServer().getTicks()+1800);
+        ACTIVE.put(actor.getUuid(),t);return t;
     }
     private static void send(Ticket t,Form form,Predicate<Form> sender) {
-        if(!sender.test(form)) { ACTIVE.remove(t.actor().player().getUUID(),t);message(t.actor().player(),"The Bedrock editor could not be sent. Reopen My stats after reconnecting."); }
+        if(!sender.test(form)) { ACTIVE.remove(t.actor().player().getUuid(),t);message(t.actor().player(),"The Bedrock editor could not be sent. Reopen My stats after reconnecting."); }
     }
     private static void response(Ticket t,Runnable action) {
         var server=t.actor().world().getServer();
-        if(!server.isSameThread()) { server.execute(()->response(t,action));return; }
+        if(!server.isOnThread()) { server.execute(()->response(t,action));return; }
         var actor=t.actor().player();
-        if(!ACTIVE.remove(actor.getUUID(),t))return; // Old, expired or replayed form.
-        if(!t.actor().valid() || !AdminStatsMenu.allowed(actor) || !emptyScreen(actor) || server.getTickCount()>=t.expires()
-                || t.target()!=null && (!t.target().valid() || AdminStats.accessError(actor.createCommandSourceStack(),t.target().entity())!=null)) {
+        if(!ACTIVE.remove(actor.getUuid(),t))return; // Old, expired or replayed form.
+        if(!t.actor().valid() || !AdminStatsMenu.allowed(actor) || !emptyScreen(actor) || server.getTicks()>=t.expires()
+                || t.target()!=null && (!t.target().valid() || AdminStats.accessError(actor.getCommandSource(),t.target().entity())!=null)) {
             message(actor,"This review expired or the player, AI helper or permission changed. Reopen My stats.");return;
         }
         action.run();
     }
     private static void cancel(Ticket t) { response(t,()->message(t.actor().player(),"Stat edit cancelled. Nothing changed.")); }
 
-    private static void targets(ServerPlayer actor,Predicate<Form> sender) {
-        var server=actor.level().getServer();
-        var choices=new ArrayList<>(server.getPlayerList().getPlayers().stream()
-            .sorted(Comparator.comparing((ServerPlayer p)->p!=actor).thenComparing(p->p.getName().getString()))
+    private static void targets(ServerPlayerEntity actor,Predicate<Form> sender) {
+        var server=actor.getEntityWorld().getServer();
+        var choices=new ArrayList<>(server.getPlayerManager().getPlayerList().stream()
+            .sorted(Comparator.comparing((ServerPlayerEntity p)->p!=actor).thenComparing(p->p.getName().getString()))
             .map(AdminStatsMenu.TargetSession::new).toList());
         AgentCompanions.get(server).loaded.values().stream().map(AdminStatsMenu.TargetSession::new)
             .filter(AdminStatsMenu.TargetSession::valid).sorted(Comparator.comparing(t->AdminStats.displayName(t.entity()))).forEach(choices::add);
@@ -115,7 +115,7 @@ final class BedrockStatsMenu {
         send(t,form.build(),sender);
     }
 
-    private static void stats(ServerPlayer actor,LivingEntity target,Predicate<Form> sender) {
+    private static void stats(ServerPlayerEntity actor,LivingEntity target,Predicate<Form> sender) {
         var choices=AdminStats.list(target);var t=begin(actor,target);
         var form=SimpleForm.builder().title("Stats: "+AdminStats.displayName(target))
             .content("Tap a stat, type its value, then Confirm. Health and absorption automatically include any needed capacity increase. The numbers here are authoritative even when the client bars stop growing.");
@@ -135,7 +135,7 @@ final class BedrockStatsMenu {
             .map(s->new AdminStatsMenu.Change(s.id(),AdminStats.value(target,s).base(),AdminStats.original(target,s))).toList();
     }
 
-    private static void edit(ServerPlayer actor,LivingEntity target,String id,Predicate<Form> sender) {
+    private static void edit(ServerPlayerEntity actor,LivingEntity target,String id,Predicate<Form> sender) {
         var stat=AdminStats.find(target,id);
         if(stat==null) {message(actor,"That stat is no longer available.");return;}
         var t=begin(actor,target);
@@ -162,7 +162,7 @@ final class BedrockStatsMenu {
         send(t,form.build(),sender);
     }
 
-    private static void review(ServerPlayer actor,LivingEntity target,AdminStatsMenu.Operation operation,String id,double pending,
+    private static void review(ServerPlayerEntity actor,LivingEntity target,AdminStatsMenu.Operation operation,String id,double pending,
             List<AdminStatsMenu.Change> changes,Predicate<Form> sender) {
         if(changes.isEmpty()) {message(actor,"No saved admin edits to restore.");stats(actor,target,sender);return;}
         var t=begin(actor,target);var text=new StringBuilder("Target: ").append(AdminStats.displayName(target)).append("\n");
@@ -179,9 +179,9 @@ final class BedrockStatsMenu {
                 error="The saved originals changed. Review the restore again.";
             if(error!=null) {message(actor,error);stats(actor,target,sender);return;}
             var result=switch(operation) {
-                case SET->AdminStats.set(actor.createCommandSourceStack(),target,id,pending);
-                case RESET->AdminStats.reset(actor.createCommandSourceStack(),target,id);
-                case RESET_ALL->AdminStats.resetAll(actor.createCommandSourceStack(),target);
+                case SET->AdminStats.set(actor.getCommandSource(),target,id,pending);
+                case RESET->AdminStats.reset(actor.getCommandSource(),target,id);
+                case RESET_ALL->AdminStats.resetAll(actor.getCommandSource(),target);
             };
             message(actor,result.message());
             if(AdminStatsMenu.allowed(actor) && t.target().valid())stats(actor,target,sender);

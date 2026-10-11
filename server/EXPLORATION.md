@@ -1,6 +1,6 @@
-# Exploration and scores — 2.13.0-explore.22
+# Exploration and scores — 2.12.0-explore.20
 
-**The Odyssey ruins** appear sparsely in newly generated Overworld, Nether and End terrain. Twenty-one biome palettes dress the original circuit shape, with one chest holding the lower chest's exact loot and its original book. A matching starting prophecy arrives in an empty inventory slot; recover it through **Infinity Menu → The Odyssey • your prophecy**. See [ODYSSEY.md](ODYSSEY.md), including the owner's explicitly selected automatic repeating command.
+Explore.20 applies the refreshed Convergence and Aurora armor to iPad/Bedrock as well as Java. The server resource pack restyles shared native netherite and leather textures and inventory icons; all ordinary gear using those materials receives the same patterns while the pack is active. Dyed leather retains its native dye coloring, so Ember armor/backpacks share Aurora's leather pattern with their own tint. Native elytra now displays the Convergence chestplate and wings, with its native flight/swim/sneak animations and controls preserved. The new skin is cosmetic: gear names, powers, stats and inventories are unchanged. Rejoin and accept resource pack revision 20.
 
 
 

@@ -1,6 +1,4 @@
-# Infinity Armor expansion — 2.13.0-explore.24
-
-**Creative Studio** adds themed building brushes and undo, reviewed blueprints, five Infinity gadgets, RC voxel flight and three full native armor outfits. Open it from Infinity Menu or the gear picker; see [CREATIVE_STUDIO.md](CREATIVE_STUDIO.md).
+# Infinity Armor expansion — 2.12.0-explore.12
 
 Use the existing launcher and world. Your iPad can join the same server using the host panel's Bedrock address and accept its resource pack. Reconnect after an upgrade to refresh textures. No Minecraft installation is needed on the Mac host.
 
@@ -8,7 +6,7 @@ Use the existing launcher and world. Your iPad can join the same server using th
 
 Six new original building styles join the four Infinity blocks: Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic. The lamp emits light level 15. Each has its own Java texture and exported Geyser block state.
 
-The **Builder Wand** places a 3×3 plane by default using the block held in your offhand. The **Sculptor Wand** clears that plane with no drops. Creative Studio selects other brush shapes and sizes, and can undo the latest unchanged edit. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative.
+The **Builder Wand** places a 3×3 plane using the block held in your offhand. The **Sculptor Wand** clears a 3×3 plane with no drops. Both require actual Creative mode; ordinary players use the Creative world, and OP4 can use them elsewhere while in Creative. They protect containers, unbreakable blocks and occupied placement cells. Normal Infinity tools retain their powers in Creative.
 
 On Java or iPad, choose **Infinity Menu → Play Creative**, use its lobby sign, or type `/play creative`. The server gives you an Infinity sword and opens a chest-like gear picker. Tap a vanilla icon for the wand, weapon, or tool you want; the server equips the real Infinity item. Selecting the **Infinity Menu** recovery compass opens the full menu; choose **Weapons, tools and blocks** to reopen the catalogue. **Building kit** gives Creative players or OP4 the blocks and wands, **Use held power** activates a held tool, and **Swap main hand and offhand** moves a selected building block to the offhand. Hold the intended item before selecting the compass, then check the menu's held-item label. All `/convergence` controls remain optional shortcuts. The Bedrock built-in Creative catalogue cannot reliably move custom items into a hotbar on the current bridge; the server-only Java mod does not add a client Creative tab. The menus still need real Java and iPad playtests.
 
@@ -30,7 +28,7 @@ The Main Hub and five mode lobbies now have vanilla-block arches, colored glass,
 | `/wardrobe aurora` | Enchanter | Four Aurora armor pieces |
 | `/wardrobe ember` | Into Fire | Four Ember armor pieces |
 
-Equip the backpack in your chest armor slot, or equip costume armor in normal armor slots. They replace the equipment in those slots and grant **no armor attributes, flight, or rank powers**. Java retains custom worn artwork. iPad/Bedrock uses native dyed-leather equipment controls and normal Minecraft leather textures: the server pack no longer changes ordinary leather or netherite armor. Aurora, Ember and backpack clothing use their own dye tint on the native leather shape. The backpack is a textured back panel on Java and dyed leather clothing on Bedrock; it is not a protruding 3D bag. OP4 and players in the Creative world can claim every appearance.
+Equip the backpack in your chest armor slot, or equip costume armor in normal armor slots. They replace the equipment in those slots and grant **no armor attributes, flight, or rank powers**. Java uses custom worn artwork; iPad Bedrock keeps native dyed-leather equipment controls while the server pack applies the new shared Aurora pattern and icons. Normal leather armor, Ember and backpack clothing share that pattern with their own dye tint. The backpack is a textured back panel on Java and dyed leather clothing on Bedrock; it is not a protruding 3D bag. OP4 and players in the Creative world can claim every appearance.
 
 `/backpack` opens a vanilla 27-slot chest. All styles access the same personal backpack **within one mode**. Survival, Hardcore and Creative have separate storage. You cannot open it in the hub, minigames, adventure maps or spectator mode. Close containers before switching modes or trading. Storage survives death and is saved in the same vanilla player file as your inventory. An accessory contains no items: copying, dropping or trading it never copies storage or transfers your storage to someone else. A recipient needs their own achievement before opening personal storage. Keep backups of the entire world and player data together.
 

@@ -7,10 +7,9 @@ from pathlib import Path
 import shutil
 import uuid
 import zipfile
-from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.24"
+VERSION = "2.12.0-explore.20"
 
 
 def expected_native_tests():
@@ -30,7 +29,6 @@ def expected_launcher_tests():
 
 
 def prepare():
-    verify_odyssey()
     server = ROOT / "server"
     if (server / "launcher.lock").exists():
         raise RuntimeError("Stop the live server before installing a new mod build.")
@@ -41,7 +39,7 @@ def prepare():
         if old.name != f"Infinity-Armor-{VERSION}.jar":
             old.unlink()
     mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}.jar"
-    api = ROOT / "vendor/fabric-api-0.161.0+26.3.jar"
+    api = ROOT / "vendor/fabric-api-0.141.6+1.21.11.jar"
     with zipfile.ZipFile(mod) as jar:
         assert json.loads(jar.read("fabric.mod.json"))["version"] == VERSION
         assert not any("GameTests" in name or name.startswith("net/minecraft/") for name in jar.namelist())
@@ -51,11 +49,6 @@ def prepare():
     resources = ROOT / "bedrock/resource_pack"
     files = {p.relative_to(resources).as_posix(): p.read_bytes() for p in resources.rglob("*") if p.is_file()}
     for name in list(files):
-        # Ordinary native armor must keep Minecraft's texture. Geyser's native
-        # wearable fallback cannot select a different skin just for our stack.
-        if re.fullmatch(r"textures/models/armor/(netherite|leather)_[12]\.png",name) or re.fullmatch(r"textures/items/(netherite|leather)_(helmet|chestplate|leggings|boots)\.png",name):
-            del files[name]
-            continue
         if name.startswith("attachables/") and name not in ["attachables/helmet.json", "attachables/leggings.json", "attachables/boots.json", "attachables/elytra.json"]:
             del files[name]
         if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json"]:

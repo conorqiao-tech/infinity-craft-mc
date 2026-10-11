@@ -1,12 +1,10 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.24
+# Infinity Armor Exploration Server — 2.12.0-explore.20
 
-Explore.24 adds **Creative Studio**: five themed building palettes, adjustable brushes with undo, reviewed blueprints, an RC voxel plane, five usable Infinity gadgets and three full native armor outfits. The gear picker links to the Studio and supports additional pages. Helpers gain loaded-squad recall and visible reasons for pausing. Primed TNT chains queue across ticks, and ordinary Bedrock leather/netherite textures return to Minecraft's normal appearance. See [CREATIVE_STUDIO.md](CREATIVE_STUDIO.md) for controls and limits.
-
-Explore.22 adds **The Odyssey**: rare circuit ruins in new Overworld, Nether and End terrain, 21 biome material palettes, one chest with the owner's exact lower-chest loot, and the requested automatic repeating block. Players receive a matching prophecy book; **Infinity Menu → The Odyssey • your prophecy** recovers a lost copy. See [ODYSSEY.md](ODYSSEY.md) for generation, loot and command behavior.
+Explore.20 applies the refreshed Convergence and Aurora armor to iPad/Bedrock as well as Java. The server resource pack restyles shared native netherite and leather textures and inventory icons; all ordinary gear using those materials receives the same patterns while the pack is active. Dyed leather retains its native dye coloring, so Ember armor/backpacks share Aurora's leather pattern with their own tint. Native elytra now displays the Convergence chestplate and wings, with its native flight/swim/sneak animations and controls preserved. The new skin is cosmetic: gear names, powers, stats and inventories are unchanged. Rejoin and accept resource pack revision 20.
 
 
 
-Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 6, 2026. The combined 26.3 build retains the refreshed Java and native Bedrock armor, tools, menus, stats and helpers. Accept the updated resource pack when joining.
+Multi-mode build based on Infinity Armor 2.3.0 and the crossplay preview. Updated October 5, 2026.
 
 This server build lets Java and Bedrock players share **one Fabric server with shared game worlds** with Infinity Armor's Java powers. It is a crossplay preview based on your 2.3.0 source. Read VALIDATION.md for the checks and remaining play-test limits.
 
@@ -17,14 +15,6 @@ Choose **Minigames** or **Adventure maps**, then tap a course icon to play. `/gu
 ## Restarting after a crash
 
 Press **Start server** in the dashboard. On this Mac, a leftover launcher lock can recover automatically only when its process is gone, the file belongs to you and both configured game ports are free. A live launcher or an unverifiable lock still blocks starting, before settings are changed. You do not need to delete lock files manually.
-
-## Minecraft 26.3 upgrade
-
-The owner can opt into **terrain regeneration after each installed Infinity mod update**, with a verified stopped-world backup and preservation of player saves and helper entities. This erases builds and block-container contents; ordinary restarts keep terrain. Public installs leave it disabled. See [WORLD_REFRESH.md](WORLD_REFRESH.md) for the private policy and recovery.
-
-This release runs **Minecraft Java 26.3** with Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2 and Floodgate 2.2.7. The launcher sets up a private Java 25 runtime and replaces an older Java 21 runtime automatically. Java players need a 26.3 client. Bedrock and iPad players join through Geyser 2.11.3 (Bedrock 26.30–26.52), bridged to 26.3 by ViaBackwards.
-
-Upgrading an existing server: **Save & Stop, then make a full private backup of the stopped world first.** Minecraft converts the world when 26.3 first loads it, and 1.21.11 cannot open the converted world. Setup removes the older pinned Fabric API, Polymer, Floodgate, Via and Infinity Armor JARs from `fabric/mods` so two versions never load together; other mods you added stay in place but must also support 26.3.
 
 ## Lobby joining fix
 
@@ -72,7 +62,7 @@ The Codex connection currently requires the audited native **CLI 0.155.1**; othe
 2. **Open the launcher:** `Start-Mac.command` on Mac, `start.bat` on Windows 10/11, or `bash start.sh` on Linux.
 3. In the browser panel, read the Minecraft EULA, check the agreement box if you agree, and click **Start shared world**. Wait for **World is running**.
 
-The launcher downloads its own Python and, if needed, Java 25 into `.runtime` in this server folder. It verifies the downloads and does not need administrator access or change system settings. No manual Java, Python, Docker, or mod installation is required on the supported computers. You need an internet connection for the first setup. Keep the Terminal/launcher window open while playing; closing just the browser tab does not stop the world.
+The launcher downloads its own Python and, if needed, Java 21 into `.runtime` in this server folder. It verifies the downloads and does not need administrator access or change system settings. No manual Java, Python, Docker, or mod installation is required on the supported computers. You need an internet connection for the first setup. Keep the Terminal/launcher window open while playing; closing just the browser tab does not stop the world.
 
 **The panel handles the rest:** copy the Java/Bedrock join addresses, change memory or ports in **Settings**, read setup progress, and click **Save & Stop** when finished. Your settings are remembered. Double-clicking the launcher again reopens the same panel. After saving, **Close launcher** shuts down the panel; open the same launcher next time to use the same world.
 
@@ -161,17 +151,17 @@ For public access, 24/7 hosting, initial staff setup, spawn protection limits, a
 
 | Player | Address | Port |
 |---|---|---|
-| Java **26.3**, on the host | `localhost` | `25565` |
-| Java **26.3**, another device | Host computer's LAN IP | `25565` |
+| Java **1.21.11**, on the host | `localhost` | `25565` |
+| Java **1.21.11**, another device | Host computer's LAN IP | `25565` |
 | Bedrock **26.30–26.51** | Host computer's LAN IP | `19132` |
 
-Java players can join using an ordinary Java 26.3 client; accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
+Java players can join using an ordinary Java 1.21.11 client; accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
 
 On Bedrock mobile/Windows, choose **Servers → Add Server** and enter the host's IP and port. Accept the required Infinity resource pack. Bedrock players sign in with their Microsoft/Xbox account; Floodgate lets them join without a separate Java license. Do not activate the separate Infinity `.mcaddon` in this Java-hosted world; its behavior scripts do not run through Geyser.
 
 Xbox, PlayStation and Switch do not expose the same Add Server UI; see [Geyser's console connection instructions](https://geysermc.org/wiki/geyser/using-geyser-with-consoles/). For players outside your home network, use the optional [Pinggy joining helper](PINGGY_JOINING.md) on an Apple Silicon Mac, or forward **TCP 25565** and **UDP 19132** to the host (or the ports you selected) and allow them through its firewall. The optional [Dynu companion](DYNU_JOINING.md) keeps an owner-reserved hostname pointed at your home's public IPv4. Port forwarding is not performed by either launcher.
 
-The launcher uses Geyser **2.11.3 build 1248**, which supports Bedrock 26.30–26.52 and speaks the Java 26.2 protocol. ViaBackwards 5.12.0 on the server lets it join this 26.3 world. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
+The launcher uses Geyser **2.11.3 build 1245**, reporting support for Bedrock 26.30–26.51 when checked on September 22, 2026. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
 
 ## Get and use Infinity gear
 
@@ -200,7 +190,7 @@ The server-only Java mod does not add a client Creative tab, and Bedrock's built
 
 The **Java implementation** runs the world and controls everyone's gear, crafting, damage, cooldowns, inventory and terrain changes. Its custom totem activates on eligible lethal damage; the shield has native blocking. Bedrock's separate Sanctuary and scripted bow/crossbow implementations are not used in this world.
 
-All 45 custom item/block IDs are retained on the server. Twenty item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock retains native equipment and elytra behavior for every wearable, plus native shield, totem, bow, crossbow and arrow controls. Ordinary netherite/leather armor retains normal Minecraft textures and icons. The server pack gives native elytra a Convergence chestplate and wings. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the refreshed armor and gear textures through the generated resource pack. The original 24 supplied texture files are unchanged. Bedrock's custom Infinity entries are omitted from its built-in Creative catalogue until the bridge can handle picking them up; the server's Infinity gear picker uses familiar vanilla icons to equip the actual items. `/convergence gear`, `/convergence hold <item>`, and `/convergence kit` remain available. Geyser also ties custom-output recipe-book entries to that Creative category, so some Infinity recipes may be hidden from Bedrock's recipe book; authenticated Bedrock crafting still needs a device test.
+All 40 custom item/block IDs are retained on the server. Twenty item appearances and ten placed block appearances have explicit Bedrock mappings. Bedrock retains native equipment and elytra behavior for every wearable, plus native shield, totem, bow, crossbow and arrow controls. The server pack refreshes the shared netherite/leather armor layers and icons, and gives native elytra a Convergence chestplate and wings. Cosmetic armor and backpacks also use dyed native leather equipment on Bedrock. Their Infinity names and server-side powers remain. Java receives the refreshed armor and gear textures through the generated resource pack. The original 24 supplied texture files are unchanged. Bedrock's custom Infinity entries are omitted from its built-in Creative catalogue until the bridge can handle picking them up; the server's Infinity gear picker uses familiar vanilla icons to equip the actual items. `/convergence gear`, `/convergence hold <item>`, and `/convergence kit` remain available. Geyser also ties custom-output recipe-book entries to that Creative category, so some Infinity recipes may be hidden from Bedrock's recipe book; authenticated Bedrock crafting still needs a device test.
 
 This is a preview, not a claim that every original visual and control behaves identically between editions. Actual Bedrock flight, shield blocking, shooting/reloading, offhand interaction, crafting, inventory movement, and multiplayer combat need an authenticated device play-test. A Java GameTest or Bedrock server ping does not establish those behaviors. See VALIDATION.md for exactly what was tested.
 
@@ -222,7 +212,7 @@ Not an official Minecraft product. Not approved by or associated with Mojang or 
 
 **Infinity Menu → My stats** opens a native Bedrock/iPad button list. Select **Current health** or **Absorption**, type the number, submit, then tap **Confirm changes**. Any required capacity increase appears in that same confirmation. Manual edits require your own OP4 confirmation, without a separate Codex approval. Java retains its chest editor and private exact-number chat prompt. Absolute vitals edits tolerate natural health/hunger changes; changed attribute bases, ranges, permissions, sessions and reset originals still invalidate review.
 
-**Infinity Menu → Armor sets** offers full Aurora and Ember sets including helmet, chestplate, leggings and boots. Leave four inventory slots free. Admin access bypasses achievement unlocks; other players earn Enchanter for Aurora or Into Fire for Ember. Bedrock cosmetic armor keeps native dyed-leather models with normal Minecraft leather textures and its own dye colors. The Infinity winged chestplate keeps native elytra flight and displays the Convergence chestplate plus wings. Reconnect after the update and accept the refreshed server pack.
+**Infinity Menu → Armor sets** offers full Aurora and Ember sets including helmet, chestplate, leggings and boots. Leave four inventory slots free. Admin access bypasses achievement unlocks; other players earn Enchanter for Aurora or Into Fire for Ember. Bedrock cosmetic armor keeps native dyed-leather models with the new shared Aurora pattern and icons. The Infinity winged chestplate keeps native elytra flight and displays the Convergence chestplate plus wings. Reconnect after the update and accept the refreshed server pack.
 
 **Ranks & subscriptions** in Infinity Menu shows your actual badge, separate permanent rank, each rank’s three milestones and item-trade alternative. Admin/OP access does not turn your earned rank into Ultra. Planned USD subscriptions remain disabled. AI guidance receives your actual badge and permanent rank, rather than guessing from permission level.
 

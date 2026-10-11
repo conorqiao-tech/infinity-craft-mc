@@ -19,22 +19,22 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Consumer;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.resources.Identifier;
+import net.minecraft.command.permission.Permission.Level;
+import net.minecraft.command.permission.PermissionLevel;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
-import net.minecraft.server.permissions.Permission.HasCommandLevel;
-import net.minecraft.server.permissions.PermissionLevel;
-import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.network.ServerPlayNetworkHandler;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.WorldSavePath;
 
 /** Exact owner-approved actions; only a fresh local-console review can apply them. */
 final class AgentActions {
@@ -107,8 +107,8 @@ final class AgentActions {
     final Data data;
     // Entity object identity cannot survive logout, respawn, or restart. Never
     // reconstruct a target session from a persisted UUID or a reused player name.
-    record TargetSession(ServerPlayer owner, ServerGamePacketListenerImpl ownerConnection,
-                         ServerPlayer target, ServerGamePacketListenerImpl targetConnection, ServerLevel world,
+    record TargetSession(ServerPlayerEntity owner, ServerPlayNetworkHandler ownerConnection,
+                         ServerPlayerEntity target, ServerPlayNetworkHandler targetConnection, ServerWorld world,
                          String ownerUuid, String targetUuid, String targetName, String token) {}
     final Map<String, TargetSession> targetSessions = new LinkedHashMap<>();
 
@@ -123,8 +123,8 @@ final class AgentActions {
 
     static AgentActions get(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, s -> new AgentActions(s,
-            s.getWorldPath(LevelResource.ROOT).resolve("infinity-agent-actions.json"), Clock.systemUTC(),
-            command -> s.getCommands().performPrefixedCommand(s.createCommandSourceStack(), command)));
+            s.getSavePath(WorldSavePath.ROOT).resolve("infinity-agent-actions.json"), Clock.systemUTC(),
+            command -> s.getCommandManager().parseAndExecute(s.getCommandSource(), command)));
     }
 
     static Data read(Path file) {
@@ -204,53 +204,53 @@ final class AgentActions {
         if (session == null) return "The original live target session is no longer available.";
         if (!session.ownerUuid.equals(proposal.owner) || !session.targetUuid.equals(proposal.targetUuid)
             || !session.targetName.equals(proposal.targetName) || !session.token.equals(proposal.targetSession)
-            || !session.world.dimension().identifier().toString().equals(proposal.targetDimension))
+            || !session.world.getRegistryKey().getValue().toString().equals(proposal.targetDimension))
             return "The proposal no longer matches the exact reviewed target.";
-        if (server.getPlayerList().getPlayer(session.owner.getUUID()) != session.owner
-            || server.getPlayerList().getPlayer(session.target.getUUID()) != session.target
-            || session.owner.connection != session.ownerConnection || session.target.connection != session.targetConnection
-            || !session.ownerUuid.equals(session.owner.getStringUUID()) || !session.targetUuid.equals(session.target.getStringUUID())
+        if (server.getPlayerManager().getPlayer(session.owner.getUuid()) != session.owner
+            || server.getPlayerManager().getPlayer(session.target.getUuid()) != session.target
+            || session.owner.networkHandler != session.ownerConnection || session.target.networkHandler != session.targetConnection
+            || !session.ownerUuid.equals(session.owner.getUuidAsString()) || !session.targetUuid.equals(session.target.getUuidAsString())
             || !session.targetName.equals(session.target.getGameProfile().name()))
             return "The owner or target left their original session.";
         if (!session.owner.isAlive() || !session.target.isAlive()
-            || session.owner.level() != session.world || session.target.level() != session.world)
+            || session.owner.getEntityWorld() != session.world || session.target.getEntityWorld() != session.world)
             return "The owner or target died or changed dimension.";
         return AgentCompanions.get(server).targetEligibility(session.owner, session.target);
     }
 
-    boolean queueFull(ServerPlayer owner) {
-        long owned = data.proposals.values().stream().filter(p -> p.active() && p.owner.equals(owner.getStringUUID())).count();
+    boolean queueFull(ServerPlayerEntity owner) {
+        long owned = data.proposals.values().stream().filter(p -> p.active() && p.owner.equals(owner.getUuidAsString())).count();
         return owned >= MAX_ACTIVE_PER_OWNER || data.proposals.values().stream().filter(Proposal::active).count() >= MAX_ACTIVE;
     }
 
-    int target(ServerPlayer owner, ServerPlayer target) {
-        if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can propose a squad target.");
+    int target(ServerPlayerEntity owner, ServerPlayerEntity target) {
+        if (!AgentCompanions.operator(owner.getCommandSource())) return AgentCompanions.reply(owner, "Only an OP4 owner can propose a squad target.");
         String reason = AgentCompanions.get(server).targetEligibility(owner, target);
         if (reason != null) return AgentCompanions.reply(owner, "Target refused: " + reason);
         String name = target.getGameProfile().name();
         if (!validPlayerName(name)) return AgentCompanions.reply(owner, "The target's profile name cannot be safely displayed for review.");
-        String dimension = target.level().dimension().identifier().toString();
+        String dimension = target.getEntityWorld().getRegistryKey().getValue().toString();
         if (dimension.length() > 128) return AgentCompanions.reply(owner, "The target's dimension identifier is too long for a bounded review record.");
         expire();
         if (queueFull(owner)) return AgentCompanions.reply(owner, "The helper action queue is full. Cancel or wait for a proposal to expire.");
         String id = UUID.randomUUID().toString(), token = UUID.randomUUID().toString();
-        Proposal proposal = new Proposal(owner.getStringUUID(), Action.TARGET, clock.millis());
-        proposal.targetUuid = target.getStringUUID(); proposal.targetName = name;
+        Proposal proposal = new Proposal(owner.getUuidAsString(), Action.TARGET, clock.millis());
+        proposal.targetUuid = target.getUuidAsString(); proposal.targetName = name;
         proposal.targetDimension = dimension; proposal.targetSession = token;
-        targetSessions.put(id, new TargetSession(owner, owner.connection, target, target.connection, target.level(),
-            owner.getStringUUID(), target.getStringUUID(), name, token));
+        targetSessions.put(id, new TargetSession(owner, owner.networkHandler, target, target.networkHandler, target.getEntityWorld(),
+            owner.getUuidAsString(), target.getUuidAsString(), name, token));
         data.proposals.put(id, proposal); trimHistory(); save();
         return AgentCompanions.reply(owner, "Proposed " + id + ": " + proposal.description()
             + ". /agent approve " + id + " is your approval. Ask Codex here for the separate live review. Nothing attacks before both approvals; /agent ceasefire stops your squad immediately.");
     }
 
-    int ceasefire(ServerPlayer owner) {
-        if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can stop this squad.");
+    int ceasefire(ServerPlayerEntity owner) {
+        if (!AgentCompanions.operator(owner.getCommandSource())) return AgentCompanions.reply(owner, "Only an OP4 owner can stop this squad.");
         AgentCompanions.get(server).ceasefire(owner);
         boolean changed = false;
         for (var entry : data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
-            if (proposal.active() && proposal.action == Action.TARGET && proposal.owner.equals(owner.getStringUUID())) {
+            if (proposal.active() && proposal.action == Action.TARGET && proposal.owner.equals(owner.getUuidAsString())) {
                 proposal.state = State.CANCELLED; targetSessions.remove(entry.getKey()); changed = true;
             }
         }
@@ -258,69 +258,69 @@ final class AgentActions {
         return AgentCompanions.reply(owner, "Ceasefire: your player target is cleared and pending player-target proposals are cancelled.");
     }
 
-    static void invalidatePlayer(ServerPlayer player) {
-        AgentActions queue = INSTANCES.get(player.level().getServer());
+    static void invalidatePlayer(ServerPlayerEntity player) {
+        AgentActions queue = INSTANCES.get(player.getEntityWorld().getServer());
         if (queue == null) return;
         boolean changed = false;
         for (var entry : queue.data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
             if (proposal.active() && proposal.action == Action.TARGET
-                && (proposal.owner.equals(player.getStringUUID()) || proposal.targetUuid.equals(player.getStringUUID()))) {
+                && (proposal.owner.equals(player.getUuidAsString()) || proposal.targetUuid.equals(player.getUuidAsString()))) {
                 proposal.state = State.CANCELLED; queue.targetSessions.remove(entry.getKey()); changed = true;
             }
         }
         if (changed) { queue.trimHistory(); queue.save(); }
     }
 
-    static boolean localConsole(CommandSourceStack source) {
+    static boolean localConsole(ServerCommandSource source) {
         return source.getEntity() == null
             && !source.isSilent()
-            && source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS))
+            && source.getPermissions().hasPermission(new Level(PermissionLevel.OWNERS))
             && ((AgentConsoleSourceAccess) source).infinity$getOutput() == source.getServer();
     }
 
-    int suggest(ServerPlayer owner, String request) {
-        if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can propose a helper action.");
+    int suggest(ServerPlayerEntity owner, String request) {
+        if (!AgentCompanions.operator(owner.getCommandSource())) return AgentCompanions.reply(owner, "Only an OP4 owner can propose a helper action.");
         Action action = Action.fromRequest(request);
         if (action == null) return AgentCompanions.reply(owner, "Supported requests: set day, set night, clear weather, make it rain, list players, save world. Use plain text only.");
         expire();
         if (queueFull(owner)) return AgentCompanions.reply(owner, "The helper action queue is full. Cancel or wait for a proposal to expire.");
         String id = UUID.randomUUID().toString();
-        data.proposals.put(id, new Proposal(owner.getStringUUID(), action, clock.millis()));
+        data.proposals.put(id, new Proposal(owner.getUuidAsString(), action, clock.millis()));
         trimHistory(); save();
         return AgentCompanions.reply(owner, "Proposed " + id + ": /" + action.command + ". Review it with /agent pending, then /agent approve " + id + ". Codex must review it live before it runs.");
     }
 
-    int pending(ServerPlayer owner) {
+    int pending(ServerPlayerEntity owner) {
         expire();
-        String uuid = owner.getStringUUID();
+        String uuid = owner.getUuidAsString();
         var lines = data.proposals.entrySet().stream().filter(e -> e.getValue().owner.equals(uuid))
             .sorted((left, right) -> Long.compare(right.getValue().createdAt, left.getValue().createdAt)).limit(8)
             .map(e -> e.getKey() + ": " + e.getValue().description() + " (" + e.getValue().state.name().toLowerCase(Locale.ROOT) + ")").toList();
         return AgentCompanions.reply(owner, lines.isEmpty() ? "No helper action proposals. /agent suggest <request> creates one." : String.join("\n", lines));
     }
 
-    int ownerApprove(ServerPlayer owner, String id) {
-        if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can approve a helper action.");
+    int ownerApprove(ServerPlayerEntity owner, String id) {
+        if (!AgentCompanions.operator(owner.getCommandSource())) return AgentCompanions.reply(owner, "Only an OP4 owner can approve a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);
-        if (proposal == null || !proposal.owner.equals(owner.getStringUUID()) || proposal.state != State.PENDING)
+        if (proposal == null || !proposal.owner.equals(owner.getUuidAsString()) || proposal.state != State.PENDING)
             return AgentCompanions.reply(owner, "No pending helper action with that ID belongs to you.");
         proposal.state = State.OWNER_APPROVED; save();
         return AgentCompanions.reply(owner, "Owner approved " + id + ": " + proposal.description() + ". It will run only if Codex reviews and approves it live before expiry.");
     }
 
-    int cancel(ServerPlayer owner, String id) {
-        if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can cancel a helper action.");
+    int cancel(ServerPlayerEntity owner, String id) {
+        if (!AgentCompanions.operator(owner.getCommandSource())) return AgentCompanions.reply(owner, "Only an OP4 owner can cancel a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);
-        if (proposal == null || !proposal.owner.equals(owner.getStringUUID()) || !proposal.active())
+        if (proposal == null || !proposal.owner.equals(owner.getUuidAsString()) || !proposal.active())
             return AgentCompanions.reply(owner, "No active helper action with that ID belongs to you.");
         proposal.state = State.CANCELLED; targetSessions.remove(id); trimHistory(); save();
         return AgentCompanions.reply(owner, "Cancelled " + id + ". The command will not run.");
     }
 
-    int consolePending(CommandSourceStack source) {
+    int consolePending(ServerCommandSource source) {
         if (!localConsole(source)) return 0;
         expire();
         var lines = data.proposals.entrySet().stream().filter(e -> e.getValue().active())
@@ -329,14 +329,14 @@ final class AgentActions {
         return CommunityServer.info(source, lines.isEmpty() ? "No active helper action proposals." : String.join("\n", lines));
     }
 
-    int codexApprove(CommandSourceStack source, String id) {
+    int codexApprove(ServerCommandSource source, String id) {
         if (!localConsole(source)) return 0;
         expire();
         Proposal proposal = data.proposals.get(id);
         if (proposal == null || proposal.state != State.OWNER_APPROVED)
             return CommunityServer.info(source, "No owner-approved helper action with that ID. Nothing ran.");
-        ServerPlayer owner = server.getPlayerList().getPlayer(UUID.fromString(proposal.owner));
-        if (owner == null || !AgentCompanions.operator(owner.createCommandSourceStack()))
+        ServerPlayerEntity owner = server.getPlayerManager().getPlayer(UUID.fromString(proposal.owner));
+        if (owner == null || !AgentCompanions.operator(owner.getCommandSource()))
             return CommunityServer.info(source, "The proposing OP4 owner must still be online. Nothing ran.");
         if (proposal.action == Action.TARGET) {
             String reason = targetProblem(id, proposal);
@@ -366,29 +366,29 @@ final class AgentActions {
         }
     }
 
-    static void attach(LiteralArgumentBuilder<CommandSourceStack> root) {
-        root.then(Commands.literal("target").then(Commands.argument("player", StringArgumentType.string())
+    static void attach(LiteralArgumentBuilder<ServerCommandSource> root) {
+        root.then(CommandManager.literal("target").then(CommandManager.argument("player", StringArgumentType.string())
             .executes(c -> {
                 String name = StringArgumentType.getString(c, "player");
-                var target = name.startsWith("@") ? null : c.getSource().getServer().getPlayerList().getPlayerByName(name);
-                if (target == null) return AgentCompanions.reply(c.getSource().getPlayerOrException(), "Use an exact online player name, not a selector.");
-                return get(c.getSource().getServer()).target(c.getSource().getPlayerOrException(), target);
+                var target = name.startsWith("@") ? null : c.getSource().getServer().getPlayerManager().getPlayer(name);
+                if (target == null) return AgentCompanions.reply(c.getSource().getPlayerOrThrow(), "Use an exact online player name, not a selector.");
+                return get(c.getSource().getServer()).target(c.getSource().getPlayerOrThrow(), target);
             })));
-        root.then(Commands.literal("ceasefire").executes(c -> get(c.getSource().getServer()).ceasefire(c.getSource().getPlayerOrException())));
-        root.then(Commands.literal("suggest").then(Commands.argument("request", StringArgumentType.greedyString())
-            .executes(c -> get(c.getSource().getServer()).suggest(c.getSource().getPlayerOrException(), StringArgumentType.getString(c, "request")))));
-        root.then(Commands.literal("pending").executes(c -> get(c.getSource().getServer()).pending(c.getSource().getPlayerOrException())));
-        root.then(Commands.literal("approve").then(Commands.argument("id", StringArgumentType.word())
-            .executes(c -> get(c.getSource().getServer()).ownerApprove(c.getSource().getPlayerOrException(), StringArgumentType.getString(c, "id")))));
-        root.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word())
-            .executes(c -> get(c.getSource().getServer()).cancel(c.getSource().getPlayerOrException(), StringArgumentType.getString(c, "id")))));
+        root.then(CommandManager.literal("ceasefire").executes(c -> get(c.getSource().getServer()).ceasefire(c.getSource().getPlayerOrThrow())));
+        root.then(CommandManager.literal("suggest").then(CommandManager.argument("request", StringArgumentType.greedyString())
+            .executes(c -> get(c.getSource().getServer()).suggest(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "request")))));
+        root.then(CommandManager.literal("pending").executes(c -> get(c.getSource().getServer()).pending(c.getSource().getPlayerOrThrow())));
+        root.then(CommandManager.literal("approve").then(CommandManager.argument("id", StringArgumentType.word())
+            .executes(c -> get(c.getSource().getServer()).ownerApprove(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "id")))));
+        root.then(CommandManager.literal("cancel").then(CommandManager.argument("id", StringArgumentType.word())
+            .executes(c -> get(c.getSource().getServer()).cancel(c.getSource().getPlayerOrThrow(), StringArgumentType.getString(c, "id")))));
     }
 
-    static void registerConsole(com.mojang.brigadier.CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("agent-codex-pending").requires(AgentActions::localConsole)
+    static void registerConsole(com.mojang.brigadier.CommandDispatcher<ServerCommandSource> dispatcher) {
+        dispatcher.register(CommandManager.literal("agent-codex-pending").requires(AgentActions::localConsole)
             .executes(c -> get(c.getSource().getServer()).consolePending(c.getSource())));
-        dispatcher.register(Commands.literal("agent-codex-approve").requires(AgentActions::localConsole)
-            .then(Commands.argument("id", StringArgumentType.word())
+        dispatcher.register(CommandManager.literal("agent-codex-approve").requires(AgentActions::localConsole)
+            .then(CommandManager.argument("id", StringArgumentType.word())
                 .executes(c -> get(c.getSource().getServer()).codexApprove(c.getSource(), StringArgumentType.getString(c, "id")))));
     }
 
@@ -397,8 +397,8 @@ final class AgentActions {
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> { AgentActions queue = INSTANCES.get(server); if (queue != null) queue.expire(); });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> invalidatePlayer(handler.player));
-        ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> { if (entity instanceof ServerPlayer player) invalidatePlayer(player); });
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> { if (entity instanceof ServerPlayerEntity player) invalidatePlayer(player); });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> invalidatePlayer(oldPlayer));
-        ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, from, to) -> invalidatePlayer(player));
+        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, from, to) -> invalidatePlayer(player));
     }
 }

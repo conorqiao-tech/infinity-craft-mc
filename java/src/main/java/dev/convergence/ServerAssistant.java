@@ -18,18 +18,19 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.Flow;
 import java.util.function.BooleanSupplier;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
+import net.minecraft.command.permission.Permission.Level;
+import net.minecraft.command.permission.PermissionLevel;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permission.HasCommandLevel;
-import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 /** Local command guide with optional, bounded external answers; never executes advice. */
 public final class ServerAssistant {
@@ -51,8 +52,8 @@ public final class ServerAssistant {
         }
     }
     private ServerAssistant() {}
-    static boolean owner(CommandSourceStack source) {
-        return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS));
+    static boolean owner(ServerCommandSource source) {
+        return source.getPermissions().hasPermission(new Level(PermissionLevel.OWNERS));
     }
     static String invalid(String question) {
         if(question==null)return "Use /ai <question>, or /ai for the server guide.";
@@ -83,7 +84,7 @@ public final class ServerAssistant {
             "Try /ai how do I unlock flight, /ai what does Plus need, or /ai how do I join from Bedrock.",
             "Ask about achievements, ranks, powers, cosmetics, trades, joining, homes or helpers. /menu and the older commands remain optional shortcuts.");
     }
-    static List<String> answer(CommandSourceStack source,String question) {
+    static List<String> answer(ServerCommandSource source,String question) {
         String error=invalid(question);if(error!=null)return bounded(error);
         String q=Normalizer.normalize(question,Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).strip();
         var w=words(q);boolean op=owner(source);
@@ -235,12 +236,12 @@ public final class ServerAssistant {
             "Owner tools include /membership, /staff, and /community. Ask /ai helpers for the /agent commands or /ai settings for local panel advice.",
             "These are suggestions only. I do not run commands, grant rights, obtain a private code, or change world data.");
     }
-    static boolean take(CommandSourceStack source) {
+    static boolean take(ServerCommandSource source) {
         var session=SESSIONS.computeIfAbsent(source.getServer(),key->new Session());
-        UUID id=source.getEntity() instanceof ServerPlayer p?p.getUUID():CONSOLE;
-        return session.take(id,source.getServer().getTickCount());
+        UUID id=source.getEntity() instanceof ServerPlayerEntity p?p.getUuid():CONSOLE;
+        return session.take(id,source.getServer().getTicks());
     }
-    static int execute(CommandSourceStack source,String question) {
+    static int execute(ServerCommandSource source,String question) {
         if(!take(source))return 0;
         var service=AI.get(source.getServer());
         if(question.strip().equalsIgnoreCase("status")) {
@@ -252,15 +253,15 @@ public final class ServerAssistant {
         return askExternal(source,question,PREFIX,AI_PREFIX,instructions(source),()->true,false);
     }
     /** Shared usage and transport limits also cover named API helpers. Never dispatches model output. */
-    static int askExternal(CommandSourceStack source,String question,String prefix,String externalPrefix,String instructions,BooleanSupplier stillValid,boolean requireOwner) {
+    static int askExternal(ServerCommandSource source,String question,String prefix,String externalPrefix,String instructions,BooleanSupplier stillValid,boolean requireOwner) {
         var service=AI.get(source.getServer());
         if(service==null) {send(source,bounded(List.of("External AI is not initialized. Built-in /ai help remains available."),prefix),prefix);return 0;}
         String provider=service.config.codex()?"Codex":"OpenAI";
         String answerPrefix=externalPrefix.replace("/ OpenAI", "/ "+provider);
-        var server=source.getServer();var caller=source.getEntity() instanceof ServerPlayer p?p:null;
-        UUID id=caller==null?CONSOLE:caller.getUUID();
-        if(caller!=null&&server.getPlayerList().getPlayer(id)!=caller)return 0;
-        boolean actualOwner=owner(source)&&(caller==null||owner(caller.createCommandSourceStack()));
+        var server=source.getServer();var caller=source.getEntity() instanceof ServerPlayerEntity p?p:null;
+        UUID id=caller==null?CONSOLE:caller.getUuid();
+        if(caller!=null&&server.getPlayerManager().getPlayer(id)!=caller)return 0;
+        boolean actualOwner=owner(source)&&(caller==null||owner(caller.getCommandSource()));
         if(requireOwner&&!actualOwner){send(source,bounded("This helper requires current OP4 access."),prefix);return 0;}
         var pending=service.ask(id,actualOwner,question,instructions);
         if(pending.future()==null) {send(source,bounded(List.of(pending.reason(),"An OP4 owner can check /ai status and configure the optional connection in the local host panel. Built-in /ai help still works."),prefix),prefix);return 0;}
@@ -271,8 +272,8 @@ public final class ServerAssistant {
                 service.finish(id,pending.future());
                 if(pending.future().isCancelled())return;
                 if(service.closed||AI.get(server)!=service||!server.isRunning())return;
-                if(caller!=null&&server.getPlayerList().getPlayer(id)!=caller)return;
-                if((requireOwner||service.config.ownerOnly||service.config.codex())&&!owner(caller==null?source:caller.createCommandSourceStack()))return;
+                if(caller!=null&&server.getPlayerManager().getPlayer(id)!=caller)return;
+                if((requireOwner||service.config.ownerOnly||service.config.codex())&&!owner(caller==null?source:caller.getCommandSource()))return;
                 if(!stillValid.getAsBoolean())return;
                 if(error!=null)send(source,bounded(List.of(provider+" could not answer right now. Built-in help is still available; check /ai status and try later."),prefix),prefix);
                 else send(source,externalLines(text,answerPrefix),answerPrefix);
@@ -280,8 +281,8 @@ public final class ServerAssistant {
         });
         return 1;
     }
-    static void send(CommandSourceStack source,List<String> lines,String prefix) {
-        for(var line:lines)source.sendSuccess(()->Component.literal(prefix).withStyle(ChatFormatting.AQUA).append(Component.literal(line).withStyle(ChatFormatting.WHITE)),false);
+    static void send(ServerCommandSource source,List<String> lines,String prefix) {
+        for(var line:lines)source.sendFeedback(()->Text.literal(prefix).formatted(Formatting.AQUA).append(Text.literal(line).formatted(Formatting.WHITE)),false);
     }
     static List<String> externalLines(String value) {
         return externalLines(value,AI_PREFIX);
@@ -292,11 +293,11 @@ public final class ServerAssistant {
         var lines=Arrays.stream(clean.toString().strip().split("\\R")).filter(s->!s.isBlank()).toList();
         return lines.isEmpty()?bounded(List.of("The AI returned no readable answer. Built-in /ai help is available."),prefix):bounded(lines,prefix);
     }
-    static String instructions(CommandSourceStack source) {
+    static String instructions(ServerCommandSource source) {
         String facts=instructions(owner(source));
-        if(source.getEntity() instanceof ServerPlayer player) {
+        if(source.getEntity() instanceof ServerPlayerEntity player) {
             var membership=Memberships.get(source.getServer());membership.syncAchievements(player);
-            facts+="\nCaller current badge: "+membership.label(player.getUUID())+"; permanently unlocked rank: "+membership.permanentTier(player.getUUID())+". ADMIN and OP are owner roles, separate from earned ranks.\n";
+            facts+="\nCaller current badge: "+membership.label(player.getUuid())+"; permanently unlocked rank: "+membership.permanentTier(player.getUuid())+". ADMIN and OP are owner roles, separate from earned ranks.\n";
         }
         return facts;
     }
@@ -446,12 +447,12 @@ public final class ServerAssistant {
         }
     }
     public static void initialize() {
-        ServerLifecycleEvents.SERVER_STARTED.register(server->AI.put(server,new AiService(server.getServerDirectory().resolve("config"),server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("infinity-ai-usage.json"),new RoutingTransport(),Clock.systemUTC())));
+        ServerLifecycleEvents.SERVER_STARTED.register(server->AI.put(server,new AiService(server.getRunDirectory().resolve("config"),server.getSavePath(net.minecraft.util.WorldSavePath.ROOT).resolve("infinity-ai-usage.json"),new RoutingTransport(),Clock.systemUTC())));
         ServerLifecycleEvents.SERVER_STOPPING.register(server->{var service=AI.get(server);if(service!=null)service.close();});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{SESSIONS.remove(server);AI.remove(server);});
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{var s=SESSIONS.get(server);if(s!=null)s.readyAt.remove(handler.player.getUUID());var service=AI.get(server);if(service!=null)service.cancel(handler.player.getUUID());});
-        CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->dispatcher.register(Commands.literal("ai")
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{var s=SESSIONS.get(server);if(s!=null)s.readyAt.remove(handler.player.getUuid());var service=AI.get(server);if(service!=null)service.cancel(handler.player.getUuid());});
+        CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->dispatcher.register(CommandManager.literal("ai")
             .executes(c->execute(c.getSource(),""))
-            .then(Commands.argument("question",StringArgumentType.greedyString()).executes(c->execute(c.getSource(),StringArgumentType.getString(c,"question"))))));
+            .then(CommandManager.argument("question",StringArgumentType.greedyString()).executes(c->execute(c.getSource(),StringArgumentType.getString(c,"question"))))));
     }
 }

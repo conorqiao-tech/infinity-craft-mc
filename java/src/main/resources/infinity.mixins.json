@@ -18,17 +18,8 @@
     "ClientVitalsMixin",
     "LivingVitalsAccess",
     "PlayerVitalsAccess",
-    "ItemPropertiesAccess",
-    "ComponentInitializersAccess",
-    "ComponentInitializerEntryAccess",
-    "AgentTargetMixin",
     "PhysicsSafetyMixin",
-    "KnockbackSafetyMixin",
-    "OdysseyCommandMixin",
-    "RcPlaneStateAccess",
-    "RcPlaneTickMixin",
-    "TntBudgetMixin",
-    "BlastRadiusMixin"
+    "KnockbackSafetyMixin"
   ],
   "injectors": {
     "defaultRequire": 1

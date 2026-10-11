@@ -1,12 +1,12 @@
 package dev.convergence.mixin;
 
-import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.player.PlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(Player.class)
+@Mixin(PlayerEntity.class)
 public interface PlayerVitalsAccess {
-    @Accessor("DATA_PLAYER_ABSORPTION_ID")
-    static EntityDataAccessor<Float> infinity$absorption() { throw new AssertionError(); }
+    @Accessor("ABSORPTION_AMOUNT")
+    static TrackedData<Float> infinity$absorption() { throw new AssertionError(); }
 }

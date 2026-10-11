@@ -1,12 +1,8 @@
-# Infinity Armor Exploration Server source — 2.13.0-explore.24
-
-`CreativeStudio.java` adds native menu-controlled brushes, atomic item kits, conflict-aware session undo, exact reviewed blueprints, teleport/effect gadgets and trimmed native outfits. `RcPlanes.java` manages bounded native falling-block assemblies with collision checks and cleanup; its mixins prevent plane parts from placing blocks or dropping items. `BlastSafety.java` queues primed TNT globally and bounds excessive single-explosion radii. These controls and the restored ordinary Bedrock armor textures are documented in `server/CREATIVE_STUDIO.md`. All five new gadget IDs are actual registered items with native icons; the Storm Staff has a real crafting recipe.
+# Infinity Armor Exploration Server source — 2.12.0-explore.15
 
 This is a server-only Java and Bedrock crossplay build derived from the user-supplied Infinity Armor v2.3.0 source. The original Java and Bedrock downloads remain unchanged. Start with `server/README.md` for installation, menus, optional commands, and current limitations.
 
 The Java Fabric mod runs the shared world. `CrossplaySupport.java` exposes the original custom items and blocks through Polymer, generates the Java texture pack, and exports Geyser mappings. Floodgate handles Bedrock identities. The original Java powers remain server authoritative. The launcher runs Fabric and Geyser together; it does not load the original Bedrock behavior pack.
-
-`OdysseyStructure.java` registers native sparse world generation and persistent biome-themed structure pieces for the Overworld, Nether and End. `artwork/odyssey/blueprint.json` and `tools/generate_odyssey_assets.py` preserve the owner's relative block layout and exact lower-chest contents in 21 templates. `OdysseyProphecy.java` delivers the starting written book without replacing inventory items. The requested `/ban aria` repeater has a narrowly scoped native permission exception that requires the host's private opt-in; see `server/ODYSSEY.md`. Preparation and packaging verify that generated templates match the blueprint.
 
 `ServerMenu.java` provides an owner-marked **Infinity Menu** recovery compass, a vanilla chest-style menu for every `/convergence` feature, and shortcuts to worlds, courses, backpacks and AI helpers. Selecting the compass restores the preceding held tool before opening its power controls. Menu clicks recheck permissions, equipment and player state; icons cannot be collected. Missing compasses use an empty inventory slot rather than replacing items. `LobbyServer.java` installs **INFINITY MENU** signs in the Main Hub and five mode lobbies without replacing occupied blocks. `AgentMenu.java` makes first-helper creation explicit: OP4 players choose **AI Helpers • open your squad → Create your first helper**, the menu closes, and a named iron golem spawns on suitable nearby ground or a visible failure is reported. Server-changing proposals and named-player targets still require owner approval and a separate live Codex console review. The original commands remain available.
 
@@ -26,10 +22,9 @@ Lobby visuals use themed vanilla-block arches, colored glass, banners, lighted c
 
 ## Build and validate
 
-Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.7.1 and Loom 1.18.2 for unobfuscated Minecraft 26.3. `JAVA_HOME` must point to Java 25 when invoking Gradle directly.
+Use Java 21, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.5.0 and Loom 1.17.21. `JAVA_HOME` must point to Java 21 when invoking Gradle directly.
 
 ```sh
-python3 tools/generate_odyssey_assets.py --check
 python3 tools/check_crossplay.py --java /path/to/java
 python3 -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
 python3 tools/smoke_geyser.py --java /path/to/java > research/geyser-smoke.log 2>&1

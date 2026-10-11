@@ -1,20 +1,20 @@
 package dev.convergence.mixin;
 import dev.convergence.GameModes;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.portal.TeleportTransition;
 import dev.convergence.AgentCompanions;
+import net.minecraft.entity.Entity;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.world.TeleportTarget;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Entity.class)
 public abstract class ModeEntityMixin {
-    @Inject(method="teleport", at=@At("HEAD"), cancellable=true)
-    private void portal(TeleportTransition target, CallbackInfoReturnable<Entity> cir) {
+    @Inject(method="teleportTo", at=@At("HEAD"), cancellable=true)
+    private void portal(TeleportTarget target, CallbackInfoReturnable<Entity> cir) {
         Entity self = (Entity)(Object)this;
-        if (self instanceof ServerPlayer p && GameModes.allowTeleport(p,target.newLevel())) return;
+        if (self instanceof ServerPlayerEntity p && GameModes.allowTeleport(p,target.world())) return;
         if (AgentCompanions.allowRecallTeleport(self, target)) return;
-        if (GameModes.of(self.level()) != GameModes.of(target.newLevel())) cir.setReturnValue(null);
+        if (GameModes.of(self.getEntityWorld()) != GameModes.of(target.world())) cir.setReturnValue(null);
     }
 }

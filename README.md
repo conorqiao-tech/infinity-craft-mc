@@ -6,12 +6,10 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 | Edition | Server address | Port |
 | --- | --- | --- |
-| Java (installed server: 1.21.11) | `infinity-craft.remotewire.net:25565` | Included in address |
+| Java 1.21.11 | `infinity-craft.remotewire.net:25565` | Included in address |
 | Bedrock / iPad | `infinity-craft.remotewire.net` | `19132` |
 
 See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
-
-The combined **26.3 / 2.13.0-explore.22** source is prepared separately; the owner's live world remains on **1.21.11 / explore.20** pending installation approval. The 26.3 upgrade converts the world and requires Java players to update their clients.
 
 ## Host your own world
 
@@ -19,13 +17,11 @@ The combined **26.3 / 2.13.0-explore.22** source is prepared separately; the own
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
-Java players use **Minecraft Java 26.3** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
+Java players use **Minecraft Java 1.21.11** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
 The explore.14 preview adds direct health/absorption entry with automatic capacity increases in the same confirmation, reload-safe remaining absorption, native protection for expanded armor, literal gear names, complete Bedrock wearable assets and real gear directly in empty inventory slots. **Infinity Menu → Ranks & subscriptions** separates earned ranks from Admin/OP roles. Helpers use player avatars that show their equipped weapons and elytra, while retaining golem-based server AI and physical collision. Both AI approvals remain required. Native physics, client display and numeric-storage constraints remain. The earlier cross-world helper recovery and saved-lobby joining repair are included.
-
-The **2.13.0-explore.22** build combines the **Minecraft Java 26.3** port on Java 25 with **The Odyssey**: rare circuit ruins in newly generated Overworld, Nether and End terrain, 21 biome palettes, one chest retaining the original lower-chest loot, and a matching starting prophecy. Recover the book from Infinity Menu. See [Odyssey details](server/ODYSSEY.md) for the explicitly requested automatic repeating command. Java players need a 26.3 client; Bedrock and iPad players join through Geyser. Back up a stopped world first: Minecraft converts the world when 26.3 first loads it, and older versions cannot open it again. The refreshed Java/Bedrock artwork, client protections, menus, stats and helpers are retained.
 
 The **explore.15** appearance update gives every helper a shared silver-faced robot skin with cyan accents and pixel versions of the ChatGPT knot and blue-purple Codex cloud on the chest. Signed Minecraft texture data works through the native player profiles used by Java and Geyser. Your saved helpers, stats, owners and orders stay intact. Reconnect to refresh the skin; an equipped chestplate can cover the emblems. These are community skins, not official OpenAI avatars.
 
@@ -53,13 +49,13 @@ The host can connect the installed, signed-in Codex CLI in the stopped-world pan
 
 | Path | Contents |
 | --- | --- |
-| [`java/`](java/) | Fabric 26.3 mod source, resources, GameTests, and Gradle wrapper |
+| [`java/`](java/) | Fabric 1.21.11 mod source, resources, GameTests, and Gradle wrapper |
 | [`bedrock/resource_pack/`](bedrock/resource_pack/) | Bedrock textures and client resource definitions used by the bridge |
 | [`server/`](server/) | Local launchers, dashboard, pinned dependency manifests, and setup guides |
 | [`tools/`](tools/) and [`tests/`](tests/) | Build, validation, packaging, and launcher tests |
 | [`website/`](website/) | Static public guide source and original artwork |
 
-To build the Java mod from source, install Java 25 and run:
+To build the Java mod from source, install Java 21 and run:
 
 ```sh
 cd java
@@ -72,4 +68,4 @@ The crossplay build is a preview. Automated tests cover server behavior and brid
 
 **Infinity Menu → Armor & tools → inventory** grants weapons, tools, the Infinity set, both complete cosmetic armor sets and a backpack into empty slots, preserving owned items. Creative players receive these automatically. Full gear boxes remain available for blocks and ammo. Bedrock uses complete native wearable assets; Java with the resource pack keeps original artwork. Accept the updated pack.
 
-See [validation details](server/VALIDATION.md) for this build's native tests, launcher checks, Geyser startup and isolated-world checks. Real Java/iPad appearance and gameplay still need a device check after installation.
+This release passed **315 native GameTests**, **98 launcher tests**, Geyser mapping/UDP checks and two isolated restart cycles. Real Java/iPad appearance still needs a device check. The focused skin patch has no fresh external consultant review. See [validation details](server/VALIDATION.md).

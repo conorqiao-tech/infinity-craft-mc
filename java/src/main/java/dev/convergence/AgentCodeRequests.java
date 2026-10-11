@@ -8,11 +8,11 @@ import java.time.Clock;
 import java.util.*;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.util.WorldSavePath;
 
 /** Durable review requests, never executable patches or shell input. */
 final class AgentCodeRequests {
@@ -38,7 +38,7 @@ final class AgentCodeRequests {
     final MinecraftServer server;final Path file;final Clock clock;final Data data;
     AgentCodeRequests(MinecraftServer server,Path file,Clock clock) { this.server=server;this.file=file;this.clock=clock;data=read(file); }
     static AgentCodeRequests get(MinecraftServer server) {
-        return INSTANCES.computeIfAbsent(server,s->new AgentCodeRequests(s,s.getWorldPath(LevelResource.ROOT).resolve("infinity-agent-code-requests.json"),Clock.systemUTC()));
+        return INSTANCES.computeIfAbsent(server,s->new AgentCodeRequests(s,s.getSavePath(WorldSavePath.ROOT).resolve("infinity-agent-code-requests.json"),Clock.systemUTC()));
     }
     static boolean validText(String text) {
         return text!=null&&!text.isBlank()&&text.length()<=500&&text.codePoints().noneMatch(c->Character.isISOControl(c)||Character.getType(c)==Character.FORMAT);
@@ -78,64 +78,64 @@ final class AgentCodeRequests {
         var old=data.requests.entrySet().stream().filter(e->!e.getValue().active()).sorted(Comparator.comparingLong(e->e.getValue().createdAt)).map(Map.Entry::getKey).toList();
         for(int i=0;i<old.size()-HISTORY;i++)data.requests.remove(old.get(i));
     }
-    boolean eligible(ServerPlayer owner,Request q) {
-        if(owner==null||!AgentCompanions.operator(owner.createCommandSourceStack())||!q.owner.equals(owner.getStringUUID()))return false;
+    boolean eligible(ServerPlayerEntity owner,Request q) {
+        if(owner==null||!AgentCompanions.operator(owner.getCommandSource())||!q.owner.equals(owner.getUuidAsString()))return false;
         var agent=AgentCompanions.get(server).data.agents.get(q.helperId);
         return agent!=null&&agent.owner().equals(q.owner)&&agent.name().equals(q.helperName)&&agent.profile()==AgentCompanions.Profile.CLI;
     }
-    int propose(ServerPlayer owner,String name,String text) {
-        if(!AgentCompanions.operator(owner.createCommandSourceStack()))return AgentCompanions.reply(owner,"Only OP4 can request a code change.");
+    int propose(ServerPlayerEntity owner,String name,String text) {
+        if(!AgentCompanions.operator(owner.getCommandSource()))return AgentCompanions.reply(owner,"Only OP4 can request a code change.");
         var e=AgentCompanions.get(server).owned(owner,name);
         if(e==null||e.getValue().profile()!=AgentCompanions.Profile.CLI)return AgentCompanions.reply(owner,"Choose one of your CLI helpers with /agent profile <name> cli first.");
         if(!validText(text))return AgentCompanions.reply(owner,"Describe the code change in 1–500 plain-text characters. Do not include passwords or API keys.");
         expire();
-        if(data.requests.values().stream().filter(Request::active).count()>=TOTAL||data.requests.values().stream().filter(q->q.active()&&q.owner.equals(owner.getStringUUID())).count()>=PER_OWNER)
+        if(data.requests.values().stream().filter(Request::active).count()>=TOTAL||data.requests.values().stream().filter(q->q.active()&&q.owner.equals(owner.getUuidAsString())).count()>=PER_OWNER)
             return AgentCompanions.reply(owner,"The code review queue is full. Cancel or finish a request first.");
-        String id=UUID.randomUUID().toString();data.requests.put(id,new Request(owner.getStringUUID(),e.getKey(),name,text.strip(),clock.millis()));trim();save();
+        String id=UUID.randomUUID().toString();data.requests.put(id,new Request(owner.getUuidAsString(),e.getKey(),name,text.strip(),clock.millis()));trim();save();
         return AgentCompanions.reply(owner,"Code request "+id+": "+text.strip()+". Review /agent code-pending, then /agent code-approve "+id+". Ask Codex here to review, edit and test it. No code changed.");
     }
-    int pending(ServerPlayer owner) {
-        if(!AgentCompanions.operator(owner.createCommandSourceStack()))return 0;expire();
-        var rows=data.requests.entrySet().stream().filter(e->e.getValue().owner.equals(owner.getStringUUID())).sorted((a,b)->Long.compare(b.getValue().createdAt,a.getValue().createdAt)).limit(8)
+    int pending(ServerPlayerEntity owner) {
+        if(!AgentCompanions.operator(owner.getCommandSource()))return 0;expire();
+        var rows=data.requests.entrySet().stream().filter(e->e.getValue().owner.equals(owner.getUuidAsString())).sorted((a,b)->Long.compare(b.getValue().createdAt,a.getValue().createdAt)).limit(8)
             .map(e->e.getKey()+" ["+e.getValue().helperName+", "+e.getValue().state+"]: "+e.getValue().text+(e.getValue().commit.isEmpty()?"":"; commit="+e.getValue().commit)).toList();
         return AgentCompanions.reply(owner,rows.isEmpty()?"No code requests. /agent code <name> <request> creates one.":String.join("\n",rows));
     }
-    int approve(ServerPlayer owner,String id) {
+    int approve(ServerPlayerEntity owner,String id) {
         expire();var q=data.requests.get(id);
         if(q==null||q.state!=State.PENDING||!eligible(owner,q))return AgentCompanions.reply(owner,"No pending code request from one of your CLI helpers is eligible.");
         q.state=State.OWNER_APPROVED;save();return AgentCompanions.reply(owner,"Approved request "+id+". Codex must review the request and resulting diff, run tests, and record a commit. No code changed.");
     }
-    int cancel(ServerPlayer owner,String id) {
-        if(!AgentCompanions.operator(owner.createCommandSourceStack()))return 0;expire();var q=data.requests.get(id);
-        if(q==null||!q.active()||!q.owner.equals(owner.getStringUUID()))return AgentCompanions.reply(owner,"No active code request with that ID belongs to you.");
+    int cancel(ServerPlayerEntity owner,String id) {
+        if(!AgentCompanions.operator(owner.getCommandSource()))return 0;expire();var q=data.requests.get(id);
+        if(q==null||!q.active()||!q.owner.equals(owner.getUuidAsString()))return AgentCompanions.reply(owner,"No active code request with that ID belongs to you.");
         q.state=State.CANCELLED;trim();save();return AgentCompanions.reply(owner,"Cancelled "+id+". Tell Codex if a live review is already underway; cancellation cannot undo edits made outside Minecraft.");
     }
-    int consolePending(CommandSourceStack source) {
+    int consolePending(ServerCommandSource source) {
         if(!AgentActions.localConsole(source))return 0;expire();
         var rows=data.requests.entrySet().stream().filter(e->e.getValue().active()).map(e->e.getKey()+" owner="+e.getValue().owner+" helper="+e.getValue().helperName+" status="+e.getValue().state+" request="+e.getValue().text).toList();
         return CommunityServer.info(source,rows.isEmpty()?"No active code requests.":String.join("\n",rows));
     }
-    int review(CommandSourceStack source,String id) {
+    int review(ServerCommandSource source,String id) {
         if(!AgentActions.localConsole(source))return 0;expire();var q=data.requests.get(id);
-        if(q==null||q.state!=State.OWNER_APPROVED||!eligible(server.getPlayerList().getPlayer(UUID.fromString(q.owner)),q))return CommunityServer.info(source,"No eligible owner-approved code request. The owner must be online with OP4 and the original CLI helper.");
+        if(q==null||q.state!=State.OWNER_APPROVED||!eligible(server.getPlayerManager().getPlayer(UUID.fromString(q.owner)),q))return CommunityServer.info(source,"No eligible owner-approved code request. The owner must be online with OP4 and the original CLI helper.");
         q.state=State.REVIEWING;save();return CommunityServer.info(source,"Reviewing "+id+": "+q.text+". This only records the review; inspect the diff and test source edits in the live Codex session before installing.");
     }
-    int complete(CommandSourceStack source,String id,String commit) {
+    int complete(ServerCommandSource source,String id,String commit) {
         if(!AgentActions.localConsole(source))return 0;expire();var q=data.requests.get(id);
-        if(q==null||q.state!=State.REVIEWING||commit==null||!commit.matches("[a-f0-9]{40}")||!eligible(server.getPlayerList().getPlayer(UUID.fromString(q.owner)),q))return CommunityServer.info(source,"No eligible review or valid full Git commit. Nothing recorded.");
+        if(q==null||q.state!=State.REVIEWING||commit==null||!commit.matches("[a-f0-9]{40}")||!eligible(server.getPlayerManager().getPlayer(UUID.fromString(q.owner)),q))return CommunityServer.info(source,"No eligible review or valid full Git commit. Nothing recorded.");
         q.state=State.COMPLETED;q.commit=commit;trim();save();return CommunityServer.info(source,"Recorded reviewed source commit "+commit+" for "+id+". Minecraft did not edit, build or install code; use the tested upgrade procedure.");
     }
     static void initialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(AgentCodeRequests::get);ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
         CommandRegistrationCallback.EVENT.register((d,a,e)->{
-            var root=Commands.literal("agent").requires(AgentCompanions::operator);
-            root.then(Commands.literal("code").then(Commands.argument("name",StringArgumentType.word()).then(Commands.argument("request",StringArgumentType.greedyString()).executes(c->get(c.getSource().getServer()).propose(c.getSource().getPlayerOrException(),StringArgumentType.getString(c,"name"),StringArgumentType.getString(c,"request"))))));
-            root.then(Commands.literal("code-pending").executes(c->get(c.getSource().getServer()).pending(c.getSource().getPlayerOrException())));
-            root.then(Commands.literal("code-approve").then(Commands.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).approve(c.getSource().getPlayerOrException(),StringArgumentType.getString(c,"id")))));
-            root.then(Commands.literal("code-cancel").then(Commands.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).cancel(c.getSource().getPlayerOrException(),StringArgumentType.getString(c,"id")))));d.register(root);
-            d.register(Commands.literal("agent-code-pending").requires(AgentActions::localConsole).executes(c->get(c.getSource().getServer()).consolePending(c.getSource())));
-            d.register(Commands.literal("agent-code-review").requires(AgentActions::localConsole).then(Commands.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).review(c.getSource(),StringArgumentType.getString(c,"id")))));
-            d.register(Commands.literal("agent-code-complete").requires(AgentActions::localConsole).then(Commands.argument("id",StringArgumentType.word()).then(Commands.argument("commit",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).complete(c.getSource(),StringArgumentType.getString(c,"id"),StringArgumentType.getString(c,"commit"))))));
+            var root=CommandManager.literal("agent").requires(AgentCompanions::operator);
+            root.then(CommandManager.literal("code").then(CommandManager.argument("name",StringArgumentType.word()).then(CommandManager.argument("request",StringArgumentType.greedyString()).executes(c->get(c.getSource().getServer()).propose(c.getSource().getPlayerOrThrow(),StringArgumentType.getString(c,"name"),StringArgumentType.getString(c,"request"))))));
+            root.then(CommandManager.literal("code-pending").executes(c->get(c.getSource().getServer()).pending(c.getSource().getPlayerOrThrow())));
+            root.then(CommandManager.literal("code-approve").then(CommandManager.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).approve(c.getSource().getPlayerOrThrow(),StringArgumentType.getString(c,"id")))));
+            root.then(CommandManager.literal("code-cancel").then(CommandManager.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).cancel(c.getSource().getPlayerOrThrow(),StringArgumentType.getString(c,"id")))));d.register(root);
+            d.register(CommandManager.literal("agent-code-pending").requires(AgentActions::localConsole).executes(c->get(c.getSource().getServer()).consolePending(c.getSource())));
+            d.register(CommandManager.literal("agent-code-review").requires(AgentActions::localConsole).then(CommandManager.argument("id",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).review(c.getSource(),StringArgumentType.getString(c,"id")))));
+            d.register(CommandManager.literal("agent-code-complete").requires(AgentActions::localConsole).then(CommandManager.argument("id",StringArgumentType.word()).then(CommandManager.argument("commit",StringArgumentType.word()).executes(c->get(c.getSource().getServer()).complete(c.getSource(),StringArgumentType.getString(c,"id"),StringArgumentType.getString(c,"commit"))))));
         });
     }
 }

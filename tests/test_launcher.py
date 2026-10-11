@@ -58,26 +58,6 @@ class LauncherTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_setup_removes_superseded_pinned_mods_but_keeps_owner_mods(self):
-        import hashlib
-        mods = self.root / "fabric/mods"
-        mods.mkdir(parents=True)
-        current = {"fabric/mods/polymer-bundled-0.18.2+26.3.jar": b"new polymer",
-                   "fabric/mods/Infinity-Armor-2.13.0.jar": b"new mod"}
-        for path, data in current.items():
-            (self.root / path).write_bytes(data)
-        entries = [{"path": path, "sha256": hashlib.sha256(data).hexdigest()} for path, data in current.items()]
-        (self.root / "dependencies.lock.json").write_text(json.dumps({
-            "downloads": [dict(entries[0], url="https://example.invalid/polymer.jar")], "bundled": entries[1:]}))
-        stale = ["polymer-bundled-0.15.2+1.21.11.jar", "Infinity-Armor-2.12.0-explore.16.jar",
-                 "fabric-api-0.141.6+1.21.11.jar", "ViaVersion-5.12.0.jar"]
-        for name in stale + ["owner-extra-mod.jar"]:
-            (mods / name).write_bytes(b"old")
-        with patch.object(launcher, "emit"):
-            launcher.setup(self.root)
-        self.assertEqual(sorted(p.name for p in mods.glob("*.jar")),
-                         sorted(["polymer-bundled-0.18.2+26.3.jar", "Infinity-Armor-2.13.0.jar", "owner-extra-mod.jar"]))
-
     def test_port_check_rejects_live_tcp_listener_even_with_reuse(self):
         with socket.socket() as listener:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -208,15 +188,18 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual((self.root / "geyser/key.pem").read_bytes(), key.read_bytes())
 
 
-    def test_bedrock_pack_preserves_vanilla_armor_and_custom_wings(self):
+    def test_bedrock_native_armor_refresh_targets_live_native_assets(self):
         import zipfile
         root = Path(__file__).resolve().parents[1]
         with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
-            for material in ("netherite", "leather"):
-                for layer in (1, 2):
-                    self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
+            for material, collection in [("netherite", "convergence"), ("leather", "aurora")]:
+                for layer, kind in [(1, "humanoid"), (2, "humanoid_leggings")]:
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/entity/equipment/{kind}/{collection}_refresh19.png"
+                    self.assertEqual(pack.read(f"textures/models/armor/{material}_{layer}.png"), expected.read_bytes())
                 for slot in ("helmet", "chestplate", "leggings", "boots"):
-                    self.assertNotIn(f"textures/items/{material}_{slot}.png",pack.namelist())
+                    name = slot if collection == "convergence" else "aurora_" + slot
+                    expected = root / f"java/src/main/resources/assets/convergence/textures/item/refresh19/{name}.png"
+                    self.assertEqual(pack.read(f"textures/items/{material}_{slot}.png"), expected.read_bytes())
             chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh19/chestplate.png"
             for name in ("elytra", "broken_elytra"):
                 self.assertEqual(pack.read(f"textures/items/{name}.png"), chest_icon.read_bytes())

@@ -1,46 +1,46 @@
 package dev.convergence;
 
 import dev.convergence.mixin.AgentFlightAccess;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.passive.IronGolemEntity;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.Hand;
 import net.minecraft.util.Unit;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.animal.golem.IronGolem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /** Uses vanilla mob weapon attacks, spear charging and LivingEntity gliding physics. */
 final class AgentWeapons {
     private AgentWeapons() {}
     private static ItemStack gear(Item item) {
-        var stack=new ItemStack(item);stack.set(DataComponents.UNBREAKABLE,Unit.INSTANCE);return stack;
+        var stack=new ItemStack(item);stack.set(DataComponentTypes.UNBREAKABLE,Unit.INSTANCE);return stack;
     }
-    static void equip(IronGolem golem,Item weapon) {
-        if(!golem.getMainHandItem().is(weapon)) {golem.stopUsingItem();golem.setItemSlot(EquipmentSlot.MAINHAND,gear(weapon));}
-        if(!golem.getItemBySlot(EquipmentSlot.CHEST).is(Items.ELYTRA))golem.setItemSlot(EquipmentSlot.CHEST,gear(Items.ELYTRA));
-        for(var slot:new EquipmentSlot[]{EquipmentSlot.MAINHAND,EquipmentSlot.OFFHAND,EquipmentSlot.CHEST})golem.setDropChance(slot,0);
+    static void equip(IronGolemEntity golem,Item weapon) {
+        if(!golem.getMainHandStack().isOf(weapon)) {golem.clearActiveItem();golem.equipStack(EquipmentSlot.MAINHAND,gear(weapon));}
+        if(!golem.getEquippedStack(EquipmentSlot.CHEST).isOf(Items.ELYTRA))golem.equipStack(EquipmentSlot.CHEST,gear(Items.ELYTRA));
+        for(var slot:new EquipmentSlot[]{EquipmentSlot.MAINHAND,EquipmentSlot.OFFHAND,EquipmentSlot.CHEST})golem.setEquipmentDropChance(slot,0);
     }
-    static void spear(IronGolem golem,LivingEntity target) {
+    static void spear(IronGolemEntity golem,LivingEntity target) {
         equip(golem,Items.NETHERITE_SPEAR);
         aim(golem,target);
         // Native LivingEntity ticks call the held spear's KineticWeaponComponent.
-        if(!golem.isUsingItem())golem.startUsingItem(InteractionHand.MAIN_HAND);
+        if(!golem.isUsingItem())golem.setCurrentHand(Hand.MAIN_HAND);
     }
-    static void aim(IronGolem golem,LivingEntity target) {
+    static void aim(IronGolemEntity golem,LivingEntity target) {
         double x=target.getX()-golem.getX(),z=target.getZ()-golem.getZ();
-        double y=target.getY()+target.getBbHeight()*.6-golem.getEyeY();
+        double y=target.getY()+target.getHeight()*.6-golem.getEyeY();
         float yaw=(float)(Math.toDegrees(Math.atan2(z,x))-90);
-        golem.setYRot(yaw);golem.setYHeadRot(yaw);golem.setYBodyRot(yaw);
-        golem.setXRot((float)-Math.toDegrees(Math.atan2(y,Math.sqrt(x*x+z*z))));
+        golem.setYaw(yaw);golem.setHeadYaw(yaw);golem.setBodyYaw(yaw);
+        golem.setPitch((float)-Math.toDegrees(Math.atan2(y,Math.sqrt(x*x+z*z))));
     }
-    static void glide(IronGolem golem) {
-        if(!golem.onGround() && !golem.isInWater() && LivingEntity.canGlideUsing(golem.getItemBySlot(EquipmentSlot.CHEST),EquipmentSlot.CHEST))
+    static void glide(IronGolemEntity golem) {
+        if(!golem.isOnGround() && !golem.isTouchingWater() && LivingEntity.canGlideWith(golem.getEquippedStack(EquipmentSlot.CHEST),EquipmentSlot.CHEST))
             ((AgentFlightAccess)golem).infinity$setFlag(7,true);
     }
-    static void mace(IronGolem golem,LivingEntity target) {
-        golem.stopFallFlying();golem.stopUsingItem();equip(golem,Items.MACE);aim(golem,target);
+    static void mace(IronGolemEntity golem,LivingEntity target) {
+        golem.stopGliding();golem.clearActiveItem();equip(golem,Items.MACE);aim(golem,target);
     }
-    static void stop(IronGolem golem) {golem.stopUsingItem();golem.stopFallFlying();}
+    static void stop(IronGolemEntity golem) {golem.clearActiveItem();golem.stopGliding();}
 }

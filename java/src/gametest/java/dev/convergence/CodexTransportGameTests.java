@@ -19,7 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
-import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.test.TestContext;
 
 /** Scripted child-process protocols: no Codex model calls, auth reads, or external charges. */
 public class CodexTransportGameTests {
@@ -131,9 +131,9 @@ public class CodexTransportGameTests {
         @Override public void close() { transport.close(); process.destroy(); }
     }
 
-    @GameTest public void codexChatUsesEphemeralNoEnvironmentSessionsAndNeverForwardsPrivateConfig(GameTestHelper c) throws Exception {
+    @GameTest public void codexChatUsesEphemeralNoEnvironmentSessionsAndNeverForwardsPrivateConfig(TestContext c) throws Exception {
         try (var f = new Fixture(Behavior.ANSWER)) {
-            c.assertValueEqual(f.ask().get(5, TimeUnit.SECONDS), "Your named helper is ready beside you.", "Only the completed answer reaches Minecraft");
+            c.assertEquals(f.ask().get(5, TimeUnit.SECONDS), "Your named helper is ready beside you.", "Only the completed answer reaches Minecraft");
             var start = f.process.params("thread/start");
             c.assertTrue(start.get("ephemeral").getAsBoolean(), "Chat has no persistent conversation history");
             for (String field : List.of("environments", "dynamicTools", "selectedCapabilityRoots"))
@@ -141,26 +141,26 @@ public class CodexTransportGameTests {
             c.assertTrue(f.process.params("turn/start").getAsJsonArray("environments").isEmpty(), "The turn cannot re-enable environment access");
             var inherited = start.getAsJsonObject("config").getAsJsonObject("mcp_servers").getAsJsonObject("inherited.server");
             c.assertFalse(inherited.get("enabled").getAsBoolean(), "Every inherited MCP ID is explicitly disabled");
-            c.assertValueEqual(inherited.size(), 2, "Only disabled and non-required flags are copied, never credentials or endpoints");
+            c.assertEquals(inherited.size(), 2, "Only disabled and non-required flags are copied, never credentials or endpoints");
             c.assertFalse(start.toString().contains("never-forward-this-config-value"), "Private config never enters the thread prompt or settings");
             c.assertFalse(f.commands.toString().contains("Where is my helper?"), "Questions go over private stdin rather than process arguments");
             c.assertFalse(f.process.isAlive(), "The owned app-server exits after its answer");
-        } c.succeed();
+        } c.complete();
     }
 
-    @GameTest public void codexChatRejectsToolsApprovalsForeignRepliesAndOversizedAnswers(GameTestHelper c) throws Exception {
+    @GameTest public void codexChatRejectsToolsApprovalsForeignRepliesAndOversizedAnswers(TestContext c) throws Exception {
         for (var behavior : List.of(Behavior.APPROVAL, Behavior.TOOL, Behavior.WRONG_THREAD, Behavior.OVERSIZE)) {
             try (var f = new Fixture(behavior)) {
                 boolean failed = false;
                 try { f.ask().get(5, TimeUnit.SECONDS); } catch (ExecutionException expected) { failed = true; }
                 c.assertTrue(failed, "Answer-only transport rejects " + behavior);
                 c.assertFalse(f.process.isAlive(), "A rejected " + behavior + " stops the owned child");
-                c.assertValueEqual(f.process.requests.size(), 5, "No approval response or tool dispatch is sent");
+                c.assertEquals(f.process.requests.size(), 5, "No approval response or tool dispatch is sent");
             }
-        } c.succeed();
+        } c.complete();
     }
 
-    @GameTest public void codexChatCancellationAndCloseStopOnlyTheirOwnedChildren(GameTestHelper c) throws Exception {
+    @GameTest public void codexChatCancellationAndCloseStopOnlyTheirOwnedChildren(TestContext c) throws Exception {
         try (var f = new Fixture(Behavior.WAIT)) {
             var pending = f.ask();
             c.assertTrue(f.process.asked.await(5, TimeUnit.SECONDS), "The fake request reaches its waiting state");
@@ -173,15 +173,15 @@ public class CodexTransportGameTests {
             c.assertTrue(f.process.asked.await(5, TimeUnit.SECONDS), "The second fake request reaches its waiting state");
             f.transport.close();
             c.assertTrue(pending.isCancelled() && !f.process.isAlive(), "Server shutdown cancels and stops its pending child");
-        } c.succeed();
+        } c.complete();
     }
 
-    @GameTest public void codexChatFailsClosedBeforeATurnForUnauditedVersionOrInheritedInstructions(GameTestHelper c) throws Exception {
+    @GameTest public void codexChatFailsClosedBeforeATurnForUnauditedVersionOrInheritedInstructions(TestContext c) throws Exception {
         try (var f = new Fixture(Behavior.ANSWER, "codex-cli 0.100.0")) {
             boolean failed = false;
             try { f.ask().get(5, TimeUnit.SECONDS); } catch (ExecutionException expected) { failed = true; }
             c.assertTrue(failed, "Unknown CLI versions cannot silently ignore no-environment fields");
-            c.assertValueEqual(f.commands.size(), 1, "Only the version probe runs on an unsupported CLI");
+            c.assertEquals(f.commands.size(), 1, "Only the version probe runs on an unsupported CLI");
         }
         try (var f = new Fixture(Behavior.INHERITED)) {
             boolean failed = false;
@@ -193,10 +193,10 @@ public class CodexTransportGameTests {
         boolean rejected = false;
         try { CodexTransport.threadConfig(config); } catch (IOException expected) { rejected = true; }
         c.assertTrue(rejected, "Effective capabilities must match the explicit disabled configuration");
-        c.succeed();
+        c.complete();
     }
 
-    @GameTest public void codexProtocolBoundsRawLinesAndAggregateBytes(GameTestHelper c) throws Exception {
+    @GameTest public void codexProtocolBoundsRawLinesAndAggregateBytes(TestContext c) throws Exception {
         boolean lineRejected = false, totalRejected = false;
         try { new CodexTransport.BoundedReader(new ByteArrayInputStream("12345\n".getBytes(StandardCharsets.UTF_8)), 4, 100).line(); }
         catch (IOException expected) { lineRejected = true; }
@@ -204,6 +204,6 @@ public class CodexTransportGameTests {
         reader.line();
         try { reader.line(); } catch (IOException expected) { totalRejected = true; }
         c.assertTrue(lineRejected && totalRejected, "A verbose child cannot exhaust memory using one line or many small lines");
-        c.succeed();
+        c.complete();
     }
 }

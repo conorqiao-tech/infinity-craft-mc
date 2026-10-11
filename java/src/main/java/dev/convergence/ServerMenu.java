@@ -14,29 +14,29 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.commands.Commands;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.ServerGamePacketListenerImpl;
-import net.minecraft.server.permissions.Permission;
-import net.minecraft.server.permissions.PermissionLevel;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.SimpleMenuProvider;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.ChestMenu;
-import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.inventory.MenuType;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.component.CustomData;
-import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.command.permission.Permission;
+import net.minecraft.command.permission.PermissionLevel;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.LoreComponent;
+import net.minecraft.component.type.NbtComponent;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
+import net.minecraft.screen.GenericContainerScreenHandler;
+import net.minecraft.screen.ScreenHandlerType;
+import net.minecraft.screen.SimpleNamedScreenHandlerFactory;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.network.ServerPlayNetworkHandler;
+import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
 
 /** Vanilla controls and chest icons work on both Java and touch-screen Geyser clients. */
 final class ServerMenu {
@@ -47,8 +47,6 @@ final class ServerMenu {
     static final int ADMIN = 47;
     static final int SELF_STATS = 51, CRATES = 46, ARMOR = 48;
     static final int INVENTORY_GEAR = 50, RANKS = 52;
-    static final int PROPHECY = 6;
-    static final int STUDIO = 8;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -62,99 +60,99 @@ final class ServerMenu {
     private ServerMenu() {}
 
     static boolean isNavigator(ItemStack stack) {
-        if (!stack.is(Items.RECOVERY_COMPASS)) return false;
-        var data = stack.get(DataComponents.CUSTOM_DATA);
+        if (!stack.isOf(Items.RECOVERY_COMPASS)) return false;
+        var data = stack.get(DataComponentTypes.CUSTOM_DATA);
         if (data == null) return false;
-        var nbt = data.copyTag();
-        if (nbt.getIntOr(MARKER, 0) != 1) return false;
-        try { UUID.fromString(nbt.getStringOr(OWNER, "")); return true; }
+        var nbt = data.copyNbt();
+        if (nbt.getInt(MARKER, 0) != 1) return false;
+        try { UUID.fromString(nbt.getString(OWNER, "")); return true; }
         catch (IllegalArgumentException badOwner) { return false; }
     }
 
-    private static boolean owned(ItemStack stack, ServerPlayer player) {
-        return isNavigator(stack) && stack.get(DataComponents.CUSTOM_DATA).copyTag()
-            .getStringOr(OWNER, "").equals(player.getStringUUID());
+    private static boolean owned(ItemStack stack, ServerPlayerEntity player) {
+        return isNavigator(stack) && stack.get(DataComponentTypes.CUSTOM_DATA).copyNbt()
+            .getString(OWNER, "").equals(player.getUuidAsString());
     }
 
     private static boolean menuControl(ItemStack stack) {
         return isNavigator(stack) || CreativeGearPicker.isPicker(stack);
     }
 
-    static ItemStack navigator(ServerPlayer player) {
+    static ItemStack navigator(ServerPlayerEntity player) {
         var stack = new ItemStack(Items.RECOVERY_COMPASS);
-        var marker = new CompoundTag();
+        var marker = new NbtCompound();
         marker.putInt(MARKER, 1);
-        marker.putString(OWNER, player.getStringUUID());
-        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(marker));
-        stack.set(DataComponents.CUSTOM_NAME, Component.literal("Infinity Menu"));
-        stack.set(DataComponents.LORE, new ItemLore(List.of(
-            Component.literal("Select or use to open weapons, powers and helpers."),
-            Component.literal("Your held tool is restored before the menu opens."),
-            Component.literal("Personal control item; a lost copy is replaced."))));
+        marker.putString(OWNER, player.getUuidAsString());
+        stack.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(marker));
+        stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal("Infinity Menu"));
+        stack.set(DataComponentTypes.LORE, new LoreComponent(List.of(
+            Text.literal("Select or use to open weapons, powers and helpers."),
+            Text.literal("Your held tool is restored before the menu opens."),
+            Text.literal("Personal control item; a lost copy is replaced."))));
         return stack;
     }
 
-    static boolean allowed(ServerPlayer player) {
-        return player.isAlive() && !player.isRemoved() && !player.hasDisconnected() && !player.isSpectator()
-            && player.level().getServer().getPlayerList().getPlayer(player.getUUID()) == player
-            && !GameModes.TRANSITIONS.contains(player.getUUID())
-            && !GameModes.PENDING.containsKey(player.getUUID())
-            && !GameModes.OPERATOR_TRANSFERS.containsKey(player.getUUID());
+    static boolean allowed(ServerPlayerEntity player) {
+        return player.isAlive() && !player.isRemoved() && !player.isDisconnected() && !player.isSpectator()
+            && player.getEntityWorld().getServer().getPlayerManager().getPlayer(player.getUuid()) == player
+            && !GameModes.TRANSITIONS.contains(player.getUuid())
+            && !GameModes.PENDING.containsKey(player.getUuid())
+            && !GameModes.OPERATOR_TRANSFERS.containsKey(player.getUuid());
     }
 
-    static boolean gearAllowed(ServerPlayer player) {
-        return allowed(player) && (player.isCreative() || Memberships.gameplayBypass(player) || player.createCommandSourceStack().permissions()
-            .hasPermission(new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS)));
+    static boolean gearAllowed(ServerPlayerEntity player) {
+        return allowed(player) && (player.isCreative() || Memberships.gameplayBypass(player) || player.getCommandSource().getPermissions()
+            .hasPermission(new Permission.Level(PermissionLevel.GAMEMASTERS)));
     }
 
     /** Add only to empty slots, after a mode's inventory has finished restoring. */
-    static boolean ensureNavigator(ServerPlayer player) {
-        if (!allowed(player) || player.containerMenu != player.inventoryMenu
-            || !player.containerMenu.getCarried().isEmpty()) return false;
+    static boolean ensureNavigator(ServerPlayerEntity player) {
+        if (!allowed(player) || player.currentScreenHandler != player.playerScreenHandler
+            || !player.currentScreenHandler.getCursorStack().isEmpty()) return false;
         var inventory = player.getInventory();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++)
-            if (owned(inventory.getItem(slot), player)) { FULL_NOTICE.remove(player.getUUID()); return true; }
-        int slot = inventory.getItem(8).isEmpty() ? 8 : -1;
+        for (int slot = 0; slot < inventory.size(); slot++)
+            if (owned(inventory.getStack(slot), player)) { FULL_NOTICE.remove(player.getUuid()); return true; }
+        int slot = inventory.getStack(8).isEmpty() ? 8 : -1;
         if (slot < 0) for (int index = 0; index < 9; index++)
-            if (inventory.getItem(index).isEmpty()) { slot = index; break; }
-        if (slot < 0) slot = inventory.getFreeSlot();
+            if (inventory.getStack(index).isEmpty()) { slot = index; break; }
+        if (slot < 0) slot = inventory.getEmptySlot();
         if (slot < 0) {
-            if (FULL_NOTICE.add(player.getUUID())) CommunityServer.say(player,
+            if (FULL_NOTICE.add(player.getUuid())) CommunityServer.say(player,
                 "Clear an inventory slot for your Infinity Menu. The Main Hub menu sign or /menu also opens it.");
             return false;
         }
-        inventory.setItem(slot, navigator(player));
-        player.inventoryMenu.sendAllDataToRemote();
-        FULL_NOTICE.remove(player.getUUID());
+        inventory.setStack(slot, navigator(player));
+        player.playerScreenHandler.syncState();
+        FULL_NOTICE.remove(player.getUuid());
         CommunityServer.say(player, "Select the Infinity Menu compass for gear, powers, games and AI Helpers.");
         return true;
     }
 
     /** Restore the last tool before taking the action-context snapshot. */
-    private static void restoreTool(ServerPlayer player) {
+    private static void restoreTool(ServerPlayerEntity player) {
         var inventory = player.getInventory();
-        if (!owned(player.getMainHandItem(), player)) return;
-        var selection = LAST_TOOL.get(player.getUUID());
+        if (!owned(player.getMainHandStack(), player)) return;
+        var selection = LAST_TOOL.get(player.getUuid());
         int slot = selection != null && selection.mode() == GameModes.current(player)
-            && !menuControl(inventory.getItem(selection.slot())) ? selection.slot() : -1;
+            && !menuControl(inventory.getStack(selection.slot())) ? selection.slot() : -1;
         if (slot < 0) for (int index = 0; index < 9; index++)
-            if (!inventory.getItem(index).isEmpty() && !menuControl(inventory.getItem(index))) { slot = index; break; }
+            if (!inventory.getStack(index).isEmpty() && !menuControl(inventory.getStack(index))) { slot = index; break; }
         if (slot < 0) for (int index = 0; index < 9; index++)
-            if (!menuControl(inventory.getItem(index))) { slot = index; break; }
+            if (!menuControl(inventory.getStack(index))) { slot = index; break; }
         if (slot >= 0) {
             inventory.setSelectedSlot(slot);
-            player.connection.send(new ClientboundSetHeldSlotPacket(slot));
-            player.inventoryMenu.sendAllDataToRemote();
+            player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
+            player.playerScreenHandler.syncState();
         }
     }
 
-    static int open(ServerPlayer player) { return open(player, Page.MAIN, 0); }
+    static int open(ServerPlayerEntity player) { return open(player, Page.MAIN, 0); }
 
-    private static void icon(SimpleContainer view, int slot, Item item, String label, String... lore) {
+    private static void icon(SimpleInventory view, int slot, Item item, String label, String... lore) {
         var stack = new ItemStack(item);
-        stack.set(DataComponents.CUSTOM_NAME, Component.literal(label));
-        stack.set(DataComponents.LORE, new ItemLore(java.util.Arrays.stream(lore).map(Component::literal).map(t -> (Component)t).toList()));
-        view.setItem(slot, stack);
+        stack.set(DataComponentTypes.CUSTOM_NAME, Text.literal(label));
+        stack.set(DataComponentTypes.LORE, new LoreComponent(java.util.Arrays.stream(lore).map(Text::literal).map(t -> (Text)t).toList()));
+        view.setStack(slot, stack);
     }
 
     private static String label(String path) {
@@ -162,7 +160,7 @@ final class ServerMenu {
     }
 
     /** Short tooltip cards avoid a single help tooltip extending beyond small iPad screens. */
-    private static void information(SimpleContainer view, String title, String text) {
+    private static void information(SimpleInventory view, String title, String text) {
         var lines = new ArrayList<String>();
         StringBuilder line = new StringBuilder();
         for (String word : text.split("\\s+")) {
@@ -179,28 +177,26 @@ final class ServerMenu {
         }
     }
 
-    private static int open(ServerPlayer player, Page page, int index) {
+    private static int open(ServerPlayerEntity player, Page page, int index) {
         if (!allowed(player)) return 0;
-        if (player.containerMenu != player.inventoryMenu
-            || !player.containerMenu.getCarried().isEmpty()) {
+        if (player.currentScreenHandler != player.playerScreenHandler
+            || !player.currentScreenHandler.getCursorStack().isEmpty()) {
             CommunityServer.say(player, "Close your current screen and empty the cursor before opening Infinity Menu.");
             return 0;
         }
         restoreTool(player);
         // If every hotbar slot is a control, there is no tool slot to restore.
         // Leave a held control selected, but do not reopen it every tick after closing.
-        if (owned(player.getMainHandItem(), player))
-            SELECTED_CONTROL.put(player.getUUID(), player.getInventory().getSelectedSlot());
-        else SELECTED_CONTROL.remove(player.getUUID());
+        if (owned(player.getMainHandStack(), player))
+            SELECTED_CONTROL.put(player.getUuid(), player.getInventory().getSelectedSlot());
+        else SELECTED_CONTROL.remove(player.getUuid());
         var paths = Convergence.ITEMS.keySet().stream().sorted().toList();
         int pageIndex = Math.max(0, Math.min(index, Math.max(0, (paths.size() - 1) / PAGE_SIZE)));
-        var view = new SimpleContainer(54);
+        var view = new SimpleInventory(54);
         String title = "Infinity Menu";
         if (page == Page.MAIN) {
-            icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
-                "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
-            icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • your prophecy","Receive or recover your starting prophecy book.","Discover rare biome-themed ruins across three realms.");
+                "Held: " + player.getMainHandStack().getName().getString(), "Tap an icon. No /convergence command needed.");
             icon(view, GEAR, Items.NETHERITE_SWORD, "Weapons, tools and blocks", "Choose any Infinity item.", "Requires Creative, Admin or OP2.", "Your old items are preserved.");
             icon(view, KIT, Items.CHEST, "Full Infinity kit", "All gear plus rockets and seeds.", "Requires Creative, Admin or OP2.");
             icon(view, BUILDING, Items.QUARTZ_BLOCK, "Building kit", "Building blocks and both wands.", "Requires Creative, Admin or OP4.");
@@ -223,7 +219,7 @@ final class ServerMenu {
                 "Admin/OP4: edit players or loaded AI helpers.",
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
-            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
+            icon(view,CRATES,Items.PURPLE_SHULKER_BOX,"Convergence Set • inventory boxes","Places the complete set into two labeled gear boxes.","Place and open the boxes to take items. Requires Creative or gear permission.");
             icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
             icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
             icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
@@ -245,9 +241,9 @@ final class ServerMenu {
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
             icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Uses native elytra artwork and flight on Bedrock.","Choose Aurora or Ember above for a chestplate appearance.","Requires Creative, Admin or OP2.");
         } else if(page==Page.RANKS) {
-            title="Ranks & subscriptions";var memberships=Memberships.get(player.level().getServer());
+            title="Ranks & subscriptions";var memberships=Memberships.get(player.getEntityWorld().getServer());
             memberships.syncAchievements(player);
-            icon(view,4,Items.PLAYER_HEAD,"Your badge: "+memberships.label(player.getUUID()),"Permanent rank: "+memberships.permanentTier(player.getUUID()),"Admin and OP4 are owner roles; viewing this menu does not grant them.");
+            icon(view,4,Items.PLAYER_HEAD,"Your badge: "+memberships.label(player.getUuid()),"Permanent rank: "+memberships.permanentTier(player.getUuid()),"Admin and OP4 are owner roles; viewing this menu does not grant them.");
             icon(view,9,Items.STONE,"FREE","Every game mode is included. No payment required.");
             int slot=11;
             for(var goal:Memberships.GOALS) {
@@ -266,72 +262,72 @@ final class ServerMenu {
             information(view, "Server", CrossplaySupport.serverInfoText());
         }
         icon(view, BACK, Items.BARRIER, page == Page.MAIN ? "Close menu" : "Back to Infinity Menu");
-        player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new Handler(sync, inventory, view, player, page, pageIndex, paths), Component.literal(title)));
+        player.openHandledScreen(new SimpleNamedScreenHandlerFactory((sync, inventory, who) ->
+            new Handler(sync, inventory, view, player, page, pageIndex, paths), Text.literal(title)));
         return 1;
     }
 
-    static final class Handler extends ChestMenu {
-        final ServerPlayer owner;
-        final ServerGamePacketListenerImpl ownerConnection;
+    static final class Handler extends GenericContainerScreenHandler {
+        final ServerPlayerEntity owner;
+        final ServerPlayNetworkHandler ownerConnection;
         final Page page;
         final int pageIndex;
         final List<String> paths;
         final GameModes.Mode mode;
-        final net.minecraft.server.level.ServerLevel world;
+        final net.minecraft.server.world.ServerWorld world;
         final int heldSlot;
         final ItemStack held, offhand;
 
-        Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner,
+        Handler(int sync, PlayerInventory inventory, SimpleInventory view, ServerPlayerEntity owner,
                 Page page, int pageIndex, List<String> paths) {
-            super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
+            super(ScreenHandlerType.GENERIC_9X6, sync, inventory, view, 6);
             this.owner = owner; this.page = page; this.pageIndex = pageIndex; this.paths = List.copyOf(paths);
-            this.ownerConnection = owner.connection;
-            this.mode = GameModes.current(owner); this.world = owner.level();
+            this.ownerConnection = owner.networkHandler;
+            this.mode = GameModes.current(owner); this.world = owner.getEntityWorld();
             this.heldSlot = inventory.getSelectedSlot();
-            this.held = owner.getMainHandItem().copy(); this.offhand = owner.getOffhandItem().copy();
+            this.held = owner.getMainHandStack().copy(); this.offhand = owner.getOffHandStack().copy();
         }
 
-        @Override public boolean stillValid(Player player) {
-            return player == owner && owner.connection == ownerConnection && allowed(owner) && owner.containerMenu == this
-                && GameModes.current(owner) == mode && owner.level() == world;
+        @Override public boolean canUse(PlayerEntity player) {
+            return player == owner && owner.networkHandler == ownerConnection && allowed(owner) && owner.currentScreenHandler == this
+                && GameModes.current(owner) == mode && owner.getEntityWorld() == world;
         }
-        @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
-        @Override public void setSelectedBundleItemIndex(int slot, int selected) {}
+        @Override public ItemStack quickMove(PlayerEntity player, int slot) { return ItemStack.EMPTY; }
+        @Override public void selectBundleStack(int slot, int selected) {}
 
-        private void navigate(Page next, int index) { owner.closeContainer(); open(owner, next, index); }
+        private void navigate(Page next, int index) { owner.closeHandledScreen(); open(owner, next, index); }
 
         /** A refusal stays visible inside the chest; chat can be obscured by its screen. */
         private void locked(int slot, String reason, String... hints) {
-            ItemStack icon = getSlot(slot).getItem().copy();
-            String name = icon.getHoverName().getString();
+            ItemStack icon = getSlot(slot).getStack().copy();
+            String name = icon.getName().getString();
             if (!name.startsWith("Locked • ")) name = "Locked • " + name;
-            icon.set(DataComponents.CUSTOM_NAME, Component.literal(name));
-            var lines = new ArrayList<Component>();
-            lines.add(Component.literal(reason));
-            for (String hint : hints) lines.add(Component.literal(hint));
-            icon.set(DataComponents.LORE, new ItemLore(lines));
-            getSlot(slot).setByPlayer(icon);
-            broadcastChanges();
-            owner.sendOverlayMessage(Component.literal(reason));
+            icon.set(DataComponentTypes.CUSTOM_NAME, Text.literal(name));
+            var lines = new ArrayList<Text>();
+            lines.add(Text.literal(reason));
+            for (String hint : hints) lines.add(Text.literal(hint));
+            icon.set(DataComponentTypes.LORE, new LoreComponent(lines));
+            getSlot(slot).setStack(icon);
+            sendContentUpdates();
+            owner.sendMessage(Text.literal(reason), true);
         }
 
         private boolean unchangedEquipment() {
             return owner.getInventory().getSelectedSlot() == heldSlot
-                && ItemStack.isSameItemSameComponents(held, owner.getMainHandItem())
-                && held.getCount() == owner.getMainHandItem().getCount()
-                && ItemStack.isSameItemSameComponents(offhand, owner.getOffhandItem())
-                && offhand.getCount() == owner.getOffhandItem().getCount();
+                && ItemStack.areItemsAndComponentsEqual(held, owner.getMainHandStack())
+                && held.getCount() == owner.getMainHandStack().getCount()
+                && ItemStack.areItemsAndComponentsEqual(offhand, owner.getOffHandStack())
+                && offhand.getCount() == owner.getOffHandStack().getCount();
         }
 
-        @Override public void clicked(int slot, int button, ContainerInput action, Player player) {
+        @Override public void onSlotClick(int slot, int button, SlotActionType action, PlayerEntity player) {
             // A packet for a closed or replaced screen must never close or act through the new one.
-            if (player != owner || owner.containerMenu != this || owner.connection != ownerConnection) return;
-            if (!stillValid(player)) { owner.closeContainer(); return; }
-            if (!getCarried().isEmpty() || (action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
-                || button < 0 || button > 1 || slot < 0 || slot >= 54) { sendAllDataToRemote(); return; }
+            if (player != owner || owner.currentScreenHandler != this || owner.networkHandler != ownerConnection) return;
+            if (!canUse(player)) { owner.closeHandledScreen(); return; }
+            if (!getCursorStack().isEmpty() || (action != SlotActionType.PICKUP && action != SlotActionType.QUICK_MOVE)
+                || button < 0 || button > 1 || slot < 0 || slot >= 54) { syncState(); return; }
             if (slot == BACK) {
-                if (page == Page.MAIN) owner.closeContainer(); else navigate(Page.MAIN, 0);
+                if (page == Page.MAIN) owner.closeHandledScreen(); else navigate(Page.MAIN, 0);
                 return;
             }
             if (page == Page.GEAR) {
@@ -344,35 +340,33 @@ final class ServerMenu {
                         return;
                     }
                     String path = paths.get(index).substring("convergence:".length());
-                    owner.closeContainer();
+                    owner.closeHandledScreen();
                     Convergence.holdCreativeItem(owner, path);
                 }
                 return;
             }
             if(page==Page.ARMOR) {
-                if(slot==10 || slot==12) { owner.closeContainer();BackpackStorage.armor(owner,slot==10?"aurora":"ember"); }
-                else if(slot==14) { owner.closeContainer();Convergence.holdCreativeItem(owner,"chestplate"); }
+                if(slot==10 || slot==12) { owner.closeHandledScreen();BackpackStorage.armor(owner,slot==10?"aurora":"ember"); }
+                else if(slot==14) { owner.closeHandledScreen();Convergence.holdCreativeItem(owner,"chestplate"); }
                 return;
             }
             if (page != Page.MAIN) return;
-            if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
-            if(slot==PROPHECY){owner.closeContainer();OdysseyProphecy.give(owner,true);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }
             if (slot == HELP) { navigate(Page.HELP, 0); return; }
             if (slot == INFO) { navigate(Page.INFO, 0); return; }
             if(slot==RANKS){navigate(Page.RANKS,0);return;}
-            if(slot==INVENTORY_GEAR){owner.closeContainer();GearCrates.giveDirect(owner);return;}
+            if(slot==INVENTORY_GEAR){owner.closeHandledScreen();GearCrates.giveDirect(owner);return;}
             if (slot == CRATES) {
                 if(!gearAllowed(owner)) { locked(slot,"Creative or gear permission required.");return; }
-                owner.closeContainer();GearCrates.give(owner);return;
+                owner.closeHandledScreen();GearCrates.give(owner);return;
             }
             if (slot == ADMIN || slot == SELF_STATS) {
                 if (!Memberships.operator(owner)) {
                     locked(slot, "Admin or OP level 4 required.", "Only a current operator can edit player stats.");
                     return;
                 }
-                owner.closeContainer();
+                owner.closeHandledScreen();
                 if(slot==SELF_STATS)AdminStatsMenu.openStats(owner,owner,0);else AdminStatsMenu.open(owner);return;
             }
             if (slot == HELPERS) {
@@ -380,7 +374,7 @@ final class ServerMenu {
                     locked(slot, "OP level 4 required.", "Ask the owner for Admin or OP4.", "Admin grants OP4 after its role is saved.");
                     return;
                 }
-                owner.closeContainer(); AgentMenu.open(owner); return;
+                owner.closeHandledScreen(); AgentMenu.open(owner); return;
             }
             if (slot == KIT || slot == BUILDING) {
                 boolean permitted = slot == KIT ? gearAllowed(owner) : owner.isCreative() || Memberships.gameplayBypass(owner);
@@ -388,26 +382,26 @@ final class ServerMenu {
                     locked(slot, slot == KIT ? "Creative, Admin or OP2 required." : "Creative, Admin or OP4 required.", "Choose Play Creative from the main menu.");
                     return;
                 }
-                owner.closeContainer();
+                owner.closeHandledScreen();
                 if (slot == KIT) Convergence.giveKit(owner); else Convergence.giveBuildingKit(owner);
                 return;
             }
             if (slot == POWER || slot == ALTERNATE || slot == SWAP) {
                 if (!unchangedEquipment()) {
-                    owner.closeContainer();
+                    owner.closeHandledScreen();
                     CommunityServer.say(owner, "Your held equipment changed. Reopen Infinity Menu to review the current tool.");
                     return;
                 }
-                owner.closeContainer();
+                owner.closeHandledScreen();
                 if (slot == SWAP) CrossplaySupport.swapHands(owner);
                 else if (CrossplaySupport.usePower(owner, slot == ALTERNATE) == 0)
                     CommunityServer.say(owner, "Hold an Infinity weapon or tool, then select Infinity Menu again to use its power.");
                 return;
             }
             if (slot == GAMES || slot == ADVENTURE) {
-                owner.closeContainer(); CourseSelector.open(owner, slot == GAMES ? GameModes.Mode.MINIGAMES : GameModes.Mode.ADVENTURE); return;
+                owner.closeHandledScreen(); CourseSelector.open(owner, slot == GAMES ? GameModes.Mode.MINIGAMES : GameModes.Mode.ADVENTURE); return;
             }
-            if (slot == BACKPACK) { owner.closeContainer(); BackpackStorage.open(owner); return; }
+            if (slot == BACKPACK) { owner.closeHandledScreen(); BackpackStorage.open(owner); return; }
             GameModes.Mode next = switch (slot) {
                 case SURVIVAL -> GameModes.Mode.SURVIVAL;
                 case CREATIVE -> GameModes.Mode.CREATIVE;
@@ -415,49 +409,49 @@ final class ServerMenu {
                 case HUB -> GameModes.Mode.HUB;
                 default -> null;
             };
-            if (next != null) { owner.closeContainer(); GameModes.request(owner, next, next == GameModes.Mode.HUB ? "main" : null); }
+            if (next != null) { owner.closeHandledScreen(); GameModes.request(owner, next, next == GameModes.Mode.HUB ? "main" : null); }
         }
     }
 
     /** Runs after mode restoration. Selection alone works even without Bedrock's Use button. */
-    static void tickPlayer(ServerPlayer player) {
+    static void tickPlayer(ServerPlayerEntity player) {
         if (!allowed(player)) return;
-        int tick = player.level().getServer().getTickCount();
-        Integer ready = READY_AT.get(player.getUUID());
+        int tick = player.getEntityWorld().getServer().getTicks();
+        Integer ready = READY_AT.get(player.getUuid());
         if (ready != null && tick < ready) return;
-        if (ready != null) READY_AT.remove(player.getUUID());
-        if (player.containerMenu != player.inventoryMenu
-            || !player.containerMenu.getCarried().isEmpty()) return;
-        if (!menuControl(player.getMainHandItem())) LAST_TOOL.put(player.getUUID(),
+        if (ready != null) READY_AT.remove(player.getUuid());
+        if (player.currentScreenHandler != player.playerScreenHandler
+            || !player.currentScreenHandler.getCursorStack().isEmpty()) return;
+        if (!menuControl(player.getMainHandStack())) LAST_TOOL.put(player.getUuid(),
             new Selection(GameModes.current(player), player.getInventory().getSelectedSlot()));
         if (ready != null || tick % 20 == 0) ensureNavigator(player);
-        if (!owned(player.getMainHandItem(), player)) SELECTED_CONTROL.remove(player.getUUID());
-        else if (!java.util.Objects.equals(SELECTED_CONTROL.get(player.getUUID()), player.getInventory().getSelectedSlot())) open(player);
+        if (!owned(player.getMainHandStack(), player)) SELECTED_CONTROL.remove(player.getUuid());
+        else if (!java.util.Objects.equals(SELECTED_CONTROL.get(player.getUuid()), player.getInventory().getSelectedSlot())) open(player);
     }
 
     static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) ->
-            dispatcher.register(Commands.literal("menu").executes(c -> open(c.getSource().getPlayerOrException()))));
+            dispatcher.register(CommandManager.literal("menu").executes(c -> open(c.getSource().getPlayerOrThrow()))));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-            LAST_TOOL.remove(handler.player.getUUID()); SELECTED_CONTROL.remove(handler.player.getUUID());
-            READY_AT.put(handler.player.getUUID(), server.getTickCount() + 5);
+            LAST_TOOL.remove(handler.player.getUuid()); SELECTED_CONTROL.remove(handler.player.getUuid());
+            READY_AT.put(handler.player.getUuid(), server.getTicks() + 5);
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((old, player, alive) -> {
-            LAST_TOOL.remove(player.getUUID()); SELECTED_CONTROL.remove(player.getUUID());
-            READY_AT.put(player.getUUID(), player.level().getServer().getTickCount() + 5);
+            LAST_TOOL.remove(player.getUuid()); SELECTED_CONTROL.remove(player.getUuid());
+            READY_AT.put(player.getUuid(), player.getEntityWorld().getServer().getTicks() + 5);
         });
-        ServerTickEvents.END_SERVER_TICK.register(server -> { for (var player : server.getPlayerList().getPlayers()) tickPlayer(player); });
+        ServerTickEvents.END_SERVER_TICK.register(server -> { for (var player : server.getPlayerManager().getPlayerList()) tickPlayer(player); });
         UseItemCallback.EVENT.register((player, world, hand) -> {
-            if (player instanceof ServerPlayer serverPlayer && owned(player.getItemInHand(hand), serverPlayer)) {
-                open(serverPlayer); return InteractionResult.SUCCESS;
+            if (player instanceof ServerPlayerEntity serverPlayer && owned(player.getStackInHand(hand), serverPlayer)) {
+                open(serverPlayer); return ActionResult.SUCCESS;
             }
-            return InteractionResult.PASS;
+            return ActionResult.PASS;
         });
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
-            if (entity instanceof ItemEntity item && isNavigator(item.getItem())) entity.discard();
+            if (entity instanceof ItemEntity item && isNavigator(item.getStack())) entity.discard();
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            UUID id = handler.player.getUUID(); LAST_TOOL.remove(id); READY_AT.remove(id); FULL_NOTICE.remove(id); SELECTED_CONTROL.remove(id);
+            UUID id = handler.player.getUuid(); LAST_TOOL.remove(id); READY_AT.remove(id); FULL_NOTICE.remove(id); SELECTED_CONTROL.remove(id);
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> { LAST_TOOL.clear(); READY_AT.clear(); FULL_NOTICE.clear(); SELECTED_CONTROL.clear(); });
     }

@@ -62,7 +62,7 @@ def install_java(root, fetch, emit):
     entry = lock["platforms"].get(platform_key(), {}).get("java")
     if not entry:
         raise RuntimeError("Automatic Java setup supports Mac Intel/Apple silicon, Windows x64, and Linux x64/arm64. Use --java for this computer.")
-    emit("Setting up a private Java 25 runtime. Your system settings will stay the same.")
+    emit("Setting up a private Java 21 runtime. Your system settings will stay the same.")
     archive = root / ".runtime/downloads" / entry["filename"]
     fetch(dict(entry, path=str(archive.relative_to(root))), root)
     runtime = root / ".runtime"

@@ -2,17 +2,17 @@ package dev.convergence;
 
 import java.nio.file.Files;
 import java.util.*;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.BlockState;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.storage.LevelResource;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.WorldSavePath;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.registry.tag.FluidTags;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 /** Small built-in maps, generated once in dedicated dimensions, never over survival builds. */
 final class ModeMaps {
@@ -73,7 +73,7 @@ final class ModeMaps {
 
     static void build(MinecraftServer server) {
         AVAILABLE.clear();
-        var marker = server.getWorldPath(LevelResource.ROOT).resolve("infinity-built-in-maps.json");
+        var marker = server.getSavePath(WorldSavePath.ROOT).resolve("infinity-built-in-maps.json");
         MapMarker saved = readMarker(marker);
         Set<String> confirmed = new LinkedHashSet<>(saved.built);
         Set<String> installing = new LinkedHashSet<>(saved.installing);
@@ -112,7 +112,7 @@ final class ModeMaps {
         }
         // Flush changed chunks before committing completion. A crash between the
         // intent and completion writes resumes only the explicitly pending courses.
-        if (placed && !server.saveAllChunks(true, true, false))
+        if (placed && !server.save(true, true, false))
             throw new IllegalStateException("Could not flush built-in map chunks; the map marker was not changed.");
         if (!confirmed.equals(saved.built) || !installing.equals(saved.installing) || !Files.exists(marker))
             writeMarker(marker, confirmed, installing);
@@ -141,60 +141,60 @@ final class ModeMaps {
             int min = spec.id.equals("ruins") ? -14 : base - 3;
             int max = spec.id.equals("ruins") ? 14 : spec.points.getLast().getX() + 3;
             for (int x=min; x<=max; x++) for (int z=-14; z<=14; z++) {
-                plan.put(x,80,z,(spec.mode==GameModes.Mode.ADVENTURE ? Blocks.STONE_BRICKS : Blocks.QUARTZ_BLOCK).defaultBlockState());
+                plan.put(x,80,z,(spec.mode==GameModes.Mode.ADVENTURE ? Blocks.STONE_BRICKS : Blocks.QUARTZ_BLOCK).getDefaultState());
                 if (x==min || x==max || Math.abs(z)==14)
-                    for (int y=81;y<=84;y++) plan.put(x,y,z,Blocks.DEEPSLATE_BRICKS.defaultBlockState());
+                    for (int y=81;y<=84;y++) plan.put(x,y,z,Blocks.DEEPSLATE_BRICKS.getDefaultState());
             }
             if (!spec.id.equals("ruins")) {
                 int wall=0;
                 for (int x=base+3; x<spec.points.getLast().getX(); x+=spec.id.equals("maze")?4:6) {
                     for (int z=-13;z<=13;z++) if ((wall%2==0 && z<9) || (wall%2==1 && z>-9))
-                        for(int y=81;y<=83;y++) plan.put(x,y,z,Blocks.DEEPSLATE_BRICKS.defaultBlockState());
+                        for(int y=81;y<=83;y++) plan.put(x,y,z,Blocks.DEEPSLATE_BRICKS.getDefaultState());
                     wall++;
                 }
             } else {
                 for(int x : new int[]{-6,6}) for(int z : new int[]{-6,0,6})
-                    for(int y=81;y<=84;y++) plan.put(x,y,z,(y==84?Blocks.SEA_LANTERN:Blocks.CHISELED_STONE_BRICKS).defaultBlockState());
+                    for(int y=81;y<=84;y++) plan.put(x,y,z,(y==84?Blocks.SEA_LANTERN:Blocks.CHISELED_STONE_BRICKS).getDefaultState());
             }
         }
         for (var point : spec.points) {
             for(int dx=-1;dx<=1;dx++) for(int dz=-1;dz<=1;dz++)
-                plan.put(point.offset(dx,-1,dz),Blocks.QUARTZ_BLOCK.defaultBlockState());
-            plan.put(point.below(),Blocks.SEA_LANTERN.defaultBlockState());
-            plan.put(point,Blocks.AIR.defaultBlockState());
-            plan.put(point.above(),Blocks.AIR.defaultBlockState());
+                plan.put(point.add(dx,-1,dz),Blocks.QUARTZ_BLOCK.getDefaultState());
+            plan.put(point.down(),Blocks.SEA_LANTERN.getDefaultState());
+            plan.put(point,Blocks.AIR.getDefaultState());
+            plan.put(point.up(),Blocks.AIR.getDefaultState());
         }
         return plan;
     }
 
     /** Inspect every map cell before writing; never replace a block outside the plan. */
-    static Inspection inspect(ServerLevel world, MapSpec spec, BlockPlan plan) {
+    static Inspection inspect(ServerWorld world, MapSpec spec, BlockPlan plan) {
         BlockPos sign = CourseSelector.signPos(spec);
         boolean occupied = false;
         int missing = 0;
-        for (BlockPos cursor : BlockPos.betweenClosed(plan.min(), plan.max())) {
-            BlockPos pos = cursor.immutable();
-            if (!world.isInWorldBounds(pos) || !world.getWorldBorder().isWithinBounds(pos)) return new Inspection(pos, occupied, missing);
+        for (BlockPos cursor : BlockPos.iterate(plan.min(), plan.max())) {
+            BlockPos pos = cursor.toImmutable();
+            if (!world.isInBuildLimit(pos) || !world.getWorldBorder().contains(pos)) return new Inspection(pos, occupied, missing);
             BlockState actual = world.getBlockState(pos);
             BlockState expected = plan.blocks.get(pos);
             if (!actual.isAir()) occupied = true;
             if (expected != null) {
-                if (actual.equals(expected) || expected.is(Blocks.WATER) && actual.is(Blocks.WATER)) continue;
+                if (actual.equals(expected) || expected.isOf(Blocks.WATER) && actual.isOf(Blocks.WATER)) continue;
                 if (actual.isAir()) { if (!expected.isAir()) missing++; continue; }
             } else if (actual.isAir()
                 || pos.equals(sign) && CourseSelector.selectorSign(world, pos)
-                || spec.kind == Kind.DROPPER && pos.getY() >= 41 && pos.getY() <= 42 && actual.is(Blocks.WATER)) continue;
+                || spec.kind == Kind.DROPPER && pos.getY() >= 41 && pos.getY() <= 42 && actual.isOf(Blocks.WATER)) continue;
             return new Inspection(pos, occupied, missing);
         }
         return new Inspection(null, occupied, missing);
     }
 
-    static BlockPos conflict(ServerLevel world, MapSpec spec, BlockPlan plan) { return inspect(world, spec, plan).conflict; }
+    static BlockPos conflict(ServerWorld world, MapSpec spec, BlockPlan plan) { return inspect(world, spec, plan).conflict; }
 
-    static boolean apply(ServerLevel world, BlockPlan plan) {
+    static boolean apply(ServerWorld world, BlockPlan plan) {
         boolean changed = false;
         for (var entry : plan.blocks.entrySet()) if (!entry.getValue().isAir() && world.getBlockState(entry.getKey()).isAir()) {
-            world.setBlock(entry.getKey(), entry.getValue(), 3);
+            world.setBlockState(entry.getKey(), entry.getValue(), 3);
             changed = true;
         }
         return changed;
@@ -235,109 +235,109 @@ final class ModeMaps {
         };
         requireEmpty(world,min,max);
     }
-    static void requireEmpty(ServerLevel world, BlockPos min, BlockPos max) {
-        for (BlockPos at : BlockPos.betweenClosed(min, max)) if (!world.isInWorldBounds(at) || !world.getWorldBorder().isWithinBounds(at) || !world.getBlockState(at).isAir())
+    static void requireEmpty(ServerWorld world, BlockPos min, BlockPos max) {
+        for (BlockPos at : BlockPos.iterate(min, max)) if (!world.isInBuildLimit(at) || !world.getWorldBorder().contains(at) || !world.getBlockState(at).isAir())
             throw new IllegalStateException("New minigame would replace existing blocks at " + at + ". Move the build or restore a matching backup; existing maps were not rebuilt.");
     }
     static void put(BlockPlan plan, int x, int y, int z, BlockState block) { plan.put(x,y,z,block); }
     static void buildDropper(BlockPlan plan) {
         for (int x=154; x<=176; x++) for (int z=-9; z<=9; z++) {
-            put(plan,x,40,z,Blocks.POLISHED_DEEPSLATE.defaultBlockState());
-            if (x==154 || x==176 || Math.abs(z)==9) for (int y=41; y<=123; y++) put(plan,x,y,z,Blocks.STAINED_GLASS.lightBlue().defaultBlockState());
-            else if (Math.abs(x-165)>2 || Math.abs(z)>2) put(plan,x,120,z,Blocks.QUARTZ_BLOCK.defaultBlockState());
+            put(plan,x,40,z,Blocks.POLISHED_DEEPSLATE.getDefaultState());
+            if (x==154 || x==176 || Math.abs(z)==9) for (int y=41; y<=123; y++) put(plan,x,y,z,Blocks.LIGHT_BLUE_STAINED_GLASS.getDefaultState());
+            else if (Math.abs(x-165)>2 || Math.abs(z)>2) put(plan,x,120,z,Blocks.QUARTZ_BLOCK.getDefaultState());
         }
-        var spec=MAPS.get("dropper"); var colors=List.of(Blocks.CONCRETE.yellow(),Blocks.CONCRETE.orange(),Blocks.CONCRETE.purple());
+        var spec=MAPS.get("dropper"); var colors=List.of(Blocks.YELLOW_CONCRETE,Blocks.ORANGE_CONCRETE,Blocks.PURPLE_CONCRETE);
         for(int gate=1;gate<=3;gate++) {
             var center=spec.points.get(gate);
             for(int x=155;x<=175;x++) for(int z=-8;z<=8;z++) {
                 int dx=Math.abs(x-center.getX()), dz=Math.abs(z-center.getZ());
                 if(dx<=2&&dz<=2) continue;
-                put(plan,x,center.getY()-1,z,((dx==3&&dz<=3)||(dz==3&&dx<=3)?Blocks.SEA_LANTERN:colors.get(gate-1)).defaultBlockState());
+                put(plan,x,center.getY()-1,z,((dx==3&&dz<=3)||(dz==3&&dx<=3)?Blocks.SEA_LANTERN:colors.get(gate-1)).getDefaultState());
             }
         }
-        for(int x=161;x<=169;x++) for(int z=-4;z<=4;z++) for(int y=41;y<=42;y++) put(plan,x,y,z,Blocks.WATER.defaultBlockState());
-        put(plan,165,40,0,Blocks.SEA_LANTERN.defaultBlockState());
-        put(plan,160,120,0,Blocks.SEA_LANTERN.defaultBlockState());
+        for(int x=161;x<=169;x++) for(int z=-4;z<=4;z++) for(int y=41;y<=42;y++) put(plan,x,y,z,Blocks.WATER.getDefaultState());
+        put(plan,165,40,0,Blocks.SEA_LANTERN.getDefaultState());
+        put(plan,160,120,0,Blocks.SEA_LANTERN.getDefaultState());
     }
     static void buildRedlight(BlockPlan plan) {
         for(int x=221;x<=255;x++) for(int z=-5;z<=5;z++) {
-            put(plan,x,80,z,(z==0?Blocks.QUARTZ_BLOCK:Blocks.CONCRETE.lightGray()).defaultBlockState());
-            if(x==221||x==255||Math.abs(z)==5) for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.GLASS.defaultBlockState());
+            put(plan,x,80,z,(z==0?Blocks.QUARTZ_BLOCK:Blocks.LIGHT_GRAY_CONCRETE).getDefaultState());
+            if(x==221||x==255||Math.abs(z)==5) for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.GLASS.getDefaultState());
         }
-        for(var point:MAPS.get("redlight").points) put(plan,point.getX(),80,point.getZ(),Blocks.SEA_LANTERN.defaultBlockState());
+        for(var point:MAPS.get("redlight").points) put(plan,point.getX(),80,point.getZ(),Blocks.SEA_LANTERN.getDefaultState());
         for(int x:new int[]{225,233,241,249}) {
-            put(plan,x,82,-4,Blocks.CONCRETE.lime().defaultBlockState());
-            put(plan,x,84,-4,Blocks.CONCRETE.red().defaultBlockState());
+            put(plan,x,82,-4,Blocks.LIME_CONCRETE.getDefaultState());
+            put(plan,x,84,-4,Blocks.RED_CONCRETE.getDefaultState());
         }
-        for(int z=-4;z<=4;z++) put(plan,252,80,z,Blocks.GOLD_BLOCK.defaultBlockState());
-        put(plan,252,80,0,Blocks.SEA_LANTERN.defaultBlockState());
+        for(int z=-4;z<=4;z++) put(plan,252,80,z,Blocks.GOLD_BLOCK.getDefaultState());
+        put(plan,252,80,0,Blocks.SEA_LANTERN.getDefaultState());
     }
     static void buildCrystalHunt(BlockPlan plan) {
         for(int x=284;x<=310;x++) for(int z=-12;z<=12;z++) {
-            put(plan,x,80,z,Blocks.POLISHED_BLACKSTONE_BRICKS.defaultBlockState());
+            put(plan,x,80,z,Blocks.POLISHED_BLACKSTONE_BRICKS.getDefaultState());
             if(x==284||x==310||Math.abs(z)==12)
-                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.STAINED_GLASS.purple().defaultBlockState());
+                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.PURPLE_STAINED_GLASS.getDefaultState());
         }
         var points=MAPS.get("crystalhunt").points;
         for(int i=0;i<points.size();i++) {
             var center=points.get(i);
             for(int dx=-1;dx<=1;dx++) for(int dz=-1;dz<=1;dz++)
                 put(plan,center.getX()+dx,80,center.getZ()+dz,
-                    (i==0?Blocks.QUARTZ_BLOCK:Blocks.AMETHYST_BLOCK).defaultBlockState());
-            put(plan,center.getX(),80,center.getZ(),Blocks.SEA_LANTERN.defaultBlockState());
+                    (i==0?Blocks.QUARTZ_BLOCK:Blocks.AMETHYST_BLOCK).getDefaultState());
+            put(plan,center.getX(),80,center.getZ(),Blocks.SEA_LANTERN.getDefaultState());
         }
         for(int z:new int[]{-8,0,8}) {
-            put(plan,287,81,z,Blocks.AMETHYST_BLOCK.defaultBlockState());
-            put(plan,287,82,z,Blocks.SEA_LANTERN.defaultBlockState());
+            put(plan,287,81,z,Blocks.AMETHYST_BLOCK.getDefaultState());
+            put(plan,287,82,z,Blocks.SEA_LANTERN.getDefaultState());
         }
     }
     static void buildColorRush(BlockPlan plan) {
         for(int x=340;x<=368;x++) for(int z=-13;z<=13;z++) {
-            put(plan,x,80,z,Blocks.CONCRETE.white().defaultBlockState());
+            put(plan,x,80,z,Blocks.WHITE_CONCRETE.getDefaultState());
             if(x==340||x==368||Math.abs(z)==13)
-                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.STAINED_GLASS.cyan().defaultBlockState());
+                for(int y=81;y<=84;y++) put(plan,x,y,z,Blocks.CYAN_STAINED_GLASS.getDefaultState());
         }
         var points=MAPS.get("colorrush").points;
-        var tiles=List.of(Blocks.CONCRETE.red(),Blocks.CONCRETE.blue(),Blocks.CONCRETE.yellow(),Blocks.CONCRETE.lime());
+        var tiles=List.of(Blocks.RED_CONCRETE,Blocks.BLUE_CONCRETE,Blocks.YELLOW_CONCRETE,Blocks.LIME_CONCRETE);
         for(int i=1;i<points.size();i++) {
             var center=points.get(i);
             for(int dx=-2;dx<=2;dx++) for(int dz=-2;dz<=2;dz++)
-                put(plan,center.getX()+dx,80,center.getZ()+dz,tiles.get(i-1).defaultBlockState());
-            put(plan,center.getX(),80,center.getZ(),Blocks.SEA_LANTERN.defaultBlockState());
+                put(plan,center.getX()+dx,80,center.getZ()+dz,tiles.get(i-1).getDefaultState());
+            put(plan,center.getX(),80,center.getZ(),Blocks.SEA_LANTERN.getDefaultState());
         }
         var start=points.getFirst();
         for(int dx=-1;dx<=1;dx++) for(int dz=-1;dz<=1;dz++)
-            put(plan,start.getX()+dx,80,start.getZ()+dz,Blocks.QUARTZ_BLOCK.defaultBlockState());
-        put(plan,start.getX(),80,start.getZ(),Blocks.SEA_LANTERN.defaultBlockState());
+            put(plan,start.getX()+dx,80,start.getZ()+dz,Blocks.QUARTZ_BLOCK.getDefaultState());
+        put(plan,start.getX(),80,start.getZ(),Blocks.SEA_LANTERN.getDefaultState());
     }
     static String defaultMap(GameModes.Mode mode) {
         String preferred = mode == GameModes.Mode.ADVENTURE ? "ruins" : "parkour";
         if (available(preferred)) return preferred;
         return MAPS.values().stream().filter(spec -> spec.mode == mode && available(spec.id)).map(MapSpec::id).findFirst().orElse(null);
     }
-    static String selectedMap(ServerPlayer p, GameModes.Mode mode) {
-        String selected=GameModes.state(p).getStringOr("selected_"+mode.name().toLowerCase(Locale.ROOT)+"_map","");
+    static String selectedMap(ServerPlayerEntity p, GameModes.Mode mode) {
+        String selected=GameModes.state(p).getString("selected_"+mode.name().toLowerCase(Locale.ROOT)+"_map","");
         var spec=MAPS.get(selected);
         return spec!=null && spec.mode()==mode && available(selected) ? selected : defaultMap(mode);
     }
     static BlockPos start(String map) { return MAPS.get(map).points.getFirst(); }
     static final class Run {
         final String map; final long started=System.nanoTime(); int next=1;
-        final int startedTick; Vec3 previous; Vec3 redAnchor; int lastPhase=-1;
+        final int startedTick; Vec3d previous; Vec3d redAnchor; int lastPhase=-1;
         int foundMask; int colorDeadline; final int[] colors=new int[COLOR_ROUNDS];
-        Run(String map, int tick, Vec3 previous) { this.map=map; this.startedTick=tick; this.previous=previous; }
+        Run(String map, int tick, Vec3d previous) { this.map=map; this.startedTick=tick; this.previous=previous; }
     }
     static final Map<UUID,Run> RUNS=new HashMap<>();
-    static void begin(ServerPlayer p, String id) {
+    static void begin(ServerPlayerEntity p, String id) {
         var map=MAPS.get(id); if(map==null || GameModes.current(p)!=map.mode) return;
         if (!available(id)) { CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log."); return; }
-        var pos=start(id); p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true);
-        p.setDeltaMovement(Vec3.ZERO); p.fallDistance=0;
-        p.getFoodData().setFoodLevel(20); p.getFoodData().setSaturation(5);
+        var pos=start(id); p.teleport(p.getEntityWorld(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true);
+        p.setVelocity(Vec3d.ZERO); p.fallDistance=0;
+        p.getHungerManager().setFoodLevel(20); p.getHungerManager().setSaturationLevel(5);
         GameModes.state(p).putString("selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map",id);
-        var run=new Run(id,p.level().getServer().getTickCount(),p.position());
+        var run=new Run(id,p.getEntityWorld().getServer().getTicks(),p.getEntityPos());
         if(map.kind==Kind.COLOR_RUSH) {
-            var random=new SplittableRandom(p.getUUID().getMostSignificantBits()^p.getUUID().getLeastSignificantBits()^run.startedTick);
+            var random=new SplittableRandom(p.getUuid().getMostSignificantBits()^p.getUuid().getLeastSignificantBits()^run.startedTick);
             for(int i=0;i<COLOR_ROUNDS;i++) {
                 int color=random.nextInt(COLORS.size());
                 if(i>0 && color==run.colors[i-1]) color=(color+1+random.nextInt(COLORS.size()-1))%COLORS.size();
@@ -345,7 +345,7 @@ final class ModeMaps {
             }
             run.colorDeadline=run.startedTick+COLOR_ROUND_TICKS;
         }
-        RUNS.put(p.getUUID(),run);
+        RUNS.put(p.getUuid(),run);
         String instructions = switch(map.kind) {
             case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
             case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
@@ -361,32 +361,32 @@ final class ModeMaps {
         else if(map.kind==Kind.COLOR_RUSH) colorHint(p,run,run.startedTick);
         else hint(p,run);
     }
-    static void hint(ServerPlayer p, Run run) {
+    static void hint(ServerPlayerEntity p, Run run) {
         var points=MAPS.get(run.map).points; var at=points.get(run.next);
         CommunityServer.say(p,"Checkpoint "+run.next+"/"+(points.size()-1)+": X "+at.getX()+", Y "+at.getY()+", Z "+at.getZ()+" (sea lantern).");
-        p.sendOverlayMessage(Component.literal("Checkpoint "+run.next+" of "+(points.size()-1)+" | /retry "+run.map).withStyle(ChatFormatting.AQUA));
+        p.sendMessage(Text.literal("Checkpoint "+run.next+" of "+(points.size()-1)+" | /retry "+run.map).formatted(Formatting.AQUA),true);
     }
-    static void crystalHint(ServerPlayer p,Run run) {
+    static void crystalHint(ServerPlayerEntity p,Run run) {
         int found=Integer.bitCount(run.foundMask);
-        p.sendOverlayMessage(Component.literal("Crystals "+found+"/5 | Touch the glowing amethyst pads").withStyle(ChatFormatting.LIGHT_PURPLE));
+        p.sendMessage(Text.literal("Crystals "+found+"/5 | Touch the glowing amethyst pads").formatted(Formatting.LIGHT_PURPLE),true);
     }
-    static void colorHint(ServerPlayer p,Run run,int tick) {
+    static void colorHint(ServerPlayerEntity p,Run run,int tick) {
         int color=run.colors[run.next-1];
-        ChatFormatting formatting=switch(color) {
-            case 0 -> ChatFormatting.RED;
-            case 1 -> ChatFormatting.BLUE;
-            case 2 -> ChatFormatting.YELLOW;
-            default -> ChatFormatting.GREEN;
+        Formatting formatting=switch(color) {
+            case 0 -> Formatting.RED;
+            case 1 -> Formatting.BLUE;
+            case 2 -> Formatting.YELLOW;
+            default -> Formatting.GREEN;
         };
         int seconds=Math.max(1,(run.colorDeadline-tick+19)/20);
-        p.sendOverlayMessage(Component.literal("Pulse "+run.next+"/"+COLOR_ROUNDS+" | "+COLORS.get(color)+" | "+seconds+"s").withStyle(formatting));
+        p.sendMessage(Text.literal("Pulse "+run.next+"/"+COLOR_ROUNDS+" | "+COLORS.get(color)+" | "+seconds+"s").formatted(formatting),true);
     }
-    static void tick(ServerPlayer p) {
-        tick(p,p.level().getServer().getTickCount());
+    static void tick(ServerPlayerEntity p) {
+        tick(p,p.getEntityWorld().getServer().getTicks());
     }
-    static void tick(ServerPlayer p,int tick) {
-        var run=RUNS.get(p.getUUID()); if(run==null) return;
-        var spec=MAPS.get(run.map); if(GameModes.current(p)!=spec.mode) { RUNS.remove(p.getUUID()); return; }
+    static void tick(ServerPlayerEntity p,int tick) {
+        var run=RUNS.get(p.getUuid()); if(run==null) return;
+        var spec=MAPS.get(run.map); if(GameModes.current(p)!=spec.mode) { RUNS.remove(p.getUuid()); return; }
         if(!p.isAlive() || p.isSpectator()) return;
         if(spec.kind==Kind.DROPPER) { dropper(p,run,spec,tick); return; }
         if(spec.kind==Kind.CRYSTAL_HUNT) { crystalHunt(p,run,spec,tick); return; }
@@ -394,18 +394,18 @@ final class ModeMaps {
         if(spec.kind==Kind.REDLIGHT && !redlight(p,run,tick)) return;
         if(!Memberships.operator(p)&&p.getY()<77) { begin(p,run.map); CommunityServer.say(p,"You fell. Timer restarted — try again!"); return; }
         var target=spec.points.get(run.next);
-        if(p.position().distanceToSqr(Vec3.atBottomCenterOf(target))>1.4 || !p.onGround()) return;
+        if(p.getEntityPos().squaredDistanceTo(Vec3d.ofBottomCenter(target))>1.4 || !p.isOnGround()) return;
         run.next++;
         if(run.next<spec.points.size()) { hint(p,run); return; }
         finish(p,run,tick);
     }
-    static void restart(ServerPlayer p,Run run,String reason) { begin(p,run.map); CommunityServer.say(p,reason+" Timer restarted — try again!"); }
-    static double horizontal(Vec3 a,Vec3 b) { double x=a.x-b.x,z=a.z-b.z;return x*x+z*z; }
-    static void crystalHunt(ServerPlayer p,Run run,MapSpec spec,int tick) {
-        Vec3 now=p.position();
+    static void restart(ServerPlayerEntity p,Run run,String reason) { begin(p,run.map); CommunityServer.say(p,reason+" Timer restarted — try again!"); }
+    static double horizontal(Vec3d a,Vec3d b) { double x=a.x-b.x,z=a.z-b.z;return x*x+z*z; }
+    static void crystalHunt(ServerPlayerEntity p,Run run,MapSpec spec,int tick) {
+        Vec3d now=p.getEntityPos();
         if(now.x<285 || now.x>309 || Math.abs(now.z)>11.9 || now.y<77) {restart(p,run,"You left the crystal arena.");return;}
-        if(!p.onGround()) return;
-        var feet=BlockPos.containing(now);
+        if(!p.isOnGround()) return;
+        var feet=BlockPos.ofFloored(now);
         for(int i=1;i<spec.points.size();i++) {
             int bit=1<<(i-1);
             var center=spec.points.get(i);
@@ -416,16 +416,16 @@ final class ModeMaps {
             return;
         }
     }
-    static boolean onColorPad(Vec3 now,BlockPos center) {
-        var feet=BlockPos.containing(now);
+    static boolean onColorPad(Vec3d now,BlockPos center) {
+        var feet=BlockPos.ofFloored(now);
         return Math.abs(feet.getX()-center.getX())<=2 && Math.abs(feet.getZ()-center.getZ())<=2;
     }
-    static void colorRush(ServerPlayer p,Run run,MapSpec spec,int tick) {
-        Vec3 now=p.position();
+    static void colorRush(ServerPlayerEntity p,Run run,MapSpec spec,int tick) {
+        Vec3d now=p.getEntityPos();
         if(now.x<341 || now.x>367 || Math.abs(now.z)>12.9 || now.y<77) {restart(p,run,"You left the color arena.");return;}
         if(tick>run.colorDeadline) {restart(p,run,"The color pulse expired.");return;}
         var correct=spec.points.get(run.colors[run.next-1]+1);
-        if(p.onGround() && onColorPad(now,correct)) {
+        if(p.isOnGround() && onColorPad(now,correct)) {
             run.next++;
             if(run.next>COLOR_ROUNDS) {finish(p,run,tick);return;}
             run.colorDeadline=tick+COLOR_ROUND_TICKS;
@@ -433,17 +433,17 @@ final class ModeMaps {
         } else if(tick==run.colorDeadline) restart(p,run,"The color pulse expired.");
         else if(tick%10==0) colorHint(p,run,tick);
     }
-    static void dropper(ServerPlayer p,Run run,MapSpec spec,int tick) {
-        Vec3 now=p.position(),previous=run.previous;run.previous=now;
+    static void dropper(ServerPlayerEntity p,Run run,MapSpec spec,int tick) {
+        Vec3d now=p.getEntityPos(),previous=run.previous;run.previous=now;
         if(now.x<155 || now.x>176 || Math.abs(now.z)>9 || now.y<40) { restart(p,run,"You left the dropper course.");return; }
-        boolean water=p.level().getFluidState(p.blockPosition()).is(FluidTags.WATER)
-            || p.level().getFluidState(p.blockPosition().below()).is(FluidTags.WATER);
+        boolean water=p.getEntityWorld().getFluidState(p.getBlockPos()).isIn(FluidTags.WATER)
+            || p.getEntityWorld().getFluidState(p.getBlockPos().down()).isIn(FluidTags.WATER);
         if(now.y<44 && water) {
-            if(run.next==spec.points.size()-1 && horizontal(now,Vec3.atBottomCenterOf(spec.points.getLast()))<=20.25) finish(p,run,tick);
+            if(run.next==spec.points.size()-1 && horizontal(now,Vec3d.ofBottomCenter(spec.points.getLast()))<=20.25) finish(p,run,tick);
             else restart(p,run,"Reach every glowing hole before the pool.");
             return;
         }
-        if(p.onGround() && now.y<120 && p.level().getBlockState(p.blockPosition().below()).isRedstoneConductor(p.level(),p.blockPosition().below())) {
+        if(p.isOnGround() && now.y<120 && p.getEntityWorld().getBlockState(p.getBlockPos().down()).isSolidBlock(p.getEntityWorld(),p.getBlockPos().down())) {
             restart(p,run,"You landed on an obstacle instead of the water.");return;
         }
         var target=spec.points.get(run.next);
@@ -453,9 +453,9 @@ final class ModeMaps {
         if(run.next<spec.points.size()-1 && previous.y>target.getY() && now.y<=target.getY()
             && throughHole) { run.next++;hint(p,run); }
     }
-    static boolean redlight(ServerPlayer p,Run run,int tick) {
+    static boolean redlight(ServerPlayerEntity p,Run run,int tick) {
         int phase=Math.floorMod(tick-run.startedTick,GREEN_TICKS+RED_TICKS);boolean green=phase<GREEN_TICKS;
-        Vec3 now=p.position(),before=run.previous;run.previous=now;
+        Vec3d now=p.getEntityPos(),before=run.previous;run.previous=now;
         if(now.x<222 || now.x>255 || Math.abs(now.z)>4.9 || now.y<77) { restart(p,run,"You left the race lane.");return false; }
         if(green) run.redAnchor=null;
         else if(phase<GREEN_TICKS+RED_GRACE_TICKS) run.redAnchor=now;
@@ -466,20 +466,20 @@ final class ModeMaps {
         int light=green?0:1;
         if(run.lastPhase!=light || tick%10==0) {
             int remaining=((green?GREEN_TICKS-phase:GREEN_TICKS+RED_TICKS-phase)+19)/20;
-            p.sendOverlayMessage(Component.literal((green?"GREEN — RUN":"RED — STOP")+" | "+Math.max(1,remaining)+"s").withStyle(green?ChatFormatting.GREEN:ChatFormatting.RED));
+            p.sendMessage(Text.literal((green?"GREEN — RUN":"RED — STOP")+" | "+Math.max(1,remaining)+"s").formatted(green?Formatting.GREEN:Formatting.RED),true);
             run.lastPhase=light;
         }
         return green;
     }
-    static void finish(ServerPlayer p,Run run,int tick) {
+    static void finish(ServerPlayerEntity p,Run run,int tick) {
         var spec=MAPS.get(run.map);
         long millis=spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:Math.max(1,(long)(tick-run.startedTick)*50);
         var state=GameModes.state(p); var scores=state.getCompoundOrEmpty("scores");
-        long old=scores.getLongOr(run.map,Long.MAX_VALUE); scores.putLong(run.map,Math.min(old,millis)); state.put("scores",scores);
-        RUNS.remove(p.getUUID());
-        p.level().getServer().getPlayerList().saveAll();
+        long old=scores.getLong(run.map,Long.MAX_VALUE); scores.putLong(run.map,Math.min(old,millis)); state.put("scores",scores);
+        RUNS.remove(p.getUuid());
+        p.getEntityWorld().getServer().getPlayerManager().saveAllPlayerData();
         try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Your best was saved, but the public leaderboard is temporarily unavailable.");}
-        p.sendOverlayMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN));
+        p.sendMessage(Text.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).formatted(Formatting.GREEN),true);
         CommunityServer.say(p,"Completed "+spec.title+" in "+String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s! Personal best: "+String.format(Locale.ROOT,"%.2f",Math.min(old,millis)/1000.0)+"s. /retry "+run.map+" to race again.");
     }
 }

@@ -18,8 +18,6 @@ import stat
 
 from runtime import install_java, java_in
 import community
-import owner_rules
-import world_refresh
 
 ROOT = Path(__file__).resolve().parent
 EULA_URL = "https://www.minecraft.net/eula"
@@ -62,12 +60,6 @@ def fetch(entry, root=ROOT):
         temporary.unlink(missing_ok=True)
 
 
-# Mod jar families this launcher pins. An upgrade replaces their versions, so an
-# older copy left beside the new one would load twice; other mods are left alone.
-MANAGED_MODS = ("Infinity-Armor-", "fabric-api-", "polymer-bundled-", "Floodgate-Fabric-",
-                "ViaFabric-", "ViaVersion-", "ViaBackwards-")
-
-
 def setup(root=ROOT):
     lock = json.loads((root / "dependencies.lock.json").read_text())
     for entry in lock["downloads"]:
@@ -76,11 +68,6 @@ def setup(root=ROOT):
         file = root / entry["path"]
         if not file.is_file() or sha256(file) != entry["sha256"]:
             raise RuntimeError("Bundled file is missing or changed: " + entry["path"])
-    pinned = {(root / entry["path"]).resolve() for entry in lock["downloads"] + lock["bundled"]}
-    for jar in sorted((root / "fabric/mods").glob("*.jar")):
-        if jar.name.startswith(MANAGED_MODS) and jar.resolve() not in pinned:
-            emit("Removing superseded " + jar.name)
-            jar.unlink()
 
 
 def properties(path):
@@ -150,7 +137,7 @@ def java_command(explicit, root=ROOT, install=False):
     if os.environ.get("JAVA_HOME"):
         choices.append(str(Path(os.environ["JAVA_HOME"]) / "bin/java"))
     if sys.platform == "darwin":
-        result = subprocess.run(["/usr/libexec/java_home", "-v", "25+"], capture_output=True, text=True)
+        result = subprocess.run(["/usr/libexec/java_home", "-v", "21+"], capture_output=True, text=True)
         if result.returncode == 0:
             choices.append(str(Path(result.stdout.strip()) / "bin/java"))
     managed = java_in(root / ".runtime/java")
@@ -161,7 +148,7 @@ def java_command(explicit, root=ROOT, install=False):
         try:
             result = subprocess.run([java, "-version"], capture_output=True, text=True, timeout=15)
             match = re.search(r'version "(\d+)', result.stderr + result.stdout)
-            if result.returncode == 0 and match and int(match[1]) >= 25:
+            if result.returncode == 0 and match and int(match[1]) >= 21:
                 return java
         except (OSError, subprocess.SubprocessError):
             pass
@@ -169,15 +156,13 @@ def java_command(explicit, root=ROOT, install=False):
             break
     if install and not explicit:
         return java_command(install_java(root, fetch, emit), root)
-    raise RuntimeError("Java 25 or newer is required. Open Start-Mac.command/start.bat for automatic setup, or use --java /path/to/java.")
+    raise RuntimeError("Java 21 or newer is required. Open Start-Mac.command/start.bat for automatic setup, or use --java /path/to/java.")
 
 
 class Service:
-    def __init__(self, name, command, cwd, ready_text, stop_command="stop", join_rules=None):
+    def __init__(self, name, command, cwd, ready_text, stop_command="stop"):
         self.name = name
         self.stop_command = stop_command
-        self.join_rules = join_rules
-        self.send_lock = threading.Lock()
         self.ready = threading.Event()
         self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -194,16 +179,6 @@ class Service:
                 emit("[" + self.name + "] " + line.rstrip())
                 if ready_text in line:
                     self.ready.set()
-                if self.join_rules:
-                    try:
-                        command = self.join_rules.command_for(line)
-                        if command and self.send(command):
-                            self.join_rules.mark_sent(command)
-                            emit("[Owner rule] Exact joined account ban requested.")
-                    except Exception:
-                        # Keep draining Java output even if a guard or pipe
-                        # fails; a blocked stdout pipe can stall the server.
-                        emit("[Owner rule] Ban could not be sent; check the server console.")
         finally:
             self.log.close()
 
@@ -218,12 +193,9 @@ class Service:
                 raise RuntimeError(self.name + " startup timed out. See its launcher.log.")
 
     def send(self, command):
-        with self.send_lock:
-            if self.process.poll() is None:
-                self.process.stdin.write(command + "\n")
-                self.process.stdin.flush()
-                return True
-        return False
+        if self.process.poll() is None:
+            self.process.stdin.write(command + "\n")
+            self.process.stdin.flush()
 
     def stop(self):
         if self.process.poll() is not None:
@@ -264,7 +236,7 @@ def parse_args(argv=None):
     parser.add_argument("--console", action="store_true", help="Use the terminal instead of the control panel")
     parser.add_argument("--no-browser", action="store_true", help="Print the control panel URL without opening a browser")
     parser.add_argument("--accept-eula", action="store_true", help="Accept https://www.minecraft.net/eula")
-    parser.add_argument("--java", help="Java 25+ executable")
+    parser.add_argument("--java", help="Java 21+ executable")
     parser.add_argument("--memory", default="2G", help="Java world heap, e.g. 2G or 4G; Geyser uses up to 512M")
     parser.add_argument("--java-port", type=int, default=25565)
     parser.add_argument("--bedrock-port", type=int, default=19132)
@@ -402,9 +374,6 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         with os.fdopen(lock_fd, "w") as file:
             file.write(str(os.getpid()))
         check_ports(args)
-        # Recover first so the startup ZIP represents the complete stopped save,
-        # rather than a partially archived world from an interrupted refresh.
-        world_refresh.recover(root)
         backup_name = community.backup(root, properties(root / "fabric/server.properties"), locked=True)
         if backup_name:
             emit("World backed up before startup: backups/" + backup_name)
@@ -419,16 +388,10 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             return
         accept_eula(args.accept_eula, root)
         configure(args, root)
-        join_rules = owner_rules.load(root)
-        world_refresh.maybe_refresh(root, properties(root / "fabric/server.properties").get("level-name", "world"),
-                                    backup_name, emit)
-        if stop_requested.is_set():
-            return
         for name in ["infinity-items.json", "infinity-blocks.json"]:
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
-            "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
-            join_rules=join_rules)
+            "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.")
         services.append(fabric)
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)

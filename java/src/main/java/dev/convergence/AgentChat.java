@@ -12,10 +12,10 @@ import java.util.WeakHashMap;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.network.ServerPlayerEntity;
 
 /** Named helper guidance. Only the explicitly selected API profile sends external questions. */
 final class AgentChat {
@@ -39,8 +39,8 @@ final class AgentChat {
     }
 
     record Identity(String id, AgentCompanions.Agent record) {
-        boolean current(AgentCompanions companions, ServerPlayer owner, String name) {
-            if (!AgentCompanions.operator(owner.createCommandSourceStack())) return false;
+        boolean current(AgentCompanions companions, ServerPlayerEntity owner, String name) {
+            if (!AgentCompanions.operator(owner.getCommandSource())) return false;
             var entry = companions.owned(owner, name);
             // Record identity also rejects a dismiss/recreate or profile change away and back.
             return entry != null && entry.getKey().equals(id) && entry.getValue() == record;
@@ -52,9 +52,9 @@ final class AgentChat {
     }
 
     /** Fixed-schema game facts only. Names are data, never a second instruction channel. */
-    static JsonObject snapshot(AgentCompanions companions, ServerPlayer owner, String id, AgentCompanions.Agent agent) {
+    static JsonObject snapshot(AgentCompanions companions, ServerPlayerEntity owner, String id, AgentCompanions.Agent agent) {
         var golem = companions.loaded.get(UUID.fromString(id));
-        var world = owner.level();
+        var world = owner.getEntityWorld();
         var data = new JsonObject();
         data.addProperty("helper_name", agent.name());
         data.addProperty("profile", agent.profile().label());
@@ -67,20 +67,20 @@ final class AgentChat {
             var location = new JsonObject(); location.addProperty("x", golem.getBlockX()); location.addProperty("y", golem.getBlockY()); location.addProperty("z", golem.getBlockZ());
             data.add("helper_position", location);
         }
-        String dimension = loaded ? golem.level().dimension().identifier().toString() : agent.dimension();
+        String dimension = loaded ? golem.getEntityWorld().getRegistryKey().getValue().toString() : agent.dimension();
         data.addProperty("helper_dimension", dimension.substring(0, Math.min(128, dimension.length())));
         var state = companions.pauseReason(owner, golem, agent);
         data.addProperty("helper_state", state == null ? "active" : state);
         data.addProperty("owner_mode", GameModes.current(owner).name().toLowerCase(java.util.Locale.ROOT));
         var memberships=Memberships.get(companions.server);
-        data.addProperty("owner_rank",memberships.label(owner.getUUID()));
-        data.addProperty("owner_permanent_rank",memberships.permanentTier(owner.getUUID()).name());
+        data.addProperty("owner_rank",memberships.label(owner.getUuid()));
+        data.addProperty("owner_permanent_rank",memberships.permanentTier(owner.getUuid()).name());
         var position = new JsonObject();
         position.addProperty("x", owner.getBlockX()); position.addProperty("y", owner.getBlockY()); position.addProperty("z", owner.getBlockZ());
         data.add("owner_position", position);
-        data.addProperty("world_time", Math.floorMod(world.getDefaultClockTime(), 24_000));
+        data.addProperty("world_time", Math.floorMod(world.getTimeOfDay(), 24_000));
         data.addProperty("weather", world.isThundering() ? "thunder" : world.isRaining() ? "rain" : "clear");
-        data.addProperty("online_player_count", companions.server.getPlayerList().getPlayerCount());
+        data.addProperty("online_player_count", companions.server.getPlayerManager().getCurrentPlayerCount());
         if (data.toString().length() > MAX_SNAPSHOT) throw new IllegalStateException("Helper snapshot exceeds its fixed-schema size limit");
         return data;
     }
@@ -92,43 +92,43 @@ final class AgentChat {
         var tracked = TRACKING.computeIfAbsent(server, unused -> new java.util.HashMap<>());
         tracked.entrySet().removeIf(entry -> {
             var agent = entry.getValue().identity.record();
-            var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner()));
+            var owner = server.getPlayerManager().getPlayer(UUID.fromString(agent.owner()));
             return agent.profile() != AgentCompanions.Profile.API || owner == null || !entry.getValue().identity.current(companions, owner, agent.name());
         });
         if (tick % SAMPLE_INTERVAL != 0) return;
         for (var entry : companions.data.agents.entrySet()) {
             var agent = entry.getValue();
             if (agent.profile() != AgentCompanions.Profile.API) continue;
-            var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner()));
-            if (owner == null || !AgentCompanions.operator(owner.createCommandSourceStack())) continue;
+            var owner = server.getPlayerManager().getPlayer(UUID.fromString(agent.owner()));
+            if (owner == null || !AgentCompanions.operator(owner.getCommandSource())) continue;
             if (!tracked.containsKey(entry.getKey()) && tracked.size() >= AgentCompanions.GLOBAL_LIMIT) continue;
             var tracker = tracked.computeIfAbsent(entry.getKey(), unused -> new Tracker(new Identity(entry.getKey(), agent)));
             tracker.add(new Sample(tick, snapshot(companions, owner, entry.getKey(), agent)));
         }
     }
 
-    static List<Sample> recent(AgentCompanions companions, ServerPlayer owner, String id, AgentCompanions.Agent agent) {
+    static List<Sample> recent(AgentCompanions companions, ServerPlayerEntity owner, String id, AgentCompanions.Agent agent) {
         var samples = new ArrayList<Sample>();
         var tracked = TRACKING.get(companions.server);
         var tracker = tracked == null ? null : tracked.get(id);
         if (tracker != null && tracker.identity.current(companions, owner, agent.name())) samples.addAll(tracker.samples);
-        int tick = companions.server.getTickCount();
+        int tick = companions.server.getTicks();
         if (!samples.isEmpty() && samples.getLast().tick() == tick) samples.removeLast();
         samples.add(new Sample(tick, snapshot(companions, owner, id, agent)));
         return List.copyOf(samples.subList(Math.max(0, samples.size() - 3), samples.size()));
     }
 
-    static String context(AgentCompanions companions, ServerPlayer owner, String id, AgentCompanions.Agent agent) {
+    static String context(AgentCompanions companions, ServerPlayerEntity owner, String id, AgentCompanions.Agent agent) {
         var array = new JsonArray();for (var sample : recent(companions, owner, id, agent)) array.add(sample.json());
         String value = array.toString();
         if (value.length() > MAX_CONTEXT) throw new IllegalStateException("Helper context exceeds its fixed-schema size limit");
         return value;
     }
 
-    static int history(CommandSourceStack source, String name) {
-        if (!(source.getEntity() instanceof ServerPlayer owner)
-            || source.getServer().getPlayerList().getPlayer(owner.getUUID()) != owner
-            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.createCommandSourceStack())) return 0;
+    static int history(ServerCommandSource source, String name) {
+        if (!(source.getEntity() instanceof ServerPlayerEntity owner)
+            || source.getServer().getPlayerManager().getPlayer(owner.getUuid()) != owner
+            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.getCommandSource())) return 0;
         var companions = AgentCompanions.get(source.getServer());var entry = companions.owned(owner, name);
         if (entry == null) { ServerAssistant.send(source, ServerAssistant.bounded("No helper with that name belongs to you."), ServerAssistant.PREFIX); return 0; }
         var agent = entry.getValue();var prefix = prefix(name, agent.profile(), false);
@@ -157,10 +157,10 @@ final class AgentChat {
             "World time: " + data.get("world_time").getAsLong() + "; weather " + data.get("weather").getAsString() + "; online count " + data.get("online_player_count").getAsInt() + ". No host files, keys, or account data are read.");
     }
 
-    static int data(CommandSourceStack source, String name) {
-        if (!(source.getEntity() instanceof ServerPlayer owner)
-            || source.getServer().getPlayerList().getPlayer(owner.getUUID()) != owner
-            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.createCommandSourceStack())) return 0;
+    static int data(ServerCommandSource source, String name) {
+        if (!(source.getEntity() instanceof ServerPlayerEntity owner)
+            || source.getServer().getPlayerManager().getPlayer(owner.getUuid()) != owner
+            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.getCommandSource())) return 0;
         var companions = AgentCompanions.get(source.getServer());
         var entry = companions.owned(owner, name);
         if (entry == null) {
@@ -172,7 +172,7 @@ final class AgentChat {
         return 1;
     }
 
-    static List<String> local(CommandSourceStack source, AgentCompanions.Profile profile, String question, String name) {
+    static List<String> local(ServerCommandSource source, AgentCompanions.Profile profile, String question, String name) {
         return switch (profile) {
             case PRIMITIVE -> {
                 var guide = ServerAssistant.answer(source, question);
@@ -199,10 +199,10 @@ final class AgentChat {
         };
     }
 
-    static int ask(CommandSourceStack source, String name, String question) {
-        if (!(source.getEntity() instanceof ServerPlayer owner)
-            || source.getServer().getPlayerList().getPlayer(owner.getUUID()) != owner
-            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.createCommandSourceStack())) {
+    static int ask(ServerCommandSource source, String name, String question) {
+        if (!(source.getEntity() instanceof ServerPlayerEntity owner)
+            || source.getServer().getPlayerManager().getPlayer(owner.getUuid()) != owner
+            || !AgentCompanions.operator(source) || !AgentCompanions.operator(owner.getCommandSource())) {
             ServerAssistant.send(source, ServerAssistant.bounded("Named helpers require an online OP4 owner."), ServerAssistant.PREFIX);
             return 0;
         }
@@ -241,7 +241,7 @@ final class AgentChat {
             () -> identity.current(companions, owner, name), true);
     }
 
-    static int profiles(CommandSourceStack source) {
+    static int profiles(ServerCommandSource source) {
         if (!AgentCompanions.operator(source)) return 0;
         var profiles = AgentCompanions.Profile.values();
         for (int i = 0; i < profiles.length; i += 2) {
@@ -254,26 +254,26 @@ final class AgentChat {
     }
 
     static void initialize() {
-        ServerTickEvents.END_SERVER_TICK.register(server -> track(server, server.getTickCount()));
+        ServerTickEvents.END_SERVER_TICK.register(server -> track(server, server.getTicks()));
         ServerLifecycleEvents.SERVER_STOPPED.register(TRACKING::remove);
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> dispatcher.register(
-            Commands.literal("agent").requires(AgentCompanions::operator)
-                .then(Commands.literal("profiles").executes(c -> profiles(c.getSource())))
-                .then(Commands.literal("data").then(Commands.argument("name", StringArgumentType.word())
+            CommandManager.literal("agent").requires(AgentCompanions::operator)
+                .then(CommandManager.literal("profiles").executes(c -> profiles(c.getSource())))
+                .then(CommandManager.literal("data").then(CommandManager.argument("name", StringArgumentType.word())
                     .executes(c -> data(c.getSource(), StringArgumentType.getString(c, "name")))))
-                .then(Commands.literal("history").then(Commands.argument("name", StringArgumentType.word())
+                .then(CommandManager.literal("history").then(CommandManager.argument("name", StringArgumentType.word())
                     .executes(c -> history(c.getSource(), StringArgumentType.getString(c, "name")))))
-                .then(Commands.literal("ask")
-                    .then(Commands.argument("name", StringArgumentType.word())
+                .then(CommandManager.literal("ask")
+                    .then(CommandManager.argument("name", StringArgumentType.word())
                         .suggests((c, builder) -> {
-                            if (c.getSource().getEntity() instanceof ServerPlayer owner) {
+                            if (c.getSource().getEntity() instanceof ServerPlayerEntity owner) {
                                 AgentCompanions.get(c.getSource().getServer()).data.agents.values().stream()
-                                    .filter(a -> a.owner().equals(owner.getStringUUID()))
+                                    .filter(a -> a.owner().equals(owner.getUuidAsString()))
                                     .map(AgentCompanions.Agent::name).sorted().filter(n -> n.startsWith(builder.getRemaining())).forEach(builder::suggest);
                             }
                             return builder.buildFuture();
                         })
-                        .then(Commands.argument("question", StringArgumentType.greedyString())
+                        .then(CommandManager.argument("question", StringArgumentType.greedyString())
                             .executes(c -> ask(c.getSource(), StringArgumentType.getString(c, "name"), StringArgumentType.getString(c, "question"))))))));
     }
 }

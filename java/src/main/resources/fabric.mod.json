@@ -14,13 +14,13 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=0.19.5",
-    "minecraft": "~26.3",
-    "java": ">=25",
+    "fabricloader": ">=0.18.4",
+    "minecraft": "1.21.11",
+    "java": ">=21",
     "fabric-api": "*",
-    "polymer-core": ">=0.18.2",
-    "polymer-blocks": ">=0.18.2",
-    "polymer-resource-pack": ">=0.18.2",
+    "polymer-core": ">=0.15.2",
+    "polymer-blocks": ">=0.15.2",
+    "polymer-resource-pack": ">=0.15.2",
     "floodgate": "*"
   },
   "mixins": [

@@ -1,59 +1,4 @@
-# Private terrain refresh and exact-account join rules — launcher patch
-
-The owner can opt in privately to regenerate unprotected terrain after the installed Infinity mod version/checksum changes. Public packages retain terrain by default; ordinary restarts of the same mod retain new builds. Old terrain/POI/entities, stale chunk tickets are archived; generation markers and the bounded built-in hub footprint remain together; exact native chunks around saved players, alternate-mode positions, personal locations, helpers/tamed pets and the End arena/gateways remain. Player files, inventories/backpacks, ranks and global settings are not rewritten. See [WORLD_REFRESH.md](WORLD_REFRESH.md) for the destructive scope and recovery instructions.
-
-**146 Python tests passed** on October 10. New regressions cover player/inventory preservation, exact chunk-record compaction, owned pet/helper retention, UUID normalization, excluded projectiles/items, alternate-mode positions, both ends of a gateway, external chunk files, malformed data and memory limits. They also cover unchanged-release and package-only update retention, explicit one-time refresh, stale/corrupt backups, legacy layouts, nested and specially named dimensions, unsafe paths, interrupted moves/protected writes with orphan temporary files, missing recovery data and committed interruption. Recovery runs before the startup backup, preserves an owner's disable decision and finalizes its manifest. Directory updates and macOS journal/policy writes are flushed. A real subprocess received the exact Bedrock account ban; IPv6/logger forms match, failed sends remain retryable and a failed hook does not stop output draining. Chat and partial names were ignored.
-
-**Three isolated Fabric 26.3/Geyser cycles passed** with the protected strategy: the first run placed native blocks and a helper/pet, the update refresh erased an unprotected block, retained the complete hub and reconciled partial courses, and the next same-release restart retained a new block. Native player inventory NBT/stats remained byte-identical; the helper, owned wolf, their supporting floor and an End portal survived. Java saved all eight dimensions, Geyser answered a local UDP ping, cold lobby loading remained responsive, and shutdown was clean with no ERROR records. Reproduce with `python3 tools/smoke_fullstack.py --terrain-refresh --java /path/to/java`; every invocation creates a fresh disposable save. Earlier preliminary unprotected checks were superseded by this strategy.
-
-This patch changes the launcher only. The previously passing 355 native GameTests and explore.24 JAR/resource packs are unchanged. These checks do not establish an authenticated Aria login, public reachability, a dragon kill/respawn cycle or an actual Java/iPad client playtest. Already unsafe saved positions and old structure starts inside protected chunks remain. The live installation and verified stopped-world backup are reported separately. Build a separate local package with `python3 tools/package_crossplay.py --launcher-patch`; it preserves the original release archives.
-
-The owner's authorized live refresh completed on October 10 after a fresh 225-file world ZIP was verified byte-for-byte. The retained-hub marker failure described below was repaired from that backup, without repeating the reset or replacing personal files. The corrected launcher started Minecraft 26.3/explore.24 successfully; Java and Bedrock both answered local protocol probes. All 27 pre-install protected configuration/personal files, including four player files, still matched their original checksums. The existing helper roster was empty and stayed empty. Original terrain, the full ZIP, the pre-install launcher and the hub repair snapshot remain recoverable. No authenticated client join was tested during this installation.
-
-Claude reviewed the supplied launcher code twice, read-only. Concrete recovery, IPv6, nested-dimension, version-trigger, output-draining and recovery-instruction findings were corrected. After its world-safety findings, the owner chose protected areas; keeping their native records retains supporting terrain and the End arena while clearing unprotected entities. The second review found orphan temporary-file recovery, broad owner-field matching, UUID normalization and gateway dual-position issues; each was fixed with regressions. Early failed fixtures were repaired rather than reported as passes: a test path needed macOS canonicalization, and a freshly summoned helper needed to become entity-ticking before its tag selector could see it. A live startup exposed a retained hub fragment whose marker had been archived; native safety checks correctly refused to rebuild over it. The fix keeps all hub footprint chunks and generation provenance together, with explicit saved-mode positions in the real restart fixture. Public defaults remain off.
-
-# Creative Studio and TNT safeguards — 2.13.0-explore.24
-
-Fresh checks on October 9 passed: **355/355 native Minecraft GameTests**, **103/103 Python launcher tests**, reproducibility of all **21 Odyssey templates**, Geyser mapping/texture validation and local UDP response, and **two isolated Fabric 26.3/Geyser startup, cold-lobby, save, restart and shutdown cycles**. Tests used Java 25 and the pinned release dependencies. The live world was not used for these checks.
-
-The sixteen new native tests exercise real chest clicks, foreign/stale packets, permission changes, full-inventory atomic delivery, actual terrain edits and conflict-aware undo, exact blueprint confirmation, player-data serialization, Creative inventory separation, all four native outfit slots, registered gadget dispatch, plane movement/hover/collision/recall, orphan plane cleanup, a five-charge TNT queue, native explosion radius bounds and helper identity/health preservation.
-
-| Reproduction | Expected and observed before repair | Root cause and retest |
-| --- | --- | --- |
-| Create two identical blueprint previews in one tick, then submit the older object. | The current preview should survive; the stale submission removed it. | Record equality made conditional map removal accept an equal but different preview. Identity validation now preserves the exact current preview; native regression passes. |
-| Build the Java pack with the new gadget IDs. | Every registered item should have a rendered model; the five new IDs had no pack models. | Minecraft 26.3 finalizes each item's model after its copied component chain. Explicit item definitions now use existing native geometry, and the real resource-pack generation test passes for all 45 IDs. |
-| Dispatch a Studio gadget from held-power controls after leaving Creative. | The rejected action should return failure; generic dispatch reported success without an effect. | Dispatch now checks live Studio access and returns the actual gadget result. Creative, Survival and Spectator native regressions pass. |
-| Equip ordinary leather/netherite while using the earlier Bedrock pack. | Normal Minecraft armor was requested; shared native paths showed custom armor patterns. | Preparation excludes those native texture/icon overrides while preserving source PNGs and the custom wing controller. The regression inspects the actual prepared pack; original artwork checksums are retained. |
-
-The plane and TNT lifecycle fixtures explicitly load and ticket their disposable chunks. A mock player's direct test teleport does not provide the real client's chunk tickets; without those tickets, plane parts correctly unload and queued TNT cannot tick. These fixture repairs do not make production planes force-load terrain. Failed early test reports were superseded by the final complete passing report.
-
-Primed TNT is delayed rather than deleted: at most two explosions per tick across all worlds, with the second deferred after an eight-millisecond work window. Ordinary radii are unchanged; excessive radii stop at eight. This is a bounded workload safeguard, **not a promise of zero lag**. Large entity counts, TNT minecarts, other repeated explosions and client hardware remain limits. The reported frozen iPad app recovered after fully closing and reopening Minecraft; no server crash was established from that report.
-
-**Delivery state:** explore.24 is a local tested package, not installed on the live server by these checks. Claude separately installed **Minecraft 26.3 / explore.23** on October 9. The converted world must not be loaded with 1.21.11. Java/iPad visual rendering, aircraft smoothness, touch interactions and authenticated crafting still need a real client playtest after the new package is installed. Bedrock Aurora/Ember/backpack clothing keeps native dyed-leather shapes after restoring ordinary armor textures; dedicated Java artwork and native elytra artwork remain. Existing gear-name, mode, stat, helper combat and both AI approval regressions passed with the combined code.
-
-# Legacy gear name repair — 2.13.0-explore.23
-
-The October 8 review reproduced an older saved item whose `CUSTOM_NAME` contains an `item.convergence.*` or `block.convergence.*` translation key. That component takes precedence over the readable `ITEM_NAME`. The old assertion checked `getString()` on the server, where the custom language file is present, so it missed the raw translation key sent to clients without that file. The new raw-component regression failed on the original code.
-
-The outgoing Polymer copy now resolves only known Infinity item/block translation nodes in custom names. Literal player-written names, other translation keys/fallbacks, nested arguments, styling and sibling text survive. Authoritative items are not rewritten. The regressions cover every registered gear item, native codec save/reload and Creative round-trip preservation. The fix applies to the native item representation used by Java without the pack and by Geyser; a real iPad client still needs to confirm the displayed result.
-
-Fresh release checks passed: **338 native Minecraft GameTests**, **103 Python launcher tests**, Geyser mapping/UDP startup and clean shutdown, and **two isolated full-stack Fabric 26.3/Geyser cycles**. Claude reviewed the name projection and regressions read-only and found no concrete regression in that scope. This does not establish that all name or graphical glitches are fixed.
-
-At the time these name checks were recorded, the playable Mac server was on **Minecraft 1.21.11 / explore.20**. Claude subsequently repaired its private installer and installed **Minecraft 26.3 / explore.23** on October 9 under separate authorization; that installer is not bundled. The combined source includes Claude's finished host opt-in for the ruin ban, documented in ODYSSEY.md; public packages do not enable it by default.
-
-# The Odyssey ruins and prophecy — 2.13.0-explore.22
-
-Validated October 6, 2026 with the combined Java 26.3 / Java 25 toolchain. This build retains the refreshed Java and native Bedrock gear, client protections, menus, stats and helpers.
-
-- **336 native Minecraft GameTests passed** with release dependencies. Ten Odyssey regressions cover all 21 templates, the lower chest's exact 27 decoded stacks and original book, actual chest loading, all native biome tags, native sparse generation, Nether cavern selection, inventory-safe prophecy delivery and menu recovery, scoped command permission, persistent piece rotation and initial native repeater scheduling.
-- **103 Python launcher tests passed**, and Geyser loaded its item/block mappings, answered the loopback Bedrock UDP ping and shut down cleanly.
-- **Two isolated full-stack cycles passed** with real Fabric + Geyser, all five mode dimensions, responsive cold lobby loading, restart, stopped-world backup and clean shutdown without ERROR lines.
-- A fresh, isolated normal world with seed `26100622` located and generated an Odyssey ruin in each of the Overworld, Nether and End. Reading the saved native chunks verified one ruin chest, all 27 original stacks and the exact always-active repeater in each dimension. With command blocks enabled, a generated repeater successfully executed the native ban against a seeded, disposable cached test profile; the real owner's ban list was untouched.
-- Preparation and packaging verify deterministic templates against the sanitized blueprint. The exporter uses 26.3's `id`/`properties` native block-state format; the placed-container regression catches a template that silently loads as air.
-
-The owner's playable world remains on 1.21.11 / explore.20 pending installation approval. The combined update requires a stopped-world backup and a one-way world conversion to 26.3. No live world, player inventory, helpers or private settings were edited for these checks. Java/iPad client gameplay and the new structure's appearance still require a device check after installation.
-
-## Retained native Bedrock armor appearance
+# Native Bedrock armor appearance — 2.12.0-explore.20
 
 Explore.19 refreshed Java armor and mapped Bedrock tool sprites but deliberately left native Bedrock worn armor unchanged. This fix routes the artwork through the native texture paths actually selected by the iPad client. Native netherite layers now use Convergence, and native leather layers use Aurora with native dye coloring. Their inventory images are refreshed too. Normal netherite/leather armor shares the changed patterns while this resource pack is active; Ember/backpack leather shares Aurora's pattern with its original dye tint.
 
@@ -63,22 +8,7 @@ A new launcher regression inspects the actual prepared pack: both native worn la
 
 ## Retained behavior and earlier fixes
 
-Validated October 6, 2026 with Java 25, Minecraft 26.3, Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2, Floodgate 2.2.7-b69, ViaFabric 0.4.22, ViaBackwards 5.12.0 and Geyser 2.11.3-b1248. Test worlds are isolated from the owner's playable save.
-
-## Minecraft 26.3 port
-
-- **326 native Minecraft GameTests passed on 26.3** in three consecutive runs with the release dependencies (earlier builds of this port passed ten consecutive runs). Helper recall waits for the arrival chunk to become entity-ticking, which can take several ticks since 26.1, before checking that exactly one live helper exists.
-- **103 Python launcher tests passed**, including a check that setup removes superseded pinned mod JARs while keeping owner-added mods.
-- **Geyser smoke passed** with 21 custom items and 209 block overrides; the Bedrock ping advertises 26.51.
-- **Full-stack smoke passed** twice: real Fabric 26.3 + Geyser, all five mode dimensions, cold lobby chunk loading while responsive, restart, stopped-world backup and clean shutdown with no ERROR lines.
-- **A copy of the owner's latest stopped-world backup converted cleanly**: all five mode dimensions and their region files migrated and loaded, every Infinity data file was byte-identical after loading, the player's saved Infinity state survived, and the log had no errors. Vanilla 26.x moves player saves to `players/data`; the first-visit check now reads that location (it previously would have sent every returning Survival player to the hub).
-- **Protocol bridge:** on that converted copy, a Java 26.2-protocol client (what Geyser speaks) and a 26.3 client both received a status reply and completed login into the configuration phase through ViaBackwards.
-- Fixed 26.x behavior changes found by the tests: item components now bind after registration (gear inherits its vanilla base at bind time), Polymer 0.18 item hooks gained a registry parameter, golem targeting now filters players (only a helper's approved order passes, and removal clears it), the hurt cooldown moved to `damageCooldownTime`, and the GameTest server uses the `flat_all_dimensions` preset.
-- A Codex review of the port (gpt-6-astra) found one issue, stale helper target approvals after removal, which is fixed and tested.
-
-Not covered: a real Java 26.3 or Bedrock/iPad player joining and playing. The protocol test stops at configuration, and authenticated device play still needs a person.
-
-## Earlier 1.21.11 checks
+Validated October 5, 2026 with Java 21, Minecraft 1.21.11 and the checksum-pinned Fabric, Polymer, Floodgate and Geyser dependencies. Test worlds are isolated from the owner's playable save.
 
 ## Completed checks
 
@@ -115,7 +45,6 @@ The fixed Dynu hostname still requires forwarding and an awake reachable host. V
 ## Reproduce
 
 ```sh
-python3 tools/generate_odyssey_assets.py --check
 python3 tools/check_crossplay.py --java /path/to/java
 python3 -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
 python3 tools/smoke_geyser.py --java /path/to/java > research/geyser-smoke.log 2>&1

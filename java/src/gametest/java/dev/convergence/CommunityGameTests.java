@@ -3,126 +3,126 @@ package dev.convergence;
 import java.nio.file.Files;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
-import net.minecraft.core.BlockPos;
-import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.PermissionSet;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.block.Blocks;
+import net.minecraft.command.permission.PermissionPredicate;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.test.TestContext;
+import net.minecraft.util.math.BlockPos;
 
 public class CommunityGameTests {
-    private CommunityServer fresh(GameTestHelper c) {
-        try { return new CommunityServer(c.getLevel().getServer(), Files.createTempDirectory("infinity-community-test-").resolve("state.json")); }
+    private CommunityServer fresh(TestContext c) {
+        try { return new CommunityServer(c.getWorld().getServer(), Files.createTempDirectory("infinity-community-test-").resolve("state.json")); }
         catch (java.io.IOException e) { throw new RuntimeException(e); }
     }
-    private ServerPlayer player(GameTestHelper c, String name, int x) {
+    private ServerPlayerEntity player(TestContext c, String name, int x) {
         var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
-        var data = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
-        var p = new ServerPlayer(c.getLevel().getServer(), c.getLevel(), profile, data.clientInformation());
-        var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        var data = net.minecraft.server.network.ConnectedClientData.createDefault(profile, false);
+        var p = new ServerPlayerEntity(c.getWorld().getServer(), c.getWorld(), profile, data.syncedOptions());
+        var connection = new net.minecraft.network.ClientConnection(net.minecraft.network.NetworkSide.SERVERBOUND);
         new io.netty.channel.embedded.EmbeddedChannel(connection);
-        c.getLevel().getServer().getPlayerList().placeNewPlayer(connection, p, data);
-        p.connection.handleAcceptPlayerLoad(new net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket());
-        var feet = c.absolutePos(new BlockPos(x, 2, 2));
+        c.getWorld().getServer().getPlayerManager().onPlayerConnect(connection, p, data);
+        p.networkHandler.onPlayerLoaded(new net.minecraft.network.packet.c2s.play.PlayerLoadedC2SPacket());
+        var feet = c.getAbsolutePos(new BlockPos(x, 2, 2));
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
-            c.getLevel().setBlockAndUpdate(feet.offset(dx, -1, dz), Blocks.STONE.defaultBlockState());
-            c.getLevel().setBlockAndUpdate(feet.offset(dx, 0, dz), Blocks.AIR.defaultBlockState());
-            c.getLevel().setBlockAndUpdate(feet.offset(dx, 1, dz), Blocks.AIR.defaultBlockState());
+            c.getWorld().setBlockState(feet.add(dx, -1, dz), Blocks.STONE.getDefaultState());
+            c.getWorld().setBlockState(feet.add(dx, 0, dz), Blocks.AIR.getDefaultState());
+            c.getWorld().setBlockState(feet.add(dx, 1, dz), Blocks.AIR.getDefaultState());
         }
-        p.setPos(feet.getX() + .5, feet.getY(), feet.getZ() + .5); p.setNoGravity(true);
+        p.setPosition(feet.getX() + .5, feet.getY(), feet.getZ() + .5); p.setNoGravity(true);
         return p;
     }
-    @GameTest public void communityHomesPersistAndRemainPrivate(GameTestHelper c) {
+    @GameTest public void communityHomesPersistAndRemainPrivate(TestContext c) {
         var s = fresh(c); var p = player(c, "home-owner", 2); var other = player(c, "home-other", 5);
         for (String name : new String[]{"base", "mine", "farm", "fourth"}) s.setHome(p, name);
-        c.assertValueEqual(s.homes(p).size(), 3, "Home limit enforced");
+        c.assertEquals(s.homes(p).size(), 3, "Home limit enforced");
         c.assertTrue(s.homes(other).isEmpty(), "Another UUID cannot see these homes");
         var reloaded = CommunityServer.read(s.file);
-        c.assertValueEqual(reloaded.homes.get(p.getStringUUID()).size(), 3, "Homes survive restart");
+        c.assertEquals(reloaded.homes.get(p.getUuidAsString()).size(), 3, "Homes survive restart");
         c.assertTrue(Files.exists(s.file.resolveSibling("state.json.previous")), "Previous save retained");
-        c.assertFalse(CommunityServer.validName("../escape"), "Home is a label, not a path"); c.succeed();
+        c.assertFalse(CommunityServer.validName("../escape"), "Home is a label, not a path"); c.complete();
     }
-    @GameTest public void communityUnsafeLocationsRefused(GameTestHelper c) {
+    @GameTest public void communityUnsafeLocationsRefused(TestContext c) {
         var p = player(c, "safe-places", 2); var place = CommunityServer.Place.of(p);
-        c.assertTrue(CommunityServer.safe(c.getLevel(), place), "Solid floor and air are safe");
-        c.getLevel().setBlockAndUpdate(p.blockPosition().above(), Blocks.STONE.defaultBlockState());
-        c.assertFalse(CommunityServer.safe(c.getLevel(), place), "Blocked head space is rejected");
-        c.getLevel().setBlockAndUpdate(p.blockPosition().above(), Blocks.AIR.defaultBlockState());
-        c.getLevel().setBlockAndUpdate(p.blockPosition().below(), Blocks.MAGMA_BLOCK.defaultBlockState());
-        c.assertFalse(CommunityServer.safe(c.getLevel(), place), "Damaging floor is rejected");
+        c.assertTrue(CommunityServer.safe(c.getWorld(), place), "Solid floor and air are safe");
+        c.getWorld().setBlockState(p.getBlockPos().up(), Blocks.STONE.getDefaultState());
+        c.assertFalse(CommunityServer.safe(c.getWorld(), place), "Blocked head space is rejected");
+        c.getWorld().setBlockState(p.getBlockPos().up(), Blocks.AIR.getDefaultState());
+        c.getWorld().setBlockState(p.getBlockPos().down(), Blocks.MAGMA_BLOCK.getDefaultState());
+        c.assertFalse(CommunityServer.safe(c.getWorld(), place), "Damaging floor is rejected");
         c.assertFalse(new CommunityServer.Place("minecraft:overworld", Double.NaN, 70, 0, 0, 0).valid(), "NaN rejected");
-        c.succeed();
+        c.complete();
     }
-    @GameTest public void communityRequestsNeedConsentAndExpire(GameTestHelper c) {
+    @GameTest public void communityRequestsNeedConsentAndExpire(TestContext c) {
         var s = fresh(c); var visitor = player(c, "visitor", 2); var host = player(c, "host", 5);
         s.request(visitor, host);
         c.assertTrue(s.pending.isEmpty(), "Request alone never teleports");
         s.answer(host, false); c.assertTrue(s.pending.isEmpty(), "Denial never teleports");
         s.request(visitor, host); s.answer(host, true);
-        c.assertTrue(s.pending.containsKey(visitor.getUUID()), "Consent queues the visitor");
-        c.assertValueEqual(s.pending.get(visitor.getUUID()).host(), host.getUUID(), "Accepted host tracked");
-        s.pending.clear(); s.requests.put(host.getUUID(), new CommunityServer.Request(visitor.getUUID(), c.getLevel().getServer().getTickCount() - 1));
-        s.answer(host, true); c.assertTrue(s.pending.isEmpty(), "Expired requests cannot be accepted"); c.succeed();
+        c.assertTrue(s.pending.containsKey(visitor.getUuid()), "Consent queues the visitor");
+        c.assertEquals(s.pending.get(visitor.getUuid()).host(), host.getUuid(), "Accepted host tracked");
+        s.pending.clear(); s.requests.put(host.getUuid(), new CommunityServer.Request(visitor.getUuid(), c.getWorld().getServer().getTicks() - 1));
+        s.answer(host, true); c.assertTrue(s.pending.isEmpty(), "Expired requests cannot be accepted"); c.complete();
     }
-    @GameTest public void communityTeleportMovementCancellationAndCompletion(GameTestHelper c) {
+    @GameTest public void communityTeleportMovementCancellationAndCompletion(TestContext c) {
         var s = fresh(c); var p = player(c, "traveler", 2); var target = player(c, "destination", 5);
         var destination = CommunityServer.Place.of(target);
-        s.queue(p, destination, null); p.setPos(p.getX() + 1, p.getY(), p.getZ()); s.tick();
+        s.queue(p, destination, null); p.setPosition(p.getX() + 1, p.getY(), p.getZ()); s.tick();
         c.assertTrue(s.pending.isEmpty(), "Movement cancels countdown");
         s.queue(p, destination, null);
-        var pending = s.pending.get(p.getUUID());
+        var pending = s.pending.get(p.getUuid());
         c.assertTrue(pending != null, "New countdown can start after movement cancellation");
-        s.pending.put(p.getUUID(), new CommunityServer.Pending(destination, pending.origin(), c.getLevel().getServer().getTickCount(), null));
+        s.pending.put(p.getUuid(), new CommunityServer.Pending(destination, pending.origin(), c.getWorld().getServer().getTicks(), null));
         s.tick();
-        c.assertTrue(p.position().distanceToSqr(target.position()) < .01, "Real server teleport reaches destination");
-        s.queue(p, destination, null); c.assertTrue(s.pending.isEmpty(), "Cooldown prevents immediate repeat"); c.succeed();
+        c.assertTrue(p.getEntityPos().squaredDistanceTo(target.getEntityPos()) < .01, "Real server teleport reaches destination");
+        s.queue(p, destination, null); c.assertTrue(s.pending.isEmpty(), "Cooldown prevents immediate repeat"); c.complete();
     }
-    @GameTest public void communityStaffCommandsAreRestricted(GameTestHelper c) {
-        var source = c.getLevel().getServer().createCommandSourceStack().withPermission(PermissionSet.NO_PERMISSIONS);
-        var root = c.getLevel().getServer().getCommands().getDispatcher().getRoot();
+    @GameTest public void communityStaffCommandsAreRestricted(TestContext c) {
+        var source = c.getWorld().getServer().getCommandSource().withPermissions(PermissionPredicate.NONE);
+        var root = c.getWorld().getServer().getCommandManager().getDispatcher().getRoot();
         c.assertFalse(root.getChild("community").canUse(source), "Staff command root rejects ordinary players");
         c.assertTrue(root.getChild("home").canUse(source), "Ordinary players can use homes");
         c.assertTrue(root.getChild("tpa").canUse(source), "Ordinary players can request teleports");
-        c.assertTrue(root.getChild("community").canUse(source.withPermission(PermissionSet.ALL_PERMISSIONS)), "Operators can administer community commands"); c.succeed();
+        c.assertTrue(root.getChild("community").canUse(source.withPermissions(PermissionPredicate.ALL)), "Operators can administer community commands"); c.complete();
     }
-    @GameTest public void communityChatMuteSurvivesReload(GameTestHelper c) {
+    @GameTest public void communityChatMuteSurvivesReload(TestContext c) {
         var s = fresh(c); var p = player(c, "chat-user", 2);
         c.assertTrue(s.allowChat(p), "First message passes");
         c.assertFalse(s.allowChat(p), "Rapid chat is throttled");
-        s.data.mutedUntil.put(p.getStringUUID(), System.currentTimeMillis() + 60_000); s.save();
+        s.data.mutedUntil.put(p.getUuidAsString(), System.currentTimeMillis() + 60_000); s.save();
         var reloaded = new CommunityServer(s.server, s.file);
         c.assertFalse(reloaded.allowChat(p), "Mute survives a restart");
-        reloaded.data.mutedUntil.put(p.getStringUUID(), System.currentTimeMillis() - 1);
-        c.assertTrue(reloaded.allowChat(p), "Expired mute lifts automatically"); c.succeed();
+        reloaded.data.mutedUntil.put(p.getUuidAsString(), System.currentTimeMillis() - 1);
+        c.assertTrue(reloaded.allowChat(p), "Expired mute lifts automatically"); c.complete();
     }
-    @GameTest public void communityCorruptSaveFailsWithoutOverwriting(GameTestHelper c) {
+    @GameTest public void communityCorruptSaveFailsWithoutOverwriting(TestContext c) {
         var s = fresh(c);
         try {
             Files.writeString(s.file, "{not valid json"); boolean failed = false;
             try { CommunityServer.read(s.file); } catch (IllegalStateException expected) { failed = true; }
             c.assertTrue(failed, "Corrupt data fails visibly");
-            c.assertValueEqual(Files.readString(s.file), "{not valid json", "Corrupt original retained for recovery");
-        } catch (java.io.IOException e) { throw new RuntimeException(e); } c.succeed();
+            c.assertEquals(Files.readString(s.file), "{not valid json", "Corrupt original retained for recovery");
+        } catch (java.io.IOException e) { throw new RuntimeException(e); } c.complete();
     }
-    @GameTest public void communityPlazaRefusesToReplaceAChest(GameTestHelper c) {
-        var s = fresh(c); var p = player(c, "builder", 2); var chest = p.blockPosition().offset(2, 0, 0);
-        c.getLevel().setBlockAndUpdate(chest, Blocks.CHEST.defaultBlockState()); s.buildSpawn(p);
-        c.assertTrue(c.getLevel().getBlockState(chest).is(Blocks.CHEST), "Build command preserves occupied areas");
-        c.assertTrue(s.data.spawn == null, "Failed build does not change spawn"); c.succeed();
+    @GameTest public void communityPlazaRefusesToReplaceAChest(TestContext c) {
+        var s = fresh(c); var p = player(c, "builder", 2); var chest = p.getBlockPos().add(2, 0, 0);
+        c.getWorld().setBlockState(chest, Blocks.CHEST.getDefaultState()); s.buildSpawn(p);
+        c.assertTrue(c.getWorld().getBlockState(chest).isOf(Blocks.CHEST), "Build command preserves occupied areas");
+        c.assertTrue(s.data.spawn == null, "Failed build does not change spawn"); c.complete();
     }
-    @GameTest public void communityPlazaBuildsAndSetsSpawn(GameTestHelper c) {
+    @GameTest public void communityPlazaBuildsAndSetsSpawn(TestContext c) {
         var s = fresh(c); var p = player(c, "plaza-builder", 2);
-        var center = p.blockPosition().offset(0, 120, 0); var oldSpawn = s.server.getRespawnData();
+        var center = p.getBlockPos().add(0, 120, 0); var oldSpawn = s.server.getSpawnPoint();
         try {
-            for (BlockPos at : BlockPos.betweenClosed(center.offset(-12, 0, -12), center.offset(12, 5, 12)))
-                c.getLevel().setBlockAndUpdate(at, at.getY() == center.getY() ? Blocks.GRASS_BLOCK.defaultBlockState() : Blocks.AIR.defaultBlockState());
-            p.setPos(center.getX() + .5, center.getY() + 1, center.getZ() + .5);
+            for (BlockPos at : BlockPos.iterate(center.add(-12, 0, -12), center.add(12, 5, 12)))
+                c.getWorld().setBlockState(at, at.getY() == center.getY() ? Blocks.GRASS_BLOCK.getDefaultState() : Blocks.AIR.getDefaultState());
+            p.setPosition(center.getX() + .5, center.getY() + 1, center.getZ() + .5);
             s.buildSpawn(p);
             c.assertTrue(s.data.spawn != null, "Successful plaza saves the shared spawn");
-            c.assertTrue(c.getLevel().getBlockState(center).is(Blocks.SEA_LANTERN), "Center is lit");
-            c.assertTrue(c.getLevel().getBlockState(center.offset(1, 0, 3)).is(Blocks.QUARTZ_BLOCK), "Walkway is built");
-            c.assertTrue(c.getLevel().getBlockState(center.offset(10, 4, 10)).is(Blocks.SEA_LANTERN), "Corner lamps are built");
-            c.assertTrue(CommunityServer.safe(c.getLevel(), s.data.spawn), "New spawn is a safe teleport destination");
-        } finally { s.server.setRespawnData(oldSpawn); }
-        c.succeed();
+            c.assertTrue(c.getWorld().getBlockState(center).isOf(Blocks.SEA_LANTERN), "Center is lit");
+            c.assertTrue(c.getWorld().getBlockState(center.add(1, 0, 3)).isOf(Blocks.QUARTZ_BLOCK), "Walkway is built");
+            c.assertTrue(c.getWorld().getBlockState(center.add(10, 4, 10)).isOf(Blocks.SEA_LANTERN), "Corner lamps are built");
+            c.assertTrue(CommunityServer.safe(c.getWorld(), s.data.spawn), "New spawn is a safe teleport destination");
+        } finally { s.server.setSpawnPoint(oldSpawn); }
+        c.complete();
     }
 }
