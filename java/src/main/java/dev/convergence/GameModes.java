@@ -91,6 +91,7 @@ public final class GameModes {
     public static boolean operator(ServerPlayer player) {return Memberships.operator(player);}
     /** Vanilla /tp and dimension commands still save and restore each world's inventory. */
     public static void beforeOperatorTeleport(ServerPlayer p,ServerLevel destination) {
+        LobbyServer.cancelArrival(p);
         if(operator(p)&&!TRANSITIONS.contains(p.getUUID()))cancelPending(p);
         if(!operator(p)||TRANSITIONS.contains(p.getUUID())||current(p)==of(destination)||OPERATOR_TRANSFERS.containsKey(p.getUUID()))return;
         var cursor=p.containerMenu.getCarried();
@@ -233,8 +234,7 @@ public final class GameModes {
             else switchNow(p,mode,map);
             return CommunityServer.say(p,"OP mode access: "+mode+". /gamemode can change your abilities in any world.");
         }
-        boolean leavingEliminatedHardcore=current(p)==Mode.HARDCORE && p.isSpectator()
-            && state(p).getBooleanOr("eliminated",false) && mode!=Mode.HARDCORE;
+        boolean leavingEliminatedHardcore=leavingEliminatedHardcore(p,mode);
         if(!leavingEliminatedHardcore && c.combat.getOrDefault(p.getUUID(),0)>c.server.getTickCount())
             return CommunityServer.say(p,"Wait 10 seconds after damage before changing modes.");
         if(PENDING.containsKey(p.getUUID())) return CommunityServer.say(p,"A mode change is already counting down.");
@@ -243,7 +243,7 @@ public final class GameModes {
             if(map!=null) ModeMaps.begin(p,map);
             return CommunityServer.say(p,"Current mode: "+mode+". /play lists all modes.");
         }
-        c.pending.remove(p.getUUID());
+        c.pending.remove(p.getUUID());LobbyServer.cancelArrival(p);
         PENDING.put(p.getUUID(),new Switch(mode,map,CommunityServer.Place.of(p),c.server.getTickCount()+60));
         prepare(p);
         if(!PENDING.containsKey(p.getUUID()))return 1;
@@ -257,7 +257,7 @@ public final class GameModes {
         }
         if(!p.getShoulderEntityLeft().isEmpty() || !p.getShoulderEntityRight().isEmpty() || p.isPassenger()) { CommunityServer.say(p,"Dismount and let shoulder pets down first.");return; }
         var s=state(p); if(!Memberships.gameplayBypass(p)&&mode==Mode.HARDCORE && s.getBooleanOr("eliminated",false)) return;
-        cancelPending(p);
+        cancelPending(p);LobbyServer.cancelArrival(p);
         // This internal route historically skips gameplay countdown/combat checks.
         // Only first-visit routing and the already-authorized OP request call it.
         PENDING.put(p.getUUID(),new Switch(mode,map,CommunityServer.Place.of(p),server.getTickCount(),true));
@@ -301,7 +301,8 @@ public final class GameModes {
         boolean invalid=!sameSession||!p.connection.isAcceptingMessages()||p.isRemoved()||!p.isAlive()||p.isPassenger()||p.isSleeping()
             ||!p.getShoulderEntityLeft().isEmpty()||!p.getShoulderEntityRight().isEmpty()
             ||job.bypass&&!Memberships.gameplayBypass(p)
-            ||!job.bypass&&!request.immediate()&&(CommunityServer.moved(request.origin(),p)||c.combat.getOrDefault(p.getUUID(),0)>server.getTickCount());
+            ||!job.bypass&&!request.immediate()&&(CommunityServer.moved(request.origin(),p)
+                ||!leavingEliminatedHardcore(p,request.mode())&&c.combat.getOrDefault(p.getUUID(),0)>server.getTickCount());
         if(invalid){cancelPending(p);CommunityServer.say(p,"Mode change cancelled. Stay still and avoid damage.");return;}
         if(server.getTickCount()-job.started>=PREPARATION_TIMEOUT){cancelPending(p);CommunityServer.say(p,"The destination is taking too long to prepare. Your current mode and inventory are unchanged; try again later.");return;}
         var result=job.destination.poll();
@@ -320,6 +321,9 @@ public final class GameModes {
             finishSwitch(p,request.mode(),job.map,place);
         } catch(DestinationUnavailable unavailable){CommunityServer.say(p,unavailable.getMessage()+" Your current mode and inventory are unchanged.");}
         finally {cancelPending(p);}
+    }
+    private static boolean leavingEliminatedHardcore(ServerPlayer p,Mode destination) {
+        return current(p)==Mode.HARDCORE&&p.isSpectator()&&state(p).getBooleanOr("eliminated",false)&&destination!=Mode.HARDCORE;
     }
     private static void finishSwitch(ServerPlayer p,Mode mode,String map,CommunityServer.Place place) {
         var server=p.level().getServer();var current=current(p);var s=state(p);
@@ -346,7 +350,7 @@ public final class GameModes {
         } finally { TRANSITIONS.remove(p.getUUID()); }
     }
     static void death(ServerPlayer p) {
-        cancelPending(p);ModeMaps.RUNS.remove(p.getUUID());
+        cancelPending(p);LobbyServer.cancelArrival(p);ModeMaps.RUNS.remove(p.getUUID());
         if(!Memberships.gameplayBypass(p)&&current(p)==Mode.HARDCORE) { state(p).putBoolean("eliminated",true);CommunityServer.say(p,"Your Hardcore life has ended. Respawn to spectate, then /play survival to continue elsewhere."); }
     }
     static boolean routeFirstVisit(ServerPlayer p) {

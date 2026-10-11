@@ -6,7 +6,7 @@ In explore.26, course icons include their actual instructions and personal bests
 
 Use **`/play`** in Minecraft. Java has clickable choices; the same short commands work on Bedrock. Mode changes take three seconds. Stay still, leave vehicles, and let shoulder pets dismount. Taking damage cancels the change, and you must wait ten seconds after damage before trying again.
 
-The explore.33 source candidate starts preparing an unavailable destination during that countdown. If it is still loading after three seconds, stay still until the preparation message clears. Your current world and inventory remain active until the verified move. A cold saved return position is loaded and checked before choosing a default spawn. The server starts at most four new destination chunk loads per game tick; a request still pending after 600 game ticks cancels without moving or capturing your profile. Game ticks are not a guaranteed wall-clock duration. This preparation covers changes between modes and first-visit Hub routing; same-mode lobby movement, homes and respawn still use their existing native paths.
+The explore.34 source candidate starts preparing an unavailable destination during that countdown. If it is still loading after three seconds, stay still until the preparation message clears. Your current world and inventory remain active until the verified move. A cold saved return position is loaded and checked before choosing a default spawn. The server starts at most four new destination chunk loads per game tick; a request still pending after 600 game ticks cancels without moving or capturing your profile. Game ticks are not a guaranteed wall-clock duration. This preparation covers changes between modes, first-visit Hub routing and same-mode lobby destinations. Homes, default-spawn commands outside the Hub and respawn still use their existing synchronous paths.
 
 | Mode | Command | What you get |
 |---|---|---|
@@ -26,9 +26,11 @@ Inventories, equipped armor/offhand, Ender Chests, personal backpack storage, ex
 
 Level-4 operators can switch game worlds immediately, including during combat, and are not forced back to a prescribed game mode by the mod. Operator teleporting across game worlds updates the matching mode profile. Operators can enter Hardcore after elimination; ordinary players keep the one-life rule. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for operator controls.
 
-In the explore.33 source candidate, OPs still skip the countdown and combat delay. If destination chunks are unavailable, they wait only for terrain preparation; losing OP access cancels that pending privileged request. The selected destination must still pass the existing cross-mode safety check.
+In the explore.34 source candidate, OPs still skip the countdown and combat delay. If destination chunks are unavailable, they wait only for terrain preparation; losing OP access cancels that pending privileged request. The selected destination must still pass the existing cross-mode safety check.
 
 ## Hardcore
+
+In explore.34, an eliminated Hardcore spectator can complete the normal three-second exit even while the fatal hit's combat cooldown remains active. Living players still keep combat rejection and damage cancellation, and elimination still prevents a new Hardcore life.
 
 Death marks that player's Hardcore life as ended. Respawning allows spectating the Hardcore world; **`/play survival`** lets them continue in other modes. They cannot rejoin Hardcore as a living player. The entire server does not shut down or ban them. Vanilla and Infinity totems can still prevent an eligible death. Ranks do not grant extra lives, gear, or Hardcore resets.
 

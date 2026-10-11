@@ -1,4 +1,4 @@
-# Reliability and helper work — explore.33
+# Reliability and helper work — explore.34
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
 
@@ -15,7 +15,7 @@ This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. I
 
 Preparation times out after 600 game ticks, which is not a wall-clock deadline. The native nonpersistent loading ticket lasts 1,200 ticks and overlapping leases renew the same ticket. Canceling releases this module's tickets without canceling shared native generation futures. Runtime renewal/removal failure branches are source-reviewed; shutdown cleanup is best-effort after a native removal exception.
 
-This path covers cross-mode moves and first-visit routing. Same-mode Hub arrivals, home/default-spawn commands and native respawn fallbacks retain their existing synchronous paths. The explore.32 packet measurements below are preserved historical evidence; they are not a new explore.33 timing measurement. The live server remains explore.26 pending installation approval.
+The explore.33 path covers cross-mode moves and first-visit routing. Explore.34 also prepares same-mode Hub arrivals across ticks, as described below. Homes, default-spawn commands outside the Hub and native respawn fallbacks retain their synchronous paths. The explore.32 packet measurements below remain historical evidence; they are not explore.34 timing measurements. The live server remains explore.26 pending installation approval.
 
 ## Connection-local capacity refreshes in explore.32
 
@@ -85,3 +85,15 @@ This does not make the server immune to lag, disk failure or client crashes. Nat
 | The normal Convergence tick updates the online players. | A fresh HashSet and one UUID insertion per player are constructed only to prune offline state. | Native PlayerList UUID lookup prunes state without rebuilding that set. Four native lifecycle cases preserve living selections/cooldowns/fall tracking, remove actual death/disconnect state and retain existing same-UUID reconnect/age-reset semantics. |
 
 Capacity update packets still refresh the HUD, including true-capacity changes above the shared 40-point display and resets to ordinary values. Suppressing repeated refresh packets is deferred until connection-local tracking, respawn, dimension change and removal invalidation are separately verified. No real-client frame-rate, multiplayer capacity or lag-proof result is claimed.
+
+
+## Same-mode lobby preparation and Hardcore exits in explore.34
+
+| Trigger | Previous behavior | Corrected behavior and regression |
+| --- | --- | --- |
+| A player visits a hall whose collision terrain is unloaded. | The same-mode arrival synchronously requests chunks in its safety check. | Retain the exact FULL collision footprint through native teleport and poll across ticks. A hot hall stays immediate, with no inventory profile restoration. Native command/sign, cold readiness and item-conservation regressions run separately. |
+| A player falls below a blocked Hub platform. | The fall handler repeats the arrival scan and failure message each tick. | Keep one pending recovery; after failure retry at most once per 20 game ticks and suppress the same failure message during that episode. Cancel an obsolete recovery if the player gets back above the fall threshold. |
+| A prepared lobby move outlives its player session, OP privilege or another native teleport. | Direct arrivals had no delayed operation to bind or clean up. | Bind the exact player/listener/world, close only that session's preparation on cancellation, and retain owned leases through the native teleport return. New hall choices replace old ones; timeout is 600 game ticks. |
+| An ordinary Hardcore player dies, respawns to spectate, then leaves before the fatal hit's combat timer expires. | The exit is accepted, but subsequent polling cancels it because of inherited combat. | Apply the same eliminated-spectator exception at request and polling. The ordinary three-second deadline, living combat rules, one-life marker and mode inventory isolation remain. Native actual damage/respawn and player-file checks cover the original failure and living controls. |
+
+These are source changes, not a live installation. Default-spawn commands outside the Hub, homes and native respawn still have synchronous terrain paths. Authentic Java/iPad play, visuals and multiplayer performance remain device checks.
