@@ -1,0 +1,7 @@
+# Codex-inspired helper skin
+
+This is a community Minecraft robot skin generated with the built-in image generation tool, not an official OpenAI avatar. The charcoal outfit, silver face and cyan accents carry two chest marks: a pixel version of the ChatGPT knot above the blue-purple Codex cloud containing the terminal prompt. Minecraft Java skins have an 8 by 12 pixel chest, so both marks are small pixel approximations. Codex and ChatGPT names and symbols belong to OpenAI.
+
+`codex-chatgpt.png` is the playable classic 64 by 64 RGBA UV atlas. Generated face artwork was resized and packed into Minecraft's required UV rectangles; unused and overlay rectangles remain transparent. `codex-chatgpt.json` contains public signed Minecraft texture data, not an API key. Every helper retains its own entity UUID, owner, orders and stats. The same skin is sent in the native player-info packet used by Java and Geyser.
+
+Final image-edit prompt (built-in mode): Put BOTH the white ChatGPT interlocking six-loop knot and the blue-purple Codex cloud with a tiny white terminal prompt inside on the front chest of this silver robot Minecraft skin, stacked vertically. Replace the plain terminal chest motif with the cloud shape; use the installed Codex app icon as the symbol reference only. Keep the silver face, cyan eyes, charcoal hoodie, limbs and UV faces unchanged. Keep crisp pixel art, a flat classic Minecraft UV atlas, transparent unused areas, no words, no labels, no 3D scene and no extra accessories.

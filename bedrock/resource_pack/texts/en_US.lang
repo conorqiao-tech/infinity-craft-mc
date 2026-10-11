@@ -1,0 +1,27 @@
+item.convergence:helmet.name=Infinity Helmet
+item.convergence:chestplate.name=Infinity Chestplate
+item.convergence:leggings.name=Infinity Leggings
+item.convergence:boots.name=Infinity Boots
+item.convergence:sword.name=Infinity Sword
+item.convergence:mace.name=Infinity Mace
+item.convergence:spear.name=Infinity Spear
+item.convergence:ingot.name=Infinity Ingot
+
+item.convergence:pickaxe.name=Infinity Pickaxe — Excavation / Gravity Well
+
+item.convergence:axe.name=Infinity Axe — Timber / Thunder Cleave
+
+item.convergence:shovel.name=Infinity Shovel — Earthmover / Repulse
+
+item.convergence:hoe.name=Infinity Hoe — Farm Bloom / Renewal
+item.convergence:totem.name=Infinity Totem
+item.convergence:shield.name=Infinity Shield
+item.convergence:bow.name=Infinity Bow
+item.convergence:crossbow.name=Infinity Crossbow
+item.convergence:infinity_arrow.name=Infinity Arrow
+item.convergence:void_arrow.name=Void Arrow
+item.convergence:starfire_arrow.name=Starfire Arrow
+tile.convergence:infinity_block.name=Infinity Block
+tile.convergence:polished_infinity.name=Polished Infinity
+tile.convergence:infinity_bricks.name=Infinity Bricks
+tile.convergence:radiant_infinity.name=Radiant Infinity

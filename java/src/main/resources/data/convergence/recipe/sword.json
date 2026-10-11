@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:sword",
+    "count": 1
+  },
+  "pattern": [
+    " I ",
+    " I ",
+    " S "
+  ],
+  "key": {
+    "I": "convergence:ingot",
+    "S": "minecraft:stick"
+  }
+}
