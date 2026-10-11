@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "result": {
+    "id": "convergence:crossbow",
+    "count": 1
+  },
+  "pattern": [
+    "ISI",
+    "ITI",
+    " I "
+  ],
+  "key": {
+    "I": "convergence:ingot",
+    "S": "minecraft:string",
+    "T": "minecraft:tripwire_hook"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "resource_pack_name": "convergence_one_set",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "convergence_helmet": {
+      "textures": "textures/convergence/items/helmet"
+    },
+    "convergence_chestplate": {
+      "textures": "textures/convergence/items/chestplate"
+    },
+    "convergence_leggings": {
+      "textures": "textures/convergence/items/leggings"
+    },
+    "convergence_boots": {
+      "textures": "textures/convergence/items/boots"
+    },
+    "convergence_sword": {
+      "textures": "textures/convergence/items/sword"
+    },
+    "convergence_mace": {
+      "textures": "textures/convergence/items/mace"
+    },
+    "convergence_spear": {
+      "textures": "textures/convergence/items/spear"
+    },
+    "convergence_ingot": {
+      "textures": "textures/convergence/items/ingot"
+    },
+    "convergence_pickaxe": {
+      "textures": "textures/items/netherite_pickaxe"
+    },
+    "convergence_axe": {
+      "textures": "textures/items/netherite_axe"
+    },
+    "convergence_shovel": {
+      "textures": "textures/items/netherite_shovel"
+    },
+    "convergence_hoe": {
+      "textures": "textures/items/netherite_hoe"
+    },
+    "convergence_totem": {
+      "textures": "textures/convergence/items/totem"
+    },
+    "convergence_shield": {
+      "textures": "textures/convergence/items/shield"
+    },
+    "convergence_bow": {
+      "textures": "textures/convergence/items/bow"
+    },
+    "convergence_crossbow": {
+      "textures": "textures/convergence/items/crossbow"
+    },
+    "convergence_infinity_arrow": {
+      "textures": "textures/convergence/items/infinity_arrow"
+    },
+    "convergence_void_arrow": {
+      "textures": "textures/convergence/items/void_arrow"
+    },
+    "convergence_starfire_arrow": {
+      "textures": "textures/convergence/items/starfire_arrow"
+    },
+    "convergence_backpack": {
+      "textures": "textures/convergence/backpack"
+    },
+    "convergence_builder_wand": {
+      "textures": "textures/convergence/items/builder_wand"
+    },
+    "convergence_sculptor_wand": {
+      "textures": "textures/convergence/items/sculptor_wand"
+    },
+    "convergence_aurora_helmet": {
+      "textures": "textures/convergence/items/aurora_helmet"
+    },
+    "convergence_aurora_chestplate": {
+      "textures": "textures/convergence/items/aurora_chestplate"
+    },
+    "convergence_aurora_leggings": {
+      "textures": "textures/convergence/items/aurora_leggings"
+    },
+    "convergence_aurora_boots": {
+      "textures": "textures/convergence/items/aurora_boots"
+    },
+    "convergence_ember_helmet": {
+      "textures": "textures/convergence/items/ember_helmet"
+    },
+    "convergence_ember_chestplate": {
+      "textures": "textures/convergence/items/ember_chestplate"
+    },
+    "convergence_ember_leggings": {
+      "textures": "textures/convergence/items/ember_leggings"
+    },
+    "convergence_ember_boots": {
+      "textures": "textures/convergence/items/ember_boots"
+    }
+  }
+}
