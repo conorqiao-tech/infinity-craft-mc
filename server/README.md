@@ -1,6 +1,8 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.31
+# Infinity Armor Exploration Server — 2.13.0-explore.32
 
-Explore.31 avoids unused client-vitals copies, preserves every required capacity/HUD refresh, safely flattens grouped updates and uses native UUID membership for offline player-state cleanup. It keeps the original artwork, separate solid Convergence chestplate and existing wings. Source/package is **explore.31**; the live server remains **explore.26** pending separate installation approval.
+Explore.32 avoids duplicate client health/absorption refresh groups when native armor bonuses renew without changing their capacities or displayed vitals. Each connection keeps bounded tracking history and refreshes after actual capacity/vitals changes, tracking removal/re-addition, world changes and respawn; off-thread sends retain the stateless fallback. It preserves exact server stats, ordinary update packets and separate AI approvals. The prepared source/package candidate is **explore.32**; the live server remains **explore.26** pending separate installation approval. See [RELIABILITY.md](RELIABILITY.md) and [VALIDATION.md](VALIDATION.md) for measured packet counts and client checks still required.
+
+Explore.31 avoids unused client-vitals copies, safely flattens grouped updates and uses native UUID membership for offline player-state cleanup. Those changes remain alongside the original artwork, separate solid Convergence chestplate and existing wings.
 
 Explore.30 reduces repeated plane, backpack and menu/helper work, and retries failed automatic AI-order revocation saves safely. Explicit action execution still requires both reviews and a successful save. It retains the original Infinity artwork, Aurora/Convergence inventory filters, the separate solid Convergence chestplate and existing wings. See [RELIABILITY.md](RELIABILITY.md) and [VALIDATION.md](VALIDATION.md) for the actual checks and remaining client limits.
 

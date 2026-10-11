@@ -1,6 +1,18 @@
-# Reliability and helper work — explore.31
+# Reliability and helper work — explore.32
 
 This update keeps Minecraft 26.3 / Java 25 and the pinned Fabric/Geyser stack. It includes the explore.27 original artwork, separate solid Convergence chestplate, existing wings and armor collection inventory. It does not change player permissions, AI approval gates, worlds or hosting settings.
+
+## Connection-local capacity refreshes in explore.32
+
+| Trigger | Previous behavior | Corrected behavior and regression |
+| --- | --- | --- |
+| Full Convergence armor renews native Health Boost and Absorption without changing the player's effective capacity or displayed vitals. | Each dirty capacity packet adds another health/absorption refresh group to the wearer and observers. | Attribute packets still arrive; duplicate refresh groups are omitted only after that connection has seen the actual capacity fields and unchanged projected vitals. The history holds at most 256 targets and is discarded when the connection ends. Native encoding tests cover real capacity changes, food/saturation, independently tracked viewers and ordinary unrelated metadata. |
+| The true maximum changes above the shared 40-point client display, a tracked entity is removed/re-added, or a player respawns/rejoins or changes worlds. | A naive display-only/global cache could leave the HUD stale or mix different sessions. | Compare true double capacities, object/UUID identity and actual fields carried by each packet. Tracking, login/respawn, viewer and world changes invalidate the history. Native lifecycle tests cover same-ID and same-UUID reuse, real replacement-player respawn, fresh login and FIFO eviction; no authoritative attribute, health or equipment NBT is changed. |
+| A relevant packet is sent outside the native server thread. | Concurrent projection and later native enqueue cannot share a reliable delivery history. | Permanently clear and disable that listener's history, then retain the stateless refresh path. Unrelated packets retain their identity without that work. Native asynchronous delivery/fallback tests preserve packet order and original values. |
+
+`tools/benchmark_capacity.py` compares prebuilt explore.31 and explore.32 jars through real registered armor upkeep in fresh disposable worlds. Both connection/player tick counts and the server tick count advance exactly 120 after 40 warmup ticks; actual native effect renewals and observer tracking must remain present. Receipts are recorded only after native encoding succeeds. Two baseline/optimized pairs alternate order. In each run both viewers received three capacity packets. Each baseline viewer received three synthetic health/absorption refresh groups; each explore.32 viewer received zero. True health/absorption, attribute bases, native saved attributes/equipment and every equipped item component stayed unchanged. This is a count of eliminated duplicate groups, not live TPS, latency or total allocation evidence.
+
+Measurement records, reports, logs and their hashes remain under `research/capacity-performance/2.13.0-explore.32/`; the packaged summary/provenance bind the exact tested mod, test jar and Java sources. Packaging rejects missing/replaced native test jars, zero/incomplete comparison pairs, changed raw evidence or summary/report disagreement. Full-stack and authentic device checks remain separate from this controlled measurement. The earlier fixture lacking native connection ticking failed its renewal assertion and was corrected; its quiet output was never accepted as a performance result.
 
 ## Reproductions and fixes
 

@@ -5,15 +5,38 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 from prepare_crossplay import VERSION, expected_native_tests
 import shutil
 import subprocess
 import urllib.request
 import xml.etree.ElementTree as ET
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FRAMEWORK = "fabric-gametest-api-v1-4.0.32+3434d6d95d.jar"
 FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gametest-api-v1/4.0.32+3434d6d95d/" + FRAMEWORK
+
+
+def test_groups(manifest):
+    registered = manifest["entrypoints"]["fabric-gametest"]
+    isolated = manifest.get("custom", {}).get("infinity-isolated-gametests", [])
+    if (not isinstance(isolated, list) or any(not isinstance(name, str) for name in isolated)
+        or len(set(isolated)) != len(isolated) or not set(isolated) <= set(registered)):
+        raise ValueError("Isolated tests must be unique registered native test classes")
+    regular = [name for name in registered if name not in isolated]
+    return [(label, names) for label, names in (("default", regular), ("native-play", isolated)) if names]
+
+
+def selected_test_jar(source, destination, classes):
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as result:
+        for item in original.infolist():
+            data = original.read(item.filename)
+            if item.filename == "fabric.mod.json":
+                manifest = json.loads(data)
+                manifest["entrypoints"]["fabric-gametest"] = classes
+                data = json.dumps(manifest, indent=2).encode()
+            result.writestr(item, data)
 
 
 def main():
@@ -48,6 +71,7 @@ def main():
     tested_mod_sha = hashlib.sha256(release_mod.read_bytes()).hexdigest()
     assert hashlib.sha256((mods / release_mod.name).read_bytes()).hexdigest() == tested_mod_sha
     test_mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}-gametest.jar"
+    tested_test_sha = hashlib.sha256(test_mod.read_bytes()).hexdigest()
     shutil.copy2(test_mod, mods / test_mod.name)
     expected = (ROOT / "tools/gametest-framework.sha256").read_text().split()[0]
     # Reuse Gradle's cached copy when it matches the pinned checksum; download only otherwise.
@@ -63,23 +87,73 @@ def main():
     shutil.copy2(ROOT / "server/fabric/fabric-server-launch.jar", runtime / "fabric-server-launch.jar")
     (runtime / "config/polymer").mkdir(parents=True, exist_ok=True)
     (runtime / "config/polymer/auto-host.json").write_text('{"enabled":false}')
+    manifest = json.loads((ROOT / "java/src/gametest/resources/fabric.mod.json").read_text())
+    groups = test_groups(manifest)
+    expected_count = expected_native_tests()
+    (runtime / "results.xml").unlink(missing_ok=True)
+    (runtime / "provenance.json").unlink(missing_ok=True)
+    combined = ET.Element("testsuites")
+    group_records = []
+    with (runtime / "integration.log").open("w") as combined_log:
+        for label, classes in groups:
+            target = runtime
+            if label != "default":
+                from benchmark_helpers import copy_cached_runtime
+                target = ROOT / ("research/integration-" + label)
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.rmtree(target / "world", ignore_errors=True)
+                # Only this disposable runtime is replaced; no playable settings or saves.
+                for folder in ("libraries", "versions", ".fabric/server", "mods"):
+                    shutil.rmtree(target / folder, ignore_errors=True)
+                copy_cached_runtime(runtime, target)
+                shutil.copytree(mods, target / "mods")
+                (target / "config/polymer").mkdir(parents=True, exist_ok=True)
+                (target / "config/polymer/auto-host.json").write_text('{"enabled":false}')
+            assert hashlib.sha256(test_mod.read_bytes()).hexdigest() == tested_test_sha, "Test jar changed between native groups"
+            selected = target / "mods" / test_mod.name
+            selected_test_jar(test_mod, selected, classes)
+            selected_sha = hashlib.sha256(selected.read_bytes()).hexdigest()
+            group_report = runtime / ("results-" + label + ".xml")
+            group_report.unlink(missing_ok=True)
+            group_log = runtime / ("integration-" + label + ".log")
+            with group_log.open("w") as log:
+                tmp = __import__("os").environ.get("GAMETEST_TMPDIR")
+                result = subprocess.run([args.java, "-Xmx2G", *(["-Djava.io.tmpdir=" + tmp] if tmp else []), "-Dfabric-api.gametest",
+                    "-Dfabric-api.gametest.report-file=" + str(group_report), "-jar", "fabric-server-launch.jar", "nogui"],
+                    cwd=target, stdout=log, stderr=subprocess.STDOUT, timeout=300)
+            combined_log.write(group_log.read_text()); combined_log.flush()
+            tree = ET.parse(group_report) if group_report.exists() else None
+            cases = list(tree.getroot().iter("testcase")) if tree is not None else []
+            expected_group = 1 + sum(len(re.findall(r"@GameTest\b", (ROOT / "java/src/gametest/java" /
+                (name.replace(".", "/") + ".java")).read_text())) for name in classes)
+            failures = [t.get("name") for t in cases if any(t.find(kind) is not None for kind in ("failure", "error", "skipped"))]
+            if result.returncode or len(cases) != expected_group or failures:
+                raise RuntimeError(f"Native group {label} failed: {len(cases)}/{expected_group} cases, {failures}; see {group_log}")
+            assert hashlib.sha256(selected.read_bytes()).hexdigest() == selected_sha, "Selected native test jar changed during its group"
+            group_records.append(dict(name=label, registered_classes=classes, native_tests=len(cases),
+                report_sha256=hashlib.sha256(group_report.read_bytes()).hexdigest(), selected_test_sha256=selected_sha))
+            # Each independent world runs Vanilla's same baseline. Verify it every
+            # time, then include it once in the aggregate instead of inflating coverage.
+            if len(group_records) > 1:
+                baseline = [t for t in cases if t.get("name") == "minecraft:always_pass"]
+                assert len(baseline) == 1
+                for parent in tree.getroot().iter():
+                    for child in list(parent):
+                        if child is baseline[0]: parent.remove(child)
+            combined.append(tree.getroot())
     report = runtime / "results.xml"
-    report.unlink(missing_ok=True)
-    with (runtime / "integration.log").open("w") as log:
-        # Optional: sandboxed hosts may only allow temp files outside the system default.
-        tmp = __import__("os").environ.get("GAMETEST_TMPDIR")
-        result = subprocess.run([args.java, "-Xmx2G", *(["-Djava.io.tmpdir=" + tmp] if tmp else []), "-Dfabric-api.gametest",
-            "-Dfabric-api.gametest.report-file=" + str(report), "-jar", "fabric-server-launch.jar", "nogui"],
-            cwd=runtime, stdout=log, stderr=subprocess.STDOUT, timeout=300)
-    tests = list(ET.parse(report).getroot().iter("testcase")) if report.exists() else []
+    ET.ElementTree(combined).write(report, encoding="utf-8", xml_declaration=True)
+    tests = list(combined.iter("testcase"))
     failures = [t.get("name") for t in tests if t.find("failure") is not None or t.find("error") is not None]
-    if result.returncode or len(tests) != expected_native_tests() or failures or any(t.find('skipped') is not None for t in tests):
+    if len(tests) != expected_count or len({t.get("name") for t in tests}) != len(tests) or failures or any(t.find('skipped') is not None for t in tests):
         raise RuntimeError(f"Native test failure: {len(tests)} tests, {failures}; see {runtime / 'integration.log'}")
-    if source_hashes() != checked_sources or hashlib.sha256(release_mod.read_bytes()).hexdigest() != tested_mod_sha:
+    if (source_hashes() != checked_sources or hashlib.sha256(release_mod.read_bytes()).hexdigest() != tested_mod_sha
+        or hashlib.sha256(test_mod.read_bytes()).hexdigest() != tested_test_sha):
         raise RuntimeError("Source or mod changed during native checks; rerun validation")
     (runtime / "provenance.json").write_text(json.dumps({"format": 1, "java_sources": checked_sources,
         "mod_sha256": tested_mod_sha, "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
-        "native_tests": len(tests)}, indent=2) + "\n")
+        "native_tests": len(tests), "test_groups": group_records,
+        "test_mod_sha256": tested_test_sha}, indent=2) + "\n")
     print(f"All {len(tests)} native tests passed with release dependencies.")
 
 

@@ -14,22 +14,22 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(ClientVitals.class)
 abstract class ClientVitalsProbeMixin {
-    @Redirect(method="rewrite", at=@At(value="NEW", target="()Ljava/util/ArrayList;"))
+    @Redirect(method="project", at=@At(value="NEW", target="()Ljava/util/ArrayList;"))
     private static ArrayList<?> emptyList() {
         ClientVitalsPerformanceProbe.list();
         return new ArrayList<>();
     }
-    @Redirect(method="rewrite", at=@At(value="NEW", target="(Ljava/util/Collection;)Ljava/util/ArrayList;"))
+    @Redirect(method="project", at=@At(value="NEW", target="(Ljava/util/Collection;)Ljava/util/ArrayList;"))
     private static ArrayList<?> copiedList(Collection<?> original) {
         ClientVitalsPerformanceProbe.list();
         return new ArrayList<>(original);
     }
-    @Redirect(method="rewrite", at=@At(value="NEW", target="(ILjava/util/Collection;)Lnet/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket;"))
+    @Redirect(method="project", at=@At(value="NEW", target="(ILjava/util/Collection;)Lnet/minecraft/network/protocol/game/ClientboundUpdateAttributesPacket;"))
     private static ClientboundUpdateAttributesPacket copiedAttributes(int id, Collection<AttributeInstance> original) {
         ClientVitalsPerformanceProbe.attributes();
         return new ClientboundUpdateAttributesPacket(id, original);
     }
-    @Redirect(method="rewrite", at=@At(value="INVOKE", target="Lnet/minecraft/network/syncher/SynchedEntityData$DataValue;create(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;)Lnet/minecraft/network/syncher/SynchedEntityData$DataValue;"))
+    @Redirect(method="project", at=@At(value="INVOKE", target="Lnet/minecraft/network/syncher/SynchedEntityData$DataValue;create(Lnet/minecraft/network/syncher/EntityDataAccessor;Ljava/lang/Object;)Lnet/minecraft/network/syncher/SynchedEntityData$DataValue;"))
     private static <T> SynchedEntityData.DataValue<T> copiedMetadata(EntityDataAccessor<T> accessor, T value) {
         ClientVitalsPerformanceProbe.metadata();
         return SynchedEntityData.DataValue.create(accessor, value);

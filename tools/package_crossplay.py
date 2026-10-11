@@ -12,6 +12,13 @@ from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
 
 
+def verified_test_hash(provenance, test_mod):
+    actual = hashlib.sha256(test_mod.read_bytes()).hexdigest()
+    if provenance.get("test_mod_sha256") != actual:
+        raise RuntimeError("GameTest jar differs from the native validation evidence; rerun native checks")
+    return actual
+
+
 def archive(path, entries, prefix):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as output:
         for name, data in sorted(entries.items()):
@@ -47,6 +54,7 @@ def main():
     assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
     assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
     assert provenance["native_tests"] == len(tests)
+    tested_test_sha = verified_test_hash(provenance, ROOT / f"java/build/libs/Infinity-Armor-{VERSION}-gametest.jar")
     if not options.launcher_patch:
         assert mod.stat().st_mtime >= max(p.stat().st_mtime for p in (ROOT / "java/src/main").rglob("*") if p.is_file())
     assert report.stat().st_mtime >= mod.stat().st_mtime
@@ -76,6 +84,24 @@ def main():
     entries["checks/java-gametest-results.xml"] = report.read_bytes()
     entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
     entries["checks/launcher-tests.txt"] = testlog.encode()
+    capacity_checks = ROOT / "research/capacity-performance" / VERSION
+    if capacity_checks.exists():
+        from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
+        measured = json.loads((capacity_checks / "provenance.json").read_text())
+        samples = json.loads((capacity_checks / "summary.json").read_text())
+        assert measured["inputs"]["optimized"] == provenance["mod_sha256"]
+        assert measured["inputs"]["tests"] == tested_test_sha
+        assert measured["java_sources"] == provenance["java_sources"]
+        labels = capacity_labels(measured["repeats"])
+        assert set(samples) == labels
+        assert measured["artifacts"] == evidence_hashes(capacity_checks, labels)
+        for label, sample in samples.items():
+            validate_measurement(sample)
+            assert json.loads((capacity_checks / (label + ".json")).read_text()) == sample
+            cases = list(ET.parse(capacity_checks / (label + ".xml")).getroot().iter("testcase"))
+            assert len(cases) == 2 and all(t.find(kind) is None for t in cases for kind in ("failure", "error", "skipped"))
+        for name in ("summary.json", "provenance.json"):
+            entries["checks/capacity-performance-" + name] = (capacity_checks / name).read_bytes()
     fullstack_log_file = ROOT / "research/fullstack-smoke.log"
     fullstack = fullstack_log_file.read_text()
     assert "Full-stack lifecycle passed:" in fullstack and "ERROR" not in fullstack
@@ -104,7 +130,7 @@ def main():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py",
-        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py",
+        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()
