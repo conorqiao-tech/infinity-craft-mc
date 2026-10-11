@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infinity Armor · Shared world dashboard</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1017;--panel:#17232d;--panel2:#1d2c37;--line:#344854;--text:#f4f6f4;--muted:#aec0c8;--mint:#a8edbd;--teal:#66c9c8;--gold:#f6cf83;--red:#ffb8b1}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse 66% 400px at 85% -90px,#214840 0,transparent 80%),var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1180px;margin:auto;padding:22px 28px 56px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(36px,5vw,60px);line-height:1.04;letter-spacing:-.055em;margin-bottom:18px}h2{font-size:23px;letter-spacing:-.03em;margin-bottom:9px}h3{font-size:18px;letter-spacing:-.02em;margin-bottom:7px}p{color:var(--muted);margin-bottom:14px}a{color:var(--mint)}.small,.hint{font-size:13px}.hint{margin:10px 0 0}.muted{color:var(--muted)}.eyebrow{display:block;color:var(--teal);text-transform:uppercase;letter-spacing:.18em;font-weight:800;font-size:11px;margin-bottom:10px}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:8px 0 27px}.brand{display:flex;align-items:center;gap:11px;color:var(--text);font-size:13px;font-weight:850;letter-spacing:.17em;text-decoration:none;text-transform:uppercase}.mark{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#b5f2c1,#73d8c6);color:#10332b;font-size:29px;line-height:1;letter-spacing:0}.topbar nav{display:flex;align-items:center;gap:18px}.topbar nav a{color:var(--muted);font-size:13px;font-weight:700;text-decoration:none}.topbar nav a:hover{color:var(--text)}.topbar .tag{white-space:nowrap}.tag,.chip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:100px;padding:5px 10px;font-size:11px;color:var(--muted);font-weight:750;letter-spacing:.03em}.chip{padding:4px 9px;background:#12262b;border-color:#2b5556;color:#9ae5db}
+.hero-banner{position:relative;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(255px,.65fr);gap:24px;overflow:hidden;min-height:310px;border:1px solid #35605a;border-radius:22px;padding:39px 42px;background:linear-gradient(117deg,#183c38,#13303a 58%,#11222d);box-shadow:0 20px 48px #0003}.hero-banner:before{content:"";position:absolute;inset:-15% 34% auto auto;width:380px;height:380px;border:1px solid #8ed2b024;border-radius:50%;box-shadow:0 0 0 55px #8ed2b012,0 0 0 110px #8ed2b00b}.hero-copy{position:relative;z-index:1}.hero-banner p{font-size:16px;max-width:590px;color:#d0e4e0}.hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:25px}.hero-actions a{border-radius:9px;padding:11px 15px;background:var(--mint);color:#123329;text-decoration:none;font-weight:800;font-size:13px}.hero-actions a.secondary{background:#183139;color:#daf3e8;border:1px solid #598077}.hero-art{position:relative;min-height:220px;align-self:center}.hero-art .halo{position:absolute;inset:8% 10%;border-radius:50%;background:radial-gradient(circle,#8cf1c655,transparent 69%);filter:blur(4px)}.hero-art .artifact{position:absolute;image-rendering:pixelated;filter:drop-shadow(0 18px 10px #0007)}.hero-art .sword{width:180px;right:23%;top:6%;transform:rotate(-20deg)}.hero-art .helmet{width:102px;right:4%;top:45%;transform:rotate(14deg)}.hero-art .tile{width:96px;left:4%;bottom:4%;transform:rotate(-12deg);opacity:.9}.hero-art .bow{width:80px;left:5%;top:6%;transform:rotate(18deg)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 33px}.stat{background:#15212b;border:1px solid var(--line);border-radius:13px;padding:15px 18px;min-width:0}.stat small{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-weight:750}.stat strong{font-size:21px;line-height:1.25;display:block;margin-top:5px;overflow-wrap:anywhere}.stat .online{color:var(--mint)}.section-heading{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:30px 0 16px}.section-heading p{margin:0;font-size:13px;max-width:440px;text-align:right}.layout,.community-grid,.bottom{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;min-width:0}.control-card{background:linear-gradient(150deg,#19302f,var(--panel) 48%)}.status{display:flex;gap:9px;align-items:center;color:var(--mint);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px}.status .dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px #a8edbd21}.status[data-state=stopped],.status[data-state=error]{color:var(--gold)}.status[data-state=error]{color:var(--red)}.buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:17px}button{border:1px solid var(--line);border-radius:9px;padding:10px 14px;background:#293b45;color:var(--text);font:inherit;font-size:13px;font-weight:700;cursor:pointer}button.primary{background:var(--mint);border-color:transparent;color:#133328}button:hover{filter:brightness(1.13)}button:disabled{opacity:.48;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--mint);outline-offset:3px}.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--muted);margin:16px 0}.check input{width:auto;margin-top:5px;accent-color:var(--mint)}.error{background:#4c292e;border:1px solid #865358;color:var(--red);border-radius:8px;padding:12px;margin-top:14px;overflow-wrap:anywhere}details{border-top:1px solid var(--line);padding-top:15px;margin-top:20px}summary{cursor:pointer;color:var(--text);font-size:13px;font-weight:750}.fields{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:16px}.fields label,.actions-form label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}.fields label.wide{grid-column:1/-1}input,select,textarea{width:100%;border:1px solid #4a5e69;border-radius:8px;background:#0e1921;padding:9px 11px;color:var(--text);font:inherit}input[type=checkbox]{width:auto}textarea{min-height:105px;resize:vertical}
+.join-card{background:linear-gradient(155deg,#1b2a36,#16242b)}.segmented{display:inline-flex;gap:3px;background:#101d24;padding:4px;border-radius:10px;border:1px solid var(--line);margin:5px 0 17px}.segmented button{border:0;background:transparent;color:var(--muted);padding:7px 13px}.segmented button[aria-selected=true]{background:#31615c;color:#f1fff6}.join-set{display:grid;gap:12px}.join-edition{border:1px solid #36515b;border-radius:12px;padding:15px;background:#13232b}.join-edition header{display:flex;justify-content:space-between;align-items:center;gap:8px}.join-edition h3{margin:0}.endpoint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}.endpoint-row small{display:block;color:var(--muted);font-size:11px;letter-spacing:.09em;text-transform:uppercase}.endpoint-row code{color:#b7f1ce;font-size:14px;overflow-wrap:anywhere}.copy{padding:6px 9px;font-size:11px;flex:none}.join-meta{font-size:12px;margin:10px 0 0}.join-note{border:1px solid #4b5941;background:#292b22;padding:12px;border-radius:9px;color:#ebddb5;font-size:12px;margin-top:15px}.guide-row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:13px}.guide-row button{white-space:nowrap}.time-note{font-size:11px;color:var(--muted);margin:0}.public-unavailable{color:var(--muted)}
+.catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.catalog-card{position:relative;min-height:170px;padding:20px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#203441,#14212b);overflow:hidden}.catalog-card:after{content:"";position:absolute;right:-38px;top:-38px;width:122px;height:122px;border:1px solid #ffffff18;border-radius:50%;box-shadow:0 0 0 27px #ffffff08}.catalog-card[data-tone=green]{background:linear-gradient(145deg,#234335,#142821)}.catalog-card[data-tone=violet]{background:linear-gradient(145deg,#343047,#1d2036)}.catalog-card[data-tone=amber]{background:linear-gradient(145deg,#463724,#2b241b)}.catalog-card[data-tone=teal]{background:linear-gradient(145deg,#164249,#142931)}.catalog-card .card-num{position:absolute;right:15px;bottom:7px;color:#ffffff16;font-weight:900;font-size:66px;line-height:1}.catalog-card .eyebrow{margin-bottom:11px}.catalog-card p{font-size:12px;max-width:290px;position:relative;z-index:1;margin:0 0 10px}.catalog-card code{display:inline-block;border:1px solid #ffffff28;border-radius:6px;padding:4px 6px;background:#101b245f;color:#dcffe6;font-size:11px;position:relative;z-index:1}.catalog-card h3{position:relative;z-index:1}.catalog-card.mode{min-height:155px}.ranks-card{margin-top:18px}.ranks-card .tag{float:right}.ranks-card .mode-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.ranks-card .mode-list p{border:1px solid var(--line);border-radius:9px;padding:12px;font-size:12px;margin:0;background:#14212a}.player-list{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.player{background:#102b32;border:1px solid #33626a;border-radius:20px;padding:5px 10px;font-size:12px}.backup-list{font-size:12px;overflow-wrap:anywhere}.backup-list li{margin:7px 0}.actions-form{display:grid;gap:10px;margin-top:14px}.bottom{margin-top:18px}.note{padding:20px 23px;border:1px solid var(--line);border-radius:13px;font-size:12px}.note strong{display:block;color:var(--text);font-size:13px;margin-bottom:5px}.note p{margin:0}.logs{margin-top:21px}pre{height:245px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,monospace;background:#080f14;padding:16px;border:1px solid var(--line);border-radius:9px;color:#b6c8d3}footer{margin-top:22px;display:flex;justify-content:space-between;gap:20px;align-items:center;font-size:12px;color:var(--muted)}footer button{font-size:12px}[hidden]{display:none!important}
+@media(max-width:900px){.catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-banner{grid-template-columns:1.4fr .6fr}.hero-art .sword{width:135px}.hero-art .helmet{width:76px}}
+@media(max-width:720px){main{padding:16px 16px 45px}.topbar nav{display:none}.hero-banner{display:block;padding:28px 25px;min-height:275px}.hero-banner p{max-width:70%}.hero-art{position:absolute;right:0;bottom:0;width:150px;height:155px;min-height:0;opacity:.65}.hero-art .sword{width:100px}.hero-art .helmet{width:62px}.hero-art .tile{width:55px}.hero-art .bow{width:55px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.layout,.community-grid,.bottom{grid-template-columns:1fr}.section-heading{align-items:start}.section-heading p{text-align:left}.ranks-card .mode-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.topbar .tag{display:none}.hero-banner p{max-width:100%;font-size:14px}.hero-art{opacity:.22}.catalog{grid-template-columns:1fr}.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:17px}.fields{grid-template-columns:1fr}.section-heading{display:block}.section-heading p{margin-top:7px}.card{padding:18px}.endpoint-row code{font-size:12px}.guide-row{display:block}.guide-row button{margin-top:9px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style></head><body><main>
+
+<header class="topbar"><a class="brand" href="#top"><span class="mark" aria-hidden="true">∞</span> Infinity Armor</a><nav aria-label="Page sections"><a href="#join">Join</a><a href="#explore">Explore</a><a href="#rewards">Rewards</a><a href="#owner-tools">Owner tools</a></nav><span class="tag">Java + Bedrock · one world</span></header>
+<section class="hero-banner" id="top" aria-labelledby="hero-title"><div class="hero-copy"><span class="eyebrow">The shared-world hub</span><h1 id="hero-title">Your next world<br>starts here.</h1><p>Build together, earn Infinity gear, take on six challenges, and switch between Java and Bedrock in the same world.</p><div class="hero-actions"><a href="#join">Get connection details</a><a href="#explore" class="secondary">Explore game modes</a></div></div><div class="hero-art" aria-hidden="true"><div class="halo"></div><img class="artifact sword" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAxklEQVR4nGNkIBGwswn8J1UPiuaGF///N7z4/z81ZsN/djaB/yykaK589J7haclGBgYGBoYzFyA0E7mar91az/Dz1wdGggbg00zQBYQ04zWAGM04DSBWM1YDSNGMYQCpmhkYGBhYkDXv7dBgYFhmycBgxMCw8FwFLj2YLoBpNrT3YLjx6DgDAwMDQ7xRB0HbUVwAAxpylgzOFTcIaoQDdjaB/0f6LP5/Pdvw/0ifxX9SMws8EM8f3EGazVDAiGwjqZoZGBgYAP96m032CFibAAAAAElFTkSuQmCC" alt=""><img class="artifact helmet" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAOklEQVR42mNgGF6g8t3d/8r13XixoHXAf9oagIwf/P/6H10MhAe5F/ApICRPHQPwBRJRgUiRC0YoAAD1cqRnMAydiQAAAABJRU5ErkJggg==" alt=""><img class="artifact tile" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAADG0lEQVR4nAEQA+/8APrdML65OgA6UzAvG35mGgxWbwDV4yv080D49gDZ5QZjgnNfGzo0GAA4UbK0PfvfLwJYaOfhGixIrpvR/ChkPPM4+8cBAgBHBgVQAgMBBAAi99OCUvDP+ylFpJPoJTJcaugCEQ4CYooSw8vaAP8ABSIRAQH9AKjAvfT4t/38/67IAO3rBSUZAPv40OLoZ5QcBQQAAY9sEqPHC+X4DgD8+cWsFADp7ESMJ+RleAMWEgaAhLZnyyw6GDBH5vcBChIE9Wk87wJ1xDk2MA+1fe/kxBVhc+74ERBuQ+b9oqz6m6ZaL94gLhFJWeHSuhzAi/RGNQNzwTgBBFuB/VM+ErKusUG0Bh4SbYTzIygUqQxaASEfPcCIAe7ndWoQGfXlUbxM4E9dAaa7AASbtzT08wLj5w5rfMWoJce4MAE8WiLQ3TXk6ABMcKulM9i0HxlocwLa4C/39wKbtwAF7u6w+/ph+vgB7+8Xb3FHZkwLw9Ri9fWB+vgIy9U+dGEhYF0A6epO+Pe8+/oE8O4C//L32//+xv79AOz0Cu/rGxH2+9zj5f7+4vv8/efwGAbwDPDmAejx1P/+0///APX7AAOIqBLx8QDS3ihaWN7FKammMgo1Sgm6yw/Q3AY8V4qLL+zNJTheTwHC0RH09QOOrgEEVXz9Lx5U46WOWuG72w3K0wElJAd5xD8DGBZeCLEZC/AICQddO/B/rBydEFoC0N8CGeG/g+eDWS7g2/oW1d0EhGoD3tn4+xER+AkI5eP5alUE8/D30+4STCTbh+yEGt67AKp9EBgsMAA3UwAYKufXMpCDKwFFaA7I1hbd5ABHbHJqJfvmMgobJAAyThApMap+EAAsLx4ijYwo8fMAOlfmuRpEUDUCnLpP9vVn+fgBrMQpRED4wxQJM0ct6e0hmJcoKhkCXUX7mEzL98/fAevk7d/08wQSAEguDgQCCgEAAEEq9xkf6eD8AO/o8cfWkUfRZUoBAPvoN7CbJQMeMWhSFEdEJABdhAHT4Sv39kL39QHc5wBtkzY7JnBaFQkhLqKRJ/voOYl5cEgFHNVxAAAAAElFTkSuQmCC" alt=""><img class="artifact bow" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAD/0lEQVR4nN2Wf2xTVRTHz73v3ve6/lrbOVjLRu1wwcw5NxkDKsscwTCBqIkhKkvQBX8AmmHiVCQmI1gzo9PgzAILAyUkKg1GR2LBGLNgwog6URQl4tCwWmyhXUvb1a19r9e8NTPNNvqDdvzhJ3l5yTnne8837777A+D/jj8crkmVx3PVuEDgbPKbMBaHmwh/axndZK3XjnS364JyIBQKVacSkHx1VhDSsKSa37j+PtWWxjod7OwcCWSiI/loTggsb3tSf8Ssixl/uzQBQ3EfOF2x7zPR4lybazSaxfeuMBwLeJDxwNEJqCkncPCzf8Dpx8fm3IBWW2pgUeGo65f64g+/EOF2owRd5FlwbrQBY8g9Z1NAKa0twTVHuHFhUXlBEz4zdvByJOYfnK+iJsW1P63+c6FhgtAPMBcoKa1V83qX1fAMq9ZsYPoCM+M4bp2cEwTBsnqZ4BRUqqap+nSrIBs4U4mifeumeeerFpew556ysHe26OTmfQCAJitaOrRom+2jZNFovpZhZaVpZ+fzht2DX3rgqtsPv//kh/5hKYgx3itJEkuMxq/C5RUXpCQdhdyhCgVpf/9Nc2RtfSkrN6xkgqD4VKWid1BK70wuRLsPn4K37JbkWE5TUFhYqKMa3V7S9gpbvm4pW6CrZWphfogQWDajuPX1SvTGx8enh3MyoFQqS9CK5oh1NMi4zv1sV6uBIYR6Z6tFm7v64OTP1mwNkFTJSCTiJmdP9Z9+redRerwfTnKT4ZmHy9auMjCXqiHu/RayBKcr0GiI7UVfJ1RE3HDRVSGHEj9cMlFWAwic0NQkTk/FEEI5GcDiuD84KnpW1QfkDQg4PPOrIYtxB9MX7Z9Nj2Kx3I98nuC27m1aqbGqkL3comM6Nf/gf8neXgov7Pv6etpwOHxXqrFxJgaiYrz70CA3wngKaxsKYJFJensqh74JfgCPrNlzPS1jjOVsQOb8OZAmLj4ML+2JwV8enJjXDR1qUFEKbt8JuEFw5pXidik6DuLf68EXgrOTMZ424oXzvPBAXWTODUSiodO/xj7/iolxwAQdUKuFzcR7Zrt0LdyTSieKYmLx5gOEUF+pvoqpVMWspecJtvQeSwgAFqTSpNuIcDYGOIzB1voH8GUmuLCyA4ZMqzme59VpTKfcB7KiuFi4bcfjWmnX07cwY3MzQyqdfBSnJJ/3gUnuNnPv/fjJQvbYGrVUVFSkgTQEAoEleb2SjRHBfaL/Kly5LHl8vvAY5AjOVlBXyb86fAWFvrsUf2jWg2kahJCUG1HW8Dx3v5JP3AEzwev1zrw7ZILD4RAGBgaI3W7np2KMMeRwvCsk18mxoaFeKr+TY3a7nZMfl8vVcEMGbhb/Arm2aeYrKWtdAAAAAElFTkSuQmCC" alt=""></div></section>
+<div class="stats" aria-label="World summary"><div class="stat"><small>World status</small><strong id="world-state">Checking…</strong></div><div class="stat"><small>Players online</small><strong id="player-count">— / 32</strong></div><div class="stat"><small>Average tick time</small><strong id="tick-time">Offline</strong></div><div class="stat"><small>Challenges</small><strong>6 to explore</strong></div></div>
+<div class="section-heading"><div><span class="eyebrow">Play together</span><h2>Start and join</h2></div><p>Server controls are private to this Mac. Share only the game addresses with friends.</p></div>
+<div class="layout"><section class="card control-card" id="owner" aria-labelledby="world-title"><div class="status" id="world-status" aria-live="polite"><span class="dot"></span><span id="state">Connecting to launcher</span></div><h2 id="world-title"><span id="server-title">Infinity Armor</span></h2><p id="description">Checking your saved settings…</p>
+<label class="check" id="eula-row"><input type="checkbox" id="eula"><span>I agree to the <a href="https://www.minecraft.net/eula" target="_blank" rel="noopener noreferrer">Minecraft EULA</a> for this server.</span></label>
+<div class="buttons"><button class="primary" id="start" disabled>Start shared world</button><button id="stop" disabled>Save &amp; Stop</button></div>
+<div class="error" id="error" role="alert" hidden></div>
+<details id="settings"><summary>Server settings</summary><div class="fields">
+<label>World memory<select id="memory"><option value="2G">2 GB · default</option><option value="3G">3 GB</option><option value="4G">4 GB</option><option value="6G">6 GB</option><option value="8G">8 GB</option></select></label>
+<label>Who can connect?<select id="bind"><option value="0.0.0.0">Devices on my network</option><option value="127.0.0.1">Only this computer</option></select></label>
+<label>Server name<input id="server-name" maxlength="60" value="Infinity Armor"></label><label>Player slots<input id="max-players" type="number" min="2" max="200" value="32"></label>
+<label>Difficulty<select id="difficulty"><option value="peaceful">Peaceful</option><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label>Join access<select id="whitelist"><option value="off">Anyone who has the address</option><option value="on">Allowlisted players only</option></select></label>
+<label class="wide">Server rules · one per line<textarea id="rules" maxlength="1300"></textarea></label>
+<label>Java port<input id="java-port" type="number" min="1" max="65535" value="25565"></label><label>Bedrock port<input id="bedrock-port" type="number" min="1" max="65535" value="19132"></label></div>
+<p class="hint">Settings apply next start. Player slots are a limit, not a capacity guarantee. Allowlist players before enabling the list. Geyser uses up to another 512 MB beyond world memory.</p></details>
+
+</section><section class="card join-card" id="join" aria-labelledby="join-title"><span class="eyebrow">Invite a friend</span><h2 id="join-title">Join the world</h2><p class="small" id="join-hint">Choose your network, then copy the details for your edition.</p><div class="segmented" role="tablist" aria-label="Connection network"><button type="button" id="public-tab" role="tab" aria-controls="public-join" aria-selected="true">From anywhere</button><button type="button" id="lan-tab" role="tab" aria-controls="lan-join" aria-selected="false">Same Wi-Fi</button></div>
+<div id="public-join" class="join-set" role="tabpanel" aria-labelledby="public-tab"><article class="join-edition"><header><h3>Java Edition</h3><span class="chip" id="java-tunnel-state">Checking</span></header><p class="join-meta">Minecraft: Java Edition 1.21.11 on a computer.</p><div class="endpoint-row"><div><small>Address</small><code id="java-public-host">Waiting for tunnel</code></div><button class="copy" data-copy="java-public-host" disabled>Copy</button></div><div class="endpoint-row"><div><small>Port</small><code id="java-public-port">—</code></div><button class="copy" data-copy="java-public-port" disabled>Copy</button></div><p class="join-meta">Enter <code id="java-join-address">address:port</code> in Multiplayer → Direct Connection. Accept the server texture pack.</p></article>
+<article class="join-edition"><header><h3>Bedrock Edition</h3><span class="chip" id="bedrock-tunnel-state">Checking</span></header><p class="join-meta">iPad, Android, or Windows Bedrock. Sign in to Microsoft and allow multiplayer.</p><div class="endpoint-row"><div><small>Address</small><code id="bedrock-public-host">Waiting for tunnel</code></div><button class="copy" data-copy="bedrock-public-host" disabled>Copy</button></div><div class="endpoint-row"><div><small>Port</small><code id="bedrock-public-port">—</code></div><button class="copy" data-copy="bedrock-public-port" disabled>Copy</button></div><p class="join-meta">Play → Servers → Add Server. Address and Port are separate fields. Accept the resource pack.</p></article></div>
+<div id="lan-join" class="join-set" role="tabpanel" aria-labelledby="lan-tab" hidden><article class="join-edition"><header><h3>Java Edition</h3><span class="chip">Same Wi-Fi</span></header><div class="endpoint-row"><div><small>Address</small><code id="java-lan-host">Waiting for address</code></div><button class="copy" data-copy="java-lan-host" disabled>Copy</button></div><div class="endpoint-row"><div><small>Port</small><code id="java-lan-port">25565</code></div><button class="copy" data-copy="java-lan-port" disabled>Copy</button></div><p class="join-meta">On this Mac, use <code id="local-address">localhost:25565</code>.</p></article><article class="join-edition"><header><h3>Bedrock Edition</h3><span class="chip">Same Wi-Fi</span></header><div class="endpoint-row"><div><small>Address</small><code id="bedrock-lan-host">Waiting for address</code></div><button class="copy" data-copy="bedrock-lan-host" disabled>Copy</button></div><div class="endpoint-row"><div><small>Port</small><code id="bedrock-lan-port">19132</code></div><button class="copy" data-copy="bedrock-lan-port" disabled>Copy</button></div></article></div>
+<div class="join-note">Free Pinggy tunnels end after about 60 minutes. New tunnels get new addresses. Ask the host for the latest details before joining from another network.</div><div class="guide-row"><p class="time-note" id="remote-checked">Tunnel status has not been checked.</p><button type="button" id="friend-guide" disabled>Download current friend guide</button></div><p class="hint" id="network-note">Tunnel status shows the local agent; friends still need the server running.</p></section></div>
+<div class="section-heading" id="explore"><div><span class="eyebrow">Choose your path</span><h2>Worlds and challenges</h2></div><p>Open the lobby in-game, or type any command below. Java and Bedrock players can play together.</p></div>
+<div class="catalog" aria-label="Game worlds and modes"><article class="catalog-card mode" data-tone="green"><span class="eyebrow">World · survival</span><h3>Survival</h3><p>Build a home, craft Infinity gear, and reach the Nether and End.</p><code>/play survival</code><span class="card-num" aria-hidden="true">01</span></article><article class="catalog-card mode" data-tone="teal"><span class="eyebrow">World · creative</span><h3>Creative</h3><p>A separate flat world for unlimited building and experiments.</p><code>/play creative</code><span class="card-num" aria-hidden="true">02</span></article><article class="catalog-card mode" data-tone="violet"><span class="eyebrow">World · challenge</span><h3>Hardcore</h3><p>Hard difficulty and one life in this mode. Your other worlds stay open.</p><code>/play hardcore</code><span class="card-num" aria-hidden="true">03</span></article></div>
+<div class="section-heading"><div><span class="eyebrow">4 minigames</span><h2>Race, jump, and react</h2></div><p>Independent runs and personal scores. Use <code>/retry &lt;map&gt;</code> to try again.</p></div><div class="catalog"><article class="catalog-card" data-tone="teal"><span class="eyebrow">Checkpoint course</span><h3>Sky Steps</h3><p>Climb through parkour checkpoints and beat your best run.</p><code>/minigame parkour</code><span class="card-num" aria-hidden="true">04</span></article><article class="catalog-card" data-tone="green"><span class="eyebrow">Checkpoint race</span><h3>Switchback Sprint</h3><p>Race the winding route and chase a faster time.</p><code>/minigame sprint</code><span class="card-num" aria-hidden="true">05</span></article><article class="catalog-card" data-tone="violet"><span class="eyebrow">Precision drop</span><h3>Dropper</h3><p>Steer through obstacles into the landing water.</p><code>/minigame dropper</code><span class="card-num" aria-hidden="true">06</span></article><article class="catalog-card" data-tone="amber"><span class="eyebrow">Stop and go</span><h3>Red Light</h3><p>Advance on green and stop on red. Text cues support touch play.</p><code>/minigame redlight</code><span class="card-num" aria-hidden="true">07</span></article></div>
+<div class="section-heading"><div><span class="eyebrow">2 adventure maps</span><h2>Explore the unknown</h2></div><p>Adventure mode keeps its own inventory and progress.</p></div><div class="catalog"><article class="catalog-card" data-tone="amber"><span class="eyebrow">Adventure</span><h3>The Five Seals</h3><p>Search the ruins and discover every seal.</p><code>/adventure ruins</code><span class="card-num" aria-hidden="true">08</span></article><article class="catalog-card" data-tone="teal"><span class="eyebrow">Adventure</span><h3>Lantern Labyrinth</h3><p>Navigate the maze and find your way through.</p><code>/adventure maze</code><span class="card-num" aria-hidden="true">09</span></article></div><p class="hint">The Main Hub and five mode lobbies have separate empty inventories. Type <code>/hub</code> to return or <code>/lobbies</code> to see the halls.</p>
+<section class="card ranks-card" id="rewards"><span class="eyebrow">Progression</span><span class="tag">Free to earn</span><h2 class="space">Achievement ranks</h2><p class="small">Free includes every game mode and a gray badge. Complete <strong>all three</strong> achievements in a group to unlock its permanent cosmetic rank. The highest completed group wins; lower groups are not prerequisites. Java and Bedrock players use the server's Java advancements.</p>
+<div class="mode-list"><p class="small"><strong style="color:#a6eda3">Go · green</strong><br>Get a stone pickaxe; get an iron ingot; kill a hostile mob (Monster Hunter).</p><p class="small"><strong style="color:#91e5ec">Plus · aqua</strong><br>Get an iron pickaxe; get a diamond; enchant an item.</p><p class="small"><strong style="color:#e9adf5">Pro · purple</strong><br>Enter the Nether; get a blaze rod; enter the End.</p><p class="small"><strong style="color:#efd392">Ultra · gold</strong><br>Defeat the Ender Dragon; enter an End gateway; find an End city.</p></div>
+<p class="hint">Use <code>/ranks</code> for all goals and <code>/rank</code> for your next rank's progress and missing achievements. Previously earned ranks stay unlocked. Creative inventory items can trigger item milestones, so badges are not proof of Survival-only play. <strong style="color:#ffb8b1">Admin</strong> uses <code>/admincode &lt;private code&gt;</code> for limited kick and mute tools without operator rights.</p>
+<details><summary>Owner: temporary rank overrides</summary><p class="hint">Give an online player a temporary cosmetic badge or remove an existing override. Earned achievement ranks remain unlocked. You can also remove an Admin role here.</p>
+<form id="membership-form" class="actions-form"><label for="member-player" class="small muted">Online player</label><input id="member-player" list="online-names" maxlength="33" placeholder="PlayerName or .BedrockName" disabled><select id="member-action" aria-label="Rank action" disabled><option value="grant">Grant temporary override</option><option value="revoke">Remove temporary override</option><option value="revokeadmin">Remove Admin role</option></select><select id="member-tier" aria-label="Override rank" disabled><option value="go">Go</option><option value="plus">Plus</option><option value="pro">Pro</option><option value="ultra">Ultra</option></select><label for="member-days" class="small muted">Override duration in days</label><input id="member-days" type="number" min="1" max="3660" value="30" disabled><button id="member-apply" disabled>Apply rank change</button></form><p class="hint">Results appear in the server log. An expired override leaves the player's earned rank intact. To prevent Admin code reuse, change or disable it in the private membership configuration; see MEMBERSHIPS.md.</p></details></section>
+<div class="section-heading" id="owner-tools"><div><span class="eyebrow">Private controls</span><h2>Owner tools</h2></div><p>These controls stay on this Mac.</p></div>
+<div class="community-grid"><section class="card"><h2>Players &amp; moderation</h2><p class="small">Player names update while the server runs. Public-chat mutes last 10 minutes; direct messages are unaffected.</p><div class="player-list" id="players">Server is offline.</div>
+<form class="actions-form" id="moderation-form"><label for="moderation-player" class="small muted">Player name</label><input id="moderation-player" list="online-names" maxlength="33" placeholder="PlayerName or .BedrockName" disabled><datalist id="online-names"></datalist><select id="moderation-action" aria-label="Moderation action" disabled><option value="mute">Mute public chat · 10 minutes</option><option value="unmute">Unmute public chat</option><option value="kick">Kick from server</option><option value="ban">Ban from server</option><option value="unban">Remove ban</option><option value="allow">Add to allowlist</option><option value="remove_allow">Remove from allowlist</option></select><button id="moderate" disabled>Apply to player</button></form><p class="hint">Bedrock players should join once before you allowlist their name. Command results appear in the log below.</p></section>
+<section class="card"><h2>World backups</h2><p class="small">A backup is created before each start of an existing world. You can also save a copy while the server is stopped.</p><button id="backup" disabled>Back up stopped world</button><p class="hint">Backups stay in this server folder under <code>backups/</code>. Keep a separate copy on another disk. Older backups are never automatically deleted.</p><ul class="backup-list" id="backups"><li>No backups yet.</li></ul><details><summary>Set up your welcome area</summary><p class="hint">As an operator in Minecraft, stand in a clear 25×25 grassy area and run <code>/community buildspawn</code>. It creates a lit plaza and sets spawn. Use <code>/community setwarp market</code> to make shared destinations. Grass/dirt/snow are reshaped. Other blocks and containers stop the build.</p></details></section></div>
+<div class="bottom"><div class="note"><strong>Your progress stays here.</strong><p>Use Save &amp; Stop before closing the launcher. Open the same launcher next time to return to your world. Keep this server folder and its <code>fabric/world</code> folder.</p></div><div class="note"><strong>Touch-friendly powers</strong><p>With Infinity gear in hand, use <code>/convergence power</code>, <code>/convergence altpower</code>, or <code>/convergence swap</code>. See README.md for crafting and operator commands.</p></div></div>
+<details class="logs"><summary>Setup progress &amp; host commands</summary><form id="console-form" class="buttons"><input id="command" aria-label="Server command" placeholder="Server command, e.g. op YourPlayerName" style="flex:1;min-width:200px" disabled><button id="send-command" disabled>Send command</button></form><p class="hint">Operator access: enter <code>op YourPlayerName</code>, then use <code>/convergence kit</code> in Minecraft. Only grant operator rights to players you trust.</p><pre id="logs" tabindex="0">No server has been started.</pre></details>
+<details class="logs"><summary>Owner: private Admin code</summary><p class="hint">Fresh server packages start with code redemption disabled. Save &amp; Stop before changing this setting. Existing private codes remain in your server folder during upgrades.</p><form id="admin-code-form" class="actions-form"><label class="check"><input type="checkbox" id="admin-enabled"><span>Enable private-code Admin redemption</span></label><label for="admin-secret" class="small muted">New private code (leave blank to keep your current code)</label><input type="password" id="admin-secret" minlength="8" maxlength="128" autocomplete="new-password"><button id="admin-save">Save Admin settings</button></form><p class="hint">The code is stored as a hash and is never shown in the panel log. Disabling redemption does not remove existing Admin roles; revoke them separately.</p></details>
+<details class="logs"><summary>Owner: AI chat</summary><p class="hint">Connect <code>/ai &lt;question&gt;</code> to OpenAI. Save &amp; Stop before changing these settings. API requests use your account and may incur charges. The built-in server guide remains available when AI chat is disabled.</p><form id="ai-config-form" class="actions-form"><label class="check"><input type="checkbox" id="ai-enabled"><span>Enable AI chat</span></label><label class="check"><input type="checkbox" id="ai-owner-only" checked><span>Only allow operators with level 4</span></label><label for="ai-model" class="small muted">AI model</label><input id="ai-model" value="gpt-6-luna" maxlength="100"><label for="ai-limit" class="small muted">Daily request limit for this server (0 pauses AI chat)</label><input id="ai-limit" type="number" min="0" max="1000" value="50"><label for="ai-secret" class="small muted">API key (leave blank to keep your current key)</label><input type="password" id="ai-secret" maxlength="4096" autocomplete="new-password"><p class="hint" id="ai-key-status">No API key saved.</p><button id="ai-save">Save AI settings</button></form><p class="hint">Your key stays in a private file in this server folder. It is never returned by the panel or shown in its log. Settings apply next start.</p></details>
+<footer><span>Java and Bedrock friends share one world.</span><button id="quit" disabled>Close launcher</button></footer>
+</main><script>
+const $ = id => document.getElementById(id);
+const stateNames = {stopped:'World offline',starting:'Starting world',running:'World live',stopping:'Saving world',backing_up:'Backing up',error:'Needs attention'};
+if (location.protocol === 'file:') {
+  $('state').textContent = 'Open this page from the launcher';
+  $('world-state').textContent = 'Unavailable';
+  $('description').textContent = 'Double-click Start-Server.command to open the private control panel.';
+  $('join-hint').textContent = 'Connection details are available only in the private control panel.';
+  $('remote-checked').textContent = 'Open the launcher to check tunnel status.';
+  document.querySelectorAll('button,input,select,textarea').forEach(element => { element.disabled = true; });
+} else {
+  const token = location.hash.slice(1) || sessionStorage.getItem('infinity-token') || '';
+  if (token) sessionStorage.setItem('infinity-token', token);
+  history.replaceState(null, '', location.pathname + location.search);
+  let snapshot = null, settingsLoaded = false, aiLoaded = false, busy = false, closed = false, formError = '';
+
+  async function api(path, data) {
+    const options = {headers:{'X-Session-Token':token}, cache:'no-store'};
+    if (data !== undefined) {
+      options.method = 'POST';
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(data);
+    }
+    const response = await fetch('/api/' + path, options);
+    let result;
+    try { result = await response.json(); }
+    catch (_) { throw new Error('The launcher returned an unreadable response.'); }
+    if (!response.ok) throw new Error(result.error || 'The launcher could not complete this action.');
+    return result;
+  }
+
+  function setCopy(id, value, ready) {
+    $(id).textContent = value;
+    const button = document.querySelector('[data-copy="' + id + '"]');
+    if (button) button.disabled = !ready;
+  }
+
+  function renderJoining(data) {
+    const running = data.state === 'running';
+    const addresses = data.addresses || {};
+    const settings = data.settings || {};
+    const lan = !addresses.local_only && !!addresses.host;
+    const host = lan ? addresses.host : 'Unavailable';
+    setCopy('java-lan-host', host, lan);
+    setCopy('bedrock-lan-host', host, lan);
+    setCopy('java-lan-port', String(settings.java_port || 25565), lan);
+    setCopy('bedrock-lan-port', String(settings.bedrock_port || 19132), lan);
+    $('local-address').textContent = addresses.local_java || 'localhost:25565';
+    $('network-note').textContent = lan ? 'Same Wi-Fi details work only on this local network. Public details come from the local tunnel agent and do not test a friend’s connection.' : 'Same Wi-Fi joining is off because the world is bound to this Mac. Public tunnels may still work because they connect locally to the game ports.';
+
+    const remote = data.remote_joining || {available:false,tunnels:[]};
+    const tunnels = Object.fromEntries((remote.tunnels || []).map(item => [item.edition, item]));
+    for (const [edition, key] of [['Java','java'],['Bedrock','bedrock']]) {
+      const item = tunnels[edition] || {};
+      const ready = !!(remote.available && item.ready && item.address && item.address.host && item.address.port);
+      const status = !remote.available ? 'Agent unavailable' : ready ? (running ? 'Tunnel ready' : 'World offline') : item.state === 'starting' ? 'Starting tunnel' : item.state === 'error' ? 'Tunnel error' : 'Tunnel stopped';
+      $(key + '-tunnel-state').textContent = status;
+      setCopy(key + '-public-host', ready ? item.address.host : 'No current address', ready);
+      setCopy(key + '-public-port', ready ? String(item.address.port) : '—', ready);
+      if (key === 'java') $('java-join-address').textContent = ready ? item.address.host + ':' + item.address.port : 'address:port';
+    }
+    const checked = Number(remote.checked_at);
+    $('remote-checked').textContent = remote.available && Number.isFinite(checked) && checked > 0 ? 'Tunnel status checked ' + new Date(checked * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + '.' : 'Tunnel status could not be checked. Open Pinggy joining to review it.';
+    $('friend-guide').disabled = !data.friend_guide?.available;
+    $('join-hint').textContent = running ? 'The world is live. Choose your network and edition, then copy the current address and port.' : 'Start the world before friends join. Tunnel addresses can exist while the world is offline.';
+  }
+
+  function renderCommunity(data) {
+    const roster = data.roster || {};
+    const online = Array.isArray(roster.players) ? roster.players : [];
+    const max = Number(data.settings?.max_players) || 32;
+    $('player-count').textContent = roster.available ? online.length + ' / ' + max : data.state === 'running' ? 'Updating…' : '0 / ' + max;
+    $('tick-time').textContent = roster.available && typeof roster.tick_ms === 'number' ? roster.tick_ms.toFixed(1) + ' ms' : data.state === 'running' ? 'Updating…' : 'Offline';
+    const players = $('players');
+    players.replaceChildren();
+    const choices = $('online-names');
+    choices.replaceChildren();
+    if (!roster.available) {
+      players.textContent = data.state === 'running' ? 'Waiting for player status…' : 'Server is offline.';
+    } else if (!online.length) {
+      players.textContent = 'No players online yet.';
+    } else {
+      for (const player of online) {
+        const name = String(player.name || 'Unknown player');
+        const tag = document.createElement('span');
+        tag.className = 'player';
+        tag.textContent = name + (player.rank ? ' · ' + player.rank : '');
+        players.append(tag);
+        const option = document.createElement('option');
+        option.value = name;
+        choices.append(option);
+      }
+    }
+    const backups = $('backups');
+    backups.replaceChildren();
+    const files = Array.isArray(data.backups) ? data.backups : [];
+    if (!files.length) {
+      const row = document.createElement('li');
+      row.textContent = 'No backups yet.';
+      backups.append(row);
+    } else {
+      for (const file of files) {
+        const row = document.createElement('li');
+        row.textContent = file.name + ' · ' + (Number(file.bytes) / 1048576).toFixed(1) + ' MB';
+        backups.append(row);
+      }
+    }
+  }
+
+  function render(data) {
+    snapshot = data;
+    const state = data.state || 'stopped';
+    const running = state === 'running';
+    const stopped = ['stopped','error'].includes(state);
+    const label = stateNames[state] || 'Checking world';
+    $('world-status').dataset.state = state;
+    $('state').textContent = label;
+    $('world-state').textContent = label;
+    $('world-state').classList.toggle('online', running);
+    $('server-title').textContent = data.settings?.server_name || 'Infinity Armor';
+    $('description').textContent = running ? 'Your shared world is live for Java and Bedrock players.' : state === 'starting' ? 'Preparing the shared world and crossplay bridge…' : state === 'stopping' ? 'Saving everyone’s progress before closing…' : state === 'backing_up' ? 'Creating a copy of the saved world…' : 'Start the world when you are ready to invite friends.';
+    $('eula-row').hidden = !!data.eula_accepted;
+    $('start').disabled = busy || !stopped || (!data.eula_accepted && !$('eula').checked);
+    $('stop').disabled = busy || !['starting','running'].includes(state);
+    $('backup').disabled = busy || !stopped;
+    $('quit').disabled = busy || !stopped;
+    for (const id of ['moderation-player','moderation-action','moderate','member-player','member-action','member-tier','member-days','member-apply','command','send-command']) $(id).disabled = busy || !running;
+    for (const id of ['admin-enabled','admin-secret','admin-save','ai-enabled','ai-owner-only','ai-model','ai-limit','ai-secret','ai-save']) $(id).disabled = busy || !stopped;
+    const error = formError || data.error || '';
+    $('error').hidden = !error;
+    $('error').textContent = error;
+    if (!settingsLoaded) {
+      for (const [id,key] of [['memory','memory'],['bind','bind'],['server-name','server_name'],['max-players','max_players'],['difficulty','difficulty'],['java-port','java_port'],['bedrock-port','bedrock_port']]) $(id).value = data.settings?.[key] ?? $(id).value;
+      $('whitelist').value = data.settings?.whitelist ? 'on' : 'off';
+      $('rules').value = data.settings?.rules || '';
+      settingsLoaded = true;
+    }
+    if (!aiLoaded) {
+      const ai = data.ai || {};
+      $('ai-enabled').checked = !!ai.enabled;
+      $('ai-owner-only').checked = ai.ownerOnly !== false;
+      $('ai-model').value = ai.model || 'gpt-6-luna';
+      $('ai-limit').value = ai.dailyRequestLimit ?? 50;
+      aiLoaded = true;
+    }
+    $('ai-key-status').textContent = data.ai?.hasKey ? 'A private API key is saved.' : 'No API key saved.';
+    const log = $('logs');
+    const nearBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 25;
+    log.textContent = (data.logs || []).join('\n') || 'No server has been started.';
+    if (nearBottom) log.scrollTop = log.scrollHeight;
+    renderCommunity(data);
+    renderJoining(data);
+  }
+
+  async function action(name, data) {
+    if (busy) return;
+    busy = true;
+    formError = '';
+    if (snapshot) render(snapshot);
+    try {
+      const next = await api(name, data);
+      if (name === 'quit') { closed = true; $('state').textContent = 'Launcher closed'; return; }
+      if (name === 'ai-config') aiLoaded = false;
+      if (name === 'start') settingsLoaded = false;
+      snapshot = next;
+    } catch (error) {
+      formError = error.message || 'The action failed.';
+    } finally {
+      busy = false;
+      if (snapshot && !closed) render(snapshot);
+    }
+  }
+
+  $('membership-form').onsubmit = event => { event.preventDefault(); action('membership',{action:$('member-action').value,player:$('member-player').value,tier:$('member-tier').value,days:Number($('member-days').value)}); };
+  $('moderation-form').onsubmit = event => { event.preventDefault(); action('moderate',{action:$('moderation-action').value,player:$('moderation-player').value}); };
+  $('console-form').onsubmit = async event => { event.preventDefault(); await action('command',{command:$('command').value}); if (!formError) $('command').value = ''; };
+  $('admin-code-form').onsubmit = async event => { event.preventDefault(); await action('admin-code',{enabled:$('admin-enabled').checked,code:$('admin-secret').value}); $('admin-secret').value = ''; };
+  $('ai-config-form').onsubmit = async event => { event.preventDefault(); await action('ai-config',{enabled:$('ai-enabled').checked,ownerOnly:$('ai-owner-only').checked,model:$('ai-model').value,dailyRequestLimit:Number($('ai-limit').value),apiKey:$('ai-secret').value}); $('ai-secret').value = ''; };
+  $('eula').addEventListener('change', () => { if (snapshot) render(snapshot); });
+  $('start').onclick = () => action('start',{accept_eula:$('eula').checked,settings:{memory:$('memory').value,bind:$('bind').value,java_port:Number($('java-port').value),bedrock_port:Number($('bedrock-port').value),server_name:$('server-name').value,max_players:Number($('max-players').value),difficulty:$('difficulty').value,whitelist:$('whitelist').value === 'on',rules:$('rules').value}});
+  $('stop').onclick = () => action('stop',{});
+  $('backup').onclick = () => action('backup',{});
+  $('quit').onclick = () => action('quit',{});
+
+  function selectNetwork(publicNetwork) {
+    $('public-tab').setAttribute('aria-selected', String(publicNetwork));
+    $('lan-tab').setAttribute('aria-selected', String(!publicNetwork));
+    $('public-join').hidden = !publicNetwork;
+    $('lan-join').hidden = publicNetwork;
+  }
+  $('public-tab').onclick = () => selectNetwork(true);
+  $('lan-tab').onclick = () => selectNetwork(false);
+  for (const tab of [$('public-tab'),$('lan-tab')]) tab.onkeydown = event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const other = tab === $('public-tab') ? $('lan-tab') : $('public-tab'); other.click(); other.focus(); } };
+
+  document.querySelectorAll('[data-copy]').forEach(button => {
+    button.onclick = async () => {
+      const value = $(button.dataset.copy).textContent;
+      try {
+        if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value);
+        else {
+          const field = document.createElement('textarea');
+          field.value = value;
+          field.style.position = 'fixed';
+          field.style.opacity = '0';
+          document.body.append(field);
+          field.select();
+          if (!document.execCommand('copy')) throw new Error('Clipboard unavailable');
+          field.remove();
+        }
+        button.textContent = 'Copied';
+        setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+      } catch (_) { button.textContent = 'Copy failed'; setTimeout(() => { button.textContent = 'Copy'; }, 2200); }
+    };
+  });
+
+  $('friend-guide').onclick = async () => {
+    const button = $('friend-guide');
+    button.disabled = true;
+    try {
+      const response = await fetch('/api/friend-guide',{headers:{'X-Session-Token':token},cache:'no-store'});
+      if (!response.ok) throw new Error('The guide no longer matches the current public addresses.');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'Infinity_Armor_Friend_Connection_Guide.pdf';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (error) { formError = error.message; if (snapshot) render(snapshot); }
+    finally { if (snapshot) button.disabled = !snapshot.friend_guide?.available; }
+  };
+
+  async function poll() {
+    if (closed) return;
+    try { const data = await api('status'); render(data); }
+    catch (_) {
+      $('state').textContent = 'Launcher unavailable';
+      $('world-state').textContent = 'Unavailable';
+      $('join-hint').textContent = 'Reopen the launcher to refresh connection details.';
+      $('remote-checked').textContent = 'Status could not be checked.';
+      document.querySelectorAll('[data-copy]').forEach(button => { button.disabled = true; });
+      for (const id of ['start','stop','backup','quit','friend-guide']) $(id).disabled = true;
+      $('error').hidden = false;
+      $('error').textContent = 'The private control panel could not reach its launcher. Reopen it from Start-Server.command.';
+    }
+    if (!closed) setTimeout(poll, 1200);
+  }
+  poll();
+}
+</script></body></html>

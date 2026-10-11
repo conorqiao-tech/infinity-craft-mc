@@ -1,0 +1,56 @@
+{
+  "minecraft": "1.21.11",
+  "version": "2.12.0-explore.1",
+  "downloads": [
+    {
+      "path": "fabric/mods/polymer-bundled-0.15.2+1.21.11.jar",
+      "url": "https://cdn.modrinth.com/data/xGdtZczs/versions/wugBT1fU/polymer-bundled-0.15.2%2B1.21.11.jar",
+      "sha256": "2dfc65322e8ac7caed28cdd9a9836516c75fa880494112c03b4ee85ddccf44ed",
+      "version": "0.15.2+1.21.11"
+    },
+    {
+      "path": "fabric/mods/Floodgate-Fabric-2.2.6-b60.jar",
+      "url": "https://cdn.modrinth.com/data/bWrNNfkb/versions/81EuNxeZ/Floodgate-Fabric-2.2.6-b60.jar",
+      "sha256": "be81f5416bf91959ba133889dc444f8e7e5cc74f7f7adef742266527b9777e83",
+      "version": "2.2.6-b60"
+    },
+    {
+      "path": "fabric/fabric-server-launch.jar",
+      "url": "https://meta.fabricmc.net/v2/versions/loader/1.21.11/0.18.4/1.1.1/server/jar",
+      "sha256": "60691f63f90d5ace288e8f0964e2a69c3caa9da148a7d1ba79c8c00bccf025a3",
+      "version": "Loader 0.18.4 / installer 1.1.1"
+    },
+    {
+      "path": "geyser/Geyser-Standalone.jar",
+      "url": "https://download.geysermc.org/v2/projects/geyser/versions/2.11.3/builds/1245/downloads/standalone",
+      "sha256": "11ced1e0ceb5afbf282d1e49e4dcb1c293dcc1a75540d354e1bab2cef3a0d5cd",
+      "version": "2.11.3-b1245"
+    },
+    {
+      "path": "fabric/mods/ViaFabric-0.4.21+181-1.14-1.21.jar",
+      "url": "https://cdn.modrinth.com/data/YlKdE5VK/versions/tUvNpHH0/ViaFabric-0.4.21%2B181-1.14-1.21.jar",
+      "sha256": "41ce27ab314900c22c99fde6ae815d9eea1a3f3823ef29690501125b7955cc2d",
+      "version": "0.4.21+181-1.14-1.21"
+    },
+    {
+      "path": "fabric/mods/ViaVersion-5.12.0.jar",
+      "url": "https://cdn.modrinth.com/data/P1OZGk5p/versions/FaishMnD/ViaVersion-5.12.0.jar",
+      "sha256": "c4d512fa9760fa41d17abaedde12aa1f4c9bde920d0a992fe0fc016962f126be",
+      "version": "5.12.0"
+    }
+  ],
+  "bundled": [
+    {
+      "path": "fabric/mods/Infinity-Armor-2.12.0-explore.1.jar",
+      "sha256": "5bb9f94da847783a6ee036cb627a79f26f6d0ce45c23ca8f5c3f9bf00df09fad"
+    },
+    {
+      "path": "fabric/mods/fabric-api-0.141.6+1.21.11.jar",
+      "sha256": "bdff7fd7e220085cfad2ff9b1f40dde6534ae0b96cf378f97a374bc54cb9ed0f"
+    },
+    {
+      "path": "geyser/packs/Infinity_Armor_Crossplay.mcpack",
+      "sha256": "d203eb8b517891b7c0a43755f09910a45f2e5eda66c8b846f0781c095a2cb702"
+    }
+  ]
+}

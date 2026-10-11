@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "convergence_tests",
+  "version": "2.12.0-explore.1",
+  "name": "Infinity Armor Tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "dev.convergence.InfinityGameTests",
+      "dev.convergence.CommunityGameTests",
+      "dev.convergence.ModeGameTests",
+      "dev.convergence.LobbyGameTests",
+      "dev.convergence.RewardGameTests",
+      "dev.convergence.TradeGameTests",
+      "dev.convergence.AgentGameTests",
+      "dev.convergence.AssistantGameTests",
+      "dev.convergence.OperatorGameTests",
+      "dev.convergence.BackpackGameTests",
+      "dev.convergence.PlayerTradingGameTests",
+      "dev.convergence.EquipmentGameTests",
+      "dev.convergence.MinigameGameTests"
+    ]
+  },
+  "depends": {
+    "convergence": "*"
+  }
+}

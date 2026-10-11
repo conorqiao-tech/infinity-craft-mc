@@ -1,0 +1,55 @@
+plugins { id 'fabric-loom' version '1.17.21' }
+version = project.mod_version
+group = 'dev.convergence'
+base { archivesName = 'Infinity-Armor' }
+repositories { mavenCentral(); maven { url 'https://maven.nucleoid.xyz' }; maven { url 'https://api.modrinth.com/maven' } }
+dependencies {
+ minecraft 'com.mojang:minecraft:1.21.11'
+ mappings 'net.fabricmc:yarn:1.21.11+build.6:v2'
+ modImplementation 'net.fabricmc:fabric-loader:0.18.4'
+ modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.6+1.21.11'
+ modImplementation 'eu.pb4:polymer-core:0.15.2+1.21.11'
+ modImplementation 'eu.pb4:polymer-blocks:0.15.2+1.21.11'
+ modImplementation 'eu.pb4:polymer-resource-pack:0.15.2+1.21.11'
+ modImplementation 'maven.modrinth:floodgate:81EuNxeZ'
+}
+
+tasks.register('gametestJar', Jar) {
+ dependsOn tasks.named('gametestClasses')
+ from sourceSets.gametest.output
+ archiveClassifier = 'gametest-dev'
+}
+tasks.register('remapGametestJar', net.fabricmc.loom.task.RemapJarTask) {
+ dependsOn tasks.named('gametestJar')
+ inputFile = tasks.named('gametestJar', Jar).flatMap { it.archiveFile }
+ archiveClassifier = 'gametest'
+ addNestedDependencies = false
+}
+processResources {
+ inputs.property 'version', project.version
+ filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+java { withSourcesJar(); sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
+sourceSets {
+ gametest {
+  compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+  runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+ }
+}
+loom {
+ mods {
+  convergence { sourceSet sourceSets.main }
+  convergence_tests { sourceSet sourceSets.gametest }
+ }
+ runs {
+  gametest {
+   server()
+   name 'Infinity Armor GameTests'
+   source sourceSets.gametest
+   runDir 'build/gametest'
+   vmArg '-Dfabric-api.gametest'
+   vmArg "-Dfabric-api.gametest.report-file=${file('build/gametest-results.xml')}"
+  }
+ }
+}
