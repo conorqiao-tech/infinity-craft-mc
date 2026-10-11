@@ -95,7 +95,7 @@ final class OdysseyCompass {
             Component.literal("Enter the original ruin in Survival or Hardcore to record discovery."),
             Component.literal("Rescan from Odyssey Journal to update this compass."))));
         player.inventoryMenu.sendAllDataToRemote();
-        player.level().getServer().getPlayerList().saveAll();
+        PlayerPersistence.save(player);
         CommunityServer.say(player, "Circuit signal at " + at.toShortString() + ". Your Odyssey compass points there in this dimension.");
         return 1;
     }

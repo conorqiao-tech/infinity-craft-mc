@@ -16,6 +16,9 @@ import pinggy_joining
 
 
 FRIEND_GUIDE = "Infinity_Armor_Friend_Connection_Guide.pdf"
+STATUS_INTERVAL = 2
+REMOTE_INTERVAL = 5
+ROSTER_CACHE_SECONDS = 10
 
 
 class Panel:
@@ -38,6 +41,15 @@ class Panel:
         self.addresses = launcher.join_addresses(self.arguments())
         self.remote_checked = 0.0
         self.remote_state = {"checked_at": None, "tunnels": [], "available": False}
+        self.status_checked = 0.0
+        self.status_worker = None
+        self.status_revision = 0
+        self.status_closed = False
+        self.guide_path = None
+        self.guide_bytes = None
+        # Seed the local form before the panel is exposed. Later reads, including
+        # every status request, happen in the single background refresh below.
+        self.file_state = self.read_file_status(False)
 
     @staticmethod
     def valid_settings(data):
@@ -72,27 +84,123 @@ class Panel:
 
     def snapshot(self):
         with self.guard:
-            remote = self.remote_joining()
-            return {"state": self.state, "error": self.error, "settings": dict(self.settings),
-                    "addresses": self.addresses, "eula_accepted": self.accepted(), "logs": list(self.logs),
-                    "ai": community.ai_status(self.root), "roster": community.roster(self.root, self.state == "running"), "backups": community.backups(self.root),
-                    "remote_joining": remote, "friend_guide": {"available": self.friend_guide_path(remote) is not None}}
+            self.refresh_status()
+            files = copy.deepcopy(self.file_state)
+            if (self.state != "running" or not self.status_checked or
+                time.monotonic() - self.status_checked > ROSTER_CACHE_SECONDS):
+                files["roster"] = self.unavailable_roster()
+            return {"state": self.state, "error": self.error, "settings": copy.deepcopy(self.settings),
+                    "addresses": dict(self.addresses), "eula_accepted": files["eula_accepted"], "logs": list(self.logs),
+                    "ai": files["ai"], "roster": files["roster"], "backups": files["backups"],
+                    "remote_joining": copy.deepcopy(self.remote_state), "friend_guide": {"available": self.current_guide() is not None}}
+
+    @staticmethod
+    def unavailable_roster():
+        return {"players": [], "tick_ms": None, "available": False}
+
+    def read_file_status(self, running):
+        """Read ancillary files without holding the world-control lock."""
+        result = {"eula_accepted": bool(self.args.accept_eula),
+                  "ai": {**community.AI_DEFAULTS, "hasKey": False},
+                  "roster": self.unavailable_roster(), "backups": []}
+        for key, read in (("eula_accepted", self.accepted),
+                          ("ai", lambda: community.ai_status(self.root)),
+                          ("roster", lambda: community.roster(self.root, running)),
+                          ("backups", lambda: community.backups(self.root))):
+            try:
+                result[key] = read()
+            except Exception:
+                # Private file contents and diagnostics never enter the response.
+                pass
+        return result
+
+    def refresh_status(self):
+        """Start at most one refresh; callers always receive the existing cache."""
+        with self.guard:
+            if self.status_closed or self.status_worker and self.status_worker.is_alive():
+                return
+            now = time.monotonic()
+            files_due = not self.status_checked or now - self.status_checked >= STATUS_INTERVAL
+            remote_due = not self.remote_checked or now - self.remote_checked >= REMOTE_INTERVAL
+            if not files_due and not remote_due:
+                return
+            revision, running = self.status_revision, self.state == "running"
+            cached_remote = copy.deepcopy(self.remote_state)
+            if remote_due:
+                # A guide cannot advertise cached endpoints while they are being
+                # revalidated. Status still shows the last completed observation.
+                self.guide_path = None
+                self.guide_bytes = None
+
+            def work():
+                if files_due:
+                    files = self.read_file_status(running)
+                    with self.guard:
+                        if self.status_closed or revision != self.status_revision:
+                            return
+                        # A slow remote agent must not delay completed file reads.
+                        self.file_state = files
+                        self.status_checked = time.monotonic()
+                if remote_due:
+                    try:
+                        tunnels = pinggy_joining.public_status(self.root, pinggy_joining.tunnels(self.root))
+                        remote = {"checked_at": None, "tunnels": tunnels, "available": True}
+                    except Exception:
+                        remote = {"checked_at": None, "tunnels": [], "available": False}
+                else:
+                    remote = cached_remote
+                try:
+                    guide = self.find_friend_guide(remote)
+                    content = None
+                    if guide is not None:
+                        descriptor = os.open(guide, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0))
+                        with os.fdopen(descriptor, "rb") as stream:
+                            content = stream.read(2_000_001)
+                        if not 10 <= len(content) <= 2_000_000 or not content.startswith(b"%PDF-"):
+                            guide, content = None, None
+                except Exception:
+                    guide, content = None, None
+                # Timestamp completion, not the start of a potentially slow read.
+                completed = time.monotonic()
+                with self.guard:
+                    if self.status_closed or revision != self.status_revision:
+                        return
+                    if remote_due:
+                        remote["checked_at"] = int(time.time())
+                        self.remote_state = remote
+                        self.remote_checked = completed
+                    self.guide_path = guide
+                    self.guide_bytes = content
+
+            self.status_worker = threading.Thread(target=work, name="infinity-panel-status", daemon=True)
+            self.status_worker.start()
 
     def remote_joining(self):
         """Read the owned local agent only; never return its config, logs, or credentials."""
-        now = time.monotonic()
-        if now - self.remote_checked >= 5 or not self.remote_checked:
-            try:
-                tunnels = pinggy_joining.public_status(self.root, pinggy_joining.tunnels(self.root))
-                self.remote_state = {"checked_at": int(time.time()), "tunnels": tunnels, "available": True}
-            except (OSError, RuntimeError, ValueError, TypeError, KeyError):
-                self.remote_state = {"checked_at": int(time.time()), "tunnels": [], "available": False}
-            self.remote_checked = now
-        return copy.deepcopy(self.remote_state)
+        with self.guard:
+            self.refresh_status()
+            return copy.deepcopy(self.remote_state)
 
     def friend_guide_path(self, remote=None):
+        with self.guard:
+            self.refresh_status()
+            if self.current_guide() is None or remote is not None and remote != self.remote_state:
+                return None
+            return self.guide_path
+
+    def friend_guide_content(self):
+        with self.guard:
+            self.refresh_status()
+            return self.current_guide()
+
+    def current_guide(self):
+        # A stalled file refresh also must not keep old public endpoints current.
+        if not self.remote_checked or time.monotonic() - self.remote_checked >= REMOTE_INTERVAL:
+            return None
+        return self.guide_bytes
+
+    def find_friend_guide(self, remote):
         """Offer the generated guide only while it names both current public endpoints."""
-        remote = remote if remote is not None else self.remote_joining()
         tunnels = {item.get("edition"): item for item in remote.get("tunnels", []) if isinstance(item, dict)}
         if not all(tunnels.get(edition, {}).get("ready") for edition in ("Java", "Bedrock")):
             return None
@@ -145,6 +253,11 @@ class Panel:
             self.error = ""
             self.logs.clear()
             self.state = "starting"
+            self.invalidate_status()
+            self.remote_checked = 0.0
+            self.remote_state = {"checked_at": None, "tunnels": [], "available": False}
+            self.guide_path = None
+            self.guide_bytes = None
             self.stop_event.clear()
 
             def ready(addresses):
@@ -152,6 +265,7 @@ class Panel:
                     self.addresses = addresses
                     if not self.stop_event.is_set():
                         self.state = "running"
+                        self.invalidate_status()
 
             def work():
                 try:
@@ -175,6 +289,7 @@ class Panel:
         with self.guard:
             if self.worker and self.worker.is_alive():
                 self.state = "stopping"
+                self.invalidate_status()
                 self.stop_event.set()
                 self.log("Saving and stopping. If a download is in progress, it will finish first.")
 
@@ -222,9 +337,28 @@ class Panel:
             if self.state in ("starting", "running", "stopping", "backing_up") or (self.worker and self.worker.is_alive()) or (self.root / "launcher.lock").exists():
                 raise ValueError("Save & Stop the world before changing AI chat settings.")
             community.configure_ai(self.root, data)
+            self.invalidate_status()
+            revision = self.status_revision
             self.log("Private AI chat settings saved. Changes apply next start.")
+        # Return the just-saved, sanitized form immediately, without letting the
+        # ancillary read delay concurrent Stop, commands, or console output.
+        try:
+            ai = community.ai_status(self.root)
+        except Exception:
+            ai = {**community.AI_DEFAULTS, "hasKey": False}
+        with self.guard:
+            if revision == self.status_revision:
+                self.file_state["ai"] = ai
+
+    def invalidate_status(self):
+        """Discard in-flight file observations made before a control change."""
+        self.status_revision += 1
+        self.status_checked = 0.0
+        self.file_state["roster"] = self.unavailable_roster()
 
     def close(self):
+        with self.guard:
+            self.status_closed = True
         self.stop()
         if self.worker:
             self.worker.join()
@@ -266,14 +400,11 @@ def handler_for(panel, token, page):
             elif self.path == "/api/status" and self.authorized():
                 self.respond(200, panel.snapshot())
             elif self.path == "/api/friend-guide" and self.authorized():
-                guide = panel.friend_guide_path()
+                guide = panel.friend_guide_content()
                 if guide is None:
                     self.respond(404, {"error": "No current friend guide matches both public addresses."})
                 else:
-                    try:
-                        self.respond(200, guide.read_bytes(), "application/pdf")
-                    except OSError:
-                        self.respond(404, {"error": "The friend guide is unavailable."})
+                    self.respond(200, guide, "application/pdf")
             else:
                 self.respond(403, {"error": "Reopen the launcher to access this control panel."})
 

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import json
 import hashlib
+import math
 import os
 from pathlib import Path
 import re
@@ -202,16 +203,42 @@ def backup(root, props, locked=False):
             lockfile.unlink(missing_ok=True)
 
 
+ROSTER_MAX_BYTES = 256 * 1024
+ROSTER_MAX_PLAYERS = 200
+
+
 def roster(root, running):
     if not running:
         return {"players": [], "tick_ms": None, "available": False}
     try:
         import time
-        data = json.loads((root / "fabric/community-status.json").read_text())
-        if abs(time.time() * 1000 - data["updated"]) > 30_000:
+        with (root / "fabric/community-status.json").open("rb") as stream:
+            content = stream.read(ROSTER_MAX_BYTES + 1)
+        if len(content) > ROSTER_MAX_BYTES:
+            raise ValueError("Oversized status")
+        def invalid_constant(value):
+            raise ValueError("Invalid status number")
+        data = json.loads(content, parse_constant=invalid_constant)
+        if not isinstance(data, dict):
+            raise ValueError("Invalid status")
+        updated, tick_ms, players = data["updated"], data["tick_ms"], data["players"]
+        if (type(updated) not in (int, float) or not math.isfinite(updated) or
+            type(tick_ms) not in (int, float) or not math.isfinite(tick_ms) or tick_ms < 0 or
+            not isinstance(players, list) or len(players) > ROSTER_MAX_PLAYERS):
+            raise ValueError("Invalid status")
+        for player in players:
+            if not isinstance(player, dict) or "name" not in player:
+                raise ValueError("Invalid player status")
+            for key, limit in (("name", 64), ("uuid", 64), ("mode", 64), ("rank", 160)):
+                if key in player and (not isinstance(player[key], str) or
+                    not 1 <= len(player[key]) <= limit or any(ord(c) < 32 for c in player[key])):
+                    raise ValueError("Invalid player status")
+        if abs(time.time() * 1000 - updated) > 30_000:
             raise ValueError("Stale status")
-        return {"players": data["players"], "tick_ms": data["tick_ms"], "available": True}
-    except (OSError, ValueError, KeyError):
+        # Only the native public roster fields belong in a dashboard response.
+        public_players=[{key:player[key] for key in ("name","uuid","mode","rank") if key in player} for player in players]
+        return {"players": public_players, "tick_ms": tick_ms, "available": True}
+    except (OSError, ValueError, KeyError, OverflowError, RecursionError):
         return {"players": [], "tick_ms": None, "available": False}
 
 

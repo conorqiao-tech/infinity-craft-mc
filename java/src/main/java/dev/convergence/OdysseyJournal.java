@@ -91,7 +91,7 @@ final class OdysseyJournal {
         if(slots.size()<stacks.size()){CommunityServer.say(p,"Clear "+stacks.size()+" inventory slots. Your Odyssey gift remains unclaimed.");return 0;}
         for(int i=0;i<stacks.size();i++)p.getInventory().setItem(slots.get(i),stacks.get(i).copy());
         state(p).putBoolean("claimed_"+tier,true);p.inventoryMenu.sendAllDataToRemote();
-        p.level().getServer().getPlayerList().saveAll();CommunityServer.say(p,"Odyssey gift claimed. Your journal and rewards are saved.");return stacks.size();
+        PlayerPersistence.save(p);CommunityServer.say(p,"Odyssey gift claimed. Your journal and rewards are saved.");return stacks.size();
     }
     static int open(ServerPlayer p){
         if(!ServerMenu.allowed(p)||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty())return 0;
@@ -131,7 +131,6 @@ final class OdysseyJournal {
     }
     static void register(){ServerTickEvents.END_SERVER_TICK.register(server->{
         if(server instanceof net.minecraft.gametest.framework.GameTestServer||server.getTickCount()%20!=0)return;
-        boolean changed=false;for(var p:server.getPlayerList().getPlayers())changed|=discover(p);
-        if(changed)server.getPlayerList().saveAll();
+        for(var p:server.getPlayerList().getPlayers())if(discover(p))PlayerPersistence.save(p);
     });}
 }

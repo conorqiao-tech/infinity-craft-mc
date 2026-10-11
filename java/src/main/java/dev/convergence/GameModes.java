@@ -57,7 +57,7 @@ public final class GameModes {
         if(mode==Mode.CREATIVE) CreativeGearPicker.onEnter(p);
         PENDING.remove(p.getUUID());ModeMaps.RUNS.remove(p.getUUID());
         var community=CommunityServer.get(p.level().getServer());community.pending.remove(p.getUUID());
-        community.server.getPlayerList().saveAll();
+        PlayerPersistence.save(p);
     }
     public static CompoundTag state(ServerPlayer p) { return ((ModePlayer)p).infinity$state(); }
     /** Since 26.1 vanilla stores player saves under players/data rather than playerdata. */
@@ -209,7 +209,7 @@ public final class GameModes {
             ModeMaps.RUNS.remove(p.getUUID());
             if(mode==Mode.MINIGAMES || mode==Mode.ADVENTURE) ModeMaps.begin(p,map==null?ModeMaps.selectedMap(p,mode):map);
             if(mode==Mode.HUB) LobbyServer.arrive(p,map==null?"main":map);
-            server.getPlayerList().saveAll();
+            PlayerPersistence.save(p);
             CommunityServer.say(p,"Now playing "+mode+". Your "+current+" inventory is saved.");
         } finally { TRANSITIONS.remove(p.getUUID()); }
     }

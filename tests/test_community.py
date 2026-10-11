@@ -5,6 +5,7 @@ import tempfile
 import time
 import unittest
 import zipfile
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "server"))
 import community
@@ -83,6 +84,73 @@ class CommunityTests(unittest.TestCase):
         self.assertFalse(community.roster(self.root, False)["available"])
         status.write_text(json.dumps({"updated": 0, "players": [], "tick_ms": 0}))
         self.assertFalse(community.roster(self.root, True)["available"])
+
+    def test_roster_preserves_valid_player_fields_and_never_reads_while_offline(self):
+        players = [{"name": ".Bedrock_User", "uuid": "9b644bbc-50f5-4640-a6eb-358a4c48f388",
+                    "mode": "SURVIVAL", "rank": "OP"}]
+        status = self.root / "fabric/community-status.json"
+        status.write_text(json.dumps({"updated": time.time() * 1000, "players": players, "tick_ms": 12.5}))
+        self.assertEqual(community.roster(self.root, True), {"players": players, "tick_ms": 12.5, "available": True})
+        with patch.object(Path, "open") as read:
+            self.assertEqual(community.roster(self.root, False), {"players": [], "tick_ms": None, "available": False})
+        read.assert_not_called()
+
+    def test_roster_only_returns_public_native_player_fields(self):
+        player={"name": ".Test", "uuid": "test", "mode": "SURVIVAL", "rank": "OP"}
+        status=self.root / "fabric/community-status.json"
+        status.write_text(json.dumps({"updated": time.time()*1000, "players": [{**player,"privateToken":"must-stay-private","details":{"secret":"hidden"}}], "tick_ms": 1.5, "privateConfig":"hidden"}))
+        self.assertEqual(community.roster(self.root,True),{"players":[player],"tick_ms":1.5,"available":True})
+
+    def test_roster_rejects_malformed_schema_and_nonfinite_numbers(self):
+        status = self.root / "fabric/community-status.json"
+        valid = {"updated": time.time() * 1000, "players": [], "tick_ms": 12.5}
+        invalid = [None, [], "status", {}, {"players": [], "tick_ms": 0},
+                   *[{**valid, "updated": value} for value in (None, True, "recent", {}, [], float("nan"), float("inf"), 10 ** 400)],
+                   *[{**valid, "tick_ms": value} for value in (None, True, "fast", {}, [], -1, float("nan"), float("inf"), 10 ** 400)],
+                   *[{**valid, "players": value} for value in (None, {}, "players", [None], ["player"], [{}], [{"name": []}], [{"name": ""}])]]
+        for value in invalid:
+            with self.subTest(value=value):
+                status.write_text(json.dumps(value))
+                self.assertEqual(community.roster(self.root, True), {"players": [], "tick_ms": None, "available": False})
+
+    def test_roster_rejects_invalid_player_fields_and_excessive_player_count(self):
+        status = self.root / "fabric/community-status.json"
+        player = {"name": ".Test", "uuid": "test", "mode": "SURVIVAL", "rank": "OP"}
+        invalid = [{**player, "name": "x" * 65}, {**player, "name": "Test\nstop"},
+                   {**player, "uuid": None}, {**player, "uuid": "x" * 65},
+                   {**player, "mode": []}, {**player, "mode": "x" * 65},
+                   {**player, "rank": 1}, {**player, "rank": "x" * 161}]
+        for value in invalid:
+            with self.subTest(player=value):
+                status.write_text(json.dumps({"updated": time.time() * 1000, "players": [value], "tick_ms": 0}))
+                self.assertFalse(community.roster(self.root, True)["available"])
+        status.write_text(json.dumps({"updated": time.time() * 1000,
+                                      "players": [player] * community.ROSTER_MAX_PLAYERS, "tick_ms": 0}))
+        self.assertTrue(community.roster(self.root, True)["available"])
+        status.write_text(json.dumps({"updated": time.time() * 1000,
+                                      "players": [player] * (community.ROSTER_MAX_PLAYERS + 1), "tick_ms": 0}))
+        self.assertFalse(community.roster(self.root, True)["available"])
+
+    def test_roster_read_is_bounded_and_oversized_data_is_unavailable(self):
+        import io
+        content = b" " * (community.ROSTER_MAX_BYTES + 100)
+        stream = io.BytesIO(content)
+        with patch.object(Path, "open", return_value=stream), patch.object(stream, "read", wraps=stream.read) as read:
+            self.assertFalse(community.roster(self.root, True)["available"])
+            read.assert_called_once_with(community.ROSTER_MAX_BYTES + 1)
+        status = self.root / "fabric/community-status.json"
+        valid = json.dumps({"updated": time.time() * 1000, "players": [], "tick_ms": 0}).encode()
+        status.write_bytes(valid + b" " * (community.ROSTER_MAX_BYTES - len(valid)))
+        self.assertTrue(community.roster(self.root, True)["available"])
+        status.write_bytes(status.read_bytes() + b" ")
+        self.assertFalse(community.roster(self.root, True)["available"])
+
+    def test_roster_rejects_bad_encoding_truncated_and_deeply_nested_json(self):
+        status = self.root / "fabric/community-status.json"
+        for content in (b"\xff", b'{"updated":', b"[" * 2000 + b"0" + b"]" * 2000):
+            with self.subTest(content_length=len(content)):
+                status.write_bytes(content)
+                self.assertFalse(community.roster(self.root, True)["available"])
 
     def test_moderation_rejects_command_injection_and_accepts_bedrock_names(self):
         self.assertEqual(community.moderation_command("mute", ".Bedrock_User"), "community mute .Bedrock_User 10")

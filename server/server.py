@@ -179,33 +179,93 @@ class Service:
         self.join_rules = join_rules
         self.send_lock = threading.Lock()
         self.ready = threading.Event()
-        self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
-            start_new_session=(os.name != "nt"))
+        self.failed_sinks = set()
         self.log = (cwd / "launcher.log").open("w", encoding="utf-8")
-        self.thread = threading.Thread(target=self.read_output, args=(ready_text,), daemon=True)
-        self.thread.start()
+        self.process = None
+        try:
+            self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
+                start_new_session=(os.name != "nt"))
+            self.thread = threading.Thread(target=self.read_output, args=(ready_text,), daemon=True)
+            self.thread.start()
+        except BaseException:
+            try:
+                if self.process is not None:
+                    if self.process.poll() is None:
+                        self.process.terminate()
+                    try:
+                        self.process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+                        self.process.wait(timeout=10)
+            finally:
+                if self.process is not None:
+                    for stream in (self.process.stdin, self.process.stdout):
+                        if stream is not None:
+                            try:
+                                stream.close()
+                            except OSError:
+                                pass
+                try:
+                    self.log.close()
+                except OSError:
+                    pass
+            raise
+
+    def _deliver_output(self, message, log_line=None):
+        """Keep a broken optional sink from abandoning the child's stdout pipe."""
+        failures = []
+        sinks = (("file", lambda: (self.log.write(log_line), self.log.flush())),
+                 ("terminal", lambda: print(message, flush=True)),
+                 ("panel", lambda: OUTPUT(message)))
+        for name, write in sinks:
+            if name in self.failed_sinks or (name == "file" and log_line is None) or (name == "panel" and not OUTPUT):
+                continue
+            try:
+                write()
+            except Exception:
+                self.failed_sinks.add(name)
+                failures.append(name)
+        return failures
+
+    def _publish_output(self, message, log_line=None):
+        failures = self._deliver_output(message, log_line)
+        while failures:
+            name = failures.pop(0)
+            diagnostic = "[" + self.name + "] " + name.capitalize() + " logging failed; continuing to drain server output."
+            # Mark failed sinks before reporting, and handle another diagnostic
+            # sink failure iteratively rather than recursively.
+            failures.extend(self._deliver_output(diagnostic, diagnostic + "\n"))
 
     def read_output(self, ready_text):
         try:
             for line in self.process.stdout:
-                self.log.write(line)
-                self.log.flush()
-                emit("[" + self.name + "] " + line.rstrip())
                 if ready_text in line:
                     self.ready.set()
+                self._publish_output("[" + self.name + "] " + line.rstrip(), line)
                 if self.join_rules:
                     try:
                         command = self.join_rules.command_for(line)
                         if command and self.send(command):
                             self.join_rules.mark_sent(command)
-                            emit("[Owner rule] Exact joined account ban requested.")
+                            self._publish_output("[Owner rule] Exact joined account ban requested.")
                     except Exception:
                         # Keep draining Java output even if a guard or pipe
                         # fails; a blocked stdout pipe can stall the server.
-                        emit("[Owner rule] Ban could not be sent; check the server console.")
+                        self._publish_output("[Owner rule] Ban could not be sent; check the server console.")
         finally:
-            self.log.close()
+            try:
+                self.log.close()
+            except Exception:
+                if "file" not in self.failed_sinks:
+                    self.failed_sinks.add("file")
+                    self._publish_output("[" + self.name + "] File logging failed; continuing to drain server output.")
+            # The reader owns stdout closure so stopping cannot close a pipe
+            # while this thread is still consuming the child's final output.
+            try:
+                self.process.stdout.close()
+            except OSError:
+                pass
 
     def wait_ready(self, timeout=300, cancel=None):
         deadline = time.monotonic() + timeout
@@ -226,19 +286,29 @@ class Service:
         return False
 
     def stop(self):
-        if self.process.poll() is not None:
-            return
         try:
-            self.send(self.stop_command)
-            self.process.wait(timeout=45)
-        except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
-            if self.process.poll() is None:
-                self.process.terminate()
+            if self.process.poll() is not None:
+                return
+            try:
+                self.send(self.stop_command)
+                self.process.wait(timeout=45)
+            except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
+                if self.process.poll() is None:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+                        self.process.wait(timeout=10)
+        finally:
+            if self.process.poll() is not None:
                 try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait()
+                    with self.send_lock:
+                        self.process.stdin.close()
+                except OSError:
+                    pass
+                if threading.current_thread() is not self.thread:
+                    self.thread.join(timeout=5)
 
 
 def copy_bridge_data(root=ROOT):

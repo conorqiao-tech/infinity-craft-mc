@@ -4,8 +4,10 @@ Uses only the launcher's standard Python library. This validates pack contents,
 not an authenticated client rendering result.
 """
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
+import re
 import struct
 import unittest
 import zipfile
@@ -50,6 +52,20 @@ def rgba_png(data):
 
 
 class OriginalArtworkTests(unittest.TestCase):
+    def test_backpack_refresh_retains_earned_style_dye_and_equipment_metadata(self):
+        equipment = json.loads((JAVA / "equipment/backpack.json").read_text())
+        self.assertEqual(equipment["layers"]["humanoid"][0]["dyeable"], {"color_when_undyed": 4831653},
+                         "Trail, Emerald and Dragon must retain their saved worn colors")
+        spec = importlib.util.spec_from_file_location("refresh27_pack_art", ART / "pack_art.py")
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        overlay = {"texture": "convergence:backpack_overlay", "use_player_texture": True}
+        equipment["layers"]["humanoid"].append(overlay.copy())
+        generator.equipment_texture(equipment, "humanoid", "convergence:backpack_next")
+        self.assertEqual(equipment["layers"]["humanoid"][0]["dyeable"], {"color_when_undyed": 4831653})
+        self.assertEqual(equipment["layers"]["humanoid"][1], overlay, "Refreshing base artwork preserves extra layers")
+        self.assertEqual(equipment["layers"]["humanoid"][0]["texture"], "convergence:backpack_next")
+
     def test_generated_asset_hashes_and_all_originals_are_preserved(self):
         manifest = json.loads((ART / "uv-manifest.json").read_text())
         for name, digest in manifest["sha256"].items():
@@ -114,8 +130,10 @@ class OriginalArtworkTests(unittest.TestCase):
             for material in ("netherite","leather"):
                 for layer in (1,2): self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
-            self.assertEqual(manifest["header"]["version"],[2,12,27])
-            self.assertTrue(all(m["version"] == [2,12,27] for m in manifest["modules"]))
+            version = re.search(r'^VERSION = "([^"\n]+)"$', (ROOT / "tools/prepare_crossplay.py").read_text(), re.MULTILINE).group(1)
+            expected_version = [2,12,int(version.rsplit(".",1)[-1])]
+            self.assertEqual(manifest["header"]["version"],expected_version)
+            self.assertTrue(all(m["version"] == expected_version for m in manifest["modules"]))
 
     def test_preparation_retains_fresh_block_atlases(self):
         names = json.loads((ART / "uv-manifest.json").read_text())["blocks"]

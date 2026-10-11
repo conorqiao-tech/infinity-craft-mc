@@ -41,7 +41,8 @@ final class GearCrates {
         int added=0,missing=0;
         for(var path:paths) {
             var item=Convergence.ITEMS.get("convergence:"+path);boolean present=false;
-            for(int i=0;i<36;i++)if(player.getInventory().getItem(i).getItem()==item){present=true;break;}
+            // The native inventory view includes worn armor and the offhand.
+            for(int i=0;i<player.getInventory().getContainerSize();i++)if(player.getInventory().getItem(i).getItem()==item){present=true;break;}
             if(present)continue;
             int slot=player.getInventory().getFreeSlot();
             if(slot<0){missing++;continue;}
@@ -108,7 +109,7 @@ final class GearCrates {
         box.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         player.getInventory().setItem(slot, box); player.inventoryMenu.sendAllDataToRemote();
         GameModes.state(player).putBoolean("admin_blocks_" + GameModes.current(player).name(), true);
-        player.level().getServer().getPlayerList().saveAll();
+        PlayerPersistence.save(player);
         CommunityServer.say(player, "Admin Blocks added to Creative inventory. Place the red toolbox and open it. Recover it from Infinity Gear → Admin Blocks.");
         return 1;
     }

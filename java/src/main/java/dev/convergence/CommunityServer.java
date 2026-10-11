@@ -51,6 +51,7 @@ final class CommunityServer {
     final Map<UUID, Integer> cooldowns = new HashMap<>();
     final Map<UUID, Integer> combat = new HashMap<>();
     final Map<UUID, Long> lastChat = new HashMap<>();
+    LatestStatusWriter statusWriter;
 
     record Place(String dimension, double x, double y, double z, float yaw, float pitch) {
         static Place of(ServerPlayer p) {
@@ -131,7 +132,10 @@ final class CommunityServer {
             } catch (Exception e) { throw new IllegalStateException("Invalid community server settings", e); }
             community.writeStatus();
         });
-        ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            var community=INSTANCES.remove(server);
+            if(community!=null&&community.statusWriter!=null)community.statusWriter.close();
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> get(server).tick());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             var community = get(server);
@@ -312,11 +316,13 @@ final class CommunityServer {
         if (server.getTickCount() % 100 == 0) writeStatus();
     }
     void writeStatus() {
-        try {
-            atomicJson(server.getServerDirectory().resolve("community-status.json"), Map.of("updated", System.currentTimeMillis(),
-                "players", server.getPlayerList().getPlayers().stream().map(p -> Map.of("name", p.getScoreboardName(), "uuid", p.getStringUUID(), "mode", GameModes.current(p).name(), "rank", Memberships.get(server).label(p.getUUID()))).toList(),
-                "tick_ms", server.getAverageTickTimeNanos() / 1_000_000.0));
-        } catch (IOException e) { System.err.println("[Infinity] Could not update the host panel: " + e.getMessage()); }
+        // All game objects are read here. The writer receives only immutable values.
+        var snapshot=new LatestStatusWriter.Snapshot(System.currentTimeMillis(),
+            server.getPlayerList().getPlayers().stream().map(p -> new LatestStatusWriter.Player(
+                p.getScoreboardName(),p.getStringUUID(),GameModes.current(p).name(),Memberships.get(server).label(p.getUUID()))).toList(),
+            server.getAverageTickTimeNanos()/1_000_000.0);
+        if(statusWriter==null)statusWriter=new LatestStatusWriter(server.getServerDirectory().resolve("community-status.json"));
+        statusWriter.submit(snapshot);
     }
     int buildSpawn(ServerPlayer p) {
         if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return say(p, "Build the welcome plaza in the Overworld.");

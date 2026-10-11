@@ -90,6 +90,60 @@ public class EquipmentGameTests {
         c.succeed();
     }
 
+    @GameTest public void directGearRecognizesWornArmorAndOffhandWithoutDuplicates(GameTestHelper c) {
+        var p=new ModeGameTests().player(c,"gear-equipped-retry");p.setGameMode(GameType.CREATIVE);
+        try {
+            p.closeContainer();p.getInventory().clearContent();
+            c.assertValueEqual(GearCrates.giveDirect(p),1,"The original delivery completes");
+            var equipped=java.util.Map.of(EquipmentSlot.HEAD,"helmet",EquipmentSlot.CHEST,"cuirass",
+                EquipmentSlot.LEGS,"leggings",EquipmentSlot.FEET,"boots",EquipmentSlot.OFFHAND,"shield");
+            for(var entry:equipped.entrySet()) {
+                var item=Convergence.ITEMS.get("convergence:"+entry.getValue());
+                for(int i=0;i<36;i++)if(p.getInventory().getItem(i).is(item)) {
+                    var stack=p.getInventory().removeItemNoUpdate(i);
+                    stack.set(DataComponents.CUSTOM_NAME,net.minecraft.network.chat.Component.literal("My saved "+entry.getValue()));
+                    p.setItemSlot(entry.getKey(),stack);break;
+                }
+                c.assertTrue(p.getItemBySlot(entry.getKey()).is(item),"The delivered piece is equipped: "+entry.getValue());
+            }
+            var before=new java.util.HashMap<net.minecraft.world.item.Item,Integer>();
+            for(var item:Convergence.ITEMS.values())before.put(item,ownedCount(p,item));
+            c.assertValueEqual(GearCrates.giveDirect(p),1,"Worn armor and offhand gear already satisfy ownership");
+            for(var item:Convergence.ITEMS.values())c.assertValueEqual(ownedCount(p,item),before.get(item),"A repeat does not duplicate equipped gear");
+            for(int i=0;i<36;i++)if(p.getInventory().getItem(i).isEmpty())p.getInventory().setItem(i,new ItemStack(Items.DIRT,64));
+            c.assertValueEqual(GearCrates.giveDirect(p),1,"A full main inventory needs no free slots when all gear is already owned");
+            for(var entry:equipped.entrySet())c.assertValueEqual(p.getItemBySlot(entry.getKey()).getHoverName().getString(),"My saved "+entry.getValue(),"Named worn and offhand stacks remain intact");
+            for(var item:Convergence.ITEMS.values())c.assertValueEqual(ownedCount(p,item),before.get(item),"The full-inventory repeat preserves total ownership");
+        } finally {p.closeContainer();p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+
+    @GameTest public void solidChestplateCraftingAndNativeEnchantmentsUseItsOwnItem(GameTestHelper c) {
+        var input=net.minecraft.world.item.crafting.CraftingInput.of(3,3,java.util.List.of(
+            gear("ingot"),ItemStack.EMPTY,gear("ingot"),
+            gear("ingot"),new ItemStack(Items.NETHERITE_CHESTPLATE),gear("ingot"),
+            gear("ingot"),gear("ingot"),gear("ingot")));
+        var recipes=c.getLevel().getServer().getRecipeManager();
+        var recipe=recipes.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING,input,c.getLevel());
+        c.assertTrue(recipe.isPresent(),"Seven Infinity ingots and a real netherite chestplate match the native recipe manager");
+        c.assertValueEqual(recipe.orElseThrow().id().identifier(),CrossplaySupport.id("cuirass"),"The upgrade selects the separate solid recipe");
+        var result=recipe.orElseThrow().value().assemble(input);
+        c.assertTrue(ItemStack.isSameItemSameComponents(result,gear("cuirass")),"Native crafting produces the actual solid chestplate and its equipment components");
+        c.assertValueEqual(result.getCount(),1,"The upgrade produces one chestplate");
+        c.assertFalse(result.has(DataComponents.GLIDER),"Crafting solid armor never gives flight");
+        var wingsInput=net.minecraft.world.item.crafting.CraftingInput.of(3,3,java.util.List.of(
+            gear("ingot"),ItemStack.EMPTY,gear("ingot"),gear("ingot"),gear("ingot"),gear("ingot"),gear("ingot"),gear("ingot"),gear("ingot")));
+        var wingsRecipe=recipes.getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING,wingsInput,c.getLevel()).orElseThrow();
+        c.assertTrue(ItemStack.isSameItemSameComponents(wingsRecipe.value().assemble(wingsInput),gear("chestplate")),"The original all-ingot wing recipe keeps its real saved ID");
+        for(String tag:java.util.List.of("chest_armor","enchantable/armor","enchantable/chest_armor","enchantable/equippable","enchantable/durability","enchantable/vanishing"))
+            c.assertTrue(result.is(net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,net.minecraft.resources.Identifier.withDefaultNamespace(tag))),"The crafted chestplate belongs to the native tag: "+tag);
+        var enchantments=c.getLevel().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT);
+        for(var key:java.util.List.of(net.minecraft.world.item.enchantment.Enchantments.PROTECTION,net.minecraft.world.item.enchantment.Enchantments.THORNS,net.minecraft.world.item.enchantment.Enchantments.BINDING_CURSE,net.minecraft.world.item.enchantment.Enchantments.VANISHING_CURSE))
+            c.assertTrue(enchantments.getOrThrow(key).value().canEnchant(result),"Native chest enchantment accepts the actual crafted item: "+key.identifier());
+        c.assertFalse(enchantments.getOrThrow(net.minecraft.world.item.enchantment.Enchantments.FEATHER_FALLING).value().canEnchant(result),"Boot-only enchantments do not become chestplate enchantments");
+        c.succeed();
+    }
+
     @GameTest(maxTicks=60) public void fullInventoryDoesNotConsumeTheAutomaticGearReceipt(GameTestHelper c) {
         var p=new ModeGameTests().player(c,"gear-retry27");p.setGameMode(GameType.CREATIVE);
         p.closeContainer();for(int i=0;i<36;i++)p.getInventory().setItem(i,new ItemStack(Items.DIRT,64));
@@ -108,6 +162,9 @@ public class EquipmentGameTests {
     }
 
     ItemStack gear(String path){return new ItemStack(Convergence.ITEMS.get("convergence:"+path));}
+    int ownedCount(ServerPlayer p,net.minecraft.world.item.Item item) {
+        int count=0;for(int i=0;i<p.getInventory().getContainerSize();i++)if(p.getInventory().getItem(i).is(item))count+=p.getInventory().getItem(i).getCount();return count;
+    }
     ServerPlayer creative(GameTestHelper c,String name){
         var p=new ModeGameTests().player(c,name);GameModes.switchNow(p,GameModes.Mode.CREATIVE,null);return p;
     }

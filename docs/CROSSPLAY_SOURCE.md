@@ -1,4 +1,6 @@
-# Infinity Armor Exploration Server source — 2.13.0-explore.27
+# Infinity Armor Exploration Server source — 2.13.0-explore.28
+
+Explore.28 adds cached nonblocking dashboard observations, safe launcher child/logging cleanup, bounded public roster validation and off-thread coalesced telemetry. Native per-player saves preserve player/stats/advancement persistence for local actions and both participants in a trade. Minigame choice persists even after a slower run, unchanged-best retries avoid redundant saves, and failed leaderboard writes remain dirty until they succeed. Gear delivery recognizes equipped/offhand ownership, and backpack equipment keeps dyeable layers. See `server/RELIABILITY.md` and the current source-bound `server/VALIDATION.md`. No live installation is included in this development change.
 
 Explore.27 adds original custom collection artwork, item-specific static Bedrock armor, a separate solid Convergence chestplate without changing the flight ID, collection filters and five real labeled inventory boxes. Only complete grants record delivery receipts. See `server/ORIGINAL_ARTWORK.md` and `artwork/refresh27/README.md` for controls, reproduction and exact client limits. The live server remains explore.26 during development.
 

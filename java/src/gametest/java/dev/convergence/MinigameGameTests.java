@@ -376,6 +376,24 @@ public class MinigameGameTests {
             for(String id:MinigameRecords.MAP_IDS)c.assertTrue(root.getChild("leaderboard").getChild(id)!=null,"Leaderboard command for "+id);
         } finally {cleanup(p);}c.succeed();
     }
+    @GameTest public void unchangedScoreRetriesAfterTransientLeaderboardWriteFailure(GameTestHelper c) throws Exception {
+        var p=new ModeGameTests().player(c,"records-recovery");
+        try {
+            var directory=Files.createTempDirectory("infinity-records-retry-");var blocked=directory.resolve("store");
+            Files.writeString(blocked,"temporary storage failure");
+            var records=new MinigameRecords(blocked.resolve("records.json"));
+            var scores=GameModes.state(p).getCompoundOrEmpty("scores");scores.putLong("sprint",2450);GameModes.state(p).put("scores",scores);
+            boolean failed=false;try{records.syncPlayer(p);}catch(IllegalStateException expected){failed=true;}
+            c.assertTrue(failed,"Actual filesystem obstruction fails the first write");
+            c.assertTrue(records.dirty,"An unsuccessful save keeps the public index dirty");
+            c.assertValueEqual(Files.readString(blocked),"temporary storage failure","Failure does not destroy the obstructing file");
+            Files.delete(blocked);Files.createDirectory(blocked);
+            records.syncPlayer(p);
+            c.assertFalse(records.dirty,"Successful retry clears the dirty flag");
+            c.assertValueEqual(new MinigameRecords(records.file).boards.get("sprint").get(p.getUUID()).millis(),2450L,"Same unchanged score is durably retried after storage recovers");
+        }finally{p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
     @GameTest public void leaderboardSortsTiesAndRejectsCorruptDataWithoutOverwriting(GameTestHelper c) {
         try {
             var path=Files.createTempDirectory("infinity-records-").resolve("records.json");

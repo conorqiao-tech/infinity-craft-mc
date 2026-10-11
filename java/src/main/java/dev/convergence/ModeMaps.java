@@ -369,7 +369,12 @@ final class ModeMaps {
         var pos=start(id); p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true);
         p.setDeltaMovement(Vec3.ZERO); p.fallDistance=0;
         p.getFoodData().setFoodLevel(20); p.getFoodData().setSaturation(5);
-        GameModes.state(p).putString("selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map",id);
+        String selection="selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map";
+        boolean changedSelection=!id.equals(GameModes.state(p).getStringOr(selection,""));
+        GameModes.state(p).putString(selection,id);
+        // A different chosen course persists even when its eventual run is slower.
+        // Mode transfers already save this participant after begin returns.
+        if(changedSelection&&!GameModes.TRANSITIONS.contains(p.getUUID()))PlayerPersistence.save(p);
         var run=new Run(id,p.level().getServer().getTickCount(),p.position());
         if(map.kind==Kind.COLOR_RUSH||map.kind==Kind.MEMORY) {
             var random=new SplittableRandom(p.getUUID().getMostSignificantBits()^p.getUUID().getLeastSignificantBits()^run.startedTick);
@@ -553,11 +558,11 @@ final class ModeMaps {
     }
     static void finish(ServerPlayer p,Run run,int tick) {
         var spec=MAPS.get(run.map);
-        long millis=spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:Math.max(1,(long)(tick-run.startedTick)*50);
+        long millis=Math.max(1,spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:(long)(tick-run.startedTick)*50);
         var state=GameModes.state(p); var scores=state.getCompoundOrEmpty("scores");
-        long old=scores.getLongOr(run.map,Long.MAX_VALUE); scores.putLong(run.map,Math.min(old,millis)); state.put("scores",scores);
+        long old=scores.getLongOr(run.map,Long.MAX_VALUE);
+        if(millis<old){scores.putLong(run.map,millis);state.put("scores",scores);PlayerPersistence.save(p);}
         RUNS.remove(p.getUUID());
-        p.level().getServer().getPlayerList().saveAll();
         try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Your best was saved, but the public leaderboard is temporarily unavailable.");}
         p.sendOverlayMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN));
         CommunityServer.say(p,"Completed "+spec.title+" in "+String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s! Personal best: "+String.format(Locale.ROOT,"%.2f",Math.min(old,millis)/1000.0)+"s. /retry "+run.map+" to race again.");

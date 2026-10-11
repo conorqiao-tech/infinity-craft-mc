@@ -6,7 +6,6 @@ holes sample the closest opaque pixel from that same generated face.
 from pathlib import Path
 import hashlib
 import json
-from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 ART = Path(__file__).resolve().parent
@@ -55,6 +54,14 @@ BLOCKS = ["infinity_block", "infinity_bricks", "polished_infinity", "radiant_inf
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def equipment_texture(equipment, layer, texture):
+    """Refresh the artwork while retaining dye settings and extra equipment layers."""
+    layers = equipment["layers"].setdefault(layer, [{}])
+    if not layers:
+        layers.append({})
+    layers[0]["texture"] = texture
 
 
 def save(image, *paths):
@@ -114,6 +121,8 @@ def sprite_bounds(image, col, row):
 
 
 def main():
+    from PIL import Image
+
     manifest = {"format": 1, "mode": "imagegen source; mechanical nearest-neighbor crop/UV packing",
                 "armor": {}, "icons": {}, "blocks": {}}
     armor = Image.open(ART / "armor-source.png").convert("RGBA")
@@ -135,7 +144,7 @@ def main():
         equipment_path = JAVA / f"equipment/{asset}.json"
         equipment = json.loads(equipment_path.read_text())
         for layer in ("humanoid", "humanoid_leggings"):
-            equipment["layers"][layer] = [{"texture": "convergence:" + name}]
+            equipment_texture(equipment, layer, "convergence:" + name)
         write_json(equipment_path, equipment)
         armor_preview.alpha_composite(out.resize((256, 128), Image.Resampling.NEAREST), (i % 2 * 256, i // 2 * 128))
         manifest["armor"][collection] = {"size": [128, 64], "uv_rectangles": UV, "source_rectangles": SOURCE_FACES}

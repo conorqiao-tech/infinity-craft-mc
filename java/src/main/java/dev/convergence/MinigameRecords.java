@@ -26,6 +26,7 @@ final class MinigameRecords {
     record Score(UUID player, String name, long millis) {}
     final Path file;
     final Map<String,Map<UUID,Score>> boards=new LinkedHashMap<>();
+    boolean dirty;
 
     MinigameRecords(Path file) {
         this.file=file;
@@ -59,6 +60,7 @@ final class MinigameRecords {
         var board=boards.get(id);var old=board.get(score.player());
         if(old!=null && old.millis()==score.millis() && old.name().equals(score.name()))return false;
         board.put(score.player(),score);
+        dirty=true;
         return true;
     }
     void save() {
@@ -68,17 +70,19 @@ final class MinigameRecords {
             for(var score:board.getValue().values())rows.add(Map.of("player",score.player().toString(),"name",score.name(),"millis",score.millis()));
             saved.put(board.getKey(),rows);
         }
-        try {CommunityServer.atomicJson(file,Map.of("format",1,"boards",saved));}
+        try {CommunityServer.atomicJson(file,Map.of("format",1,"boards",saved));dirty=false;}
         catch(IOException e) {throw new IllegalStateException("Could not save minigame records; player bests are still stored in player data.",e);}
     }
     static void sync(ServerPlayer player) {
-        var records=get(player.level().getServer());
-        var scores=GameModes.state(player).getCompoundOrEmpty("scores");boolean changed=false;
+        get(player.level().getServer()).syncPlayer(player);
+    }
+    void syncPlayer(ServerPlayer player) {
+        var scores=GameModes.state(player).getCompoundOrEmpty("scores");
         for(String id:MAP_IDS) {
             long best=scores.getLongOr(id,Long.MAX_VALUE);
-            if(best>0 && best<Long.MAX_VALUE)changed|=records.upsert(id,new Score(player.getUUID(),player.getName().getString(),best));
+            if(best>0 && best<Long.MAX_VALUE)upsert(id,new Score(player.getUUID(),player.getName().getString(),best));
         }
-        if(changed)records.save();
+        if(dirty)save();
     }
     List<Score> ordered(String id) {
         return boards.get(id).values().stream()

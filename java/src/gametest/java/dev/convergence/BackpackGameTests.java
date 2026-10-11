@@ -28,6 +28,27 @@ public class BackpackGameTests {
         fresh.restoreFrom(p,false);c.assertTrue(ItemStack.matches(storage(fresh).getItem(8),named),"Personal backpack survives respawn copy");c.succeed();
         }catch(Throwable failure){failure.printStackTrace();throw failure;}
     }
+    @GameTest public void allBackpackStyleColorsAndNamesSurviveNativePlayerFile(GameTestHelper c) throws Exception {
+        var p=player(c,"pack-style-save");
+        try {
+            p.getInventory().setItem(8,BackpackStorage.appearance(BackpackStorage.style("trail")));
+            p.getInventory().setItem(9,BackpackStorage.appearance(BackpackStorage.style("emerald")));
+            p.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST,BackpackStorage.appearance(BackpackStorage.style("dragon")));
+            PlayerPersistence.save(p);
+            var disk=net.minecraft.nbt.NbtIo.readCompressed(GameModes.savedPlayerFile(p.level().getServer(),p.getUUID()),net.minecraft.nbt.NbtAccounter.create(64L*1024*1024));
+            var restored=new ServerPlayer(p.level().getServer(),p.level(),p.getGameProfile(),p.clientInformation());
+            restored.load(TagValueInput.create(ProblemReporter.DISCARDING,p.registryAccess(),disk));
+            var actual=java.util.List.of(restored.getInventory().getItem(8),restored.getInventory().getItem(9),restored.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST));
+            for(int i=0;i<BackpackStorage.STYLES.size();i++) {
+                var style=BackpackStorage.STYLES.get(i);var stack=actual.get(i);
+                c.assertTrue(stack.is(BackpackStorage.ITEM),"The native file retains each real backpack item");
+                c.assertValueEqual(stack.get(DataComponents.DYED_COLOR).rgb(),style.color(),"Inventory and worn style colors survive native save/reload: "+style.id());
+                c.assertValueEqual(stack.getHoverName().getString(),style.name(),"Earned style names survive native save/reload");
+            }
+            c.assertValueEqual(actual.stream().map(s->s.get(DataComponents.DYED_COLOR).rgb()).distinct().count(),3L,"The restored styles remain distinct");
+        }finally{p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
     @GameTest public void backpackModeStorageNeverSharesCreativeItems(GameTestHelper c){
         var p=player(c,"pack-modes");unlock(p);var survival=storage(p);survival.setItem(0,new ItemStack(Items.IRON_INGOT,4));
         GameModes.state(p).putString("active","CREATIVE");p.setGameMode(GameType.CREATIVE);c.assertFalse(survival.stillValid(p),"Old screen loses access after mode change");

@@ -86,7 +86,10 @@ final class PlayerTrading {
                 Files.move(temporary,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
             }finally {Files.deleteIfExists(temporary);}
         }
-        void savePlayers(ServerPlayer first,ServerPlayer second) throws IOException {server.getPlayerList().saveAll();}
+        void savePlayers(ServerPlayer first,ServerPlayer second) throws IOException {
+            PlayerPersistence.save(first);
+            if(!first.getUUID().equals(second.getUUID()))PlayerPersistence.save(second);
+        }
         void prepare(UUID id,CompoundTag data) throws IOException {atomic(journal(id),data);}
         void remove(UUID id) throws IOException {Files.deleteIfExists(journal(id));}
         void restoreFile(UUID id,CompoundTag snapshot) throws IOException {

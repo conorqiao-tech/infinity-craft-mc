@@ -83,7 +83,7 @@ public final class AgentCompanions {
     static void cycleFormation(ServerPlayer owner){
         if(!AgentMenu.allowed(owner))return;
         GameModes.state(owner).putInt("helper_formation",(formation(owner).ordinal()+1)%Formation.values().length);
-        owner.level().getServer().getPlayerList().saveAll();
+        PlayerPersistence.save(owner);
     }
     enum Profile {
         PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks; shares an explicitly approved player target with its squad. Never attacks pets.", true),
