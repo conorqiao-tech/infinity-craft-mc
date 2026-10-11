@@ -507,25 +507,6 @@ public final class AgentCompanions {
         return live ? golem.level().dimension().identifier() + " at " + golem.getBlockX() + ", " + golem.getBlockY() + ", " + golem.getBlockZ()
             : "unloaded; saved anchor " + agent.dimension + " at " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z);
     }
-    String brief(ServerPlayer owner,String id,Agent agent){
-        var golem=loaded.get(UUID.fromString(id));var pause=pauseReason(owner,golem,agent);
-        if(pause!=null)return "Paused: "+pause;
-        if(!agent.profile().combat)return "Passive profile • movement and approved tools only";
-        if(golem.getTarget()!=null)return "Fighting: "+golem.getTarget().getName().getString();
-        return "Ready • no eligible target nearby";
-    }
-    int recallSquad(ServerPlayer owner){
-        if(!operator(owner.createCommandSourceStack())||!owner.isAlive()||owner.isSpectator())return 0;
-        var names=data.agents.values().stream().filter(a->a.owner().equals(owner.getStringUUID())).map(Agent::name).sorted().toList();
-        int moved=0,skipped=0;
-        for(var name:names){
-            var entry=owned(owner,name);var before=entry==null?null:loaded.get(UUID.fromString(entry.getKey()));
-            if(before==null||!before.isAlive()||before.isRemoved()){skipped++;continue;}
-            recall(owner,name);var after=loaded.get(UUID.fromString(entry.getKey()));
-            if(after!=null&&after.level()==owner.level()&&after.distanceToSqr(owner)<36)moved++;else skipped++;
-        }
-        return reply(owner,"Bring squad here: "+moved+" nearby; "+skipped+" unavailable or without clear landing space. No helpers were replaced.");
-    }
     String pauseReason(ServerPlayer owner, IronGolem golem, Agent agent) {
         if (golem == null) return "unloaded";
         if (!golem.isAlive() || golem.isRemoved()) return "helper unavailable";

@@ -40,10 +40,5 @@
   "item.convergence.ember_helmet": "Ember Helmet",
   "item.convergence.ember_chestplate": "Ember Chestplate",
   "item.convergence.ember_leggings": "Ember Leggings",
-  "item.convergence.ember_boots": "Ember Boots",
-  "item.convergence.blink_wand": "Starlight Blink Wand",
-  "item.convergence.party_wand": "Aurora Party Wand",
-  "item.convergence.plane_remote": "Infinity RC Plane Remote",
-  "item.convergence.blueprint_wand": "Infinity Blueprint Wand",
-  "item.convergence.storm_staff": "Infinity Storm Staff"
+  "item.convergence.ember_boots": "Ember Boots"
 }

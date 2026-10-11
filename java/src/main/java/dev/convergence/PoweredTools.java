@@ -115,7 +115,7 @@ final class PoweredTools {
         return count;
     }
     static boolean creativeAllowed(ServerPlayer p,String id) {
-        return CREATIVE_TOOLS.contains(id)&&CreativeStudio.allowed(p)
+        return CREATIVE_TOOLS.contains(id)&&p.isAlive()&&p.isCreative()&&p.mayBuild()
             &&Convergence.id(p.getMainHandItem()).equals(id)
             &&(GameModes.of(p.level())==GameModes.Mode.CREATIVE||GameModes.operator(p));
     }
@@ -140,19 +140,18 @@ final class PoweredTools {
             if(!material.isCollisionShapeFullBlock(world,at)||material.getDestroySpeed(world,at)<0)return 0;
         }
         if(!Convergence.ready(p,"creative_wand",5))return 0;
-        int changed=0;var changes=new ArrayList<CreativeStudio.Change>();
-        for(var pos:CreativeStudio.brushPositions(p,build?at.relative(face):at,face)) {
+        int changed=0;
+        for(var pos:plane(build?at.relative(face):at,face)) {
             if(!editable(p,pos))continue;
             var before=world.getBlockState(pos);
             if(build) {
                 if(!before.isAir()||!world.isUnobstructed(material,pos,CollisionContext.empty())||!world.getEntitiesOfClass(LivingEntity.class,new AABB(pos),e->e.isAlive()&&!e.isSpectator()).isEmpty())continue;
-                if(world.setBlock(pos,material,3)){changed++;changes.add(new CreativeStudio.Change(pos,before,material));}
+                if(world.setBlock(pos,material,3))changed++;
             } else if(!before.isAir()&&before.getDestroySpeed(world,pos)>=0&&!(before.getBlock() instanceof EntityBlock)) {
-                if(world.setBlock(pos,Blocks.AIR.defaultBlockState(),3)){changed++;changes.add(new CreativeStudio.Change(pos,before,Blocks.AIR.defaultBlockState()));}
+                if(world.setBlock(pos,Blocks.AIR.defaultBlockState(),3))changed++;
             }
         }
-        CreativeStudio.record(p,changes);
-        Convergence.say(p,(build?"Builder":"Sculptor")+": "+changed+" blocks. Studio Undo restores this edit; containers and protected positions are preserved.");
+        Convergence.say(p,(build?"Builder":"Sculptor")+": "+changed+" blocks. Containers and protected positions are preserved.");
         return changed;
     }
 
