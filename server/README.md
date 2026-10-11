@@ -20,8 +20,6 @@ Press **Start server** in the dashboard. On this Mac, a leftover launcher lock c
 
 ## Minecraft 26.3 upgrade
 
-The owner can opt into **terrain regeneration after each installed Infinity mod update**, with a verified stopped-world backup and preservation of player saves and helper entities. This erases builds and block-container contents; ordinary restarts keep terrain. Public installs leave it disabled. See [WORLD_REFRESH.md](WORLD_REFRESH.md) for the private policy and recovery.
-
 This release runs **Minecraft Java 26.3** with Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2 and Floodgate 2.2.7. The launcher sets up a private Java 25 runtime and replaces an older Java 21 runtime automatically. Java players need a 26.3 client. Bedrock and iPad players join through Geyser 2.11.3 (Bedrock 26.30–26.52), bridged to 26.3 by ViaBackwards.
 
 Upgrading an existing server: **Save & Stop, then make a full private backup of the stopped world first.** Minecraft converts the world when 26.3 first loads it, and 1.21.11 cannot open the converted world. Setup removes the older pinned Fabric API, Polymer, Floodgate, Via and Infinity Armor JARs from `fabric/mods` so two versions never load together; other mods you added stay in place but must also support 26.3.

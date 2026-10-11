@@ -18,8 +18,6 @@ import stat
 
 from runtime import install_java, java_in
 import community
-import owner_rules
-import world_refresh
 
 ROOT = Path(__file__).resolve().parent
 EULA_URL = "https://www.minecraft.net/eula"
@@ -173,11 +171,9 @@ def java_command(explicit, root=ROOT, install=False):
 
 
 class Service:
-    def __init__(self, name, command, cwd, ready_text, stop_command="stop", join_rules=None):
+    def __init__(self, name, command, cwd, ready_text, stop_command="stop"):
         self.name = name
         self.stop_command = stop_command
-        self.join_rules = join_rules
-        self.send_lock = threading.Lock()
         self.ready = threading.Event()
         self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
@@ -194,16 +190,6 @@ class Service:
                 emit("[" + self.name + "] " + line.rstrip())
                 if ready_text in line:
                     self.ready.set()
-                if self.join_rules:
-                    try:
-                        command = self.join_rules.command_for(line)
-                        if command and self.send(command):
-                            self.join_rules.mark_sent(command)
-                            emit("[Owner rule] Exact joined account ban requested.")
-                    except Exception:
-                        # Keep draining Java output even if a guard or pipe
-                        # fails; a blocked stdout pipe can stall the server.
-                        emit("[Owner rule] Ban could not be sent; check the server console.")
         finally:
             self.log.close()
 
@@ -218,12 +204,9 @@ class Service:
                 raise RuntimeError(self.name + " startup timed out. See its launcher.log.")
 
     def send(self, command):
-        with self.send_lock:
-            if self.process.poll() is None:
-                self.process.stdin.write(command + "\n")
-                self.process.stdin.flush()
-                return True
-        return False
+        if self.process.poll() is None:
+            self.process.stdin.write(command + "\n")
+            self.process.stdin.flush()
 
     def stop(self):
         if self.process.poll() is not None:
@@ -402,9 +385,6 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         with os.fdopen(lock_fd, "w") as file:
             file.write(str(os.getpid()))
         check_ports(args)
-        # Recover first so the startup ZIP represents the complete stopped save,
-        # rather than a partially archived world from an interrupted refresh.
-        world_refresh.recover(root)
         backup_name = community.backup(root, properties(root / "fabric/server.properties"), locked=True)
         if backup_name:
             emit("World backed up before startup: backups/" + backup_name)
@@ -419,16 +399,10 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             return
         accept_eula(args.accept_eula, root)
         configure(args, root)
-        join_rules = owner_rules.load(root)
-        world_refresh.maybe_refresh(root, properties(root / "fabric/server.properties").get("level-name", "world"),
-                                    backup_name, emit)
-        if stop_requested.is_set():
-            return
         for name in ["infinity-items.json", "infinity-blocks.json"]:
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
-            "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
-            join_rules=join_rules)
+            "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.")
         services.append(fabric)
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)

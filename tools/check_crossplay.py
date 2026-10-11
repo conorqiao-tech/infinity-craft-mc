@@ -20,10 +20,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--java", required=True, help="Java 25 executable")
     args = parser.parse_args()
-    def source_hashes():
-        return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                for p in (ROOT / "java/src").rglob("*") if p.is_file()}
-    checked_sources = source_hashes()
     # Vanilla's headless TestServer uses only the flat_all_dimensions preset and drops data-pack dimensions.
     # The test-only preset includes the exact production dimension JSON definitions.
     fixture = json.loads((ROOT / "java/src/gametest/resources/data/minecraft/worldgen/world_preset/flat_all_dimensions.json").read_text())["dimensions"]
@@ -44,9 +40,6 @@ def main():
         file.unlink()  # Only our disposable test folder.
     for file in (ROOT / "server/fabric/mods").glob("*.jar"):
         shutil.copy2(file, mods / file.name)
-    release_mod = ROOT / f"server/fabric/mods/Infinity-Armor-{VERSION}.jar"
-    tested_mod_sha = hashlib.sha256(release_mod.read_bytes()).hexdigest()
-    assert hashlib.sha256((mods / release_mod.name).read_bytes()).hexdigest() == tested_mod_sha
     test_mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}-gametest.jar"
     shutil.copy2(test_mod, mods / test_mod.name)
     expected = (ROOT / "tools/gametest-framework.sha256").read_text().split()[0]
@@ -75,11 +68,6 @@ def main():
     failures = [t.get("name") for t in tests if t.find("failure") is not None or t.find("error") is not None]
     if result.returncode or len(tests) != expected_native_tests() or failures or any(t.find('skipped') is not None for t in tests):
         raise RuntimeError(f"Native test failure: {len(tests)} tests, {failures}; see {runtime / 'integration.log'}")
-    if source_hashes() != checked_sources or hashlib.sha256(release_mod.read_bytes()).hexdigest() != tested_mod_sha:
-        raise RuntimeError("Source or mod changed during native checks; rerun validation")
-    (runtime / "provenance.json").write_text(json.dumps({"format": 1, "java_sources": checked_sources,
-        "mod_sha256": tested_mod_sha, "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
-        "native_tests": len(tests)}, indent=2) + "\n")
     print(f"All {len(tests)} native tests passed with release dependencies.")
 
 
