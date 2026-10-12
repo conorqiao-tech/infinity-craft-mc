@@ -197,7 +197,7 @@ class LauncherTests(unittest.TestCase):
             launcher.copy_bridge_data(self.root)
         source = self.root / "fabric/crossplay-export"
         source.mkdir(parents=True)
-        for name in ["infinity-items.json", "infinity-blocks.json"]:
+        for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
             (source / name).write_text("{}")
         with self.assertRaisesRegex(RuntimeError, "generate its key"):
             launcher.copy_bridge_data(self.root)
@@ -206,6 +206,43 @@ class LauncherTests(unittest.TestCase):
         key.write_bytes(b"test key, not a credential")
         launcher.copy_bridge_data(self.root)
         self.assertEqual((self.root / "geyser/key.pem").read_bytes(), key.read_bytes())
+        self.assertEqual((self.root / "geyser/infinity-catalogue.json").read_bytes(),
+                         (source / "infinity-catalogue.json").read_bytes())
+
+    def test_creative_readiness_rejects_missing_stale_and_failed_receipts(self):
+        import hashlib
+        folder = self.root / "geyser/extensions/infinitycreativebridge"
+        folder.mkdir(parents=True)
+        catalogue = self.root / "geyser/infinity-catalogue.json"
+        catalogue.write_text('{"items":[{"path":"helmet"}]}')
+        (self.root / "dependencies.lock.json").write_text(json.dumps({"creative_bridge":{"geyser_sha256":"test-pin"}}))
+        receipt = {"format_version":1,"geyser_sha256":"test-pin",
+                   "catalogue_sha256":hashlib.sha256(catalogue.read_bytes()).hexdigest(),
+                   "items":1,"protocols":{"test-protocol":1},"unowned_primary_and_java_items_unchanged":True}
+        with self.assertRaisesRegex(RuntimeError, "did not become ready"):
+            launcher.verify_creative_ready(self.root)
+        ready = folder / "ready.json"
+        ready.write_text(json.dumps(receipt))
+        self.assertEqual(launcher.verify_creative_ready(self.root),receipt)
+        ready.write_text(json.dumps(dict(receipt,catalogue_sha256="stale")))
+        with self.assertRaisesRegex(RuntimeError,"does not match"):
+            launcher.verify_creative_ready(self.root)
+        ready.write_text(json.dumps(receipt))
+        (folder / "failed.json").write_text('{}')
+        with self.assertRaisesRegex(RuntimeError,"did not become ready"):
+            launcher.verify_creative_ready(self.root)
+        launcher.clear_creative_receipt(self.root)
+        self.assertFalse(ready.exists())
+        self.assertFalse((folder / "failed.json").exists())
+
+    def test_stop_during_creative_startup_is_a_clean_cancellation(self):
+        import threading
+        from types import SimpleNamespace
+        stop = threading.Event()
+        stop.set()
+        service = SimpleNamespace(process=None)
+        with self.assertRaisesRegex(InterruptedError,"Startup cancelled"):
+            launcher.wait_creative_ready(service,self.root,stop)
 
 
     def test_bedrock_pack_preserves_vanilla_armor_and_custom_wings(self):

@@ -10,7 +10,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import java.util.LinkedHashMap;
 
 /** Literal names also work when Geyser or a Java client has no custom language file. */
-final class GearNames {
+public final class GearNames {
     private static final Map<String,String> NAMES=load();
     private GearNames() {}
     private static Map<String,String> load() {
@@ -29,7 +29,7 @@ final class GearNames {
         if(name==null)throw new IllegalArgumentException("Missing Infinity name: "+path);
         return name;
     }
-    static Component text(String path) {return Component.literal(label(path));}
+    public static Component text(String path) {return Component.literal(label(path));}
 
     /** Resolve only our item/block keys; saved custom names can override ITEM_NAME. */
     static Component readableName(Component original) {

@@ -51,6 +51,42 @@ def rgba_png(data):
     return width, height, rows
 
 
+def model_references(value):
+    """Walk conditional/selected models as well as ordinary single sprites."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "model" and isinstance(child, str):
+                yield child
+            else:
+                yield from model_references(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from model_references(child)
+
+
+def selected_model(node, properties):
+    """Evaluate the asset contract for real use-state/display-context examples."""
+    kind = node["type"]
+    if kind == "minecraft:model":
+        return node["model"]
+    value = properties.get(node["property"])
+    if kind == "minecraft:condition":
+        return selected_model(node["on_true" if value else "on_false"], properties)
+    if kind == "minecraft:select":
+        for case in node["cases"]:
+            when = case["when"] if isinstance(case["when"], list) else [case["when"]]
+            if value in when:
+                return selected_model(case["model"], properties)
+        return selected_model(node["fallback"], properties)
+    if kind == "minecraft:range_dispatch":
+        current = node["fallback"]
+        for entry in node["entries"]:
+            if float(value or 0) * node.get("scale", 1) >= entry["threshold"]:
+                current = entry["model"]
+        return selected_model(current, properties)
+    raise AssertionError("Unexpected item model type: " + kind)
+
+
 class OriginalArtworkTests(unittest.TestCase):
     def test_backpack_refresh_retains_earned_style_dye_and_equipment_metadata(self):
         equipment = json.loads((JAVA / "equipment/backpack.json").read_text())
@@ -96,7 +132,11 @@ class OriginalArtworkTests(unittest.TestCase):
         manifest = json.loads((ART / "uv-manifest.json").read_text())
         for name in manifest["icons"]:
             definition = json.loads((JAVA / f"items/{name}.json").read_text())
-            self.assertEqual(definition["model"]["model"],"convergence:item/"+name)
+            references = list(model_references(definition))
+            self.assertIn("convergence:item/"+name,references)
+            for reference in references:
+                self.assertTrue(reference.startswith("convergence:item/"), "Custom sprites never select a native gear model")
+                self.assertTrue((JAVA / ("models/"+reference.split(":",1)[1]+".json")).is_file(),reference)
             model = json.loads((JAVA / f"models/item/{name}.json").read_text())
             self.assertEqual(model["textures"]["layer0"],"convergence:item/refresh27/"+name)
             image = JAVA / f"textures/item/refresh27/{name}.png"
@@ -118,15 +158,20 @@ class OriginalArtworkTests(unittest.TestCase):
             for name in pack.namelist():
                 if name.startswith("attachables/"):
                     identifiers.append(json.loads(pack.read(name))["minecraft:attachable"]["description"]["identifier"])
-            self.assertCountEqual(identifiers,["convergence:"+name for name in wearable]+["minecraft:elytra"])
+            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in wearable]+["minecraft:elytra"])
             self.assertEqual(len(identifiers),len(set(identifiers)),"Legacy duplicate attachables must not override the refreshed ones")
             for name,slot in wearable.items():
                 desc = json.loads(pack.read(f"attachables/refresh27/{name}.json"))["minecraft:attachable"]["description"]
                 self.assertEqual(desc["identifier"],"convergence:"+name)
-                part = {"head":"helmet","chest":"chestplate","legs":"leggings","feet":"boots"}[slot]
-                self.assertEqual(desc["geometry"]["default"],"geometry.humanoid.armor."+part)
-                self.assertEqual(desc["render_controllers"],["controller.render.armor"])
+                self.assertEqual(desc["geometry"]["default"],"geometry.convergence."+name+"_original")
+                self.assertEqual(desc["render_controllers"],["controller.render.convergence."+name+"_original"])
+                geometry = json.loads(pack.read(f"models/entity/original_armor/{name}.geo.json"))["minecraft:geometry"][0]
+                self.assertEqual(geometry["description"]["identifier"],desc["geometry"]["default"])
                 self.assertIn(desc["textures"]["default"]+".png",pack.namelist())
+                alias = json.loads(pack.read(f"attachables/refresh27/catalog_{name}.json"))["minecraft:attachable"]["description"]
+                self.assertEqual(alias,dict(desc,identifier="infinity_catalog:"+name),"Prediction aliases share exactly the real item's worn artwork")
+            controllers = json.loads(pack.read("render_controllers/original_static_armor.json"))["render_controllers"]
+            self.assertCountEqual(controllers,["controller.render.convergence."+name+"_original" for name in wearable])
             for material in ("netherite","leather"):
                 for layer in (1,2): self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
@@ -134,6 +179,64 @@ class OriginalArtworkTests(unittest.TestCase):
             expected_version = [2,12,int(version.rsplit(".",1)[-1])]
             self.assertEqual(manifest["header"]["version"],expected_version)
             self.assertTrue(all(m["version"] == expected_version for m in manifest["modules"]))
+
+    def test_independent_static_armor_binds_each_moving_joint_and_opaque_original_uv(self):
+        bed = ROOT / "bedrock/resource_pack"
+        controllers = json.loads((bed / "render_controllers/original_static_armor.json").read_text())["render_controllers"]
+        expected = {"helmet":{"head"},"cuirass":{"body","rightArm","leftArm"},
+                    "leggings":{"rightLeg","leftLeg"},"boots":{"rightLeg","leftLeg"},"backpack":{"body"}}
+        for outfit in ("aurora","ember"):
+            for piece in ("helmet","chestplate","leggings","boots"):
+                expected[outfit+"_"+piece] = expected["cuirass" if piece=="chestplate" else piece]
+        self.assertCountEqual([p.stem.replace(".geo","") for p in (bed / "models/entity/original_armor").glob("*.geo.json")],expected)
+        for name,joints in expected.items():
+            desc = json.loads((bed / f"attachables/refresh27/{name}.json").read_text())["minecraft:attachable"]["description"]
+            geo = json.loads((bed / f"models/entity/original_armor/{name}.geo.json").read_text())["minecraft:geometry"][0]
+            self.assertEqual(geo["description"]["identifier"],"geometry.convergence."+name+"_original")
+            self.assertNotIn("geometry.humanoid",json.dumps(geo)+json.dumps(desc))
+            self.assertEqual({b["binding"] for b in geo["bones"]},{"'"+joint+"'" for joint in joints},"Arms/legs inherit their own animated player joint")
+            self.assertEqual(len(geo["bones"]),len(joints),"No copied player skeleton or unused geometry bones")
+            width,height,rows = rgba_png((bed / (desc["textures"]["default"]+".png")).read_bytes())
+            controller = controllers[desc["render_controllers"][0]]
+            self.assertEqual(controller["geometry"],"Geometry.default")
+            self.assertIn("Material.enchanted",controller["materials"][0]["*"])
+            self.assertEqual(controller["textures"],["Texture.default","Texture.enchanted"])
+            self.assertCountEqual([next(iter(entry)) for entry in controller["part_visibility"]],[b["name"] for b in geo["bones"]])
+            for entry in controller["part_visibility"]:
+                value = next(iter(entry.values()))
+                self.assertIn("convergence:"+name,value)
+                self.assertIn("infinity_catalog:"+name,value)
+            for b in geo["bones"]:
+                self.assertTrue(b["cubes"])
+                for cube in b["cubes"]:
+                    self.assertTrue(all(n>0 for n in cube["size"]))
+                    self.assertCountEqual(cube["uv"],("up","down","east","west","north","south"))
+                    for face in cube["uv"].values():
+                        x,y = face["uv"]; w,h = face["uv_size"]
+                        self.assertTrue(0<=x<x+w<=width and 0<=y<y+h<=height,"Every authored face stays inside its original atlas")
+                        for py in range(y,y+h):
+                            for px in range(x,x+w):
+                                self.assertEqual(rows[py][px*4+3],255,"No face samples the transparent unused UV cells")
+
+    def test_ranged_blocking_and_spear_models_have_real_state_and_context_branches(self):
+        items = {n:json.loads((JAVA / f"items/{n}.json").read_text())["model"] for n in ("bow","crossbow","shield","spear")}
+        choose = lambda name,**p:selected_model(items[name],p).split("/")[-1]
+        self.assertEqual(choose("bow",**{"minecraft:using_item":False,"minecraft:use_duration":20}),"bow")
+        for ticks,stage in ((1,0),(13,1),(18,2)):
+            self.assertEqual(choose("bow",**{"minecraft:using_item":True,"minecraft:use_duration":ticks}),f"bow_pulling_{stage}")
+        for pull,stage in ((0.1,0),(0.58,1),(1,2)):
+            self.assertEqual(choose("crossbow",**{"minecraft:using_item":True,"minecraft:crossbow/pull":pull}),f"crossbow_pulling_{stage}")
+        for charge in ("arrow","rocket"):
+            self.assertEqual(choose("crossbow",**{"minecraft:charge_type":charge,"minecraft:using_item":False}),"crossbow_"+charge)
+        self.assertEqual(choose("shield",**{"minecraft:display_context":"gui","minecraft:using_item":True}),"shield_icon")
+        self.assertEqual(choose("shield",**{"minecraft:display_context":"firstperson_righthand","minecraft:using_item":True}),"shield_blocking")
+        self.assertEqual(choose("shield",**{"minecraft:display_context":"firstperson_lefthand","minecraft:using_item":False}),"shield")
+        for context in ("gui","ground","fixed","on_shelf"):
+            self.assertEqual(choose("spear",**{"minecraft:display_context":context}),"spear")
+        self.assertEqual(choose("spear",**{"minecraft:display_context":"thirdperson_righthand"}),"spear_in_hand")
+        for name in ("bow","crossbow"):
+            poses = [json.loads((JAVA / f"models/item/{name}_pulling_{i}.json").read_text())["display"] for i in range(3)]
+            self.assertEqual(len({json.dumps(p,sort_keys=True) for p in poses}),3,"Drawing changes the held pose, not just an unused model identifier")
 
     def test_preparation_retains_fresh_block_atlases(self):
         names = json.loads((ART / "uv-manifest.json").read_text())["blocks"]

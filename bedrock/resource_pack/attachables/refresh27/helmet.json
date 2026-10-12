@@ -12,13 +12,13 @@
         "enchanted": "textures/misc/enchanted_actor_glint"
       },
       "geometry": {
-        "default": "geometry.humanoid.armor.helmet"
+        "default": "geometry.convergence.helmet_original"
       },
       "scripts": {
         "parent_setup": "variable.helmet_layer_visible = 0.0;"
       },
       "render_controllers": [
-        "controller.render.armor"
+        "controller.render.convergence.helmet_original"
       ]
     }
   }

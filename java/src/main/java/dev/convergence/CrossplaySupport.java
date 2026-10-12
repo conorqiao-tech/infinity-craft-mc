@@ -193,6 +193,43 @@ final class CrossplaySupport {
 
     static Identifier id(String path) { return Identifier.fromNamespaceAndPath("convergence", path); }
 
+    /** A trusted catalogue for the pinned bridge; never exposes Fabric raw IDs.
+     * Its Creative aliases are converted to a vanilla Polymer wire stack before
+     * Geyser caches or sends them through ViaBackwards. */
+    static JsonObject creativeCatalogue() {
+        var catalogue = new JsonObject();
+        catalogue.addProperty("format_version", 1);
+        catalogue.addProperty("minecraft", "26.3");
+        var entries = new JsonArray();
+        for (var entry : BASES.entrySet()) {
+            String path = entry.getKey();
+            ItemStack stack = Convergence.ITEMS.get("convergence:" + path).getDefaultInstance();
+            var item = new JsonObject();
+            item.addProperty("path", path);
+            item.addProperty("base", BuiltInRegistries.ITEM.getKey(entry.getValue()).toString());
+            item.addProperty("name", GearNames.label(path));
+            item.addProperty("icon", "convergence_" + path);
+            item.addProperty("max_stack_size", stack.getMaxStackSize());
+            item.addProperty("category", ExpandedGear.BLOCKS.contains(path) ? "construction"
+                : path.equals("ingot") ? "items" : "equipment");
+            Integer damage = stack.get(DataComponents.MAX_DAMAGE);
+            if (damage != null) item.addProperty("max_damage", damage);
+            var equippable = stack.get(DataComponents.EQUIPPABLE);
+            if (equippable != null) item.addProperty("slot", equippable.slot().getName());
+            item.addProperty("protection", switch (path) {
+                case "helmet", "boots" -> 6;
+                case "cuirass" -> 10;
+                case "leggings" -> 8;
+                default -> 0;
+            });
+            item.addProperty("handheld", POWER_ITEMS.contains(path));
+            item.addProperty("native_appearance", NATIVE_BEDROCK.contains(path));
+            entries.add(item);
+        }
+        catalogue.add("items", entries);
+        return catalogue;
+    }
+
     private static void exportMappings(MinecraftServer server) {
         Path folder = Path.of("crossplay-export");
         var items = new JsonObject();
@@ -257,6 +294,7 @@ final class CrossplaySupport {
             var gson = new GsonBuilder().setPrettyPrinting().create();
             Files.writeString(folder.resolve("infinity-items.json"), gson.toJson(itemFile));
             Files.writeString(folder.resolve("infinity-blocks.json"), gson.toJson(blockFile));
+            Files.writeString(folder.resolve("infinity-catalogue.json"), gson.toJson(creativeCatalogue()));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot export Infinity crossplay mappings", e);
         }

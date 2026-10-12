@@ -12,13 +12,13 @@
         "enchanted": "textures/misc/enchanted_actor_glint"
       },
       "geometry": {
-        "default": "geometry.humanoid.armor.chestplate"
+        "default": "geometry.convergence.ember_chestplate_original"
       },
       "scripts": {
         "parent_setup": "variable.chest_layer_visible = 0.0;"
       },
       "render_controllers": [
-        "controller.render.armor"
+        "controller.render.convergence.ember_chestplate_original"
       ]
     }
   }

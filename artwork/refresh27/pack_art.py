@@ -150,22 +150,8 @@ def main():
         manifest["armor"][collection] = {"size": [128, 64], "uv_rectangles": UV, "source_rectangles": SOURCE_FACES}
     save(armor_preview, ART / "armor-uv-preview.png")
 
-    # Model/equipment identifiers are custom, so native leather and netherite stay untouched.
-    wearables = {"helmet": ("convergence", "helmet"), "cuirass": ("convergence", "chestplate"),
-                 "leggings": ("convergence", "leggings"), "boots": ("convergence", "boots"), "backpack": ("backpack", "chestplate")}
-    for outfit in ("aurora", "ember"):
-        for piece in ("helmet", "chestplate", "leggings", "boots"):
-            wearables[outfit + "_" + piece] = (outfit, piece)
-    for path, (collection, piece) in wearables.items():
-        variable = {"helmet": "helmet", "chestplate": "chest", "leggings": "leg", "boots": "boot"}[piece]
-        description = {"identifier": "convergence:" + path,
-                       "materials": {"default": "armor", "enchanted": "armor_enchanted"},
-                       "textures": {"default": f"textures/convergence/models/armor/refresh27/{collection}_refresh27",
-                                    "enchanted": "textures/misc/enchanted_actor_glint"},
-                       "geometry": {"default": "geometry.humanoid.armor." + piece},
-                       "scripts": {"parent_setup": f"variable.{variable}_layer_visible = 0.0;"},
-                       "render_controllers": ["controller.render.armor"]}
-        write_json(BED / f"attachables/refresh27/{path}.json", {"format_version": "1.10.0", "minecraft:attachable": {"description": description}})
+    # Independent static geometry and stateful item definitions are authored by
+    # resource_models.py after sprites/UVs are packed, not inherited from armor.
     # Keep the established native flight animations and wing geometry intact.
     wings_path = BED / "attachables/elytra.json"
     wings = json.loads(wings_path.read_text())
@@ -216,7 +202,9 @@ def main():
                           for directory in (JAVA / "textures", BED / "textures") for p in directory.rglob("*.png") if "refresh27" in p.parts}
     manifest["source_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in ART.glob("*-source.png")}
     write_json(ART / "uv-manifest.json", manifest)
-    print("Packed 4 armor UV atlases, 42 distinct icons, 10 block tiles and 13 custom static attachables; originals retained.")
+    import runpy
+    runpy.run_path(str(ART / "resource_models.py"), run_name="__main__")
+    print("Packed 4 original UV atlases, 42 icons, 10 tiles and independent JSON models; originals retained.")
 
 
 if __name__ == "__main__":

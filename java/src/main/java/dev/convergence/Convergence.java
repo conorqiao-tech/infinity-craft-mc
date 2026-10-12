@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import eu.pb4.polymer.core.api.item.PolymerCreativeModeTabUtils;
 import net.minecraft.util.Prediction;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +19,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.After;
-import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.Holder;
@@ -312,10 +312,9 @@ public class Convergence implements ModInitializer {
       AdminStatsMenu.register();
       AdminStats.setMenuOpener(AdminStatsMenu::open);
       AdminStats.register();
-      Registry.register(
-         BuiltInRegistries.CREATIVE_MODE_TAB,
+      PolymerCreativeModeTabUtils.registerPolymerCreativeModeTab(
          Identifier.fromNamespaceAndPath("convergence", "powers"),
-         FabricCreativeModeTab.builder()
+         PolymerCreativeModeTabUtils.builder()
             .title(Component.literal("Infinity Armor"))
             .icon(() -> new ItemStack((ItemLike)ITEMS.get("convergence:mace")))
             .displayItems((ctx, e) -> {

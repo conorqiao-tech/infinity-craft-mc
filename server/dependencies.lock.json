@@ -1,6 +1,6 @@
 {
   "minecraft": "26.3",
-  "version": "2.13.0-explore.36",
+  "version": "2.13.0-explore.37",
   "downloads": [
     {
       "path": "fabric/mods/polymer-bundled-0.18.2+26.3.jar",
@@ -41,8 +41,8 @@
   ],
   "bundled": [
     {
-      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.36.jar",
-      "sha256": "6b133fb366883ac5fd5598ca998fbfbbe1bb4efe289f742f9bb493695dc31587"
+      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.37.jar",
+      "sha256": "147985050d9856723978c0b27108d8fe8e4b54900ccb68f3e14790536d3dfe76"
     },
     {
       "path": "fabric/mods/fabric-api-0.161.0+26.3.jar",
@@ -50,7 +50,24 @@
     },
     {
       "path": "geyser/packs/Infinity_Armor_Crossplay.mcpack",
-      "sha256": "68e3d1dffbd62474d64bde997ddad464fefd5a2870247d796a32e66578a9fa73"
+      "sha256": "b350084dd94a269c21a6dd916978ef9b70e10ed2b86479de77cd5b20cc2adc4a"
+    },
+    {
+      "path": "geyser/extensions/InfinityCreativeBridge.jar",
+      "sha256": "f6f736ceca1dab1f73527bd8d6a9c66b7a8379aa463b2be60a4e4955141d0827"
     }
-  ]
+  ],
+  "creative_bridge": {
+    "format_version": 1,
+    "geyser_sha256": "17a9e00f3be106c797066664679ca73ebf25af693a750f378a9669ca93b4c07e",
+    "source_hashes": {
+      "tools/build_creative_bridge.py": "b197da00fac5dc45aa6564087cea6ceaba69c8e1fa470f3f8629c851e0f92fe8",
+      "geyser-extension/extension.yml": "bd9996c39e24863b6c103a869f0e5354ba79b77ec6abf4c32aa0319676a750a0",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/Catalogue.java": "12fece18ca140464788642b7d8a600005fca5a016708d3a91e696faf35979db0",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/CatalogueItem.java": "f8604c26dd42d4f9db0c32eda425f2716766ce82ab46e96099d26d58dafa9329",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/CreativeProtocolProof.java": "b0b33e1a66d7762c445a0797306114729f040a4bb0731eab2f4027a6cb0b67ec",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/InfinityCreativeBridge.java": "67d35d25bcd626bf7a6583df2df63bf0c783fa20b5aae6b4c1607da20df05c1c"
+    },
+    "extension_sha256": "f6f736ceca1dab1f73527bd8d6a9c66b7a8379aa463b2be60a4e4955141d0827"
+  }
 }

@@ -46,7 +46,8 @@ final class BackpackStorage {
     static Item ITEM;
     static void registerItems() {
         var key=ResourceKey.create(Registries.ITEM,Identifier.fromNamespaceAndPath("convergence","backpack"));
-        var settings=new Item.Properties().setId(key).stacksTo(1);
+        var settings=new Item.Properties().setId(key).stacksTo(1)
+            .component(DataComponents.ITEM_NAME,GearNames.text("backpack"));
         BaseComponents.then(settings,Items.LEATHER_CHESTPLATE,(builder,defaults)->{
             for(TypedDataComponent<?> component:defaults)
                 if(component.type()!=DataComponents.ITEM_NAME&&component.type()!=DataComponents.ITEM_MODEL

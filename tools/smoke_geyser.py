@@ -9,6 +9,7 @@ import shutil
 import socket
 import struct
 import time
+import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,10 +36,31 @@ def main():
     shutil.copy2(ROOT / "research/integration/config/floodgate/key.pem", geyser / "key.pem")
     shutil.copy2(ROOT / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack", geyser / "packs/Infinity_Armor_Crossplay.mcpack")
     shutil.copy2(ROOT / "server/geyser/Geyser-Standalone.jar", geyser / "Geyser-Standalone.jar")
-    service = launcher.Service("Bedrock", [args.java, "-Xmx512M", "-jar", "Geyser-Standalone.jar", "--nogui"],
+    (geyser / "extensions").mkdir(exist_ok=True)
+    shutil.copy2(ROOT / "server/geyser/extensions/InfinityCreativeBridge.jar", geyser / "extensions/InfinityCreativeBridge.jar")
+    shutil.copy2(ROOT / "research/integration/crossplay-export/infinity-catalogue.json", geyser / "infinity-catalogue.json")
+    shutil.copy2(ROOT / "server/dependencies.lock.json", root / "dependencies.lock.json")
+    launcher.clear_creative_receipt(root)
+    service = launcher.Service("Bedrock", [args.java, "-Xmx512M", "-Dinfinity.creative.proof=true", "-jar", "Geyser-Standalone.jar", "--nogui"],
                               geyser, "Started Geyser on", stop_command="geyser stop")
     try:
         service.wait_ready(60)
+        receipt = launcher.wait_creative_ready(service, root)
+        proof = receipt["proof"]
+        catalogue = json.loads((geyser / "infinity-catalogue.json").read_text())
+        expected_selections = sum(1 if item["max_stack_size"] == 1 else 2 for item in catalogue["items"]) * len(receipt["protocols"])
+        assert proof["actual_creative_hotbar_selections"] == expected_selections
+        assert proof["cursor_and_drop_cases"] == expected_selections * 2
+        assert proof["occupied_different_item_replacement_cases"] == receipt["items"] * len(receipt["protocols"])
+        assert len(proof["encoded_hotbar_packets"]) == expected_selections
+        assert len(proof["encoded_oversized_packets"]) == receipt["items"] * len(receipt["protocols"])
+        proof_folder = ROOT / "research/integration/creative-bridge"
+        proof_folder.mkdir(exist_ok=True)
+        (proof_folder / "ready.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        (proof_folder / "startup.json").write_text(json.dumps({
+            "extension_sha256": hashlib.sha256((geyser / "extensions/InfinityCreativeBridge.jar").read_bytes()).hexdigest(),
+            "catalogue_sha256": receipt["catalogue_sha256"],
+            "ready_sha256": hashlib.sha256((proof_folder / "ready.json").read_bytes()).hexdigest()}, indent=2) + "\n")
         magic = bytes.fromhex("00ffff00fefefefefdfdfdfd12345678")
         packet = b"\x01" + struct.pack(">q", int(time.time() * 1000)) + magic + struct.pack(">q", 12345678)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
@@ -58,12 +80,12 @@ def main():
     exported = ROOT / "research/integration/crossplay-export"
     items = json.loads((exported / "infinity-items.json").read_text())
     blocks = json.loads((exported / "infinity-blocks.json").read_text())
-    item_count = sum(len(variants) for variants in items["items"].values()) + 1
-    # Custom Bedrock Creative entries cannot be dragged back to Java items by
-    # the pinned Geyser build; server-side /convergence hold supplies them.
+    item_count = sum(len(variants) for variants in items["items"].values()) + 1 + receipt["items"]
+    # Ordinary model mappings stay hidden: the separate primary aliases own
+    # Creative reverse translation and never send synthetic ids to Java.
     assert all("creative_category" not in variant["bedrock_options"]
                for variants in items["items"].values() for variant in variants), \
-        "Infinity items must not enter Geyser's broken Bedrock Creative catalog"
+        "Only the canonicalizing Creative aliases may enter the Bedrock catalogue"
     block_count = sum(len(b.get("state_overrides", {})) for b in blocks["blocks"].values()) + 199
     assert f"Registered {item_count} custom items" in log, "Exported Infinity items plus built-in mapping"
     assert f"Registered {block_count} custom block overrides" in log, "Exported Infinity states plus built-in mappings"
@@ -83,6 +105,9 @@ def main():
     assert "ERROR" not in log, "Geyser reported an error; inspect its log"
     assert "Geyser shutdown successfully" in log, "The launcher must shut Geyser down cleanly"
     print("Geyser mappings, localhost listener, and launcher shutdown passed. Player login was not tested.")
+    print(f"Creative bridge transport passed: {receipt['items']} items across {len(receipt['protocols'])} protocols; "
+          f"{expected_selections} actual hotbar selections and {expected_selections * 2} cursor/drop requests. "
+          "Via/Fabric acceptance and rendered device appearance are separate checks.")
 
 
 if __name__ == "__main__":

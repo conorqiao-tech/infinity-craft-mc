@@ -1,0 +1,73 @@
+{
+  "parent": "convergence:item/bow",
+  "display": {
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        -85,
+        24
+      ],
+      "translation": [
+        1.15,
+        3.1,
+        1.0
+      ],
+      "scale": [
+        0.715,
+        0.665,
+        0.7
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        0,
+        85,
+        -24
+      ],
+      "translation": [
+        1.15,
+        3.1,
+        1.0
+      ],
+      "scale": [
+        0.715,
+        0.665,
+        0.7
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        -78,
+        255,
+        -38
+      ],
+      "translation": [
+        -0.8,
+        -1.8,
+        2.3
+      ],
+      "scale": [
+        0.94,
+        0.88,
+        0.92
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        -78,
+        -275,
+        38
+      ],
+      "translation": [
+        -0.8,
+        -1.8,
+        2.3
+      ],
+      "scale": [
+        0.94,
+        0.88,
+        0.92
+      ]
+    }
+  }
+}

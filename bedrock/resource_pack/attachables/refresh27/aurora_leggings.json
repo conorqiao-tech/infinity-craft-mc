@@ -12,13 +12,13 @@
         "enchanted": "textures/misc/enchanted_actor_glint"
       },
       "geometry": {
-        "default": "geometry.humanoid.armor.leggings"
+        "default": "geometry.convergence.aurora_leggings_original"
       },
       "scripts": {
         "parent_setup": "variable.leg_layer_visible = 0.0;"
       },
       "render_controllers": [
-        "controller.render.armor"
+        "controller.render.convergence.aurora_leggings_original"
       ]
     }
   }

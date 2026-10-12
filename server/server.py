@@ -318,12 +318,57 @@ def copy_bridge_data(root=ROOT):
         if not file.is_file():
             raise RuntimeError("Fabric did not export " + name + "; check that the crossplay mod loaded.")
         shutil.copy2(file, root / "geyser/custom_mappings" / name)
+    catalogue = source / "infinity-catalogue.json"
+    if not catalogue.is_file():
+        raise RuntimeError("Fabric did not export infinity-catalogue.json; check that the crossplay mod loaded.")
+    shutil.copy2(catalogue, root / "geyser/infinity-catalogue.json")
     key = root / "fabric/config/floodgate/key.pem"
     if not key.is_file():
         raise RuntimeError("Floodgate did not generate its key. See fabric/launcher.log.")
     destination = root / "geyser/key.pem"
     shutil.copy2(key, destination)
     destination.chmod(0o600)
+
+
+def clear_creative_receipt(root=ROOT):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    for name in ("ready.json", "failed.json"):
+        (folder / name).unlink(missing_ok=True)
+
+
+def verify_creative_ready(root=ROOT):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    ready = folder / "ready.json"
+    if (folder / "failed.json").exists() or not ready.is_file() or ready.stat().st_size > 4_194_304:
+        raise RuntimeError("Infinity Creative catalogue did not become ready; see geyser/launcher.log.")
+    with ready.open("rb") as stream:
+        body = stream.read(4_194_305)
+    if len(body) > 4_194_304:
+        raise RuntimeError("Infinity Creative readiness receipt is oversized.")
+    receipt = json.loads(body)
+    lock = json.loads((root / "dependencies.lock.json").read_text())
+    catalogue = root / "geyser/infinity-catalogue.json"
+    expected_count = len(json.loads(catalogue.read_text())["items"])
+    protocols = receipt.get("protocols")
+    if (receipt.get("format_version") != 1 or receipt.get("geyser_sha256") != lock["creative_bridge"]["geyser_sha256"]
+            or receipt.get("catalogue_sha256") != sha256(catalogue) or receipt.get("items") != expected_count
+            or receipt.get("unowned_primary_and_java_items_unchanged") is not True
+            or not isinstance(protocols, dict) or not protocols
+            or any(type(count) is not int or count != expected_count for count in protocols.values())):
+        raise RuntimeError("Infinity Creative catalogue receipt does not match this startup.")
+    return receipt
+
+
+def wait_creative_ready(service, root=ROOT, cancel=None):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    deadline = time.monotonic() + 20
+    while not (folder / "ready.json").exists() and not (folder / "failed.json").exists():
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError("Startup cancelled")
+        if service.process.poll() is not None or time.monotonic() >= deadline:
+            raise RuntimeError("Infinity Creative catalogue startup did not finish; see geyser/launcher.log.")
+        time.sleep(.05)
+    return verify_creative_ready(root)
 
 
 def parse_args(argv=None):
@@ -494,7 +539,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
                                     backup_name, emit)
         if stop_requested.is_set():
             return
-        for name in ["infinity-items.json", "infinity-blocks.json"]:
+        for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
             "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
@@ -502,10 +547,12 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         services.append(fabric)
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)
+        clear_creative_receipt(root)
         geyser = Service("Bedrock", [java, "-Xms128M", "-Xmx512M", "-jar", "Geyser-Standalone.jar", "--nogui"],
             root / "geyser", "Started Geyser on", stop_command="geyser stop")
         services.append(geyser)
         geyser.wait_ready(120, cancel=stop_requested)
+        wait_creative_ready(geyser, root, stop_requested)
         if on_console_ready:
             on_console_ready(fabric.send)
         addresses = join_addresses(args)

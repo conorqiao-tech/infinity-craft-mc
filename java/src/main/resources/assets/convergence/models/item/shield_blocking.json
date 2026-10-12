@@ -1,0 +1,73 @@
+{
+  "parent": "convergence:item/shield",
+  "display": {
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        165,
+        -8
+      ],
+      "translation": [
+        -3.5,
+        2.5,
+        -7.5
+      ],
+      "scale": [
+        1.25,
+        1.25,
+        1.25
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        0,
+        195,
+        8
+      ],
+      "translation": [
+        3.5,
+        2.5,
+        -7.5
+      ],
+      "scale": [
+        1.25,
+        1.25,
+        1.25
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        0,
+        105,
+        -15
+      ],
+      "translation": [
+        6.5,
+        5,
+        -4
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        0,
+        75,
+        15
+      ],
+      "translation": [
+        6.5,
+        5,
+        10
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  }
+}
