@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLevelEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -58,6 +59,47 @@ final class LobbyServer {
     record Decoration(Lobby lobby, BlockState state) {}
     static final Map<BlockPos, Decoration> DECORATIONS = decorations();
     private static final Map<ServerLevel, Map<ChunkPos, LevelChunk>> PENDING_DECOR = new IdentityHashMap<>();
+    private static final Map<UUID, Arrival> ARRIVALS = new HashMap<>();
+    private static final Map<UUID, RescueRetry> RESCUE_RETRIES = new HashMap<>();
+    private static final int ARRIVAL_TIMEOUT = 600, RESCUE_RETRY_TICKS = 20;
+
+    private static final class Arrival implements AutoCloseable {
+        final ServerPlayer player;
+        final net.minecraft.server.network.ServerGamePacketListenerImpl connection;
+        final ServerLevel world;
+        final String id;
+        final boolean bypass, rescue;
+        final int started;
+        final FixedDestination destination;
+        boolean waitingNotice, committing;
+        Arrival(ServerPlayer player, String id, boolean rescue) {
+            this.player = player; connection = player.connection; world = player.level();
+            this.id = id; this.rescue = rescue; bypass = Memberships.operator(player);
+            started = world.getServer().getTickCount();
+            destination = new FixedDestination(world, place(world.getServer(), id), !bypass);
+        }
+        @Override public void close() { destination.close(); }
+    }
+    private static final class RescueRetry {
+        final ServerPlayer player;
+        final String id;
+        int next;
+        String reported;
+        RescueRetry(ServerPlayer player, String id) { this.player = player; this.id = id; }
+    }
+
+    /** An old player callback cannot release a new session's destination. */
+    static void cancelArrival(ServerPlayer player) {
+        var arrival = ARRIVALS.get(player.getUUID());
+        // Native teleport hooks run inside our own commit. Keep both the
+        // terrain leases and a failed rescue's diagnostic streak until return.
+        if (arrival != null && arrival.player == player && arrival.committing) return;
+        if (arrival != null && arrival.player == player) {
+            ARRIVALS.remove(player.getUUID(), arrival); arrival.close();
+        }
+        var retry = RESCUE_RETRIES.get(player.getUUID());
+        if (retry != null && retry.player == player) RESCUE_RETRIES.remove(player.getUUID(), retry);
+    }
 
     static Palette palette(String id) {
         return switch (id) {
@@ -304,14 +346,73 @@ final class LobbyServer {
         return 1;
     }
     static int arrive(ServerPlayer p, String id) {
+        return arrive(p, id, false);
+    }
+    private static int arrive(ServerPlayer p, String id, boolean rescue) {
         if (!LOBBIES.containsKey(id)) return CommunityServer.say(p,"Unknown lobby. /lobbies lists the available areas.");
         if (GameModes.current(p) != GameModes.Mode.HUB) return CommunityServer.say(p,"Use /lobby " + id + " first.");
-        var target=place(p.level().getServer(),id);
-        if (!Memberships.operator(p)&&!CommunityServer.safe(p.level(),target)) return CommunityServer.say(p,"That lobby platform is blocked. Ask the host to inspect it.");
-        if (!p.teleportTo(p.level(),target.x(),target.y(),target.z(),Set.of(),target.yaw(),target.pitch(),true)) return CommunityServer.say(p,"Could not reach that lobby.");
-        p.setDeltaMovement(Vec3.ZERO);p.fallDistance=0;GameModes.state(p).putString("last_lobby",id);
-        var label=LOBBIES.get(id).label;
-        return CommunityServer.say(p,"Welcome to " + label + ". " + (id.equals("main")?"/lobbies lists the five mode lobbies.":"Use /play " + id + " to enter, or /hub to return to Main Hub.")+" /guide shows what to do here.");
+        var server = p.level().getServer();
+        if (server.getPlayerList().getPlayer(p.getUUID()) != p || !p.connection.isAcceptingMessages() || p.isRemoved() || !p.isAlive()) return 0;
+        var previous = ARRIVALS.get(p.getUUID());
+        if (previous != null) {
+            if (previous.player == p && previous.connection == p.connection && previous.world == p.level()
+                && (rescue || previous.id.equals(id))) { pollArrival(previous); return 1; }
+            ARRIVALS.remove(p.getUUID(), previous); previous.close();
+        }
+        if (!rescue) RESCUE_RETRIES.remove(p.getUUID());
+        var arrival = new Arrival(p, id, rescue);
+        ARRIVALS.put(p.getUUID(), arrival);
+        pollArrival(arrival);
+        return 1;
+    }
+
+    private static boolean sameSession(Arrival arrival) {
+        var p = arrival.player;
+        return p.level() == arrival.world && GameModes.current(p) == GameModes.Mode.HUB
+            && p.connection == arrival.connection && arrival.world.getServer().getPlayerList().getPlayer(p.getUUID()) == p
+            && p.connection.isAcceptingMessages() && !p.isRemoved() && p.isAlive()
+            && (!arrival.bypass || Memberships.operator(p));
+    }
+
+    private static void finishArrival(Arrival arrival, String problem) {
+        if (!ARRIVALS.remove(arrival.player.getUUID(), arrival)) return;
+        arrival.close();
+        var p = arrival.player;
+        if (problem == null) { RESCUE_RETRIES.remove(p.getUUID()); return; }
+        if (!arrival.rescue) { CommunityServer.say(p, problem); return; }
+        var retry = RESCUE_RETRIES.get(p.getUUID());
+        if (retry == null || retry.player != p || !retry.id.equals(arrival.id)) {
+            retry = new RescueRetry(p, arrival.id); RESCUE_RETRIES.put(p.getUUID(), retry);
+        }
+        retry.next = arrival.world.getServer().getTickCount() + RESCUE_RETRY_TICKS;
+        if (!problem.equals(retry.reported)) { retry.reported = problem; CommunityServer.say(p, problem); }
+    }
+
+    private static void pollArrival(Arrival arrival) {
+        if (ARRIVALS.get(arrival.player.getUUID()) != arrival) return;
+        if (!sameSession(arrival)) { cancelArrival(arrival.player); return; }
+        if (arrival.rescue && (arrival.player.getY() >= 74 || Memberships.operator(arrival.player))) { cancelArrival(arrival.player); return; }
+        if (arrival.world.getServer().getTickCount() - arrival.started >= ARRIVAL_TIMEOUT) {
+            finishArrival(arrival, "The lobby is taking too long to prepare. Your inventory is unchanged; try again later."); return;
+        }
+        var status = arrival.destination.poll();
+        if (status == FixedDestination.Status.FAILED) {
+            finishArrival(arrival, "That lobby platform could not be reached. " + arrival.destination.failure().getMessage()); return;
+        }
+        if (status != FixedDestination.Status.READY) {
+            if (!arrival.waitingNotice) { arrival.waitingNotice = true; CommunityServer.say(arrival.player, "Preparing the lobby. Your current inventory stays active."); }
+            return;
+        }
+        var target = arrival.destination.place();
+        var p = arrival.player;
+        boolean success = false;
+        arrival.committing = true;
+        try { success = p.teleportTo(arrival.world, target.x(), target.y(), target.z(), Set.of(), target.yaw(), target.pitch(), true); }
+        finally { arrival.committing = false; finishArrival(arrival, success ? null : "Could not reach that lobby."); }
+        if (!success) return;
+        p.setDeltaMovement(Vec3.ZERO); p.fallDistance = 0; GameModes.state(p).putString("last_lobby", arrival.id);
+        var label = LOBBIES.get(arrival.id).label;
+        CommunityServer.say(p, "Welcome to " + label + ". " + (arrival.id.equals("main") ? "/lobbies lists the five mode lobbies." : "Use /play " + arrival.id + " to enter, or /hub to return to Main Hub.") + " /guide shows what to do here.");
     }
     static int menu(ServerPlayer p) {
         CommunityServer.say(p,"Main Hub: /hub. Mode lobbies: /lobby survival, creative, hardcore, minigames, adventure. /play <mode> enters its world.");
@@ -343,8 +444,17 @@ final class LobbyServer {
         return InteractionResult.PASS;
     }
     static void tick(ServerPlayer p) {
-        if (Memberships.operator(p)||GameModes.current(p)!=GameModes.Mode.HUB) return;
-        if (p.getY()<74) arrive(p,GameModes.state(p).getStringOr("last_lobby","main"));
+        var arrival = ARRIVALS.get(p.getUUID());
+        if (arrival != null && arrival.player == p) pollArrival(arrival);
+        if (GameModes.current(p) != GameModes.Mode.HUB || p.isRemoved() || !p.isAlive() || !p.connection.isAcceptingMessages()) { cancelArrival(p); return; }
+        if (Memberships.operator(p)) return;
+        if (p.getY() >= 74) { RESCUE_RETRIES.remove(p.getUUID()); return; }
+        if (ARRIVALS.containsKey(p.getUUID())) return;
+        String id = GameModes.state(p).getStringOr("last_lobby", "main");
+        if (!LOBBIES.containsKey(id)) id = "main";
+        var retry = RESCUE_RETRIES.get(p.getUUID());
+        if (retry != null && retry.player == p && retry.id.equals(id) && p.level().getServer().getTickCount() - retry.next < 0) return;
+        arrive(p, id, true);
     }
     static void register() {
         ServerChunkEvents.CHUNK_LOAD.register((world, chunk, generated) -> {
@@ -364,7 +474,18 @@ final class LobbyServer {
             if (pending.isEmpty()) PENDING_DECOR.remove(world, pending);
         });
         ServerLevelEvents.UNLOAD.register((server, world) -> PENDING_DECOR.remove(world));
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> PENDING_DECOR.keySet().removeIf(world -> world.getServer() == server));
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            for (var arrival : new ArrayList<>(ARRIVALS.values()))
+                if (arrival.world.getServer() == server && !sameSession(arrival)) cancelArrival(arrival.player);
+            RESCUE_RETRIES.values().removeIf(retry -> retry.player.level().getServer() == server
+                && server.getPlayerList().getPlayer(retry.player.getUUID()) != retry.player);
+        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> cancelArrival(handler.player));
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            PENDING_DECOR.keySet().removeIf(world -> world.getServer() == server);
+            for (var arrival : new ArrayList<>(ARRIVALS.values())) if (arrival.world.getServer() == server) cancelArrival(arrival.player);
+            RESCUE_RETRIES.values().removeIf(retry -> retry.player.level().getServer() == server);
+        });
         UseBlockCallback.EVENT.register((player,world,hand,hit)-> {
             if (!(player instanceof ServerPlayer p) || world.isClientSide() || hand!=InteractionHand.MAIN_HAND) return InteractionResult.PASS;
             return useSign(p,hit.getBlockPos());

@@ -50,12 +50,16 @@ final class OdysseyJournal {
             ||(GameModes.current(p)!=GameModes.Mode.SURVIVAL&&GameModes.current(p)!=GameModes.Mode.HARDCORE))return false;
         var world=p.level();var pos=p.blockPosition();
         var ruin=world.registryAccess().lookupOrThrow(Registries.STRUCTURE).getOrThrow(OdysseyStructure.KEY).value();
-        var local=world.getChunkAt(pos);var references=new HashSet<Long>();references.add(local.getPos().pack());
+        // A FULL ticket can exist before its chunk future completes. Discovery must
+        // never wait for terrain; the normal journal tick retries incomplete chunks.
+        var source=world.getChunkSource();var local=source.getChunkNow(pos.getX()>>4,pos.getZ()>>4);
+        if(local==null)return false;
+        var references=new HashSet<Long>();references.add(local.getPos().pack());
         for(long reference:local.getReferencesForStructure(ruin))references.add(reference);
         for(long reference:references){
             var chunk=new net.minecraft.world.level.ChunkPos((int)reference,(int)(reference>>>32));
-            if(!world.isLoaded(new BlockPos(chunk.x()<<4,pos.getY(),chunk.z()<<4)))continue;
-            var start=world.getChunk(chunk.x(),chunk.z()).getStartForStructure(ruin);
+            var ready=source.getChunkNow(chunk.x(),chunk.z());if(ready==null)continue;
+            var start=ready.getStartForStructure(ruin);
             if(start==null||!start.isValid())continue;
             for(var piece:start.getPieces())if(piece instanceof OdysseyStructure.Piece&&piece.getBoundingBox().isInside(pos)){
                 String biome=world.getBiome(pos).unwrapKey().orElseThrow().identifier().toString();
@@ -80,15 +84,18 @@ final class OdysseyJournal {
         return count(p)==3&&scores.getLongOr("memory",0)>0&&scores.getLongOr("gatedash",0)>0;
     }
     static int claim(ServerPlayer p,int tier){
-        if(!ServerMenu.allowed(p)||p.isCreative()||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty()
-            ||!earned(p,tier)||state(p).getBooleanOr("claimed_"+tier,false))return 0;
+        if(!ServerMenu.allowed(p)||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty()
+            ||tier<1||tier>4)return 0;
+        if(p.isCreative()){CommunityServer.say(p,"Leave Creative abilities and return to Survival or Hardcore to claim your Odyssey gift.");return 0;}
+        if(state(p).getBooleanOr("claimed_"+tier,false)){CommunityServer.say(p,"This Odyssey gift has already been claimed.");return 0;}
+        if(!earned(p,tier)){CommunityServer.say(p,tier<=3?"Discover "+tier+" different realms before claiming this gift.":"Discover all three realms and finish Memory Circuit and Laser Gate Dash first.");return 0;}
         if(GameModes.current(p)!=GameModes.Mode.SURVIVAL&&GameModes.current(p)!=GameModes.Mode.HARDCORE){CommunityServer.say(p,"Return to Survival or Hardcore to claim your gift.");return 0;}
         var stacks=reward(p,tier);var slots=new ArrayList<Integer>();
         for(int i=0;i<36;i++)if(p.getInventory().getItem(i).isEmpty())slots.add(i);
         if(slots.size()<stacks.size()){CommunityServer.say(p,"Clear "+stacks.size()+" inventory slots. Your Odyssey gift remains unclaimed.");return 0;}
         for(int i=0;i<stacks.size();i++)p.getInventory().setItem(slots.get(i),stacks.get(i).copy());
         state(p).putBoolean("claimed_"+tier,true);p.inventoryMenu.sendAllDataToRemote();
-        p.level().getServer().getPlayerList().saveAll();CommunityServer.say(p,"Odyssey gift claimed. Your journal and rewards are saved.");return stacks.size();
+        PlayerPersistence.save(p);CommunityServer.say(p,"Odyssey gift claimed. Your journal and rewards are saved.");return stacks.size();
     }
     static int open(ServerPlayer p){
         if(!ServerMenu.allowed(p)||p.containerMenu!=p.inventoryMenu||!p.inventoryMenu.getCarried().isEmpty())return 0;
@@ -101,6 +108,12 @@ final class OdysseyJournal {
             tier<=3?"Discover "+tier+" different realms.":"Discover all realms and finish Memory Circuit and Laser Gate Dash.",
             tier==2?"Complete four-piece Tidewarden armor.":tier==3?"Odyssey Circuit Trident.":tier==4?"Odyssey Memory Mace.":"Eight echo shards.");
         CreativeStudio.icon(view,4,Items.WRITTEN_BOOK,"Receive or recover your prophecy","Your original book and the shrine's chest contents are preserved.");
+        CreativeStudio.icon(view,6,Items.COMPASS,"Scan for a nearby circuit","Search loaded natural terrain within "+OdysseyCompass.RANGE+" blocks.","Creates or updates your native Odyssey compass.","Never generates distant terrain or grants journal progress.");
+        var scores=GameModes.state(p).getCompoundOrEmpty("scores");
+        CreativeStudio.icon(view,15,Items.CLOCK,"Trials for the final gift",
+            "Memory Circuit: "+(scores.getLongOr("memory",0)>0?"Finished":"Not finished"),
+            "Laser Gate Dash: "+(scores.getLongOr("gatedash",0)>0?"Finished":"Not finished"),
+            "Find both through Infinity Menu → Minigames.");
         CreativeStudio.icon(view,26,Items.ARROW,"Back to Infinity Menu");
         p.openMenu(new SimpleMenuProvider((sync,inv,who)->new Handler(sync,inv,view,p),Component.literal("The Odyssey • Journal")));return 1;
     }
@@ -116,12 +129,12 @@ final class OdysseyJournal {
             if((action!=ContainerInput.PICKUP&&action!=ContainerInput.QUICK_MOVE)||button<0||button>1||!getCarried().isEmpty())return;
             if(slot==26){owner.closeContainer();ServerMenu.open(owner);}
             else if(slot==4){owner.closeContainer();OdysseyProphecy.give(owner,true);}
+            else if(slot==6){owner.closeContainer();OdysseyCompass.scan(owner);}
             else if(slot>=19&&slot<=22){owner.closeContainer();claim(owner,slot-18);open(owner);}
         }
     }
     static void register(){ServerTickEvents.END_SERVER_TICK.register(server->{
         if(server instanceof net.minecraft.gametest.framework.GameTestServer||server.getTickCount()%20!=0)return;
-        boolean changed=false;for(var p:server.getPlayerList().getPlayers())changed|=discover(p);
-        if(changed)server.getPlayerList().saveAll();
+        for(var p:server.getPlayerList().getPlayers())if(discover(p))PlayerPersistence.save(p);
     });}
 }

@@ -127,7 +127,7 @@ public class InfinityGameTests {
         c.assertTrue(t.getArmorValue()>=20,"Real netherite armor must be active");
     }
     @GameTest public void equipmentAndNativeGlider(GameTestHelper c) {
-        c.assertValueEqual(Convergence.ITEMS.size(),45,"Original gear and blocks, outfits, building wands, backpack, and five Studio gadgets");
+        c.assertValueEqual(Convergence.ITEMS.size(),46,"Original gear and blocks, outfits, building wands, backpack, five Studio gadgets and the separate armor chestplate");
         c.assertTrue(gear("chestplate").has(DataComponents.GLIDER),"Winged armor must enable native flight");
         for(String name:new String[]{"helmet","chestplate","leggings","boots","sword","mace","spear"})
             c.assertTrue(gear(name).has(DataComponents.UNBREAKABLE),"Gear must remain unbreakable: "+name);

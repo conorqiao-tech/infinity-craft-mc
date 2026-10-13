@@ -30,6 +30,9 @@ import net.minecraft.world.item.Items;
 /** Vanilla chest icons and a vanilla compass keep the picker usable through Geyser. */
 final class CreativeGearPicker {
     static final int STUDIO=47;
+    static final int ADMIN_BLOCKS=48;
+    static final int AURORA=46, CONVERGENCE=50, ALL_GEAR=51;
+    enum Collection { ALL, AURORA, CONVERGENCE }
     private static final String PICKER_NAME = "Infinity Gear Picker";
     private static final Map<UUID,Integer> OPEN_AFTER = new HashMap<>();
     private static final Set<UUID> SELECTED = new HashSet<>();
@@ -121,9 +124,14 @@ final class CreativeGearPicker {
     }
 
     private static int open(ServerPlayer player,int page) {
+        return open(player,page,Collection.ALL);
+    }
+
+    private static int open(ServerPlayer player,int page,Collection collection) {
         if (!allowed(player) || player.containerMenu != player.inventoryMenu
             || !player.containerMenu.getCarried().isEmpty()) return 0;
-        List<String> paths = new ArrayList<>(Convergence.ITEMS.keySet());
+        List<String> paths = collection==Collection.ALL ? new ArrayList<>(Convergence.ITEMS.keySet())
+            : (collection==Collection.AURORA?GearCrates.AURORA_SET:GearCrates.CONVERGENCE_SET).stream().map(path->"convergence:"+path).toList();
         int pageIndex=Math.max(0,Math.min(page,Math.max(0,(paths.size()-1)/45)));
         var view = new SimpleContainer(54);
         for (int slot = 0; slot < Math.min(45,paths.size()-pageIndex*45); slot++) {
@@ -135,11 +143,17 @@ final class CreativeGearPicker {
             view.setItem(slot, stack);
         }
         if(pageIndex>0)CreativeStudio.icon(view,45,Items.ARROW,"Previous gear page");
+        CreativeStudio.icon(view,AURORA,Items.DIAMOND_CHESTPLATE,"Aurora Set • four pieces","Helmet, chestplate, leggings and boots.","Choose a piece to put the real item in your hotbar.");
+        CreativeStudio.icon(view,CONVERGENCE,Items.NETHERITE_CHESTPLATE,"Convergence Set • armor & wings","Solid armor chestplate and existing flight wings are separate choices.");
+        CreativeStudio.icon(view,ALL_GEAR,Items.CHEST,"All Infinity gear • armor, tools & blocks");
         CreativeStudio.icon(view,STUDIO,Items.PAINTING,"Creative Studio");
+        if (Memberships.operator(player)) CreativeStudio.icon(view,ADMIN_BLOCKS,Items.COMMAND_BLOCK,"Get Admin Blocks • inventory toolbox",
+            "Real command blocks, barriers, lights and structure tools.","Requires Creative and OP4. Clear one inventory slot.");
         CreativeStudio.icon(view,49,Items.RECOVERY_COMPASS,"Infinity Menu");
         if((pageIndex+1)*45<paths.size())CreativeStudio.icon(view,53,Items.ARROW,"Next gear page");
         player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new PickerHandler(sync, inventory, view, player, paths,pageIndex), Component.literal("Infinity Gear • Page "+(pageIndex+1))));
+            new PickerHandler(sync, inventory, view, player, paths,pageIndex,collection), Component.literal(
+                (collection==Collection.ALL?"Infinity Gear":collection==Collection.AURORA?"Aurora Set":"Convergence Set")+" • Page "+(pageIndex+1))));
         if (isPicker(player.getMainHandItem())) SELECTED.add(player.getUUID());
         return 1;
     }
@@ -170,14 +184,16 @@ final class CreativeGearPicker {
         final ServerPlayer owner;
         final List<String> paths;
         final int pageIndex;
+        final Collection collection;
         final ServerGamePacketListenerImpl connection;
         final ServerLevel world;
 
-        PickerHandler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner, List<String> paths,int pageIndex) {
+        PickerHandler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner, List<String> paths,int pageIndex,Collection collection) {
             super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
             this.owner = owner;
             this.paths = paths;
             this.pageIndex=pageIndex;connection=owner.connection;world=owner.level();
+            this.collection=collection;
         }
 
         @Override public boolean stillValid(Player player) {
@@ -192,9 +208,13 @@ final class CreativeGearPicker {
             if(!stillValid(player)){owner.closeContainer();return;}
             if ((action == ContainerInput.PICKUP || action == ContainerInput.QUICK_MOVE)
                 && button>=0&&button<=1&&slot>=0&&slot<54&&getCarried().isEmpty()) {
-                if(slot==45&&pageIndex>0){owner.closeContainer();open(owner,pageIndex-1);return;}
-                if(slot==53&&(pageIndex+1)*45<paths.size()){owner.closeContainer();open(owner,pageIndex+1);return;}
+                if(slot==45&&pageIndex>0){owner.closeContainer();open(owner,pageIndex-1,collection);return;}
+                if(slot==53&&(pageIndex+1)*45<paths.size()){owner.closeContainer();open(owner,pageIndex+1,collection);return;}
+                if(slot==AURORA){owner.closeContainer();open(owner,0,Collection.AURORA);return;}
+                if(slot==CONVERGENCE){owner.closeContainer();open(owner,0,Collection.CONVERGENCE);return;}
+                if(slot==ALL_GEAR){owner.closeContainer();open(owner,0,Collection.ALL);return;}
                 if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
+                if(slot==ADMIN_BLOCKS){owner.closeContainer();GearCrates.giveAdmin(owner);return;}
                 if(slot==49){owner.closeContainer();ServerMenu.open(owner);return;}
                 int index=pageIndex*45+slot;
                 if(slot>=45||index>=paths.size()){sendAllDataToRemote();return;}
@@ -209,7 +229,7 @@ final class CreativeGearPicker {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (var player : server.getPlayerList().getPlayers()) {
                 UUID id = player.getUUID();
-                if (allowed(player) && !hasPicker(player)) ensurePicker(player);
+                if (allowed(player)) ensurePicker(player);
                 Integer at = OPEN_AFTER.get(id);
                 if (at != null && server.getTickCount() >= at) {
                     OPEN_AFTER.remove(id);
@@ -224,6 +244,8 @@ final class CreativeGearPicker {
             }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            var joined = server.getPlayerList().getPlayer(handler.player.getUUID());
+            if (joined != null && joined != handler.player) return;
             OPEN_AFTER.remove(handler.player.getUUID());
             SELECTED.remove(handler.player.getUUID());
         });

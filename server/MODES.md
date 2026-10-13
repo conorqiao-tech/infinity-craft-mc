@@ -2,7 +2,11 @@
 
 Use **`/hub`** for the Main Hub, **`/lobbies`** for the five mode lobbies, or **`/play`** to enter a game world. See **LOBBIES.md** for navigation.
 
+In explore.26, course icons include their actual instructions and personal bests. **View saved records** opens a read-only records page; minigames include the server's top five. **Retry** starts the selected course again without erasing saved times. **Back to Infinity Menu** returns to the main controls; eliminated Hardcore spectators instead see **Return to Main Hub**. Shortcuts such as `/mg memory`, `/adv maze` and `/lb parkour` accept the same arguments and permissions as their originals. See [EXPERIENCE_POLISH.md](EXPERIENCE_POLISH.md).
+
 Use **`/play`** in Minecraft. Java has clickable choices; the same short commands work on Bedrock. Mode changes take three seconds. Stay still, leave vehicles, and let shoulder pets dismount. Taking damage cancels the change, and you must wait ten seconds after damage before trying again.
+
+The explore.36 source candidate starts preparing an unavailable destination during that countdown. If it is still loading after three seconds, stay still until the preparation message clears. Your current world and inventory remain active until the verified move. A cold saved return position is loaded and checked before choosing a default spawn. The server starts at most four new destination chunk loads per game tick; a request still pending after 600 game ticks cancels without moving or capturing your profile. Game ticks are not a guaranteed wall-clock duration. This preparation covers changes between modes, first-visit Hub routing and same-mode lobby destinations. Explore.35 also prepares homes, warps, accepted visits and default-spawn commands across ticks. Native death respawn retains its separate synchronous terrain contract.
 
 | Mode | Command | What you get |
 |---|---|---|
@@ -18,11 +22,17 @@ When you enter Creative through its lobby or `/play creative`, the server puts a
 
 Inventories, equipped armor/offhand, Ender Chests, personal backpack storage, experience, health, hunger, potion effects, bed spawns, and return positions are stored separately for each mode. Active state and inactive profiles are saved together in the player's vanilla data file. Players keep their own progress when returning. The three named home slots are shared across modes, so use different names (for example, `survival_base` and `creative_build`). Homes, warps, teleport requests, portals, and loose items cannot bypass mode isolation. Vanilla Nether and End travel remains available inside Survival. The Hardcore world has no Nether or End in this release.
 
+For `/home`, `/warp`, accepted player visits and `/spawn` outside the Hub, ordinary players keep a three-second countdown and must stay still until the destination is ready. Damage cancels the request, and successful travel starts a ten-second cooldown. Hub `/spawn` retains its direct lobby-arrival behavior. Preparation cancels after 600 game ticks or a changed session/world/mode; it keeps current inventory and cursor contents active. Player visits still require consent and freeze the host's location at acceptance. Host movement within that world does not retarget the visit; a replaced/disconnected host, death or changed world/mode cancels it. Creative/Hardcore `/spawn` searches the mode's default origin, without returning to a saved mode home. Survival `/spawn` keeps its configured or native address and orientation. Ordinary course players use `/retry` or `/play` instead of `/spawn`.
+
 ## Operator access
 
 Level-4 operators can switch game worlds immediately, including during combat, and are not forced back to a prescribed game mode by the mod. Operator teleporting across game worlds updates the matching mode profile. Operators can enter Hardcore after elimination; ordinary players keep the one-life rule. See [AGENTS_GUIDE.md](AGENTS_GUIDE.md) for operator controls.
 
+In the explore.35 source candidate, OPs still skip the countdown and combat delay. If destination chunks are unavailable, they wait only for terrain preparation; losing OP access cancels that pending privileged request. `/play` destinations still pass their existing safety checks. Exact-location OP homes, warps and accepted visits retain their floor, border and height bypass, including when crossing modes.
+
 ## Hardcore
+
+In explore.34, an eliminated Hardcore spectator can complete the normal three-second exit even while the fatal hit's combat cooldown remains active. Living players still keep combat rejection and damage cancellation, and elimination still prevents a new Hardcore life.
 
 Death marks that player's Hardcore life as ended. Respawning allows spectating the Hardcore world; **`/play survival`** lets them continue in other modes. They cannot rejoin Hardcore as a living player. The entire server does not shut down or ban them. Vanilla and Infinity totems can still prevent an eligible death. Ranks do not grant extra lives, gear, or Hardcore resets.
 

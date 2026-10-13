@@ -25,15 +25,37 @@ import net.minecraft.world.phys.Vec3;
 
 public class ModeGameTests {
     ServerPlayer player(GameTestHelper c,String name) {
+        var connection=new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection);
+        return player(c,name,connection);
+    }
+    ServerPlayer player(GameTestHelper c,String name,net.minecraft.network.Connection connection) {
+        warmLegacyDestinations(c);
         var server=c.getLevel().getServer();var profile=new com.mojang.authlib.GameProfile(UUID.randomUUID(),name);
         var data=net.minecraft.server.network.CommonListenerCookie.createInitial(profile,false);
         var p=new ServerPlayer(server,c.getLevel(),profile,data.clientInformation());
-        var connection=new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
-        new io.netty.channel.embedded.EmbeddedChannel(connection);server.getPlayerList().placeNewPlayer(connection,p,data);
+        server.getPlayerList().placeNewPlayer(connection,p,data);
         p.connection.handleAcceptPlayerLoad(new net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket());
         var feet=c.absolutePos(new BlockPos(2,2,2));c.getLevel().setBlockAndUpdate(feet.below(),Blocks.STONE.defaultBlockState());
         c.getLevel().setBlockAndUpdate(feet,Blocks.AIR.defaultBlockState());c.getLevel().setBlockAndUpdate(feet.above(),Blocks.AIR.defaultBlockState());
-        p.setPos(feet.getX()+.5,feet.getY(),feet.getZ()+.5);p.setNoGravity(true);return p;
+        p.setPos(feet.getX()+.5,feet.getY(),feet.getZ()+.5);p.setNoGravity(true);
+        warmHalo(server,CommunityServer.Place.of(p));return p;
+    }
+    /** These synchronous legacy cases exercise committed gameplay, not cold loading.
+     * ModeTransferGameTests independently starts with a physically unloaded saved destination.
+     */
+    private static void warmLegacyDestinations(GameTestHelper c) {
+        var server=c.getLevel().getServer();
+        for(var mode:List.of(GameModes.Mode.CREATIVE,GameModes.Mode.HARDCORE))
+            warmHalo(server,GameModes.defaultPlace(server,mode));
+        for(var spec:ModeMaps.MAPS.values())if(ModeMaps.available(spec.id()))
+            warmHalo(server,GameModes.mapPlace(server,spec.mode(),spec.id()));
+        for(var hall:LobbyServer.LOBBIES.keySet())warmHalo(server,LobbyServer.place(server,hall));
+    }
+    private static void warmHalo(net.minecraft.server.MinecraftServer server,CommunityServer.Place place) {
+        var world=CommunityServer.get(server).world(place);
+        int cx=((int)Math.floor(place.x()))>>4,cz=((int)Math.floor(place.z()))>>4;
+        for(int x=cx-1;x<=cx+1;x++)for(int z=cz-1;z<=cz+1;z++)world.getChunk(x,z);
     }
     Memberships members(GameTestHelper c) {
         try {var dir=Files.createTempDirectory("infinity-memberships-test-");return new Memberships(c.getLevel().getServer(),dir.resolve("members.json"),dir.resolve("config.json"));}
@@ -108,6 +130,7 @@ public class ModeGameTests {
         p.hurtServer(p.level(),p.damageSources().genericKill(),Float.MAX_VALUE);
         c.assertFalse(p.isAlive(),"Damage caused actual death");
         c.assertTrue(GameModes.state(p).getBooleanOr("eliminated",false),"Actual death event records elimination");
+        c.assertValueEqual(p.gameMode(),GameType.SURVIVAL,"Target resolution occurs before AFTER_RESPAWN grants Hardcore spectator abilities");
         var next=c.getLevel().getServer().getPlayerList().respawn(p,false,Entity.RemovalReason.KILLED);
         c.assertValueEqual(GameModes.current(next),GameModes.Mode.HARDCORE,"Respawn copies active mode");
         c.assertValueEqual(GameModes.of(next.level()),GameModes.Mode.HARDCORE,"Respawn stays in Hardcore world");
@@ -120,7 +143,9 @@ public class ModeGameTests {
         c.assertTrue(GameModes.PENDING.containsKey(next.getUUID()),"Spectator can choose a course after Hardcore elimination");
         GameModes.PENDING.remove(next.getUUID());
         GameModes.switchNow(next,GameModes.Mode.SURVIVAL,null);
-        c.assertValueEqual(next.gameMode(),GameType.SURVIVAL,"Can continue Survival after losing Hardcore");c.succeed();
+        c.assertValueEqual(next.gameMode(),GameType.SURVIVAL,"Can continue Survival after losing Hardcore; pending="+GameModes.PENDING.containsKey(next.getUUID())
+            +", joined="+(c.getLevel().getServer().getPlayerList().getPlayer(next.getUUID())==next)+", accepting="+next.connection.isAcceptingMessages()
+            +", alive="+next.isAlive()+", removed="+next.isRemoved()+", health="+next.getHealth());c.succeed();
     }
     @GameTest public void adminRoleGrantsActualOperatorCommands(GameTestHelper c) {
         var p=player(c,"admin-commands");var s=Memberships.get(c.getLevel().getServer());
@@ -143,6 +168,120 @@ public class ModeGameTests {
         c.assertTrue(GameModes.PENDING.get(p.getUUID()).finish()>c.getLevel().getServer().getTickCount(),"Warmup in future");GameModes.PENDING.remove(p.getUUID());
         CommunityServer.get(c.getLevel().getServer()).combat.put(p.getUUID(),c.getLevel().getServer().getTickCount()+200);
         GameModes.request(p,GameModes.Mode.CREATIVE,null);c.assertFalse(GameModes.PENDING.containsKey(p.getUUID()),"Combat blocks escape");c.succeed();
+    }
+    @GameTest public void defaultSpawnCandidatesAreUniqueAndKeepTheOriginalNearestRingOrder(GameTestHelper c) {
+        var candidates=GameModes.DEFAULT_SPAWN_CANDIDATES;
+        c.assertValueEqual(candidates.size(),1089,"A 64-block search checks each four-block grid point once");
+        c.assertValueEqual(new HashSet<>(candidates).size(),1089,"No candidate is revisited by a later radius");
+        c.assertValueEqual(candidates.subList(0,9),List.of(BlockPos.ZERO,new BlockPos(-4,0,-4),new BlockPos(-4,0,0),new BlockPos(-4,0,4),
+            new BlockPos(0,0,-4),new BlockPos(0,0,4),new BlockPos(4,0,-4),new BlockPos(4,0,0),new BlockPos(4,0,4)),"Nearest ring keeps its existing tie order");
+        c.succeed();
+    }
+    @GameTest public void unavailableHardcoreWarmupKeepsPositionCursorEquipmentAndProfiles(GameTestHelper c) {
+        var p=player(c,"unsafe-hardcore");var server=p.level().getServer();
+        var world=GameModes.world(server,GameModes.Mode.HARDCORE);var border=world.getWorldBorder();
+        double x=border.getCenterX(),z=border.getCenterZ(),size=border.getSize();
+        p.getInventory().setItem(0,new ItemStack(Items.DIAMOND,7));p.setItemSlot(EquipmentSlot.CHEST,new ItemStack(Items.DIAMOND_CHESTPLATE));
+        p.setItemSlot(EquipmentSlot.OFFHAND,new ItemStack(Items.TOTEM_OF_UNDYING));
+        p.inventoryMenu.setCarried(new ItemStack(Items.EMERALD,3));
+        var profiles=new net.minecraft.nbt.CompoundTag();var saved=new net.minecraft.nbt.CompoundTag();saved.putString("proof","existing profile");
+        profiles.put("CREATIVE",saved);GameModes.state(p).put("profiles",profiles);
+        var before=GameModes.state(p).copy();var origin=CommunityServer.Place.of(p);
+        try {
+            // All candidate columns are outside the border, so even unloaded terrain must not be requested.
+            border.setCenter(10000,10000);border.setSize(1);
+            int loaded=world.getChunkSource().getLoadedChunksCount();
+            GameModes.request(p,GameModes.Mode.HARDCORE,null);
+            c.assertTrue(GameModes.PENDING.containsKey(p.getUUID()),"The ordinary player begins the real warmup");
+            GameModes.PENDING.put(p.getUUID(),new GameModes.Switch(GameModes.Mode.HARDCORE,null,origin,server.getTickCount()));
+            GameModes.tickPlayer(p);
+            c.assertValueEqual(GameModes.current(p),GameModes.Mode.SURVIVAL,"Failed destination keeps the active mode");
+            c.assertFalse(CommunityServer.moved(origin,p),"Rejected warmup never teleports the player");
+            c.assertValueEqual(p.getInventory().getItem(0).getCount(),7,"Inventory is unchanged");
+            c.assertTrue(p.getItemBySlot(EquipmentSlot.CHEST).is(Items.DIAMOND_CHESTPLATE),"Worn equipment is unchanged");
+            c.assertTrue(p.getOffhandItem().is(Items.TOTEM_OF_UNDYING),"Offhand is unchanged");
+            c.assertValueEqual(p.inventoryMenu.getCarried().getCount(),3,"The carried cursor is not returned or replaced");
+            c.assertValueEqual(GameModes.state(p),before,"Existing profiles are not captured, removed or restored");
+            c.assertFalse(GameModes.PENDING.containsKey(p.getUUID()),"Failed warmup is cleared rather than retried every tick");
+            c.assertFalse(GameModes.TRANSITIONS.contains(p.getUUID()),"No partially started transition survives");
+            c.assertValueEqual(world.getChunkSource().getLoadedChunksCount(),loaded,"Out-of-border candidates never generate chunks");
+            GameModes.tickPlayer(p);
+            c.assertValueEqual(GameModes.state(p),before,"A later tick cannot restart the failed transfer");
+        } finally {border.setCenter(x,z);border.setSize(size);p.inventoryMenu.setCarried(ItemStack.EMPTY);server.getPlayerList().remove(p);}
+        c.succeed();
+    }
+    @GameTest public void floodedHardcoreOriginRejectsSwitchAndSpawnWithoutChangingTerrain(GameTestHelper c) {
+        var p=player(c,"flooded-origin");var server=p.level().getServer();var world=GameModes.world(server,GameModes.Mode.HARDCORE);
+        world.getChunk(0,0);
+        var floor=new BlockPos(0,world.getMaxY()-2,0);var original=new LinkedHashMap<BlockPos,net.minecraft.world.level.block.state.BlockState>();
+        for(int dy=0;dy<=2;dy++)original.put(floor.above(dy),world.getBlockState(floor.above(dy)));
+        var border=world.getWorldBorder();
+        double x=border.getCenterX(),z=border.getCenterZ(),size=border.getSize();
+        try {
+          try {
+            border.setCenter(.5,.5);border.setSize(1);
+            c.assertTrue(world.isInWorldBounds(floor)&&world.isInWorldBounds(floor.above(2)),"The owned water floor and both air blocks are inside native world bounds");
+            for(var at:original.keySet())world.setBlock(at,Blocks.AIR.defaultBlockState(),net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+            c.assertTrue(world.setBlock(floor,Blocks.WATER.defaultBlockState(),net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE),"Loaded, in-bounds origin fixture accepts the water block");
+            c.assertTrue(world.getBlockState(floor).is(Blocks.WATER),"The origin is actually flooded before the mode change");
+            c.assertValueEqual(world.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,0,0),floor.getY()+1,"The actual spawn search reaches the owned water floor");
+            var before=GameModes.state(p).copy();var origin=CommunityServer.Place.of(p);
+            GameModes.switchNow(p,GameModes.Mode.HARDCORE,null);
+            c.assertValueEqual(GameModes.state(p),before,"A water-only spawn leaves all mode data unchanged");
+            c.assertFalse(CommunityServer.moved(origin,p),"No water spawn is used as a fallback");
+            c.assertTrue(world.getBlockState(floor).is(Blocks.WATER),"No platform replaces the flooded terrain");
+          } finally {for(var entry:original.entrySet())world.setBlock(entry.getKey(),entry.getValue(),net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);border.setCenter(x,z);border.setSize(size);}
+            GameModes.switchNow(p,GameModes.Mode.HARDCORE,null);
+            c.assertValueEqual(GameModes.current(p),GameModes.Mode.HARDCORE,"A recovered dry destination can be entered normally");
+            var before=GameModes.state(p).copy();var origin=CommunityServer.Place.of(p);
+            border.setCenter(10000,10000);border.setSize(1);
+            CommunityServer.get(server).spawn(p);
+            c.assertValueEqual(GameModes.state(p),before,"The real spawn command handles destination unavailability");
+            c.assertFalse(CommunityServer.moved(origin,p),"Spawn failure preserves the player's location");
+            c.assertFalse(CommunityServer.get(server).pending.containsKey(p.getUUID()),"Unavailable spawn never starts a teleport queue");
+        } finally {border.setCenter(x,z);border.setSize(size);server.getPlayerList().remove(p);}
+        c.succeed();
+    }
+    @GameTest public void missingOrBlockedCourseRejectsTransferBeforeInventoryCapture(GameTestHelper c) {
+        var p=player(c,"unavailable-map");var available=new HashSet<>(ModeMaps.AVAILABLE);var before=GameModes.state(p).copy();var origin=CommunityServer.Place.of(p);
+        p.inventoryMenu.setCarried(new ItemStack(Items.DIAMOND,2));
+        try {
+            ModeMaps.AVAILABLE.removeIf(id->ModeMaps.MAPS.get(id).mode()==GameModes.Mode.MINIGAMES);
+            GameModes.PENDING.put(p.getUUID(),new GameModes.Switch(GameModes.Mode.MINIGAMES,"parkour",origin,p.level().getServer().getTickCount()));
+            GameModes.tickPlayer(p);
+            c.assertValueEqual(GameModes.state(p),before,"Missing verified maps do not mutate profiles");
+            c.assertFalse(CommunityServer.moved(origin,p),"Missing course never moves the player");
+            c.assertValueEqual(p.inventoryMenu.getCarried().getCount(),2,"Missing course does not consume or return the cursor");
+            c.assertFalse(GameModes.PENDING.containsKey(p.getUUID()),"Unavailable course clears its warmup");
+        } finally {ModeMaps.AVAILABLE.clear();ModeMaps.AVAILABLE.addAll(available);}
+        var world=GameModes.world(p.level().getServer(),GameModes.Mode.MINIGAMES);var start=ModeMaps.start("parkour");var block=world.getBlockState(start);
+        try {
+            world.setBlock(start,Blocks.STONE.defaultBlockState(),net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+            GameModes.switchNow(p,GameModes.Mode.MINIGAMES,"parkour");
+            c.assertValueEqual(GameModes.state(p),before,"A currently blocked course is rejected before capture");
+            c.assertFalse(CommunityServer.moved(origin,p),"Blocked course does not become an unsafe default fallback");
+            c.assertValueEqual(p.inventoryMenu.getCarried().getCount(),2,"Blocked course leaves the cursor untouched");
+            c.assertTrue(world.getBlockState(start).is(Blocks.STONE),"Player builds at the course start are preserved");
+        } finally {world.setBlock(start,block,net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);p.inventoryMenu.setCarried(ItemStack.EMPTY);p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
+    }
+    @GameTest public void blockedFirstVisitHubKeepsSurvivalStateAndDoesNotRetryEveryTick(GameTestHelper c) {
+        var p=player(c,"hub-unavailable");var server=p.level().getServer();var place=LobbyServer.place(server,"main");
+        var world=GameModes.world(server,GameModes.Mode.HUB);var at=BlockPos.containing(place.x(),place.y(),place.z());var block=world.getBlockState(at);
+        p.getInventory().setItem(0,new ItemStack(Items.DIAMOND,3));p.inventoryMenu.setCarried(new ItemStack(Items.EMERALD,2));
+        var state=GameModes.state(p).copy();var origin=CommunityServer.Place.of(p);
+        try {
+            world.setBlock(at,Blocks.STONE.defaultBlockState(),net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);
+            GameModes.FIRST_VISITS.add(p.getUUID());GameModes.tickPlayer(p);
+            c.assertValueEqual(GameModes.state(p),state,"Blocked first-visit destination never captures or clears profiles");
+            c.assertFalse(CommunityServer.moved(origin,p),"New arrival stays in its original valid realm");
+            c.assertValueEqual(p.getInventory().getItem(0).getCount(),3,"First-visit failure leaves native inventory intact");
+            c.assertValueEqual(p.inventoryMenu.getCarried().getCount(),2,"First-visit failure leaves the carried item intact");
+            c.assertFalse(GameModes.FIRST_VISITS.contains(p.getUUID()),"Rejected initial routing does not retry every game tick");
+            GameModes.tickPlayer(p);c.assertValueEqual(GameModes.state(p),state,"Later ticks keep the failed route cleared");
+            c.assertTrue(world.getBlockState(at).is(Blocks.STONE),"The existing Hub obstruction is not replaced");
+        } finally {world.setBlock(at,block,net.minecraft.world.level.block.Block.UPDATE_CLIENTS|net.minecraft.world.level.block.Block.UPDATE_KNOWN_SHAPE);GameModes.FIRST_VISITS.remove(p.getUUID());p.inventoryMenu.setCarried(ItemStack.EMPTY);server.getPlayerList().remove(p);}
+        c.succeed();
     }
     @GameTest public void membershipsCodeGrantsPersistentAdminAndOperator(GameTestHelper c) {
         var p=player(c,"code-user");var s=members(c);s.config.adminCodeEnabled=true;s.config.adminCodeSha256=Memberships.hash("test-secret");

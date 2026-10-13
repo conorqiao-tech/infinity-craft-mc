@@ -197,7 +197,7 @@ class LauncherTests(unittest.TestCase):
             launcher.copy_bridge_data(self.root)
         source = self.root / "fabric/crossplay-export"
         source.mkdir(parents=True)
-        for name in ["infinity-items.json", "infinity-blocks.json"]:
+        for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
             (source / name).write_text("{}")
         with self.assertRaisesRegex(RuntimeError, "generate its key"):
             launcher.copy_bridge_data(self.root)
@@ -206,6 +206,43 @@ class LauncherTests(unittest.TestCase):
         key.write_bytes(b"test key, not a credential")
         launcher.copy_bridge_data(self.root)
         self.assertEqual((self.root / "geyser/key.pem").read_bytes(), key.read_bytes())
+        self.assertEqual((self.root / "geyser/infinity-catalogue.json").read_bytes(),
+                         (source / "infinity-catalogue.json").read_bytes())
+
+    def test_creative_readiness_rejects_missing_stale_and_failed_receipts(self):
+        import hashlib
+        folder = self.root / "geyser/extensions/infinitycreativebridge"
+        folder.mkdir(parents=True)
+        catalogue = self.root / "geyser/infinity-catalogue.json"
+        catalogue.write_text('{"items":[{"path":"helmet"}]}')
+        (self.root / "dependencies.lock.json").write_text(json.dumps({"creative_bridge":{"geyser_sha256":"test-pin"}}))
+        receipt = {"format_version":1,"geyser_sha256":"test-pin",
+                   "catalogue_sha256":hashlib.sha256(catalogue.read_bytes()).hexdigest(),
+                   "items":1,"protocols":{"test-protocol":1},"unowned_primary_and_java_items_unchanged":True}
+        with self.assertRaisesRegex(RuntimeError, "did not become ready"):
+            launcher.verify_creative_ready(self.root)
+        ready = folder / "ready.json"
+        ready.write_text(json.dumps(receipt))
+        self.assertEqual(launcher.verify_creative_ready(self.root),receipt)
+        ready.write_text(json.dumps(dict(receipt,catalogue_sha256="stale")))
+        with self.assertRaisesRegex(RuntimeError,"does not match"):
+            launcher.verify_creative_ready(self.root)
+        ready.write_text(json.dumps(receipt))
+        (folder / "failed.json").write_text('{}')
+        with self.assertRaisesRegex(RuntimeError,"did not become ready"):
+            launcher.verify_creative_ready(self.root)
+        launcher.clear_creative_receipt(self.root)
+        self.assertFalse(ready.exists())
+        self.assertFalse((folder / "failed.json").exists())
+
+    def test_stop_during_creative_startup_is_a_clean_cancellation(self):
+        import threading
+        from types import SimpleNamespace
+        stop = threading.Event()
+        stop.set()
+        service = SimpleNamespace(process=None)
+        with self.assertRaisesRegex(InterruptedError,"Startup cancelled"):
+            launcher.wait_creative_ready(service,self.root,stop)
 
 
     def test_bedrock_pack_preserves_vanilla_armor_and_custom_wings(self):
@@ -217,7 +254,7 @@ class LauncherTests(unittest.TestCase):
                     self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
                 for slot in ("helmet", "chestplate", "leggings", "boots"):
                     self.assertNotIn(f"textures/items/{material}_{slot}.png",pack.namelist())
-            chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh19/chestplate.png"
+            chest_icon = root / "java/src/main/resources/assets/convergence/textures/item/refresh27/chestplate.png"
             for name in ("elytra", "broken_elytra"):
                 self.assertEqual(pack.read(f"textures/items/{name}.png"), chest_icon.read_bytes())
             desc = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
@@ -246,11 +283,16 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 20)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 20)
+        self.assertEqual(len(definitions), 38)
+        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 38)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
-        native_wearables={"helmet","chestplate","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
-        self.assertTrue(native_wearables.isdisjoint({entry["bedrock_identifier"].split(":")[-1] for entry in definitions}), "Native equipment assets must not be replaced by broken custom wearable definitions")
+        static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
+        mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}
+        self.assertNotIn("chestplate",mapped,"Keep the existing glider on native elytra behavior")
+        self.assertTrue(static_wearables.issubset(mapped))
+        for path in static_wearables:
+            self.assertEqual(mapped[path]["components"]["minecraft:max_stack_size"],1,"Bedrock custom wearables require max stack one")
+            self.assertIn("slot",mapped[path]["components"]["minecraft:equippable"])
         self.assertTrue(all(not entry["display_name"].startswith(("item.","block.")) for entry in definitions), "Custom mappings use literal human names")
         blocks = json.loads((exports / "infinity-blocks.json").read_text())
         self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 10)

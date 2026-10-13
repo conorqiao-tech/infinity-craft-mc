@@ -76,7 +76,7 @@ final class RewardTrades {
         CompoundTag read(ServerPlayer p) throws IOException;
     }
     static final PlayerStore VANILLA=new PlayerStore() {
-        public void save(ServerPlayer p) {p.level().getServer().getPlayerList().saveAll();}
+        public void save(ServerPlayer p) {PlayerPersistence.save(p);}
         public CompoundTag read(ServerPlayer p) throws IOException {
             Path file=p.level().getServer().getWorldPath(LevelResource.PLAYER_DATA_DIR).resolve(p.getStringUUID()+".dat");
             return NbtIo.readCompressed(file,NbtAccounter.create(64L*1024*1024));

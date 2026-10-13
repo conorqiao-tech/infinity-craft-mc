@@ -41,6 +41,7 @@ final class AgentActions {
     static final long LIFETIME_MS = 10 * 60 * 1000L;
     static final int MAX_ACTIVE_PER_OWNER = 3, MAX_ACTIVE = 16, MAX_HISTORY = 64;
     static final int MAX_BYTES = 131_072;
+    static final long MAINTENANCE_RETRY_MS = 5_000;
     static final Map<MinecraftServer, AgentActions> INSTANCES = new WeakHashMap<>();
 
     enum Action {
@@ -105,6 +106,9 @@ final class AgentActions {
     final Clock clock;
     final Consumer<String> dispatch;
     final Data data;
+    boolean maintenanceDirty;
+    long maintenanceRetryAt, maintenanceFailedAt;
+    boolean maintenanceFailureReported;
     // Entity object identity cannot survive logout, respawn, or restart. Never
     // reconstruct a target session from a persisted UUID or a reused player name.
     record TargetSession(ServerPlayer owner, ServerGamePacketListenerImpl ownerConnection,
@@ -168,7 +172,39 @@ final class AgentActions {
         try {
             if (Files.exists(file)) Files.copy(file, file.resolveSibling(file.getFileName() + ".previous"), StandardCopyOption.REPLACE_EXISTING);
             CommunityServer.atomicJson(file, data);
+            maintenanceDirty = false;
+            maintenanceRetryAt = maintenanceFailedAt = 0;
+            maintenanceFailureReported = false;
         } catch (IOException error) { throw new IllegalStateException("Could not save helper action queue. Check free disk space.", error); }
+    }
+
+    // Revocations take effect in memory immediately. Automatic lifecycle work
+    // must not crash a game tick if storage is unavailable; approvals and
+    // dispatch still use the required synchronous save above.
+    void saveMaintenance() {
+        maintenanceDirty = true;
+        flushMaintenance();
+    }
+
+    void flushMaintenance() {
+        if (!maintenanceDirty) return;
+        long now = clock.millis();
+        if (maintenanceFailureReported && now >= maintenanceFailedAt && now < maintenanceRetryAt) return;
+        try { save(); }
+        catch (IllegalStateException error) {
+            maintenanceFailedAt = now;
+            maintenanceRetryAt = now > Long.MAX_VALUE - MAINTENANCE_RETRY_MS ? Long.MAX_VALUE : now + MAINTENANCE_RETRY_MS;
+            if (!maintenanceFailureReported) {
+                System.err.println("[Infinity actions] Automatic revocations remain active in memory; their save failed and will retry in five seconds: " + error.getMessage());
+                maintenanceFailureReported = true;
+            }
+        }
+    }
+
+    void flushMaintenanceBeforeStop() {
+        if (!maintenanceDirty) return;
+        maintenanceRetryAt = Long.MIN_VALUE;
+        flushMaintenance();
     }
 
     void expire() {
@@ -182,7 +218,8 @@ final class AgentActions {
                 proposal.state = State.CANCELLED; targetSessions.remove(entry.getKey()); changed = true;
             }
         }
-        if (changed) { trimHistory(); save(); }
+        if (changed) { trimHistory(); maintenanceDirty = true; }
+        flushMaintenance();
     }
 
     void trimHistory() {
@@ -245,6 +282,7 @@ final class AgentActions {
     }
 
     int ceasefire(ServerPlayer owner) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can stop this squad.");
         AgentCompanions.get(server).ceasefire(owner);
         boolean changed = false;
@@ -264,12 +302,13 @@ final class AgentActions {
         boolean changed = false;
         for (var entry : queue.data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
+            var session = queue.targetSessions.get(entry.getKey());
             if (proposal.active() && proposal.action == Action.TARGET
-                && (proposal.owner.equals(player.getStringUUID()) || proposal.targetUuid.equals(player.getStringUUID()))) {
+                && session != null && (session.owner == player || session.target == player)) {
                 proposal.state = State.CANCELLED; queue.targetSessions.remove(entry.getKey()); changed = true;
             }
         }
-        if (changed) { queue.trimHistory(); queue.save(); }
+        if (changed) { queue.trimHistory(); queue.saveMaintenance(); }
     }
 
     static boolean localConsole(CommandSourceStack source) {
@@ -301,6 +340,7 @@ final class AgentActions {
     }
 
     int ownerApprove(ServerPlayer owner, String id) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can approve a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);
@@ -311,6 +351,7 @@ final class AgentActions {
     }
 
     int cancel(ServerPlayer owner, String id) {
+        if (server.getPlayerList().getPlayer(owner.getUUID()) != owner || owner.hasDisconnected()) return 0;
         if (!AgentCompanions.operator(owner.createCommandSourceStack())) return AgentCompanions.reply(owner, "Only an OP4 owner can cancel a helper action.");
         expire();
         Proposal proposal = data.proposals.get(id);
@@ -394,6 +435,10 @@ final class AgentActions {
 
     static void initialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(AgentActions::get);
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            AgentActions queue = INSTANCES.get(server);
+            if (queue != null) queue.flushMaintenanceBeforeStop();
+        });
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
         ServerTickEvents.END_SERVER_TICK.register(server -> { AgentActions queue = INSTANCES.get(server); if (queue != null) queue.expire(); });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> invalidatePlayer(handler.player));

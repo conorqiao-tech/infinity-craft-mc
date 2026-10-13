@@ -42,6 +42,7 @@ final class CommunityServer {
     static final int HOME_LIMIT = 3;
     static final int WARMUP = 60;
     static final int COOLDOWN = 200;
+    static final int PREPARATION_TIMEOUT = 600;
     final MinecraftServer server;
     final Path file;
     Data data;
@@ -51,6 +52,7 @@ final class CommunityServer {
     final Map<UUID, Integer> cooldowns = new HashMap<>();
     final Map<UUID, Integer> combat = new HashMap<>();
     final Map<UUID, Long> lastChat = new HashMap<>();
+    LatestStatusWriter statusWriter;
 
     record Place(String dimension, double x, double y, double z, float yaw, float pitch) {
         static Place of(ServerPlayer p) {
@@ -62,8 +64,66 @@ final class CommunityServer {
                 && Float.isFinite(yaw) && Float.isFinite(pitch);
         }
     }
-    record Pending(Place target, Place origin, int finish, UUID host) {}
-    record Request(UUID sender, int expires) {}
+    /** Runtime-only travel; neither session identities nor chunk leases enter saved data. */
+    static final class Pending implements AutoCloseable {
+        final ServerPlayer player;
+        final net.minecraft.server.network.ServerGamePacketListenerImpl connection;
+        final ServerLevel originWorld;
+        final GameModes.Mode originMode;
+        final Place target, origin;
+        final int started, finish;
+        final boolean bypass;
+        final ServerPlayer hostPlayer;
+        final net.minecraft.server.network.ServerGamePacketListenerImpl hostConnection;
+        final ServerLevel hostWorld;
+        final GameModes.Mode hostMode;
+        final FixedDestination fixed;
+        final ModeDestinations defaults;
+        boolean waitingNotice, committing, closed;
+
+        Pending(ServerPlayer player, Place target, ServerLevel destinationWorld,
+                ServerPlayer host, ModeDestinations defaults) {
+            this.player = player; connection = player.connection; originWorld = player.level();
+            originMode = GameModes.current(player); origin = Place.of(player); this.target = target;
+            started = originWorld.getServer().getTickCount(); bypass = Memberships.operator(player);
+            finish = started + (bypass ? 0 : WARMUP);
+            hostPlayer = host; hostConnection = host == null ? null : host.connection;
+            hostWorld = host == null ? null : host.level(); hostMode = host == null ? null : GameModes.current(host);
+            this.defaults = defaults;
+            fixed = defaults == null ? new FixedDestination(destinationWorld, target, !bypass) : null;
+        }
+        Place target() { return target; }
+        Place origin() { return origin; }
+        int finish() { return finish; }
+        UUID host() { return hostPlayer == null ? null : hostPlayer.getUUID(); }
+        FixedDestination.Status poll() {
+            if (fixed != null) return fixed.poll();
+            return switch (defaults.poll()) {
+                case PENDING -> FixedDestination.Status.PENDING;
+                case READY -> FixedDestination.Status.READY;
+                case FAILED -> FixedDestination.Status.FAILED;
+            };
+        }
+        Place selected() { return fixed == null ? defaults.selected() : fixed.place(); }
+        GameModes.DestinationUnavailable failure() { return fixed == null ? defaults.failure() : fixed.failure(); }
+        @Override public void close() {
+            if (closed) return;
+            closed = true;
+            if (fixed != null) fixed.close(); else defaults.close();
+        }
+    }
+    record Request(UUID sender, int expires, ServerPlayer senderPlayer,
+                   net.minecraft.server.network.ServerGamePacketListenerImpl senderConnection,
+                   ServerLevel senderWorld, GameModes.Mode senderMode, ServerPlayer targetPlayer,
+                   net.minecraft.server.network.ServerGamePacketListenerImpl targetConnection,
+                   ServerLevel targetWorld, GameModes.Mode targetMode) {
+        Request(ServerPlayer sender, ServerPlayer target, int expires) {
+            this(sender.getUUID(), expires, sender, sender.connection, sender.level(), GameModes.current(sender),
+                target, target.connection, target.level(), GameModes.current(target));
+        }
+        // An expired fixture may omit its session. An active request never may.
+        Request(UUID sender, int expires) { this(sender, expires, null, null, null, null, null, null, null, null); }
+    }
     static final class Settings {
         String name = "Infinity Armor";
         List<String> rules = new ArrayList<>(List.of("Respect other players.", "Do not grief, steal, or cheat.", "Follow staff instructions and report bugs."));
@@ -131,23 +191,29 @@ final class CommunityServer {
             } catch (Exception e) { throw new IllegalStateException("Invalid community server settings", e); }
             community.writeStatus();
         });
-        ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            var community=INSTANCES.remove(server);
+            if(community!=null) {
+                try { community.clearPending(); }
+                finally { community.requests.clear(); if(community.statusWriter!=null)community.statusWriter.close(); }
+            }
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> get(server).tick());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             var community = get(server);
             say(handler.player, "Welcome to " + community.settings.name + "! /serverhelp shows the player commands. /rules shows the rules.");
             say(handler.player, "Use /sethome to save your base, /spawn to return to the welcome area, and /tpa <player> to request a visit.");
         });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            var c = get(server); UUID id = handler.player.getUUID();
-            c.pending.remove(id); c.cooldowns.remove(id); c.combat.remove(id); c.lastChat.remove(id);
-            c.requests.remove(id); c.requests.values().removeIf(r -> r.sender.equals(id));
-        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> get(server).disconnected(handler.player));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
             if (entity instanceof ServerPlayer p && amount > 0) {
                 var c = get(p.level().getServer());
-                if (c.pending.remove(p.getUUID()) != null) say(p, "Teleport cancelled because you took damage.");
-                c.combat.put(p.getUUID(), c.server.getTickCount() + COOLDOWN);
+                if (c.currentPlayer(p)) {
+                    var travel = c.pending.get(p.getUUID());
+                    if (travel != null && travel.player == p && !travel.bypass && c.cancelPending(p))
+                        say(p, "Teleport cancelled because you took damage.");
+                    c.combat.put(p.getUUID(), c.server.getTickCount() + COOLDOWN);
+                }
             }
             return true;
         });
@@ -214,7 +280,15 @@ final class CommunityServer {
     int home(ServerPlayer p, String name) { return queue(p, homes(p).get(name), null); }
     int spawn(ServerPlayer p) {
         if (GameModes.current(p) == GameModes.Mode.HUB) return LobbyServer.arrive(p,"main");
-        if (GameModes.current(p) != GameModes.Mode.SURVIVAL) return queue(p, GameModes.defaultPlace(server, GameModes.current(p)), null);
+        if (GameModes.current(p) != GameModes.Mode.SURVIVAL) {
+            // Reject gameplay gates before acquiring any default-search leases.
+            var destination = GameModes.world(server, GameModes.current(p));
+            if (!queueAllowed(p, destination)) return 0;
+            try {
+                var defaults = GameModes.prepareDefault(server, GameModes.current(p));
+                return install(new Pending(p, null, destination, null, defaults));
+            } catch(GameModes.DestinationUnavailable unavailable) {return say(p,unavailable.getMessage());}
+        }
         Place spawn = data.spawn;
         if (spawn == null) {
             var point = server.getRespawnData(); var pos = point.pos();
@@ -242,44 +316,194 @@ final class CommunityServer {
     }
     ServerLevel world(Place place) { return place == null || !place.valid() ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, Identifier.parse(place.dimension))); }
     int queue(ServerPlayer p, Place place, UUID host) {
+        if (!currentPlayer(p)) return 0;
         if (place == null) return say(p, "That location is not set. Ask staff or use /sethome.");
-        if (Memberships.operator(p)) {
-            var destination=world(place);if(destination==null)return say(p,"That destination is invalid or its world is missing.");
-            pending.remove(p.getUUID());GameModes.PENDING.remove(p.getUUID());p.stopRiding();
-            if(p.teleportTo(destination,place.x,place.y,place.z,Set.of(),place.yaw,place.pitch,true)) {
-                p.fallDistance=0;p.setDeltaMovement(Vec3.ZERO);return say(p,"Teleported with OP access.");
-            }
-            return say(p,"Teleport could not complete.");
+        var destination = world(place);
+        if (!queueAllowed(p, destination)) return 0;
+        var hostPlayer = host == null ? null : server.getPlayerList().getPlayer(host);
+        if (host != null && (hostPlayer == null || !currentPlayer(hostPlayer) || !hostPlayer.isAlive() || hostPlayer.isSpectator()))
+            return say(p, "Teleport cancelled: the accepted host is no longer available.");
+        return install(new Pending(p, place, destination, hostPlayer, null));
+    }
+    private boolean queueAllowed(ServerPlayer p, ServerLevel destination) {
+        if (!currentPlayer(p)) return false;
+        if (destination == null) { say(p, "That destination is invalid or its world is missing."); return false; }
+        var previous = pending.get(p.getUUID());
+        if (previous != null && previous.player == p && previous.committing) {
+            say(p, "Finish your current teleport first."); return false;
         }
-        if (GameModes.current(p) == GameModes.Mode.HUB) return say(p, "Use /lobbies or /play from the Hub.");
-        if (GameModes.current(p) == GameModes.Mode.MINIGAMES || GameModes.current(p) == GameModes.Mode.ADVENTURE) return say(p, "Use /retry <map> or /play to leave the map.");
-        if (world(place) == null || !GameModes.allowTeleport(p, world(place))) return say(p, "Use /play to switch modes first. Inventories stay separate.");
-        if (p.isSpectator() || !p.isAlive() || p.isPassenger()) return say(p, "You must be alive, outside spectator mode, and off a vehicle to teleport.");
-        if (pending.containsKey(p.getUUID())) return say(p, "A teleport is already counting down.");
-        if (cooldowns.getOrDefault(p.getUUID(), 0) > server.getTickCount() || combat.getOrDefault(p.getUUID(), 0) > server.getTickCount()) return say(p, "Wait 10 seconds after your last teleport or damage before teleporting.");
-        var world = world(place);
-        if (world == null || !safe(world, place)) return say(p, "That destination is unsafe, blocked, or outside the world border. Ask its owner to reset it.");
-        pending.put(p.getUUID(), new Pending(place, Place.of(p), server.getTickCount() + WARMUP, host));
-        return say(p, "Teleporting in 3 seconds. Stay still; taking damage cancels it.");
+        if (Memberships.operator(p)) return true;
+        if (GameModes.current(p) == GameModes.Mode.HUB) { say(p, "Use /lobbies or /play from the Hub."); return false; }
+        if (GameModes.current(p) == GameModes.Mode.MINIGAMES || GameModes.current(p) == GameModes.Mode.ADVENTURE) {
+            say(p, "Use /retry <map> or /play to leave the map."); return false;
+        }
+        if (!GameModes.allowTeleport(p, destination)) {
+            say(p, "Use /play to switch modes first. Inventories stay separate."); return false;
+        }
+        if (p.isSpectator() || !p.isAlive() || p.isPassenger()) {
+            say(p, "You must be alive, outside spectator mode, and off a vehicle to teleport."); return false;
+        }
+        if (previous != null && previous.player == p) { say(p, "A teleport is already counting down or preparing its destination."); return false; }
+        if (cooldowns.getOrDefault(p.getUUID(), 0) > server.getTickCount() || combat.getOrDefault(p.getUUID(), 0) > server.getTickCount()) {
+            say(p, "Wait 10 seconds after your last teleport or damage before teleporting."); return false;
+        }
+        return true;
+    }
+    private int install(Pending travel) {
+        try {
+            // Warm invalid terrain is rejected before replacing any active travel.
+            var initialReadiness = travel.poll();
+            if (initialReadiness == FixedDestination.Status.FAILED) {
+                var problem = travel.failure(); travel.close(); return say(travel.player, problem.getMessage());
+            }
+            var previous = pending.remove(travel.player.getUUID());
+            if (previous != null) previous.close();
+            GameModes.cancelPending(travel.player); LobbyServer.cancelArrival(travel.player);
+            pending.put(travel.player.getUUID(), travel);
+            if (!travel.bypass) say(travel.player, "Teleporting in 3 seconds. Stay still; taking damage cancels it.");
+            pollPending(travel, initialReadiness);
+            return 1;
+        } catch (RuntimeException | Error problem) {
+            pending.remove(travel.player.getUUID(), travel);
+            try { travel.close(); } catch (RuntimeException | Error cleanup) { problem.addSuppressed(cleanup); }
+            throw problem;
+        }
+    }
+    private boolean currentPlayer(ServerPlayer p) {
+        return p != null && server.getPlayerList().getPlayer(p.getUUID()) == p
+            && p.connection != null && p.connection.isAcceptingMessages() && !p.isRemoved();
+    }
+    private boolean sameSession(ServerPlayer p, net.minecraft.server.network.ServerGamePacketListenerImpl connection,
+                                ServerLevel world, GameModes.Mode mode) {
+        return currentPlayer(p) && p.connection == connection && p.level() == world && GameModes.current(p) == mode;
+    }
+    private boolean requestCurrent(Request request) {
+        return request.expires > server.getTickCount()
+            && sameSession(request.senderPlayer, request.senderConnection, request.senderWorld, request.senderMode)
+            && sameSession(request.targetPlayer, request.targetConnection, request.targetWorld, request.targetMode);
+    }
+    boolean cancelPending(ServerPlayer p) {
+        var travel = pending.get(p.getUUID());
+        // A stale disconnect and our own native teleport hook must not retire a current commit.
+        if (travel == null || travel.player != p || travel.committing) return false;
+        if (!pending.remove(p.getUUID(), travel)) return false;
+        travel.close(); return true;
+    }
+    void cancelRequests(ServerPlayer p) {
+        requests.values().removeIf(request -> request.senderPlayer == p || request.targetPlayer == p);
+        for (var travel : new ArrayList<>(pending.values())) if (travel.hostPlayer == p && !travel.committing)
+            finish(travel, "Teleport cancelled: the accepted host left or changed worlds.");
+    }
+    void disconnected(ServerPlayer p) {
+        cancelPending(p); cancelRequests(p);
+        var joined = server.getPlayerList().getPlayer(p.getUUID());
+        if (joined != null && joined != p) return;
+        cooldowns.remove(p.getUUID()); combat.remove(p.getUUID()); lastChat.remove(p.getUUID());
+    }
+    void clearPending() {
+        var old = new ArrayList<>(pending.values()); pending.clear();
+        Throwable failure = null;
+        for (var travel : old) try { travel.close(); }
+        catch (RuntimeException | Error problem) {
+            if (failure == null) failure = problem; else failure.addSuppressed(problem);
+        }
+        if (failure instanceof RuntimeException runtime) throw runtime;
+        if (failure instanceof Error error) throw error;
+    }
+    private void finish(Pending travel, String problem) {
+        if (!pending.remove(travel.player.getUUID(), travel)) return;
+        travel.close();
+        if (problem != null && currentPlayer(travel.player)) say(travel.player, problem);
+    }
+    private void pollPending(Pending travel) {
+        pollPending(travel, null);
+    }
+    private void pollPending(Pending travel, FixedDestination.Status initialReadiness) {
+        if (pending.get(travel.player.getUUID()) != travel || travel.closed || travel.committing) return;
+        var p = travel.player;
+        if (!sameSession(p, travel.connection, travel.originWorld, travel.originMode) || !p.isAlive()) {
+            finish(travel, "Teleport cancelled because your player session or world changed."); return;
+        }
+        if (travel.bypass && !Memberships.operator(p)) {
+            finish(travel, "Teleport cancelled because OP access was removed."); return;
+        }
+        var destination = travel.fixed == null ? GameModes.world(server, travel.originMode) : world(travel.target);
+        if (destination == null || !GameModes.allowTeleport(p, destination)) {
+            finish(travel, "Teleport cancelled: use /play to switch modes first. Inventories stay separate."); return;
+        }
+        if (!travel.bypass && (p.isSpectator() || p.isPassenger() || moved(travel.origin, p)
+            || combat.getOrDefault(p.getUUID(), 0) > server.getTickCount()
+            || cooldowns.getOrDefault(p.getUUID(), 0) > server.getTickCount())) {
+            finish(travel, "Teleport cancelled because you moved or can no longer teleport."); return;
+        }
+        if (travel.hostPlayer != null && (!sameSession(travel.hostPlayer, travel.hostConnection, travel.hostWorld, travel.hostMode)
+            || !travel.hostPlayer.isAlive() || travel.hostPlayer.isSpectator())) {
+            finish(travel, "Teleport cancelled: the accepted host left or changed worlds."); return;
+        }
+        if (server.getTickCount() - travel.started >= PREPARATION_TIMEOUT) {
+            finish(travel, "The destination is taking too long to prepare. Your position and inventory are unchanged; try again later."); return;
+        }
+        FixedDestination.Status readiness;
+        try { readiness = initialReadiness == null ? travel.poll() : initialReadiness; }
+        catch (RuntimeException | Error problem) {
+            pending.remove(p.getUUID(), travel);
+            try { travel.close(); } catch (RuntimeException | Error cleanup) { problem.addSuppressed(cleanup); }
+            throw problem;
+        }
+        if (readiness == FixedDestination.Status.FAILED) { finish(travel, travel.failure().getMessage()); return; }
+        if (server.getTickCount() < travel.finish) return;
+        if (readiness == FixedDestination.Status.PENDING) {
+            if (!travel.waitingNotice) {
+                travel.waitingNotice = true;
+                say(p, "Preparing your destination. " + (travel.bypass ? "Your" : "Stay still; your") + " current world and inventory remain active.");
+            }
+            return;
+        }
+        var target = travel.selected();
+        destination = world(target);
+        if (destination == null || !GameModes.allowTeleport(p, destination)) {
+            finish(travel, "Teleport cancelled: the prepared destination is no longer available."); return;
+        }
+        travel.committing = true;
+        boolean success = false;
+        try {
+            if (travel.bypass) p.stopRiding();
+            success = p.teleportTo(destination, target.x, target.y, target.z, Set.of(), target.yaw, target.pitch, true);
+            if (success && travel.defaults != null) GameModes.rememberDefault(server, travel.originMode, travel.defaults);
+        } finally { travel.committing = false; finish(travel, null); }
+        if (!currentPlayer(p) || p.connection != travel.connection) return;
+        if (!success) { say(p, "Teleport could not complete. Your current mode and items remain active."); return; }
+        p.fallDistance = 0; p.setDeltaMovement(Vec3.ZERO);
+        if (!travel.bypass) cooldowns.put(p.getUUID(), server.getTickCount() + COOLDOWN);
+        say(p, travel.bypass ? "Teleported with OP access." : "Teleported.");
     }
     int request(ServerPlayer sender, ServerPlayer target) {
+        if (!currentPlayer(sender) || !currentPlayer(target)) return 0;
+        requests.values().removeIf(request -> !requestCurrent(request));
         if (!Memberships.operator(sender)&&GameModes.current(sender) != GameModes.current(target)) return say(sender, "Choose a player in the same game mode, or use /play first.");
         if (sender == target || sender.getUUID().equals(target.getUUID())) return say(sender, "Choose another player.");
         if (!Memberships.operator(sender)&&(sender.isSpectator() || !sender.isAlive())) return say(sender, "You cannot request a teleport now.");
         if (requests.values().stream().anyMatch(r -> r.sender.equals(sender.getUUID()) && r.expires > server.getTickCount())) return say(sender, "Your previous request is still waiting (up to 30 seconds).");
         Request previous = requests.get(target.getUUID());
         if (previous != null && previous.expires > server.getTickCount()) return say(sender, "That player already has a pending request. Try again shortly.");
-        requests.put(target.getUUID(), new Request(sender.getUUID(), server.getTickCount() + 600));
+        requests.put(target.getUUID(), new Request(sender, target, server.getTickCount() + 600));
         say(target, sender.getScoreboardName() + " wants to visit you. /tpaccept or /tpdeny within 30 seconds.");
         return say(sender, "Request sent. Nothing moves until they accept.");
     }
     int answer(ServerPlayer target, boolean accept) {
-        Request request = requests.remove(target.getUUID());
-        if (request == null || request.expires <= server.getTickCount()) return say(target, "No unexpired request.");
-        ServerPlayer sender = server.getPlayerList().getPlayer(request.sender);
-        if (sender == null) return say(target, "That player left the server.");
+        if (!currentPlayer(target)) return 0;
+        Request request = requests.get(target.getUUID());
+        if (request == null) return say(target, "No unexpired request.");
+        if (!requestCurrent(request)) {
+            requests.remove(target.getUUID(), request);
+            return say(target, "No unexpired request from the same player sessions and worlds.");
+        }
+        if (request.targetPlayer != target || request.targetConnection != target.connection) return 0;
+        requests.remove(target.getUUID(), request);
+        ServerPlayer sender = request.senderPlayer;
         if (!accept || !target.isAlive() || target.isSpectator()) { say(sender, "Teleport request declined."); return say(target, "Request declined."); }
-        say(target, Memberships.gameplayBypass(sender)?"Request accepted. The Admin/OP visitor teleports immediately if the destination is valid.":"Request accepted. The visitor starts a 3-second countdown to your current location.");
+        say(target, Memberships.gameplayBypass(sender)?"Request accepted. The Admin/OP visitor has no countdown; cold terrain may need preparation.":"Request accepted. The visitor starts a 3-second countdown to your current location.");
+        // Consent freezes this exact address; later host movement never retargets it.
         return queue(sender, Place.of(target), target.getUUID());
     }
     boolean allowChat(ServerPlayer player) {
@@ -294,29 +518,19 @@ final class CommunityServer {
             || new Vec3(origin.x, origin.y, origin.z).distanceToSqr(player.position()) > .04;
     }
     void tick() {
-        var iterator = pending.entrySet().iterator();
-        while (iterator.hasNext()) {
-            var entry = iterator.next(); var p = server.getPlayerList().getPlayer(entry.getKey()); var pending = entry.getValue();
-            if (p == null) { iterator.remove(); continue; }
-            if (!p.isAlive() || p.isSpectator() || p.isPassenger() || moved(pending.origin, p)) { iterator.remove(); say(p, "Teleport cancelled because you moved or can no longer teleport."); continue; }
-            if (pending.host != null && server.getPlayerList().getPlayer(pending.host) == null) { iterator.remove(); say(p, "Teleport cancelled: the host left."); continue; }
-            if (server.getTickCount() < pending.finish) continue;
-            iterator.remove(); var world = world(pending.target);
-            if (world == null || !safe(world, pending.target)) { say(p, "Teleport cancelled: the destination became unsafe."); continue; }
-            Place target = pending.target;
-            if (p.teleportTo(world, target.x, target.y, target.z, Set.of(), target.yaw, target.pitch, true)) {
-                p.fallDistance = 0; p.setDeltaMovement(Vec3.ZERO); cooldowns.put(p.getUUID(), server.getTickCount() + COOLDOWN); say(p, "Teleported.");
-            }
-        }
-        requests.values().removeIf(request -> request.expires <= server.getTickCount());
+        // Native teleport hooks can cancel other jobs; never iterate the live map.
+        for (var travel : new ArrayList<>(pending.values())) pollPending(travel);
+        requests.values().removeIf(request -> !requestCurrent(request));
         if (server.getTickCount() % 100 == 0) writeStatus();
     }
     void writeStatus() {
-        try {
-            atomicJson(server.getServerDirectory().resolve("community-status.json"), Map.of("updated", System.currentTimeMillis(),
-                "players", server.getPlayerList().getPlayers().stream().map(p -> Map.of("name", p.getScoreboardName(), "uuid", p.getStringUUID(), "mode", GameModes.current(p).name(), "rank", Memberships.get(server).label(p.getUUID()))).toList(),
-                "tick_ms", server.getAverageTickTimeNanos() / 1_000_000.0));
-        } catch (IOException e) { System.err.println("[Infinity] Could not update the host panel: " + e.getMessage()); }
+        // All game objects are read here. The writer receives only immutable values.
+        var snapshot=new LatestStatusWriter.Snapshot(System.currentTimeMillis(),
+            server.getPlayerList().getPlayers().stream().map(p -> new LatestStatusWriter.Player(
+                p.getScoreboardName(),p.getStringUUID(),GameModes.current(p).name(),Memberships.get(server).label(p.getUUID()))).toList(),
+            server.getAverageTickTimeNanos()/1_000_000.0);
+        if(statusWriter==null)statusWriter=new LatestStatusWriter(server.getServerDirectory().resolve("community-status.json"));
+        statusWriter.submit(snapshot);
     }
     int buildSpawn(ServerPlayer p) {
         if (!p.level().dimension().equals(net.minecraft.world.level.Level.OVERWORLD)) return say(p, "Build the welcome plaza in the Overworld.");

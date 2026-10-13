@@ -52,29 +52,46 @@ public class CommunityGameTests {
         c.assertFalse(new CommunityServer.Place("minecraft:overworld", Double.NaN, 70, 0, 0, 0).valid(), "NaN rejected");
         c.succeed();
     }
+    private void warmExact(net.minecraft.server.level.ServerLevel world, CommunityServer.Place place) {
+        // These legacy immediate assertions deliberately use real warm FULL
+        // collision terrain. The separate command suite physically unloads it.
+        int minX=(net.minecraft.util.Mth.floor(place.x()-.3-1.0E-7)-1)>>4;
+        int maxX=(net.minecraft.util.Mth.floor(place.x()+.3+1.0E-7)+1)>>4;
+        int minZ=(net.minecraft.util.Mth.floor(place.z()-.3-1.0E-7)-1)>>4;
+        int maxZ=(net.minecraft.util.Mth.floor(place.z()+.3+1.0E-7)+1)>>4;
+        for(int x=minX;x<=maxX;x++)for(int z=minZ;z<=maxZ;z++)world.getChunk(x,z);
+    }
     @GameTest public void communityRequestsNeedConsentAndExpire(GameTestHelper c) {
         var s = fresh(c); var visitor = player(c, "visitor", 2); var host = player(c, "host", 5);
+        warmExact(c.getLevel(),CommunityServer.Place.of(host));
         s.request(visitor, host);
         c.assertTrue(s.pending.isEmpty(), "Request alone never teleports");
         s.answer(host, false); c.assertTrue(s.pending.isEmpty(), "Denial never teleports");
         s.request(visitor, host); s.answer(host, true);
         c.assertTrue(s.pending.containsKey(visitor.getUUID()), "Consent queues the visitor");
         c.assertValueEqual(s.pending.get(visitor.getUUID()).host(), host.getUUID(), "Accepted host tracked");
-        s.pending.clear(); s.requests.put(host.getUUID(), new CommunityServer.Request(visitor.getUUID(), c.getLevel().getServer().getTickCount() - 1));
+        s.clearPending(); s.requests.put(host.getUUID(), new CommunityServer.Request(visitor.getUUID(), c.getLevel().getServer().getTickCount() - 1));
         s.answer(host, true); c.assertTrue(s.pending.isEmpty(), "Expired requests cannot be accepted"); c.succeed();
     }
-    @GameTest public void communityTeleportMovementCancellationAndCompletion(GameTestHelper c) {
+    @GameTest(maxTicks=200) public void communityTeleportMovementCancellationAndCompletion(GameTestHelper c) {
         var s = fresh(c); var p = player(c, "traveler", 2); var target = player(c, "destination", 5);
         var destination = CommunityServer.Place.of(target);
+        warmExact(c.getLevel(),destination);
         s.queue(p, destination, null); p.setPos(p.getX() + 1, p.getY(), p.getZ()); s.tick();
         c.assertTrue(s.pending.isEmpty(), "Movement cancels countdown");
         s.queue(p, destination, null);
         var pending = s.pending.get(p.getUUID());
         c.assertTrue(pending != null, "New countdown can start after movement cancellation");
-        s.pending.put(p.getUUID(), new CommunityServer.Pending(destination, pending.origin(), c.getLevel().getServer().getTickCount(), null));
-        s.tick();
-        c.assertTrue(p.position().distanceToSqr(target.position()) < .01, "Real server teleport reaches destination");
-        s.queue(p, destination, null); c.assertTrue(s.pending.isEmpty(), "Cooldown prevents immediate repeat"); c.succeed();
+        c.assertValueEqual(pending.finish()-s.server.getTickCount(),CommunityServer.WARMUP,"The ordinary countdown retains all 60 native ticks");
+        c.runAfterDelay(61,()->{
+            try {
+                s.tick();
+                c.assertTrue(s.pending.isEmpty(),"Completed countdown releases its job");
+                c.assertTrue(p.position().distanceToSqr(target.position()) < .01, "Real server teleport reaches destination");
+                s.queue(p, destination, null); c.assertTrue(s.pending.isEmpty(), "Cooldown prevents immediate repeat");
+                c.succeed();
+            } finally {s.clearPending();}
+        });
     }
     @GameTest public void communityStaffCommandsAreRestricted(GameTestHelper c) {
         var source = c.getLevel().getServer().createCommandSourceStack().withPermission(PermissionSet.NO_PERMISSIONS);

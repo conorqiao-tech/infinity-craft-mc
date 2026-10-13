@@ -21,6 +21,26 @@ import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.Vec3;
 
 public class MinigameGameTests {
+    @GameTest public void failedNativeTeleportKeepsCourseSelectionRunFoodAndSave(GameTestHelper c) throws Exception {
+        var p=player(c,"course-failure","parkour");var server=p.level().getServer();
+        try {
+            p.getFoodData().setFoodLevel(9);p.getFoodData().setSaturation(2);
+            PlayerPersistence.save(p);
+            var file=GameModes.savedPlayerFile(server,p.getUUID());var saved=Files.readAllBytes(file);
+            var before=GameModes.state(p).copy();var run=ModeMaps.RUNS.get(p.getUUID());var origin=p.position();
+            // Pinned native ServerPlayer.teleport returns null for a removed entity.
+            // Exercise that real refusal instead of faking a successful course start.
+            p.remove(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_WITH_PLAYER);
+            ModeMaps.begin(p,"redlight");
+            c.assertValueEqual(GameModes.state(p),before,"A refused native teleport does not save another course selection");
+            c.assertTrue(ModeMaps.RUNS.get(p.getUUID())==run,"The prior run is retained");
+            c.assertValueEqual(p.position(),origin,"The refused teleport leaves the position unchanged");
+            c.assertValueEqual(p.getFoodData().getFoodLevel(),9,"Failure does not reset food");
+            c.assertValueEqual(p.getFoodData().getSaturationLevel(),2f,"Failure does not reset saturation");
+            c.assertTrue(java.util.Arrays.equals(saved,Files.readAllBytes(file)),"Failure never rewrites the native player save");
+        } finally {ModeMaps.RUNS.remove(p.getUUID());server.getPlayerList().remove(p);}
+        c.succeed();
+    }
     private ServerPlayer player(GameTestHelper c,String name,String map) {
         var p=new ModeGameTests().player(c,name);
         GameModes.switchNow(p,GameModes.Mode.MINIGAMES,map);
@@ -375,6 +395,24 @@ public class MinigameGameTests {
             c.assertTrue(root.getChild("best")!=null,"Personal best command registered");
             for(String id:MinigameRecords.MAP_IDS)c.assertTrue(root.getChild("leaderboard").getChild(id)!=null,"Leaderboard command for "+id);
         } finally {cleanup(p);}c.succeed();
+    }
+    @GameTest public void unchangedScoreRetriesAfterTransientLeaderboardWriteFailure(GameTestHelper c) throws Exception {
+        var p=new ModeGameTests().player(c,"records-recovery");
+        try {
+            var directory=Files.createTempDirectory("infinity-records-retry-");var blocked=directory.resolve("store");
+            Files.writeString(blocked,"temporary storage failure");
+            var records=new MinigameRecords(blocked.resolve("records.json"));
+            var scores=GameModes.state(p).getCompoundOrEmpty("scores");scores.putLong("sprint",2450);GameModes.state(p).put("scores",scores);
+            boolean failed=false;try{records.syncPlayer(p);}catch(IllegalStateException expected){failed=true;}
+            c.assertTrue(failed,"Actual filesystem obstruction fails the first write");
+            c.assertTrue(records.dirty,"An unsuccessful save keeps the public index dirty");
+            c.assertValueEqual(Files.readString(blocked),"temporary storage failure","Failure does not destroy the obstructing file");
+            Files.delete(blocked);Files.createDirectory(blocked);
+            records.syncPlayer(p);
+            c.assertFalse(records.dirty,"Successful retry clears the dirty flag");
+            c.assertValueEqual(new MinigameRecords(records.file).boards.get("sprint").get(p.getUUID()).millis(),2450L,"Same unchanged score is durably retried after storage recovers");
+        }finally{p.level().getServer().getPlayerList().remove(p);}
+        c.succeed();
     }
     @GameTest public void leaderboardSortsTiesAndRejectsCorruptDataWithoutOverwriting(GameTestHelper c) {
         try {

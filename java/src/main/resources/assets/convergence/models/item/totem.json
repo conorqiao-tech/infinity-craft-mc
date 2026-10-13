@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/refresh19/totem"
+    "layer0": "convergence:item/refresh27/totem"
   }
 }

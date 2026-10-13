@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "convergence:chestplate"
+    "convergence:chestplate",
+    "convergence:cuirass"
   ]
 }

@@ -51,3 +51,8 @@ Convergence and Aurora each have a new original 128×64 humanoid/leggings atlas,
 ## explore.20 native Bedrock armor routing
 
 The existing original refresh19 armor and icon PNGs are now also selected through native netherite/leather/elytra resource paths. No new third-party texture art is copied. Native dyed-leather rendering is retained. The elytra attachable references Minecraft's built-in wing/chest geometry, materials and flight animations, following [Mojang's native elytra example](https://github.com/Mojang/bedrock-samples/blob/main/resource_pack/attachables/elytra.json). The original files and texture checksum manifest remain unchanged.
+
+
+## explore.27 original collection artwork
+
+Four complete humanoid armor/backpack atlases, fresh registered gear sprites and all ten Infinity block tiles are mechanically packed from new built-in image generation artwork. No vanilla PNG was used as a source. The source atlas includes 42 motifs; 36 are registered gear icons and six are supplemental Studio art without new gameplay implementations. Original supplied PNGs and checksums remain unchanged. See `artwork/refresh27/README.md` and its UV/hash manifest. Static Bedrock armor selects custom identifiers; normal leather/netherite are not overridden. The established native elytra animation/geometry and shared wing artwork are retained.

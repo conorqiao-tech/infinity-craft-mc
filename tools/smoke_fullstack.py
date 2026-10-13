@@ -83,6 +83,9 @@ def main():
                 client.settimeout(5);client.sendto(packet,('127.0.0.1',bedrock_port));data,_=client.recvfrom(4096)
             assert data[0]==0x1c
             assert (root/'fabric/crossplay-export/infinity-items.json').is_file()
+            creative = launcher.verify_creative_ready(root)
+            assert creative['items'] == 46
+            print('Full-stack Infinity Creative catalogue ready, run', attempt + 1)
             assert (root/'fabric/world/infinity-built-in-maps.json').is_file()
             assert (root/'fabric/world/infinity-built-in-lobbies.json').is_file()
             # A saved hub is loaded lazily on a real player's first join. Startup

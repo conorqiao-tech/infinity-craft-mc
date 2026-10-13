@@ -366,6 +366,9 @@ class EasySetupTests(unittest.TestCase):
         ]
         with patch.object(dashboard.pinggy_joining, "tunnels", return_value=[{"privateToken": "never-return-this"}]), \
              patch.object(dashboard.pinggy_joining, "public_status", return_value=public):
+            panel.snapshot()
+            panel.status_worker.join(2)
+            self.assertFalse(panel.status_worker.is_alive())
             status = panel.snapshot()
         self.assertEqual(status["remote_joining"]["tunnels"], public)
         self.assertTrue(status["remote_joining"]["available"])
@@ -373,6 +376,9 @@ class EasySetupTests(unittest.TestCase):
         self.assertNotIn("never-return-this", json.dumps(status))
         panel.remote_checked = 0
         with patch.object(dashboard.pinggy_joining, "tunnels", side_effect=RuntimeError("private agent diagnostic")):
+            panel.snapshot()
+            panel.status_worker.join(2)
+            self.assertFalse(panel.status_worker.is_alive())
             unavailable = panel.snapshot()
         self.assertFalse(unavailable["remote_joining"]["available"])
         self.assertEqual(unavailable["remote_joining"]["tunnels"], [])
@@ -398,6 +404,9 @@ class EasySetupTests(unittest.TestCase):
         try:
             with patch.object(dashboard.pinggy_joining, "tunnels", return_value=[]), \
                  patch.object(dashboard.pinggy_joining, "public_status", return_value=public) as sanitize:
+                panel.snapshot()
+                panel.status_worker.join(2)
+                self.assertFalse(panel.status_worker.is_alive())
                 with self.assertRaises(urllib.error.HTTPError) as denied:
                     urllib.request.urlopen(origin + "/api/friend-guide", timeout=3)
                 self.assertEqual(denied.exception.code, 403)
@@ -409,6 +418,9 @@ class EasySetupTests(unittest.TestCase):
                     self.assertTrue(json.load(response)["friend_guide"]["available"])
                 sanitize.return_value = [public[0], {**public[1], "address": {"host": "new.example.test", "port": 60913}}]
                 panel.remote_checked = 0
+                panel.snapshot()
+                panel.status_worker.join(2)
+                self.assertFalse(panel.status_worker.is_alive())
                 with self.assertRaises(urllib.error.HTTPError) as stale:
                     urllib.request.urlopen(request, timeout=3)
                 self.assertEqual(stale.exception.code, 404)

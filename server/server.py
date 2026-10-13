@@ -179,33 +179,93 @@ class Service:
         self.join_rules = join_rules
         self.send_lock = threading.Lock()
         self.ready = threading.Event()
-        self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
-            start_new_session=(os.name != "nt"))
+        self.failed_sinks = set()
         self.log = (cwd / "launcher.log").open("w", encoding="utf-8")
-        self.thread = threading.Thread(target=self.read_output, args=(ready_text,), daemon=True)
-        self.thread.start()
+        self.process = None
+        try:
+            self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
+                start_new_session=(os.name != "nt"))
+            self.thread = threading.Thread(target=self.read_output, args=(ready_text,), daemon=True)
+            self.thread.start()
+        except BaseException:
+            try:
+                if self.process is not None:
+                    if self.process.poll() is None:
+                        self.process.terminate()
+                    try:
+                        self.process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+                        self.process.wait(timeout=10)
+            finally:
+                if self.process is not None:
+                    for stream in (self.process.stdin, self.process.stdout):
+                        if stream is not None:
+                            try:
+                                stream.close()
+                            except OSError:
+                                pass
+                try:
+                    self.log.close()
+                except OSError:
+                    pass
+            raise
+
+    def _deliver_output(self, message, log_line=None):
+        """Keep a broken optional sink from abandoning the child's stdout pipe."""
+        failures = []
+        sinks = (("file", lambda: (self.log.write(log_line), self.log.flush())),
+                 ("terminal", lambda: print(message, flush=True)),
+                 ("panel", lambda: OUTPUT(message)))
+        for name, write in sinks:
+            if name in self.failed_sinks or (name == "file" and log_line is None) or (name == "panel" and not OUTPUT):
+                continue
+            try:
+                write()
+            except Exception:
+                self.failed_sinks.add(name)
+                failures.append(name)
+        return failures
+
+    def _publish_output(self, message, log_line=None):
+        failures = self._deliver_output(message, log_line)
+        while failures:
+            name = failures.pop(0)
+            diagnostic = "[" + self.name + "] " + name.capitalize() + " logging failed; continuing to drain server output."
+            # Mark failed sinks before reporting, and handle another diagnostic
+            # sink failure iteratively rather than recursively.
+            failures.extend(self._deliver_output(diagnostic, diagnostic + "\n"))
 
     def read_output(self, ready_text):
         try:
             for line in self.process.stdout:
-                self.log.write(line)
-                self.log.flush()
-                emit("[" + self.name + "] " + line.rstrip())
                 if ready_text in line:
                     self.ready.set()
+                self._publish_output("[" + self.name + "] " + line.rstrip(), line)
                 if self.join_rules:
                     try:
                         command = self.join_rules.command_for(line)
                         if command and self.send(command):
                             self.join_rules.mark_sent(command)
-                            emit("[Owner rule] Exact joined account ban requested.")
+                            self._publish_output("[Owner rule] Exact joined account ban requested.")
                     except Exception:
                         # Keep draining Java output even if a guard or pipe
                         # fails; a blocked stdout pipe can stall the server.
-                        emit("[Owner rule] Ban could not be sent; check the server console.")
+                        self._publish_output("[Owner rule] Ban could not be sent; check the server console.")
         finally:
-            self.log.close()
+            try:
+                self.log.close()
+            except Exception:
+                if "file" not in self.failed_sinks:
+                    self.failed_sinks.add("file")
+                    self._publish_output("[" + self.name + "] File logging failed; continuing to drain server output.")
+            # The reader owns stdout closure so stopping cannot close a pipe
+            # while this thread is still consuming the child's final output.
+            try:
+                self.process.stdout.close()
+            except OSError:
+                pass
 
     def wait_ready(self, timeout=300, cancel=None):
         deadline = time.monotonic() + timeout
@@ -226,19 +286,29 @@ class Service:
         return False
 
     def stop(self):
-        if self.process.poll() is not None:
-            return
         try:
-            self.send(self.stop_command)
-            self.process.wait(timeout=45)
-        except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
-            if self.process.poll() is None:
-                self.process.terminate()
+            if self.process.poll() is not None:
+                return
+            try:
+                self.send(self.stop_command)
+                self.process.wait(timeout=45)
+            except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
+                if self.process.poll() is None:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()
+                        self.process.wait(timeout=10)
+        finally:
+            if self.process.poll() is not None:
                 try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait()
+                    with self.send_lock:
+                        self.process.stdin.close()
+                except OSError:
+                    pass
+                if threading.current_thread() is not self.thread:
+                    self.thread.join(timeout=5)
 
 
 def copy_bridge_data(root=ROOT):
@@ -248,12 +318,57 @@ def copy_bridge_data(root=ROOT):
         if not file.is_file():
             raise RuntimeError("Fabric did not export " + name + "; check that the crossplay mod loaded.")
         shutil.copy2(file, root / "geyser/custom_mappings" / name)
+    catalogue = source / "infinity-catalogue.json"
+    if not catalogue.is_file():
+        raise RuntimeError("Fabric did not export infinity-catalogue.json; check that the crossplay mod loaded.")
+    shutil.copy2(catalogue, root / "geyser/infinity-catalogue.json")
     key = root / "fabric/config/floodgate/key.pem"
     if not key.is_file():
         raise RuntimeError("Floodgate did not generate its key. See fabric/launcher.log.")
     destination = root / "geyser/key.pem"
     shutil.copy2(key, destination)
     destination.chmod(0o600)
+
+
+def clear_creative_receipt(root=ROOT):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    for name in ("ready.json", "failed.json"):
+        (folder / name).unlink(missing_ok=True)
+
+
+def verify_creative_ready(root=ROOT):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    ready = folder / "ready.json"
+    if (folder / "failed.json").exists() or not ready.is_file() or ready.stat().st_size > 4_194_304:
+        raise RuntimeError("Infinity Creative catalogue did not become ready; see geyser/launcher.log.")
+    with ready.open("rb") as stream:
+        body = stream.read(4_194_305)
+    if len(body) > 4_194_304:
+        raise RuntimeError("Infinity Creative readiness receipt is oversized.")
+    receipt = json.loads(body)
+    lock = json.loads((root / "dependencies.lock.json").read_text())
+    catalogue = root / "geyser/infinity-catalogue.json"
+    expected_count = len(json.loads(catalogue.read_text())["items"])
+    protocols = receipt.get("protocols")
+    if (receipt.get("format_version") != 1 or receipt.get("geyser_sha256") != lock["creative_bridge"]["geyser_sha256"]
+            or receipt.get("catalogue_sha256") != sha256(catalogue) or receipt.get("items") != expected_count
+            or receipt.get("unowned_primary_and_java_items_unchanged") is not True
+            or not isinstance(protocols, dict) or not protocols
+            or any(type(count) is not int or count != expected_count for count in protocols.values())):
+        raise RuntimeError("Infinity Creative catalogue receipt does not match this startup.")
+    return receipt
+
+
+def wait_creative_ready(service, root=ROOT, cancel=None):
+    folder = root / "geyser/extensions/infinitycreativebridge"
+    deadline = time.monotonic() + 20
+    while not (folder / "ready.json").exists() and not (folder / "failed.json").exists():
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError("Startup cancelled")
+        if service.process.poll() is not None or time.monotonic() >= deadline:
+            raise RuntimeError("Infinity Creative catalogue startup did not finish; see geyser/launcher.log.")
+        time.sleep(.05)
+    return verify_creative_ready(root)
 
 
 def parse_args(argv=None):
@@ -424,7 +539,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
                                     backup_name, emit)
         if stop_requested.is_set():
             return
-        for name in ["infinity-items.json", "infinity-blocks.json"]:
+        for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
             "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
@@ -432,10 +547,12 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         services.append(fabric)
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)
+        clear_creative_receipt(root)
         geyser = Service("Bedrock", [java, "-Xms128M", "-Xmx512M", "-jar", "Geyser-Standalone.jar", "--nogui"],
             root / "geyser", "Started Geyser on", stop_command="geyser stop")
         services.append(geyser)
         geyser.wait_ready(120, cancel=stop_requested)
+        wait_creative_ready(geyser, root, stop_requested)
         if on_console_ready:
             on_console_ready(fabric.send)
         addresses = join_addresses(args)

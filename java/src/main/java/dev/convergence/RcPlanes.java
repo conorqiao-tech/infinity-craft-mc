@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -29,7 +30,7 @@ public final class RcPlanes {
     static final class Plane {
         final ServerPlayer owner;final ServerGamePacketListenerImpl connection;final ServerLevel world;
         final List<FallingBlockEntity> parts=new ArrayList<>();final int expires;
-        Vec3 center;boolean hover;
+        Vec3 center;boolean hover,obstacleWarning;int lastObstacleNotice;
         Plane(ServerPlayer p,Vec3 center){owner=p;connection=p.connection;world=p.level();this.center=center;expires=world.getServer().getTickCount()+6000;}
     }
     private RcPlanes(){}
@@ -37,13 +38,19 @@ public final class RcPlanes {
         return center.add(offset.yRot((float)Math.toRadians(-yaw)));
     }
     static boolean clear(Plane plane,Vec3 center){
+        var boxes=new ArrayList<AABB>(OFFSETS.size());AABB bounds=null;
+        float yaw=plane.owner.getYRot();
         for(var offset:OFFSETS){
-            var pos=position(center,offset,plane.owner.getYRot());var block=BlockPos.containing(pos);
+            var pos=position(center,offset,yaw);var block=BlockPos.containing(pos);
             var box=new AABB(pos.x-.49,pos.y,pos.z-.49,pos.x+.49,pos.y+.98,pos.z+.49);
             if(!plane.world.isInWorldBounds(block)||!plane.world.isLoaded(block)||!plane.world.getWorldBorder().isWithinBounds(box)
-                ||plane.world.getBlockCollisions(null,box).iterator().hasNext()
-                ||!plane.world.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,box,e->e.isAlive()&&!e.isSpectator()).isEmpty())return false;
+                ||plane.world.getBlockCollisions(null,box).iterator().hasNext())return false;
+            boxes.add(box);bounds=bounds==null?box:bounds.minmax(box);
         }
+        // The union is only a broad-phase query. Its empty corners are not
+        // plane parts; retain each original native AABB intersection exactly.
+        for(var entity:plane.world.getEntitiesOfClass(LivingEntity.class,bounds,e->e.isAlive()&&!e.isSpectator()))
+            for(var box:boxes)if(entity.getBoundingBox().intersects(box))return false;
         return true;
     }
     static int launch(ServerPlayer owner){
@@ -74,7 +81,15 @@ public final class RcPlanes {
             if(!valid(plane)){remove(plane);continue;}
             double speed=switch(CreativeStudio.option(plane.owner,"speed",3)){case 1->.22;case 2->.32;default->.12;};
             var next=plane.hover?plane.center:plane.center.add(plane.owner.getLookAngle().scale(speed));
-            if(!clear(plane,next)){plane.hover=true;plane.owner.sendOverlayMessage(net.minecraft.network.chat.Component.literal("Plane hovering: obstacle ahead."));continue;}
+            if(!clear(plane,next)){
+                plane.hover=true;int tick=plane.world.getServer().getTickCount();
+                if(!plane.obstacleWarning||tick-plane.lastObstacleNotice>=10){
+                    plane.obstacleWarning=true;plane.lastObstacleNotice=tick;
+                    plane.owner.sendOverlayMessage(net.minecraft.network.chat.Component.literal("Plane hovering: obstacle ahead."));
+                }
+                continue;
+            }
+            plane.obstacleWarning=false;
             plane.center=next;
             for(int i=0;i<plane.parts.size();i++){
                 var part=plane.parts.get(i);part.setDeltaMovement(Vec3.ZERO);part.setPos(position(next,OFFSETS.get(i),plane.owner.getYRot()));

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "I I",
+    "INI",
+    "III"
+  ],
+  "key": {
+    "I": "convergence:ingot",
+    "N": "minecraft:netherite_chestplate"
+  },
+  "result": {
+    "id": "convergence:cuirass",
+    "count": 1
+  }
+}

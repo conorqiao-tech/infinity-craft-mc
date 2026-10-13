@@ -11,7 +11,11 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
 
-The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.25**, installed with a verified stopped-world backup on October 10, 2026. Its new features are available through Infinity Menu. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
+The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.26**, installed with a verified stopped-world backup on October 11, 2026. Its new features are available through Infinity Menu. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
+
+## Prepared next update: explore.31
+
+The source includes original Infinity artwork, **Aurora Set** and **Convergence Set** inventory filters, a separate solid Convergence chestplate and the existing winged item. Dashboard reads and status writes avoid blocking normal game ticks; progression saves only the players involved. Unsafe mode changes preserve inventory, failed death respawns close with a repair message before replacing the player, and STATUS connections close without encoding an unsupported disconnect packet. Helper focus selection avoids repeated peer scans while retaining range, sight and player-target approvals. RC planes use one exact collision query per clear candidate, backpack saves skip unchanged contents, and helper/menu tracking avoids duplicate scans. Automatic AI-order revocations retry failed saves without crashing game ticks; execution still requires both approvals and a successful synchronous save. Client vitals avoid unused packet copies while preserving capacity refreshes, grouped updates stay flat and reusable, and player cleanup uses native UUID lookup instead of rebuilding an online set every tick. See [reliability details](server/RELIABILITY.md) and [validation](server/VALIDATION.md). The owner's running server remains explore.26 until a separately approved installation.
 
 ## New in explore.25
 

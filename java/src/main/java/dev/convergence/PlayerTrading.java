@@ -86,7 +86,10 @@ final class PlayerTrading {
                 Files.move(temporary,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
             }finally {Files.deleteIfExists(temporary);}
         }
-        void savePlayers(ServerPlayer first,ServerPlayer second) throws IOException {server.getPlayerList().saveAll();}
+        void savePlayers(ServerPlayer first,ServerPlayer second) throws IOException {
+            PlayerPersistence.save(first);
+            if(!first.getUUID().equals(second.getUUID()))PlayerPersistence.save(second);
+        }
         void prepare(UUID id,CompoundTag data) throws IOException {atomic(journal(id),data);}
         void remove(UUID id) throws IOException {Files.deleteIfExists(journal(id));}
         void restoreFile(UUID id,CompoundTag snapshot) throws IOException {
@@ -139,7 +142,13 @@ final class PlayerTrading {
     static boolean matches(CompoundTag expected,CompoundTag actual) {
         return Objects.equals(expected.get("Inventory"),actual.get("Inventory"))&&Objects.equals(expected.get("InfinityModes"),actual.get("InfinityModes"));
     }
+    static boolean participant(Session s,ServerPlayer p) {return s!=null&&(s.first==p||s.second==p);}
+    boolean currentActor(ServerPlayer p) {
+        return p.level().getServer()==server&&server.getPlayerList().getPlayer(p.getUUID())==p
+            &&p.connection!=null&&p.connection.isAcceptingMessages()&&!p.isRemoved();
+    }
     boolean eligible(ServerPlayer p) {
+        if(!currentActor(p))return false;
         boolean screen=p.containerMenu==p.inventoryMenu
             ||p.containerMenu instanceof ReviewHandler review&&review.owner==this&&review.session==sessions.get(p.getUUID());
         return !locked.contains(p.getUUID())&&p.isAlive()&&GameModes.current(p)==GameModes.Mode.SURVIVAL&&p.gameMode()==GameType.SURVIVAL
@@ -168,7 +177,7 @@ final class PlayerTrading {
     }
     boolean offer(ServerPlayer p,int slot,int count) {
         var s=sessions.get(p.getUUID());
-        if(s==null||!s.accepted||!valid(s)||slot<0||slot>=Inventory.INVENTORY_SIZE){CommunityServer.say(p,"Accept a valid nearby trade before offering inventory slots.");return false;}
+        if(!participant(s,p)||!s.accepted||!valid(s)||slot<0||slot>=Inventory.INVENTORY_SIZE){CommunityServer.say(p,"Accept a valid nearby trade before offering inventory slots.");return false;}
         var stack=p.getInventory().getItem(slot);var offered=s.offers.get(p.getUUID());
         if(stack.isEmpty()||count<1||count>stack.getCount()||stack.getCount()>stack.getMaxStackSize()
             ||count>stack.getMaxStackSize()||!offered.containsKey(slot)&&offered.size()>=MAX_OFFERS) {
@@ -178,7 +187,7 @@ final class PlayerTrading {
         CommunityServer.say(s.other(p),"The offer changed. Both players must review and confirm again.");return true;
     }
     boolean remove(ServerPlayer p,int slot) {
-        var s=sessions.get(p.getUUID());if(s==null||!s.accepted||s.offers.get(p.getUUID()).remove(slot)==null)return false;
+        var s=sessions.get(p.getUUID());if(!participant(s,p)||!currentActor(p)||!s.accepted||s.offers.get(p.getUUID()).remove(slot)==null)return false;
         s.confirmed.clear();s.version++;reopen(s);CommunityServer.say(s.other(p),"The offer changed. Confirmations were cleared.");return true;
     }
     boolean offeredItemsMatch(Session s) {
@@ -210,6 +219,7 @@ final class PlayerTrading {
     }
     boolean confirm(ServerPlayer p,int version) {
         var s=sessions.get(p.getUUID());
+        if(!participant(s,p)||!currentActor(p))return false;
         if(s==null||!s.accepted||!valid(s)||!offeredItemsMatch(s)){if(s!=null)cancel(s,"Trade conditions or offered items changed. No items were moved.");return false;}
         if(version!=s.version){CommunityServer.say(p,"That confirmation is for an old offer. Review revision "+s.version+" and confirm again.");return false;}
         if(s.offers.get(s.first.getUUID()).isEmpty()&&s.offers.get(s.second.getUUID()).isEmpty()){CommunityServer.say(p,"Add an offer before confirming.");return false;}
@@ -284,7 +294,7 @@ final class PlayerTrading {
         show(s.first);show(s.second);
     }
     boolean show(ServerPlayer p) {
-        var s=sessions.get(p.getUUID());if(s==null||!s.accepted||!valid(s))return false;
+        var s=sessions.get(p.getUUID());if(!participant(s,p)||!s.accepted||!valid(s))return false;
         if(p.containerMenu instanceof ReviewHandler){refresh(s);return true;}
         var view=new SimpleContainer(54);fill(s,p,view);
         p.openMenu(new SimpleMenuProvider((sync,inventory,who)->new ReviewHandler(sync,inventory,view,this,s),Component.literal("Trade with "+s.other(p).getScoreboardName())));
@@ -295,22 +305,27 @@ final class PlayerTrading {
         ReviewHandler(int sync,Inventory inventory,SimpleContainer view,PlayerTrading owner,Session session) {
             super(MenuType.GENERIC_9x6,sync,inventory,view,6);this.view=view;this.owner=owner;this.session=session;version=session.version;
         }
-        @Override public boolean stillValid(Player p) {return p instanceof ServerPlayer sp&&owner.sessions.get(sp.getUUID())==session&&owner.valid(session);}
+        @Override public boolean stillValid(Player p) {return p instanceof ServerPlayer sp&&participant(session,sp)&&owner.sessions.get(sp.getUUID())==session&&owner.valid(session);}
         @Override public ItemStack quickMoveStack(Player p,int slot) {return ItemStack.EMPTY;}
         @Override public void setSelectedBundleItemIndex(int slot,int selected) { }
         @Override public void clicked(int slot,int button,ContainerInput action,Player p) {
-            if(!(p instanceof ServerPlayer sp)||owner.sessions.get(sp.getUUID())!=session)return;
+            if(!(p instanceof ServerPlayer sp)||!participant(session,sp)||!owner.currentActor(sp)||owner.sessions.get(sp.getUUID())!=session)return;
             if(action==ContainerInput.PICKUP&&slot==49)owner.confirm(sp,version);
             else if(action==ContainerInput.PICKUP&&slot==53)owner.cancel(session,"Trade canceled. No items were moved.");
             else sendAllDataToRemote();
         }
         @Override public void removed(Player p) {
+            if(!(p instanceof ServerPlayer sp)||!participant(session,sp))return;
             super.removed(p);if(!session.closing)owner.cancel(session,"Trade review closed. No items were moved.");
         }
     }
     void cancel(Session s,String message) {
         if(s.closing)return;s.closing=true;sessions.remove(s.first.getUUID(),s);sessions.remove(s.second.getUUID(),s);
         for(var p:List.of(s.first,s.second)){if(p.containerMenu instanceof ReviewHandler handler&&handler.session==s)p.closeContainer();CommunityServer.say(p,message);}
+    }
+    boolean cancelFor(ServerPlayer p) {
+        var s=sessions.get(p.getUUID());if(!participant(s,p)||!currentActor(p))return false;
+        cancel(s,"Trade canceled. No items were moved.");return true;
     }
     void tick() {
         for(var s:new HashSet<>(sessions.values()))if(!valid(s)||s.accepted&&!offeredItemsMatch(s))cancel(s,"Trade canceled because a player moved, left Survival, entered combat, or changed an offered item. No items were moved.");
@@ -319,7 +334,7 @@ final class PlayerTrading {
         try{get(server).storage.recover();}
         catch(Exception e){throw new IllegalStateException("Player trade recovery failed. Keep infinity-player-trades and playerdata intact; stop the server and restore a matching world backup or fix storage before players join.",e);}
     }
-    void departing(ServerPlayer p) {var s=sessions.get(p.getUUID());if(s!=null)cancel(s,"A player left or died. Trade canceled without moving items.");}
+    void departing(ServerPlayer p) {var s=sessions.get(p.getUUID());if(participant(s,p))cancel(s,"A player left or died. Trade canceled without moving items.");}
     static void leave(ServerPlayer p) {var manager=INSTANCES.get(p.level().getServer());if(manager!=null)manager.departing(p);}
     static void register() {
         ServerLifecycleEvents.SERVER_STARTED.register(PlayerTrading::recover);
@@ -338,7 +353,7 @@ final class PlayerTrading {
             command.then(Commands.literal("confirm").executes(c->{var s=get(c.getSource().getServer()).sessions.get(c.getSource().getPlayerOrException().getUUID());return CommunityServer.info(c.getSource(),s==null?"No active trade.":"Review the chest and use /ptrade confirm "+s.version);})
                 .then(Commands.argument("revision",IntegerArgumentType.integer(1)).executes(c->get(c.getSource().getServer()).confirm(c.getSource().getPlayerOrException(),IntegerArgumentType.getInteger(c,"revision"))?1:0)));
             command.then(Commands.literal("review").executes(c->get(c.getSource().getServer()).show(c.getSource().getPlayerOrException())?1:0));
-            command.then(Commands.literal("cancel").executes(c->{var manager=get(c.getSource().getServer());var s=manager.sessions.get(c.getSource().getPlayerOrException().getUUID());if(s!=null)manager.cancel(s,"Trade canceled. No items were moved.");return 1;}));
+            command.then(Commands.literal("cancel").executes(c->{get(c.getSource().getServer()).cancelFor(c.getSource().getPlayerOrException());return 1;}));
             dispatcher.register(command);
         });
     }

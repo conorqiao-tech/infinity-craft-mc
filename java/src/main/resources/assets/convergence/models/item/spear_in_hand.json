@@ -1,0 +1,76 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "convergence:item/refresh27/spear"
+  },
+  "display": {
+    "firstperson_righthand": {
+      "rotation": [
+        -18,
+        90,
+        -32
+      ],
+      "translation": [
+        2.8,
+        2.2,
+        0.2
+      ],
+      "scale": [
+        1.4,
+        1.4,
+        0.7
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        -18,
+        -90,
+        32
+      ],
+      "translation": [
+        2.8,
+        2.2,
+        0.2
+      ],
+      "scale": [
+        1.4,
+        1.4,
+        0.7
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        5,
+        265,
+        -38
+      ],
+      "translation": [
+        0,
+        2.2,
+        2
+      ],
+      "scale": [
+        1.75,
+        1.75,
+        0.88
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        5,
+        -265,
+        38
+      ],
+      "translation": [
+        0,
+        2.2,
+        2
+      ],
+      "scale": [
+        1.75,
+        1.75,
+        0.88
+      ]
+    }
+  }
+}

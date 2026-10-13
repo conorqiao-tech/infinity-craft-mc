@@ -1,0 +1,268 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.helmet_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:helmet', 'infinity_catalog:helmet') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.cuirass_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:cuirass', 'infinity_catalog:cuirass') && !context.is_first_person"
+        },
+        {
+          "infinity_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:cuirass', 'infinity_catalog:cuirass')"
+        },
+        {
+          "infinity_left_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:cuirass', 'infinity_catalog:cuirass')"
+        }
+      ]
+    },
+    "controller.render.convergence.leggings_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:leggings', 'infinity_catalog:leggings') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:leggings', 'infinity_catalog:leggings') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.boots_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:boots', 'infinity_catalog:boots') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:boots', 'infinity_catalog:boots') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.backpack_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_pack": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:backpack', 'infinity_catalog:backpack') && !context.is_first_person"
+        }
+      ],
+      "color": {
+        "r": "query.armor_color_slot(1, 0)",
+        "g": "query.armor_color_slot(1, 1)",
+        "b": "query.armor_color_slot(1, 2)",
+        "a": "query.armor_color_slot(1, 3)"
+      }
+    },
+    "controller.render.convergence.aurora_helmet_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:aurora_helmet', 'infinity_catalog:aurora_helmet') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.aurora_chestplate_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:aurora_chestplate', 'infinity_catalog:aurora_chestplate') && !context.is_first_person"
+        },
+        {
+          "infinity_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:aurora_chestplate', 'infinity_catalog:aurora_chestplate')"
+        },
+        {
+          "infinity_left_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:aurora_chestplate', 'infinity_catalog:aurora_chestplate')"
+        }
+      ]
+    },
+    "controller.render.convergence.aurora_leggings_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:aurora_leggings', 'infinity_catalog:aurora_leggings') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:aurora_leggings', 'infinity_catalog:aurora_leggings') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.aurora_boots_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:aurora_boots', 'infinity_catalog:aurora_boots') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:aurora_boots', 'infinity_catalog:aurora_boots') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.ember_helmet_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:ember_helmet', 'infinity_catalog:ember_helmet') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.ember_chestplate_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:ember_chestplate', 'infinity_catalog:ember_chestplate') && !context.is_first_person"
+        },
+        {
+          "infinity_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:ember_chestplate', 'infinity_catalog:ember_chestplate')"
+        },
+        {
+          "infinity_left_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:ember_chestplate', 'infinity_catalog:ember_chestplate')"
+        }
+      ]
+    },
+    "controller.render.convergence.ember_leggings_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:ember_leggings', 'infinity_catalog:ember_leggings') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:ember_leggings', 'infinity_catalog:ember_leggings') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.ember_boots_original": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:ember_boots', 'infinity_catalog:ember_boots') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:ember_boots', 'infinity_catalog:ember_boots') && !context.is_first_person"
+        }
+      ]
+    }
+  }
+}

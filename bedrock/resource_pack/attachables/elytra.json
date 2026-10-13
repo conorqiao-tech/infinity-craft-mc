@@ -12,7 +12,7 @@
       "textures": {
         "default": "textures/convergence/models/armor/armor_wings",
         "enchanted": "textures/misc/enchanted_actor_glint",
-        "infinity_armor": "textures/convergence/models/armor/refresh19/convergence_refresh19"
+        "infinity_armor": "textures/convergence/models/armor/refresh27/convergence_refresh27"
       },
       "geometry": {
         "default": "geometry.elytra",

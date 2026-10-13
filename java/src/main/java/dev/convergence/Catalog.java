@@ -6,6 +6,7 @@ final class Catalog {
    static void register() {
       Convergence.register("convergence:helmet", Items.NETHERITE_HELMET, 1, 0.0F, 32767, 6);
       Convergence.register("convergence:chestplate", Items.NETHERITE_CHESTPLATE, 1, 0.0F, 32767, 10);
+      Convergence.register("convergence:cuirass", Items.NETHERITE_CHESTPLATE, 1, 0.0F, 32767, 10);
       Convergence.register("convergence:leggings", Items.NETHERITE_LEGGINGS, 1, 0.0F, 32767, 8);
       Convergence.register("convergence:boots", Items.NETHERITE_BOOTS, 1, 0.0F, 32767, 6);
       Convergence.register("convergence:sword", Items.NETHERITE_SWORD, 1, 1000.0F, 32767, 0);

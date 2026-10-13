@@ -352,13 +352,32 @@ final class ModeMaps {
         Run(String map, int tick, Vec3 previous) { this.map=map; this.startedTick=tick; this.previous=previous; }
     }
     static final Map<UUID,Run> RUNS=new HashMap<>();
+    static String instructions(MapSpec map) {
+        return switch(map.kind) {
+            case MEMORY -> "Memorize the five colors shown for five seconds. Touch those pads in order; a wrong pad restarts. Leave each pad before stepping onto the next.";
+            case GATE_DASH -> "Cross the three gates on GREEN; RED contact resets the run. Follow checkpoints east to the finish.";
+            case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
+            case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
+            case CRYSTAL_HUNT -> "Touch the five glowing amethyst pads in any order. Each pad counts once; collect them all to finish.";
+            case COLOR_RUSH -> "Watch the action bar. Reach the named color within five seconds to start the next pulse. Clear five pulses to finish; a timeout restarts the run.";
+            default -> "Visit each glowing checkpoint in order.";
+        };
+    }
     static void begin(ServerPlayer p, String id) {
         var map=MAPS.get(id); if(map==null || GameModes.current(p)!=map.mode) return;
         if (!available(id)) { CommunityServer.say(p,"This course is unavailable because its map region could not be verified. Ask the host to check the server log."); return; }
-        var pos=start(id); p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true);
+        var pos=start(id);
+        if(!p.teleportTo(p.level(),pos.getX()+.5,pos.getY(),pos.getZ()+.5,Set.of(),-90,0,true)) {
+            CommunityServer.say(p,"The course could not start because teleporting failed. Your selection and current run are unchanged.");return;
+        }
         p.setDeltaMovement(Vec3.ZERO); p.fallDistance=0;
         p.getFoodData().setFoodLevel(20); p.getFoodData().setSaturation(5);
-        GameModes.state(p).putString("selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map",id);
+        String selection="selected_"+map.mode.name().toLowerCase(Locale.ROOT)+"_map";
+        boolean changedSelection=!id.equals(GameModes.state(p).getStringOr(selection,""));
+        GameModes.state(p).putString(selection,id);
+        // A different chosen course persists even when its eventual run is slower.
+        // Mode transfers already save this participant after begin returns.
+        if(changedSelection&&!GameModes.TRANSITIONS.contains(p.getUUID()))PlayerPersistence.save(p);
         var run=new Run(id,p.level().getServer().getTickCount(),p.position());
         if(map.kind==Kind.COLOR_RUSH||map.kind==Kind.MEMORY) {
             var random=new SplittableRandom(p.getUUID().getMostSignificantBits()^p.getUUID().getLeastSignificantBits()^run.startedTick);
@@ -370,19 +389,10 @@ final class ModeMaps {
             run.colorDeadline=run.startedTick+(map.kind==Kind.MEMORY?100:COLOR_ROUND_TICKS);
         }
         RUNS.put(p.getUUID(),run);
-        String instructions = switch(map.kind) {
-            case MEMORY -> "Memorize the five colors shown for five seconds. Touch those pads in order; a wrong pad restarts. Leave each pad before stepping onto the next.";
-            case GATE_DASH -> "Cross the three gates on GREEN; RED contact resets the run. Follow checkpoints east to the finish.";
-            case DROPPER -> "Walk into the opening east of spawn. Steer through all three glowing holes, then land in the water. Missing a hole restarts the run.";
-            case REDLIGHT -> "Run east on GREEN; stop moving on RED. Your action bar shows the light. Moving during red restarts the race. Visit the four checkpoints in order.";
-            case CRYSTAL_HUNT -> "Touch the five glowing amethyst pads in any order. Each pad counts once; collect them all to finish.";
-            case COLOR_RUSH -> "Watch the action bar. Reach the named color within five seconds to start the next pulse. Clear five pulses to finish; a timeout restarts the run.";
-            default -> "Visit each glowing checkpoint in order.";
-        };
         String selectorHint=map.kind==Kind.DROPPER
             ? "Right-click the glowing start or pool-center lantern to choose a different course."
             : "Right-click a glowing checkpoint lantern to choose a different course.";
-        CommunityServer.say(p,map.title+": "+instructions+" "+selectorHint+" /retry "+id+" restarts; /play survival leaves. No special items are needed.");
+        CommunityServer.say(p,map.title+": "+instructions(map)+" "+selectorHint+" Infinity Menu → Minigames / Adventure offers Retry and records. No special items are needed.");
         if(map.kind==Kind.MEMORY) memoryHint(p,run,run.startedTick);
         else if(map.kind==Kind.GATE_DASH) gateHint(p,run,run.startedTick);
         else if(map.kind==Kind.CRYSTAL_HUNT) crystalHint(p,run);
@@ -551,11 +561,11 @@ final class ModeMaps {
     }
     static void finish(ServerPlayer p,Run run,int tick) {
         var spec=MAPS.get(run.map);
-        long millis=spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:Math.max(1,(long)(tick-run.startedTick)*50);
+        long millis=Math.max(1,spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:(long)(tick-run.startedTick)*50);
         var state=GameModes.state(p); var scores=state.getCompoundOrEmpty("scores");
-        long old=scores.getLongOr(run.map,Long.MAX_VALUE); scores.putLong(run.map,Math.min(old,millis)); state.put("scores",scores);
+        long old=scores.getLongOr(run.map,Long.MAX_VALUE);
+        if(millis<old){scores.putLong(run.map,millis);state.put("scores",scores);PlayerPersistence.save(p);}
         RUNS.remove(p.getUUID());
-        p.level().getServer().getPlayerList().saveAll();
         try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Your best was saved, but the public leaderboard is temporarily unavailable.");}
         p.sendOverlayMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN));
         CommunityServer.say(p,"Completed "+spec.title+" in "+String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s! Personal best: "+String.format(Locale.ROOT,"%.2f",Math.min(old,millis)/1000.0)+"s. /retry "+run.map+" to race again.");

@@ -12,6 +12,94 @@ from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
 
 
+def verified_test_hash(provenance, test_mod):
+    actual = hashlib.sha256(test_mod.read_bytes()).hexdigest()
+    if provenance.get("test_mod_sha256") != actual:
+        raise RuntimeError("GameTest jar differs from the native validation evidence; rerun native checks")
+    return actual
+
+
+def verified_creative_bridge(root, lock):
+    from build_creative_bridge import PIN, digest
+    metadata = lock["creative_bridge"]
+    sources = [root / "geyser-extension/extension.yml", root / "tools/build_creative_bridge.py",
+               *sorted((root / "geyser-extension/src/main/java").rglob("*.java"))]
+    expected = {p.relative_to(root).as_posix(): digest(p) for p in sources}
+    if metadata["source_hashes"] != expected:
+        raise RuntimeError("Creative bridge source differs from the prepared jar; rebuild, prepare and rerun checks")
+    server = root / "server"
+    if (metadata["geyser_sha256"] != PIN or digest(server / "geyser/Geyser-Standalone.jar") != PIN
+            or digest(server / "geyser/extensions/InfinityCreativeBridge.jar") != metadata["extension_sha256"]):
+        raise RuntimeError("Creative bridge artifacts differ from the pinned build")
+    return metadata
+
+
+def verified_creative_wire(root, lock, provenance):
+    """Require actual captured Geyser bytes, Via conversion and native refusal evidence."""
+    from smoke_creative_wire import bounded_json, digest, NESTED, VIAFABRIC, VIABACKWARDS
+    checks = root / "research/integration/creative-bridge"
+    receipt = bounded_json(checks / "wire-proof.json")
+    sources = [root / "tools/smoke_creative_wire.py",
+               root / "tools/native_checks/CreativeBridgeWireGameTests.java"]
+    if receipt["source_hashes"] != {p.relative_to(root).as_posix(): digest(p) for p in sources}:
+        raise RuntimeError("Creative wire source differs from its proof; rerun the supplemental native check")
+    if (receipt["java_sources"] != provenance["java_sources"]
+            or receipt["mod_sha256"] != provenance["mod_sha256"]
+            or receipt["original_test_mod_sha256"] != provenance["test_mod_sha256"]):
+        raise RuntimeError("Creative wire proof differs from the current native-tested source/jars")
+    relative = Path(receipt["runtime"])
+    if relative.is_absolute() or ".." in relative.parts or relative.parts[:2] != ("research", "creative-wire"):
+        raise RuntimeError("Creative wire runtime must be an isolated research world")
+    runtime = root / relative
+    report = runtime / "results.xml"
+    native_file = runtime / "native-wire.json"
+    native = bounded_json(native_file)
+    ready_file = checks / "ready.json"
+    ready = bounded_json(ready_file)
+    startup_file = checks / "startup.json"
+    catalogue = root / "research/integration/crossplay-export/infinity-catalogue.json"
+    actual_hashes = {
+        "report_sha256": digest(report), "native_proof_sha256": digest(native_file),
+        "log_sha256": digest(runtime / "wire.log"), "capture_sha256": digest(ready_file),
+        "geyser_startup_sha256": digest(startup_file), "captured_catalogue_sha256": digest(catalogue),
+        "native_catalogue_sha256": digest(runtime / "crossplay-export/infinity-catalogue.json"),
+        "wire_test_mod_sha256": digest(runtime / "mods" / f"Infinity-Armor-{VERSION}-gametest.jar"),
+        "extension_sha256": digest(root / "server/geyser/extensions/InfinityCreativeBridge.jar"),
+        "mod_sha256": digest(runtime / "mods" / f"Infinity-Armor-{VERSION}.jar"),
+    }
+    if any(receipt[field] != value for field, value in actual_hashes.items()) or receipt["proof"] != native:
+        raise RuntimeError("Creative wire proof evidence changed; rerun the supplemental native check")
+    cases = list(ET.parse(report).getroot().iter("testcase"))
+    if (receipt["native_tests"] != 2 or len(cases) != 2
+            or any(case.find(kind) is not None for case in cases for kind in ("failure", "error", "skipped"))):
+        raise RuntimeError("Creative wire native tests must both pass without skips")
+    hotbar = len(ready["proof"]["encoded_hotbar_packets"])
+    overflow = len(ready["proof"]["encoded_oversized_packets"])
+    if (hotbar <= 0 or overflow <= 0 or native["hotbar_cases"] != hotbar
+            or native["survival_cases"] != hotbar or native["via_survival_cases"] != hotbar
+            or native["overflow_cases"] != overflow or native["catalogue_equivalent"] is not True
+            or native["capture_sha256"] != actual_hashes["capture_sha256"]
+            or native["catalogue_sha256"] != actual_hashes["captured_catalogue_sha256"]
+            or native["native_catalogue_sha256"] != actual_hashes["native_catalogue_sha256"]):
+        raise RuntimeError("Creative wire proof does not cover its captured packets and catalogue")
+    pinned = {entry["path"]: entry["sha256"] for entry in lock["downloads"] + lock["bundled"]}
+    for name, field in ((VIAFABRIC, "viafabric_sha256"), (VIABACKWARDS, "viabackwards_sha256")):
+        if (native[field] != pinned["fabric/mods/" + name]
+                or native[field] != digest(root / "server/fabric/mods" / name)
+                or native[field] != digest(runtime / "mods" / name)):
+            raise RuntimeError("Creative wire proof uses a different Via dependency")
+    with zipfile.ZipFile(root / "server/fabric/mods" / VIAFABRIC) as archive:
+        if native["viaversion_nested_sha256"] != hashlib.sha256(archive.read(NESTED)).hexdigest():
+            raise RuntimeError("Creative wire proof uses a different nested ViaVersion dependency")
+    return {"checks/creative-bridge-wire-proof.json": (checks / "wire-proof.json").read_bytes(),
+            "checks/creative-bridge-native-wire.json": native_file.read_bytes(),
+            "checks/creative-bridge-wire-results.xml": report.read_bytes(),
+            "checks/creative-bridge-captured-catalogue.json": catalogue.read_bytes(),
+            "checks/creative-bridge-native-catalogue.json": (runtime / "crossplay-export/infinity-catalogue.json").read_bytes(),
+            "checks/creative-bridge-wire-test.jar": (runtime / "mods" / f"Infinity-Armor-{VERSION}-gametest.jar").read_bytes(),
+            "checks/creative-bridge-wire-log.txt": (runtime / "wire.log").read_bytes()}
+
+
 def archive(path, entries, prefix):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as output:
         for name, data in sorted(entries.items()):
@@ -40,16 +128,15 @@ def main():
     assert testlog_file.stat().st_mtime >= max(p.stat().st_mtime for p in [
         *(ROOT / "server").glob("*.py"), *(ROOT / "tests").glob("test_*.py")])
     mod = ROOT / f"server/fabric/mods/Infinity-Armor-{VERSION}.jar"
-    if options.launcher_patch:
-        # Git checkouts can change source mtimes while Gradle correctly reuses
-        # identical compiled output. Bind this patch to the real tested bytes.
-        provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
-        assert provenance["java_sources"] == {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
-                                               for p in (ROOT / "java/src").rglob("*") if p.is_file()}
-        assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
-        assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
-        assert provenance["native_tests"] == len(tests)
-    else:
+    # Bind every package to the exact tested source, mod and report, including ordinary releases.
+    provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
+    assert provenance["java_sources"] == {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                                           for p in (ROOT / "java/src").rglob("*") if p.is_file()}
+    assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
+    assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
+    assert provenance["native_tests"] == len(tests)
+    tested_test_sha = verified_test_hash(provenance, ROOT / f"java/build/libs/Infinity-Armor-{VERSION}-gametest.jar")
+    if not options.launcher_patch:
         assert mod.stat().st_mtime >= max(p.stat().st_mtime for p in (ROOT / "java/src/main").rglob("*") if p.is_file())
     assert report.stat().st_mtime >= mod.stat().st_mtime
     geyser_log_file = ROOT / "research/geyser-smoke.log"
@@ -63,10 +150,24 @@ def main():
     server = ROOT / "server"
     lock = json.loads((server / "dependencies.lock.json").read_text())
     assert lock["version"] == VERSION
+    bridge = verified_creative_bridge(ROOT, lock)
+    creative_checks = ROOT / "research/integration/creative-bridge"
+    startup = json.loads((creative_checks / "startup.json").read_text())
+    ready_file = creative_checks / "ready.json"
+    ready = json.loads(ready_file.read_text())
+    assert startup["extension_sha256"] == bridge["extension_sha256"]
+    assert startup["ready_sha256"] == hashlib.sha256(ready_file.read_bytes()).hexdigest()
+    assert ready["geyser_sha256"] == bridge["geyser_sha256"]
+    assert startup["catalogue_sha256"] == ready["catalogue_sha256"] == hashlib.sha256(
+        (ROOT / "research/integration/crossplay-export/infinity-catalogue.json").read_bytes()).hexdigest()
+    assert ready_file.stat().st_mtime >= mod.stat().st_mtime
+    assert ready["unowned_primary_and_java_items_unchanged"] is True
+    assert ready["items"] == 46 and ready["proof"]["actual_creative_hotbar_selections"] > 0
+    wire_entries = verified_creative_wire(ROOT, lock, provenance)
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
@@ -76,9 +177,29 @@ def main():
         assert hashlib.sha256(data).hexdigest() == file["sha256"]
         entries[file["path"]] = data
     entries["checks/java-gametest-results.xml"] = report.read_bytes()
-    if options.launcher_patch:
-        entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
+    entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
     entries["checks/launcher-tests.txt"] = testlog.encode()
+    for name in ("build.json", "startup.json", "ready.json"):
+        entries["checks/creative-bridge-" + name] = (creative_checks / name).read_bytes()
+    entries.update(wire_entries)
+    capacity_checks = ROOT / "research/capacity-performance" / VERSION
+    if capacity_checks.exists():
+        from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
+        measured = json.loads((capacity_checks / "provenance.json").read_text())
+        samples = json.loads((capacity_checks / "summary.json").read_text())
+        assert measured["inputs"]["optimized"] == provenance["mod_sha256"]
+        assert measured["inputs"]["tests"] == tested_test_sha
+        assert measured["java_sources"] == provenance["java_sources"]
+        labels = capacity_labels(measured["repeats"])
+        assert set(samples) == labels
+        assert measured["artifacts"] == evidence_hashes(capacity_checks, labels)
+        for label, sample in samples.items():
+            validate_measurement(sample)
+            assert json.loads((capacity_checks / (label + ".json")).read_text()) == sample
+            cases = list(ET.parse(capacity_checks / (label + ".xml")).getroot().iter("testcase"))
+            assert len(cases) == 2 and all(t.find(kind) is None for t in cases for kind in ("failure", "error", "skipped"))
+        for name in ("summary.json", "provenance.json"):
+            entries["checks/capacity-performance-" + name] = (capacity_checks / name).read_bytes()
     fullstack_log_file = ROOT / "research/fullstack-smoke.log"
     fullstack = fullstack_log_file.read_text()
     assert "Full-stack lifecycle passed:" in fullstack and "ERROR" not in fullstack
@@ -101,13 +222,13 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/odyssey", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/odyssey", "geyser-extension/src", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
-        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py",
-        "tools/smoke_geyser.py", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py",
+        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
+        "tools/smoke_geyser.py", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()

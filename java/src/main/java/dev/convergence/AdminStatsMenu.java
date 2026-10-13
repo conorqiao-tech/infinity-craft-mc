@@ -82,7 +82,8 @@ final class AdminStatsMenu {
 
     static void register() {
         BedrockStatsMenu.register();
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->INPUTS.remove(handler.player.getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->INPUTS.computeIfPresent(handler.player.getUUID(),(id,input)->
+            input.actor().player()==handler.player && input.actor().connection()==handler ? null : input));
         ServerTickEvents.END_SERVER_TICK.register(server->INPUTS.entrySet().removeIf(entry->{
             var input=entry.getValue();
             if(input.actor().world().getServer()!=server)return false;
@@ -96,9 +97,19 @@ final class AdminStatsMenu {
     static boolean consumeChat(ServerPlayer actor,String text) {
         var input=INPUTS.get(actor.getUUID());
         if(input==null)return false;
+        return consumeChat(actor,text,input);
+    }
+
+    private static boolean consumeChat(ServerPlayer actor,String text,Input input) {
         var server=actor.level().getServer();
-        if(!server.isSameThread()) { server.execute(()->consumeChat(actor,text)); return true; }
-        if(input.actor().player()!=actor || !input.actor().valid() || !input.target().valid() || !allowed(actor)
+        if(!server.isSameThread()) { server.execute(()->consumeChat(actor,text,input)); return true; }
+        // A queued number belongs only to the prompt observed before dispatch.
+        // Reopening even the same stat creates new intent and keeps this text private.
+        if(INPUTS.get(actor.getUUID())!=input)return true;
+        // A delayed caller from the old session must consume its own text,
+        // without retiring a replacement player's private number prompt.
+        if(input.actor().player()!=actor)return true;
+        if(!input.actor().valid() || !input.target().valid() || !allowed(actor)
                 || server.getTickCount()>=input.expires() || AdminStats.accessError(actor.createCommandSourceStack(),input.target().entity())!=null) {
             INPUTS.remove(actor.getUUID(),input);message(actor,"This edit expired or its session changed. Reopen the editor.");return true;
         }

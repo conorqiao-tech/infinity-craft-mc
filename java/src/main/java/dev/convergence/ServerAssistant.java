@@ -28,6 +28,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.server.permissions.Permission.HasCommandLevel;
 import net.minecraft.server.permissions.PermissionLevel;
 
@@ -45,6 +46,7 @@ public final class ServerAssistant {
     static final Map<MinecraftServer,AiService> AI=new WeakHashMap<>();
     static final class Session {
         final Map<UUID,Integer> readyAt=new HashMap<>();
+        final Map<UUID,ServerGamePacketListenerImpl> readyConnections=new HashMap<>();
         boolean take(UUID id,int now) {
             if(readyAt.getOrDefault(id,Integer.MIN_VALUE)>now)return false;
             readyAt.put(id,now+COOLDOWN);return true;
@@ -237,7 +239,13 @@ public final class ServerAssistant {
     }
     static boolean take(CommandSourceStack source) {
         var session=SESSIONS.computeIfAbsent(source.getServer(),key->new Session());
-        UUID id=source.getEntity() instanceof ServerPlayer p?p.getUUID():CONSOLE;
+        UUID id=CONSOLE;
+        if(source.getEntity() instanceof ServerPlayer p) {
+            if(source.getServer().getPlayerList().getPlayer(p.getUUID())!=p || !p.connection.isAcceptingMessages())return false;
+            id=p.getUUID();
+            var old=session.readyConnections.put(id,p.connection);
+            if(old!=null&&old!=p.connection)session.readyAt.remove(id);
+        }
         return session.take(id,source.getServer().getTickCount());
     }
     static int execute(CommandSourceStack source,String question) {
@@ -259,10 +267,10 @@ public final class ServerAssistant {
         String answerPrefix=externalPrefix.replace("/ OpenAI", "/ "+provider);
         var server=source.getServer();var caller=source.getEntity() instanceof ServerPlayer p?p:null;
         UUID id=caller==null?CONSOLE:caller.getUUID();
-        if(caller!=null&&server.getPlayerList().getPlayer(id)!=caller)return 0;
+        if(caller!=null&&(server.getPlayerList().getPlayer(id)!=caller||!caller.connection.isAcceptingMessages()))return 0;
         boolean actualOwner=owner(source)&&(caller==null||owner(caller.createCommandSourceStack()));
         if(requireOwner&&!actualOwner){send(source,bounded("This helper requires current OP4 access."),prefix);return 0;}
-        var pending=service.ask(id,actualOwner,question,instructions);
+        var pending=service.ask(id,actualOwner,question,instructions,caller==null?null:caller.connection);
         if(pending.future()==null) {send(source,bounded(List.of(pending.reason(),"An OP4 owner can check /ai status and configure the optional connection in the local host panel. Built-in /ai help still works."),prefix),prefix);return 0;}
         send(source,bounded(List.of("Asking "+provider+". Your question and supplied game facts go to OpenAI. This does not execute or approve commands."),prefix),prefix);
         pending.future().whenComplete((text,error)->{
@@ -324,6 +332,7 @@ public final class ServerAssistant {
         static final int MAX_INFLIGHT=2;
         final Path keyFile,usageFile;final Transport transport;final Clock clock;
         final Map<UUID,CompletableFuture<String>> inflight=new HashMap<>();
+        final Map<UUID,ServerGamePacketListenerImpl> inflightConnections=new HashMap<>();
         AiConfig config=new AiConfig();Usage usage=new Usage();boolean valid=true;volatile boolean closed;
         long globalReadyAt;
         AiService(Path configDir,Path usageFile,Transport transport,Clock clock) {
@@ -350,10 +359,15 @@ public final class ServerAssistant {
                 "The limit counts accepted attempts, including failures. Codex uses host account usage and an isolated answer-only session; it is not this live chat. Answers cannot execute or approve changes.");
         }
         Pending ask(UUID id,boolean owner,String question,String instructions) {
+            return ask(id,owner,question,instructions,null);
+        }
+        Pending ask(UUID id,boolean owner,String question,String instructions,ServerGamePacketListenerImpl connection) {
             if(closed||!valid||!config.enabled)return new Pending(null,"External AI is disabled or unavailable. I don't know that from the built-in server guide.");
             if((config.ownerOnly||config.codex())&&!owner)return new Pending(null,"External AI is available only to an OP4 owner; your server questions can still use the built-in guide.");
             if(invalid(question)!=null)return new Pending(null,invalid(question));
             if(!backendReady())return new Pending(null,config.codex()?"The configured Codex executable is unavailable. Set its full path in the host panel and sign in with Codex on the host.":"The optional AI key is unavailable. Built-in server help still works.");
+            var previousConnection=inflightConnections.get(id);
+            if(connection!=null&&previousConnection!=null&&previousConnection!=connection)cancel(id);
             if(inflight.containsKey(id))return new Pending(null,"Your previous AI answer is still pending. Wait for it before asking another.");
             if(inflight.size()>=MAX_INFLIGHT||clock.millis()<globalReadyAt)return new Pending(null,"The AI connection is busy. Wait ten seconds before trying again.");
             resetDay();if(usage.requests>=config.dailyRequestLimit)return new Pending(null,"The server's daily AI request limit has been reached. Built-in help is still available.");
@@ -363,11 +377,18 @@ public final class ServerAssistant {
             CompletableFuture<String> future;
             try {future=transport.ask(config,keyFile,question,instructions).orTimeout(config.codex()?60:15,TimeUnit.SECONDS);}
             catch(RuntimeException e){future=CompletableFuture.failedFuture(new IOException("AI transport unavailable"));}
-            inflight.put(id,future);return new Pending(future,"");
+            inflight.put(id,future);
+            if(connection!=null)inflightConnections.put(id,connection);
+            return new Pending(future,"");
         }
-        void finish(UUID id,CompletableFuture<String> future) {inflight.remove(id,future);}
-        void cancel(UUID id) {var future=inflight.remove(id);if(future!=null)future.cancel(true);}
-        void close() {closed=true;for(var future:inflight.values())future.cancel(true);inflight.clear();transport.close();}
+        void finish(UUID id,CompletableFuture<String> future) {
+            if(inflight.remove(id,future))inflightConnections.remove(id);
+        }
+        void cancel(UUID id) {var future=inflight.remove(id);inflightConnections.remove(id);if(future!=null)future.cancel(true);}
+        void cancel(UUID id,ServerGamePacketListenerImpl connection) {
+            if(inflightConnections.get(id)==connection)cancel(id);
+        }
+        void close() {closed=true;for(var future:inflight.values())future.cancel(true);inflight.clear();inflightConnections.clear();transport.close();}
     }
     static final class RoutingTransport implements Transport {
         final Transport api=new HttpTransport(URI.create("https://api.openai.com/v1/responses"));
@@ -449,9 +470,15 @@ public final class ServerAssistant {
         ServerLifecycleEvents.SERVER_STARTED.register(server->AI.put(server,new AiService(server.getServerDirectory().resolve("config"),server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("infinity-ai-usage.json"),new RoutingTransport(),Clock.systemUTC())));
         ServerLifecycleEvents.SERVER_STOPPING.register(server->{var service=AI.get(server);if(service!=null)service.close();});
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{SESSIONS.remove(server);AI.remove(server);});
-        ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{var s=SESSIONS.get(server);if(s!=null)s.readyAt.remove(handler.player.getUUID());var service=AI.get(server);if(service!=null)service.cancel(handler.player.getUUID());});
+        ServerPlayConnectionEvents.DISCONNECT.register(ServerAssistant::disconnected);
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->dispatcher.register(Commands.literal("ai")
             .executes(c->execute(c.getSource(),""))
             .then(Commands.argument("question",StringArgumentType.greedyString()).executes(c->execute(c.getSource(),StringArgumentType.getString(c,"question"))))));
+    }
+    static void disconnected(ServerGamePacketListenerImpl handler,MinecraftServer server) {
+        UUID id=handler.player.getUUID();
+        var session=SESSIONS.get(server);
+        if(session!=null&&session.readyConnections.remove(id,handler))session.readyAt.remove(id);
+        var service=AI.get(server);if(service!=null)service.cancel(id,handler);
     }
 }

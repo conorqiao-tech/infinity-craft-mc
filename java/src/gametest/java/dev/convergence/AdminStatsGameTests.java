@@ -38,7 +38,7 @@ public class AdminStatsGameTests {
         p.closeContainer();
         OperatorGameTests.deop(p);
         GameModes.PENDING.remove(p.getUUID());
-        CommunityServer.get(server).pending.remove(p.getUUID());
+        CommunityServer.get(server).cancelPending(p);
         if (server.getPlayerList().getPlayer(p.getUUID()) == p) server.getPlayerList().remove(p);
     }
     private void set(GameTestHelper c, CommandSourceStack actor, ServerPlayer target, String id, double value) {

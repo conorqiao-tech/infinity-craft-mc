@@ -1,6 +1,76 @@
 {
-  "parent": "minecraft:item/handheld",
+  "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/refresh19/crossbow"
+    "layer0": "convergence:item/refresh27/crossbow"
+  },
+  "display": {
+    "firstperson_righthand": {
+      "rotation": [
+        -85,
+        0,
+        -50
+      ],
+      "translation": [
+        1.15,
+        3.1,
+        1.0
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "firstperson_lefthand": {
+      "rotation": [
+        85,
+        0,
+        50
+      ],
+      "translation": [
+        1.15,
+        3.1,
+        1.0
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        -88,
+        0,
+        -56
+      ],
+      "translation": [
+        1.8,
+        0.2,
+        -2.8
+      ],
+      "scale": [
+        0.92,
+        0.92,
+        0.92
+      ]
+    },
+    "thirdperson_lefthand": {
+      "rotation": [
+        -88,
+        0,
+        32
+      ],
+      "translation": [
+        1.8,
+        0.2,
+        -2.8
+      ],
+      "scale": [
+        0.92,
+        0.92,
+        0.92
+      ]
+    }
   }
 }

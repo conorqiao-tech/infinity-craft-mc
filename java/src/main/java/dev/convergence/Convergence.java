@@ -1,6 +1,7 @@
 package dev.convergence;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import eu.pb4.polymer.core.api.item.PolymerCreativeModeTabUtils;
 import net.minecraft.util.Prediction;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +19,6 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.After;
-import net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.Holder;
@@ -211,7 +211,7 @@ public class Convergence implements ModInitializer {
 
          b.set(DataComponents.ATTRIBUTE_MODIFIERS, armor.build());
          ResourceKey<EquipmentAsset> model = ResourceKey.create(
-            ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft", "equipment_asset")), Identifier.fromNamespaceAndPath(id.getNamespace(), "armor")
+            ResourceKey.createRegistryKey(Identifier.fromNamespaceAndPath("minecraft", "equipment_asset")), Identifier.fromNamespaceAndPath(id.getNamespace(), id.getPath().equals("cuirass") ? "cuirass" : "armor")
          );
          b.set(DataComponents.EQUIPPABLE, Equippable.builder(eq.slot()).setAsset(model).setDamageOnHurt(false).build());
       });
@@ -312,13 +312,15 @@ public class Convergence implements ModInitializer {
       AdminStatsMenu.register();
       AdminStats.setMenuOpener(AdminStatsMenu::open);
       AdminStats.register();
-      Registry.register(
-         BuiltInRegistries.CREATIVE_MODE_TAB,
+      PolymerCreativeModeTabUtils.registerPolymerCreativeModeTab(
          Identifier.fromNamespaceAndPath("convergence", "powers"),
-         FabricCreativeModeTab.builder()
+         PolymerCreativeModeTabUtils.builder()
             .title(Component.literal("Infinity Armor"))
             .icon(() -> new ItemStack((ItemLike)ITEMS.get("convergence:mace")))
-            .displayItems((ctx, e) -> ITEMS.values().forEach(e::accept))
+            .displayItems((ctx, e) -> {
+               ITEMS.values().forEach(e::accept);
+               if (ctx.hasPermissions()) GearCrates.ADMIN_ITEMS.forEach(e::accept);
+            })
             .build()
       );
       CommandRegistrationCallback.EVENT
@@ -345,6 +347,7 @@ public class Convergence implements ModInitializer {
                      )
                )
          );
+      ShortCommands.register();
       ServerTickEvents.START_SERVER_TICK.register(server -> clock++);
       ServerTickEvents.END_SERVER_TICK.register(Convergence::tick);
       AttackEntityCallback.EVENT.register((p, w, hand, entity, hit) -> {
@@ -585,10 +588,9 @@ public class Convergence implements ModInitializer {
    }
 
    static void tick(MinecraftServer server) {
-      Set<UUID> online = new HashSet<>();
+      var players = server.getPlayerList();
 
-      for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-         online.add(p.getUUID());
+      for (ServerPlayer p : players.getPlayers()) {
          if (!p.isAlive()) {
             STATES.remove(p.getUUID());
          } else {
@@ -616,7 +618,7 @@ public class Convergence implements ModInitializer {
          }
       }
 
-      STATES.keySet().retainAll(online);
+      STATES.keySet().removeIf(id -> players.getPlayer(id) == null);
    }
 
    static void effect(Player p, Holder<MobEffect> e, int a, int d) {
@@ -628,7 +630,8 @@ public class Convergence implements ModInitializer {
 
    static void armor(ServerPlayer p) {
       boolean head = id(p.getItemBySlot(EquipmentSlot.HEAD)).equals("convergence:helmet");
-      boolean chest = id(p.getItemBySlot(EquipmentSlot.CHEST)).equals("convergence:chestplate");
+      String chestId = id(p.getItemBySlot(EquipmentSlot.CHEST));
+      boolean chest = chestId.equals("convergence:chestplate") || chestId.equals("convergence:cuirass");
       boolean legs = id(p.getItemBySlot(EquipmentSlot.LEGS)).equals("convergence:leggings");
       boolean feet = id(p.getItemBySlot(EquipmentSlot.FEET)).equals("convergence:boots");
       if (head) {

@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "convergence:item/refresh19/sword"
+    "layer0": "convergence:item/refresh27/sword"
   }
 }

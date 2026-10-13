@@ -83,7 +83,7 @@ public final class AgentCompanions {
     static void cycleFormation(ServerPlayer owner){
         if(!AgentMenu.allowed(owner))return;
         GameModes.state(owner).putInt("helper_formation",(formation(owner).ordinal()+1)%Formation.values().length);
-        owner.level().getServer().getPlayerList().saveAll();
+        PlayerPersistence.save(owner);
     }
     enum Profile {
         PRIMITIVE("Primitive", "Ready to attack the nearest hostile mob within 12 blocks; shares an explicitly approved player target with its squad. Never attacks pets.", true),
@@ -318,7 +318,9 @@ public final class AgentCompanions {
         if (owner == null) return null;
         var order = playerTargets.get(owner.getUUID());
         if (order == null) return null;
-        if (order.owner != owner || order.ownerConnection != owner.connection || order.targetConnection != order.target.connection
+        // Reading through an old entity must not stop a replacement session's order.
+        if (order.owner != owner) return null;
+        if (order.ownerConnection != owner.connection || order.targetConnection != order.target.connection
             || order.world != owner.level() || order.world != order.target.level() || clock.millis() < order.issuedAt || clock.millis() >= order.expiresAt
             || targetEligibility(owner, order.target) != null) {
             ceasefire(owner); return null;
@@ -328,14 +330,18 @@ public final class AgentCompanions {
     /** Can always stop the caller's own order, even after OP permissions are revoked. */
     void ceasefire(ServerPlayer owner) {
         if (owner == null) return;
-        playerTargets.remove(owner.getUUID());
+        var order = playerTargets.get(owner.getUUID());
+        boolean currentOwner = server.getPlayerList().getPlayer(owner.getUUID()) == owner;
+        if (!currentOwner && (order == null || order.owner != owner)) return;
+        if (order != null && !playerTargets.remove(owner.getUUID(), order)) return;
         for (var entry : loaded.entrySet()) {
             var agent = data.agents.get(entry.getKey().toString());
             if (agent != null && agent.owner.equals(owner.getStringUUID())) halt(entry.getValue());
         }
     }
     void invalidatePlayer(ServerPlayer player) {
-        for (var order : new ArrayList<>(playerTargets.values())) if (order.owner.getUUID().equals(player.getUUID()) || order.target.getUUID().equals(player.getUUID())) ceasefire(order.owner);
+        for (var order : new ArrayList<>(playerTargets.values()))
+            if (order.owner == player || order.target == player) ceasefire(order.owner);
     }
     String playerTargetStatus(ServerPlayer owner) {
         var order = validPlayerTarget(owner);
@@ -476,6 +482,20 @@ public final class AgentCompanions {
         validatePlayerTargets();
         return reply(owner, "Squad " + mode.name().toLowerCase(Locale.ROOT) + ": " + changed.size() + " changed; " + skipped + " skipped (unloaded or another dimension).");
     }
+    int squadProfile(ServerPlayer owner, Profile profile) {
+        if (!AgentMenu.allowed(owner) || profile == null || !profile.combat) return 0;
+        int changed = 0;
+        for (var entry : data.agents.entrySet()) {
+            var agent = entry.getValue();
+            if (!agent.owner().equals(owner.getStringUUID()) || agent.profile() == profile) continue;
+            agent = agent.profile(profile); entry.setValue(agent); changed++;
+            var golem = loaded.get(UUID.fromString(entry.getKey()));
+            if (golem != null && golem.isAlive() && !golem.isRemoved()) { tags(golem, agent); halt(golem); }
+        }
+        if (changed > 0) save();
+        validatePlayerTargets();
+        return reply(owner, "Squad profile: " + profile.label() + "; " + changed + " changed. Movement stays unchanged. Choose Follow to resume paused helpers. Player combat still requires both approvals.");
+    }
     int dismiss(ServerPlayer owner, String name) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can dismiss helpers.");
         var entry = owned(owner, name);
@@ -584,14 +604,18 @@ public final class AgentCompanions {
         }
         if (aerial.containsKey(golem.getUUID())) return;
         double sensing = agent.profile == Profile.PRIMITIVE ? 12 : 10;
-        LivingEntity target = order != null && playerCombatProfile(agent.profile)
-            ? playerPursuitReady(golem, agent, owner, order.target) ? order.target : null
-            : !agent.profile.combat ? null : world.getEntitiesOfClass(Mob.class, new AABB(center, center).inflate(sensing), mob -> hostile(mob)
-            && mob.position().distanceToSqr(center) <= sensing * sensing && mob.distanceToSqr(golem) <= 24 * 24 && golem.getSensing().hasLineOfSight(mob))
-            .stream().min(Comparator.comparing((Mob mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
-                .thenComparingInt(mob -> agent.profile != Profile.PRIMITIVE ? sharedFocusRank(golem, agent, owner, mob) : 0)
+        LivingEntity target;
+        if (order != null && playerCombatProfile(agent.profile)) target = playerPursuitReady(golem, agent, owner, order.target) ? order.target : null;
+        else if (!agent.profile.combat) target = null;
+        else {
+            var candidates = world.getEntitiesOfClass(Mob.class, new AABB(center, center).inflate(sensing), mob -> hostile(mob)
+                && mob.position().distanceToSqr(center) <= sensing * sensing && mob.distanceToSqr(golem) <= 24 * 24 && golem.getSensing().hasLineOfSight(mob));
+            var focus = agent.profile != Profile.PRIMITIVE && candidates.size() > 1 ? new FocusLookup() : null;
+            target = candidates.stream().min(Comparator.comparing((Mob mob) -> agent.profile == Profile.PRIMITIVE || agent.mode != Mode.FOLLOW || mob.getTarget() != owner)
+                .thenComparingInt(mob -> focus != null ? sharedFocusRank(golem, agent, owner, mob, focus) : 0)
                 .thenComparingDouble(mob -> mob.distanceToSqr(agent.profile == Profile.ULTIMATE_FINALS ? owner : golem))
                 .thenComparing(Mob::getUUID)).orElse(null);
+        }
         if (target instanceof ServerPlayer player) APPROVED_TARGETS.put(golem, player);
         else APPROVED_TARGETS.remove(golem);
         golem.setTarget(target);
@@ -769,13 +793,25 @@ public final class AgentCompanions {
         if (!landingClear(golem, move.landing) || !airClear(golem, move.agent, owner, golem.position(), next, 0)) { cancelAerial(golem); return; }
         golem.setDeltaMovement(velocity); golem.needsSync = true;
     }
-    int sharedFocusRank(IronGolem self, Agent agent, ServerPlayer owner, Mob target) {
-        for (var entry : loaded.entrySet()) {
-            var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
-            if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile.combat
-                && pauseReason(owner, peer, record) == null && peer.getTarget() == target) return 0;
+    private static final class FocusLookup {
+        Set<LivingEntity> targets;
+    }
+    int sharedFocusRank(IronGolem self, Agent agent, ServerPlayer owner, Mob target, FocusLookup focus) {
+        if (focus.targets == null) {
+            // Local to this control call: later helpers must see targets selected by
+            // earlier helpers in the same tick. No scan for zero/one candidates or
+            // when owner-threat priority already decides the comparison.
+            focus.targets = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (var entry : loaded.entrySet()) {
+                var peer = entry.getValue(); var record = data.agents.get(entry.getKey().toString());
+                if (peer != self && record != null && record.owner.equals(agent.owner) && record.profile.combat
+                    && pauseReason(owner, peer, record) == null) {
+                    var peerTarget = peer.getTarget();
+                    if (peerTarget != null) focus.targets.add(peerTarget);
+                }
+            }
         }
-        return 1;
+        return focus.targets.contains(target) ? 0 : 1;
     }
     Vec3 flankPoint(IronGolem self, Agent agent, ServerPlayer owner, LivingEntity target) {
         var order = target instanceof ServerPlayer ? validPlayerTarget(owner) : null;

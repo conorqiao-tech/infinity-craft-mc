@@ -2,12 +2,12 @@
   "layers": {
     "humanoid": [
       {
-        "texture": "convergence:convergence_refresh19"
+        "texture": "convergence:convergence_refresh27"
       }
     ],
     "humanoid_leggings": [
       {
-        "texture": "convergence:convergence_refresh19"
+        "texture": "convergence:convergence_refresh27"
       }
     ],
     "wings": [

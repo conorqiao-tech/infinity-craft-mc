@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/refresh19/aurora_leggings"
+    "layer0": "convergence:item/refresh27/aurora_leggings"
   }
 }
