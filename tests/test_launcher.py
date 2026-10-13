@@ -338,12 +338,14 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 38)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 38)
+        self.assertEqual(len(definitions), 42)
+        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 42)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
         static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
         mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}
         self.assertNotIn("chestplate",mapped,"Keep the existing glider on native elytra behavior")
+        self.assertTrue({"bow", "crossbow", "shield", "totem"}.issubset(mapped), "Original held items have their own canonical model mappings")
+        self.assertTrue({"infinity_arrow", "void_arrow", "starfire_arrow"}.isdisjoint(mapped), "Native arrow identities stay compatible with ordinary ranged weapons")
         self.assertTrue(static_wearables.issubset(mapped))
         for path in static_wearables:
             self.assertEqual(mapped[path]["components"]["minecraft:max_stack_size"],1,"Bedrock custom wearables require max stack one")

@@ -44,3 +44,11 @@ GitHub website or an API, and a user can deliberately bypass local hooks. This
 update does not add remote branch rules or claim to prevent every possible
 bypass. Existing GitHub contributor views can remain cached after the public
 history changes; changing a view's cache is separate from fixing commit history.
+
+Check the Code-page contributor sidebar as well as the complete contributor
+graph and REST API. An owner-only graph/API does not prove that the sidebar has
+refreshed. GitHub documents about 24 hours for contributor displays to update
+after history changes, then recommends contacting Support if they are still
+incorrect: [contributor troubleshooting](https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-a-projects-contributors#contributor-data-is-stale-after-history-changes).
+Do not perform another history reset or delete retained pull requests merely
+to refresh a display cache.

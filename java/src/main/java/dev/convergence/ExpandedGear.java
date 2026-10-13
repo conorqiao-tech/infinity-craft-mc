@@ -10,6 +10,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,6 +31,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.item.component.DeathProtection;
@@ -237,6 +239,12 @@ final class ExpandedGear {
    private static final class WardShield extends ShieldItem {
       WardShield(Item.Properties settings) { super(settings); }
 
+      @Override public Component getName(ItemStack stack) {
+         // ShieldItem otherwise replaces ITEM_NAME with an untranslated color key
+         // when a banner is applied. ItemStack still gives custom anvil names priority.
+         return stack.getOrDefault(DataComponents.ITEM_NAME, GearNames.text("shield"));
+      }
+
       @Override public InteractionResult use(Level world, Player user, InteractionHand hand) {
          if (!user.isShiftKeyDown()) return super.use(world, user, hand);
          if (user instanceof ServerPlayer player
@@ -253,7 +261,7 @@ final class ExpandedGear {
             }
             Convergence.say(player, "Infinity Ward: protected and repulsing hostiles");
          }
-         return InteractionResult.SUCCESS;
+         return super.use(world, user, hand);
       }
    }
 }

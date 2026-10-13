@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "convergence:totem",
+      "materials": {
+        "default": "entity_alphatest",
+        "enchanted": "entity_alphatest_glint"
+      },
+      "textures": {
+        "default": "textures/convergence/items/refresh27/totem",
+        "enchanted": "textures/misc/enchanted_item_glint"
+      },
+      "geometry": {
+        "default": "geometry.convergence.totem_held_standby"
+      },
+      "animations": {
+        "first": "animation.convergence.totem_held_first",
+        "third": "animation.convergence.totem_held_third"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "first": "context.is_first_person"
+          },
+          {
+            "third": "!context.is_first_person"
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.convergence.totem_held_original"
+      ]
+    }
+  }
+}

@@ -10,7 +10,7 @@ import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.38"
+VERSION = "2.13.0-explore.39"
 
 
 def expected_native_tests():
@@ -59,11 +59,11 @@ def prepare():
         if re.fullmatch(r"textures/models/armor/(netherite|leather)_[12]\.png",name) or re.fullmatch(r"textures/items/(netherite|leather)_(helmet|chestplate|leggings|boots)\.png",name):
             del files[name]
             continue
-        # Only item-specific static armor and the existing native flight attachable.
+        # Only item-specific original armor/tools and the native flight attachable.
         # Exclude legacy duplicates and unsupported custom-glider definitions.
-        if name.startswith("attachables/") and name != "attachables/elytra.json" and not name.startswith("attachables/refresh27/"):
+        if name.startswith("attachables/") and name != "attachables/elytra.json" and not name.startswith(("attachables/refresh27/", "attachables/held/")):
             del files[name]
-        if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json", "render_controllers/original_static_armor.json"]:
+        if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json", "render_controllers/original_static_armor.json", "render_controllers/original_tools.json"]:
             del files[name]
     manifest = json.loads(files["manifest.json"])
     # Bedrock caches UUID+version. Reusing [2,12,0] across exploration builds

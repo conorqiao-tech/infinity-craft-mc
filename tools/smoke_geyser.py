@@ -10,6 +10,7 @@ import socket
 import struct
 import time
 import hashlib
+from verify_owned_equipment import verify_owned_equipment
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,6 +47,7 @@ def main():
     try:
         service.wait_ready(60)
         receipt = launcher.wait_creative_ready(service, root)
+        equipment = verify_owned_equipment(receipt)
         proof = receipt["proof"]
         catalogue = json.loads((geyser / "infinity-catalogue.json").read_text())
         expected_selections = sum(1 if item["max_stack_size"] == 1 else 2 for item in catalogue["items"]) * len(receipt["protocols"])
@@ -121,6 +123,9 @@ def main():
           "Via/Fabric acceptance and rendered device appearance are separate checks.")
     print(f"Stale Creative request guard passed: {stale} Survival, {protocols * 2} Adventure/Spectator "
           f"and {protocols} mixed ordinary batches; {guard['native_response_and_resync_wire_packets']} native codec response/resync packets.")
+    print(f"Original held equipment transport passed: {equipment['items']} items across {equipment['protocols']} protocols; "
+          f"{equipment['native_control_cases']} native ranged/shield/totem cases and {equipment['wire_packets']} Bedrock wire packets. "
+          "Java ammunition mechanics and authenticated device rendering remain separate checks.")
 
 
 if __name__ == "__main__":

@@ -75,6 +75,55 @@ public class InfinityGameTests {
         }
         c.succeed();
     }
+    @GameTest public void exportedCustomMappingsKeepWardOffhandWithoutUnsupportedWearableSlot(GameTestHelper c) {
+        final com.google.gson.JsonObject exported;
+        try {
+            // Read the file written by the actual SERVER_STARTED exporter, not a
+            // separately reconstructed fixture or an assumed mapping template.
+            exported=com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(
+                java.nio.file.Path.of("crossplay-export/infinity-items.json"))).getAsJsonObject();
+        } catch(java.io.IOException error) {throw new RuntimeException(error);}
+        c.assertValueEqual(exported.get("format_version").getAsInt(),2,"The generated custom mappings use Geyser v2");
+        var definitions=new java.util.HashMap<String,com.google.gson.JsonObject>();
+        for(var base:exported.getAsJsonObject("items").entrySet())for(var element:base.getValue().getAsJsonArray()) {
+            var definition=element.getAsJsonObject();var key=definition.get("bedrock_identifier").getAsString();
+            c.assertTrue(definitions.put(key,definition)==null,"The actual export has one canonical definition per owned identifier");
+        }
+        var ward=gear("shield");var nativeEquip=Items.SHIELD.components().get(DataComponents.EQUIPPABLE);
+        c.assertTrue(nativeEquip!=null,"The 26.3 native shield actually has an equippable component");
+        c.assertValueEqual(nativeEquip.slot(),EquipmentSlot.OFFHAND,"The actual native shield equipment slot is offhand");
+        c.assertValueEqual(ward.get(DataComponents.EQUIPPABLE),nativeEquip,"Export leaves the canonical Ward's native offhand equipment intact");
+        c.assertValueEqual(ward.get(DataComponents.BLOCKS_ATTACKS),Items.SHIELD.components().get(DataComponents.BLOCKS_ATTACKS),
+            "Export retains the real Ward's native defense component");
+        var definition=definitions.get("convergence:shield");
+        c.assertTrue(definition!=null,"The formerly native Ward now has an actual owned mapping");
+        c.assertValueEqual(definition.get("display_name").getAsString(),GearNames.label("shield"),"The Ward mapping has its readable literal name");
+        c.assertTrue(definition.getAsJsonObject("bedrock_options").get("allow_offhand").getAsBoolean(),"The owned Ward mapping still allows the Bedrock offhand");
+        var components=definition.getAsJsonObject("components");
+        c.assertFalse(components.has("minecraft:equippable"),"Only the unsupported exported Ward offhand wearable field is omitted");
+        c.assertValueEqual(components.get("minecraft:max_stack_size").getAsInt(),ward.getMaxStackSize(),"Ward export retains native stack capacity");
+        c.assertValueEqual(components.get("minecraft:max_damage").getAsInt(),ward.getMaxDamage(),"Ward export retains actual durability");
+        var ops=net.minecraft.resources.RegistryOps.create(com.mojang.serialization.JsonOps.INSTANCE,c.getLevel().registryAccess());
+        var enchantable=ward.get(DataComponents.ENCHANTABLE);
+        if(enchantable==null)c.assertFalse(components.has("minecraft:enchantable"),"Ward export does not invent absent native enchantable data");
+        else c.assertValueEqual(components.get("minecraft:enchantable"),DataComponents.ENCHANTABLE.codec()
+            .encodeStart(ops,enchantable).getOrThrow(),"Ward export retains its actual native enchantable data");
+        c.assertValueEqual(components.get("minecraft:enchantment_glint_override").getAsBoolean(),ward.get(DataComponents.ENCHANTMENT_GLINT_OVERRIDE),
+            "Ward export retains its glint setting");
+        int wearableControls=0;
+        for(var entry:CrossplaySupport.BASES.entrySet()) {
+            if(entry.getKey().equals("shield")||CrossplaySupport.NATIVE_BEDROCK.contains(entry.getKey()))continue;
+            var stack=gear(entry.getKey());var equippable=stack.get(DataComponents.EQUIPPABLE);
+            if(equippable==null)continue;
+            var actual=definitions.get("convergence:"+entry.getKey());
+            c.assertTrue(actual!=null,"Every other owned wearable remains exported: "+entry.getKey());
+            c.assertValueEqual(actual.getAsJsonObject("components").get("minecraft:equippable"),DataComponents.EQUIPPABLE.codec()
+                .encodeStart(ops,equippable).getOrThrow(),"Other armor keeps its complete actual equipment data: "+entry.getKey());
+            wearableControls++;
+        }
+        c.assertTrue(wearableControls>=12,"Convergence, Aurora and Ember armor exercise retained wearable components");
+        c.succeed();
+    }
     @GameTest public void crossplayPowerCommandsRestoreSneakingAndEnforceItems(GameTestHelper c) {
         var p=survival(c);
         p.setItemInHand(InteractionHand.MAIN_HAND,gear("sword"));p.setShiftKeyDown(false);
@@ -452,12 +501,199 @@ public class InfinityGameTests {
         var p=survival(c);p.setItemInHand(InteractionHand.MAIN_HAND,gear("shield"));
         c.assertTrue(p.getMainHandItem().has(DataComponents.BLOCKS_ATTACKS),"Native shield defense component retained");
         p.setShiftKeyDown(false);
-        p.getMainHandItem().getItem().use(c.getLevel(),p,InteractionHand.MAIN_HAND);
+        c.assertValueEqual(p.getMainHandItem().getItem().use(c.getLevel(),p,InteractionHand.MAIN_HAND),
+            InteractionResult.CONSUME,"Ordinary shield use keeps the native held-use result");
         c.assertTrue(p.isUsingItem(),"Ordinary Use starts native blocking");
         p.releaseUsingItem();p.setShiftKeyDown(true);
-        p.getMainHandItem().getItem().use(c.getLevel(),p,InteractionHand.MAIN_HAND);
+        c.assertValueEqual(p.getMainHandItem().getItem().use(c.getLevel(),p,InteractionHand.MAIN_HAND),
+            InteractionResult.CONSUME,"Crouch Ward keeps the native held-use result");
         c.assertTrue(p.hasEffect(MobEffects.RESISTANCE),"Crouch Use grants Ward resistance");
         c.assertTrue(p.hasEffect(MobEffects.ABSORPTION),"Crouch Use grants Ward absorption");
+        c.assertTrue(p.isUsingItem(),"Crouch Ward also starts native shield use");
+        c.assertValueEqual(p.getUsedItemHand(),InteractionHand.MAIN_HAND,"Ward raises the selected shield hand");
+        c.succeed();
+    }
+    private void clearWardDefense(ServerPlayer p) {
+        // Shield damage must be blocked by the raised item, not hidden by Ward's temporary powers.
+        p.removeEffect(MobEffects.RESISTANCE);p.removeEffect(MobEffects.ABSORPTION);p.setAbsorptionAmount(0);
+    }
+    private void tickWardPlayers(GameTestHelper c,java.util.List<ServerPlayer> players,int ticks,Runnable ready) {
+        // Embedded connections do not run the network listener's tickPlayer(). The
+        // level's ServerPlayer.tick() does not advance native item use: doTick() does.
+        // Exercise that same native player tick once per scheduled GameTest tick.
+        c.runAfterDelay(1,()->{
+            for(var p:players) {
+                int elapsed=p.getTicksUsingItem();
+                p.doTick();
+                if(p.isUsingItem())c.assertValueEqual(p.getTicksUsingItem(),elapsed+1,"The real native player tick advances held shield use");
+            }
+            if(ticks>1)tickWardPlayers(c,players,ticks-1,ready);else ready.run();
+        });
+    }
+    private LivingEntity wardAttacker(GameTestHelper c,ServerPlayer p,int index) {
+        var attacker=c.spawnWithNoFreeWill(EntityTypes.HUSK,2+index*2,2,4);
+        attacker.setNoAi(true);attacker.setNoGravity(true);
+        p.setPos(attacker.getX(),attacker.getY(),attacker.getZ()-2);
+        p.setDeltaMovement(Vec3.ZERO);p.lookAt(Anchor.EYES,attacker.getEyePosition());
+        return attacker;
+    }
+    private void assertFrontalShieldBlock(GameTestHelper c,ServerPlayer p,LivingEntity attacker,float damage) {
+        attacker.setPos(p.getX(),p.getY(),p.getZ()+2);attacker.setDeltaMovement(Vec3.ZERO);
+        p.lookAt(Anchor.EYES,attacker.getEyePosition());
+        c.assertFalse(p.hasEffect(MobEffects.RESISTANCE),"No resistance can mask a failed native block");
+        c.assertValueEqual(p.getAbsorptionAmount(),0.0F,"No absorption can mask a failed native block");
+        float health=p.getHealth();
+        p.hurtServer(c.getLevel(),c.getLevel().damageSources().mobAttack(attacker),damage);
+        c.assertValueEqual(p.getHealth(),health,"Raised shield blocks actual frontal native mob damage");
+        c.assertValueEqual(p.getAbsorptionAmount(),0.0F,"Frontal hit spends no absorption");
+    }
+    @GameTest(maxTicks=60) public void crouchingWardBlocksBothHandsWhileCoolingDown(GameTestHelper c) {
+        var players=new java.util.ArrayList<ServerPlayer>();
+        var attackers=new java.util.ArrayList<LivingEntity>();
+        var expires=new java.util.ArrayList<Long>();
+        var hands=InteractionHand.values();
+        int delay=gear("shield").get(DataComponents.BLOCKS_ATTACKS).blockDelayTicks();
+        c.assertTrue(delay>0,"The inherited native shield delay is exercised");
+        for(int i=0;i<hands.length;i++) {
+            var p=survival(c);players.add(p);attackers.add(wardAttacker(c,p,i));
+            p.setItemInHand(hands[i],gear("shield"));p.setShiftKeyDown(true);
+            p.getItemInHand(hands[i]).getItem().use(c.getLevel(),p,hands[i]);
+            c.assertTrue(p.isUsingItem(),"Sneaking starts native shield use in "+hands[i]);
+            c.assertValueEqual(p.getUsedItemHand(),hands[i],"The selected main/offhand becomes the native active hand");
+            c.assertFalse(p.isBlocking(),"Native defense cannot skip its initial block delay");
+            c.assertValueEqual(p.getEffect(MobEffects.RESISTANCE).getAmplifier(),2,"Ward keeps resistance III");
+            c.assertValueEqual(p.getEffect(MobEffects.ABSORPTION).getAmplifier(),3,"Ward keeps absorption IV");
+            c.assertTrue(attackers.get(i).getDeltaMovement().z>0,"Ward still repels a real nearby hostile away from the player");
+            long expiry=Convergence.state(p).cooldown.get("shield_ward");expires.add(expiry);
+            c.assertValueEqual(expiry,Convergence.clock+600,"Ward still spends its 600-tick power cooldown");
+            clearWardDefense(p);
+        }
+        tickWardPlayers(c,players,delay+1,()->{
+            for(int i=0;i<hands.length;i++) {
+                var p=players.get(i);
+                c.assertTrue(p.isBlocking(),"Native blocking starts after the delay in "+hands[i]);
+                c.assertTrue(p.getItemBlockingWith()==p.getItemInHand(hands[i]),"Native defense selects the actual held Ward shield");
+                assertFrontalShieldBlock(c,p,attackers.get(i),4.0F);
+                p.releaseUsingItem();attackers.get(i).setDeltaMovement(Vec3.ZERO);
+                p.getItemInHand(hands[i]).getItem().use(c.getLevel(),p,hands[i]);
+                c.assertTrue(p.isUsingItem(),"A cooling-down Ward still starts native shield use");
+                c.assertValueEqual(p.getUsedItemHand(),hands[i],"Cooldown cannot change the selected shield hand");
+                c.assertFalse(p.isBlocking(),"Repeated use retains the native block delay");
+                c.assertFalse(p.hasEffect(MobEffects.RESISTANCE)||p.hasEffect(MobEffects.ABSORPTION),"Cooldown does not recast Ward powers");
+                c.assertValueEqual(attackers.get(i).getDeltaMovement(),Vec3.ZERO,"Cooldown does not repeat the hostile repulsion power");
+                c.assertValueEqual(Convergence.state(p).cooldown.get("shield_ward"),expires.get(i),"Repeated use does not extend the power cooldown");
+            }
+            tickWardPlayers(c,players,delay+1,()->{
+                for(int i=0;i<hands.length;i++) {
+                    var p=players.get(i);
+                    c.assertTrue(p.isBlocking(),"The cooling-down shield reaches native blocking after its delay");
+                    // Greater damage also exercises this hit if the first hit's native damage cooldown remains active.
+                    assertFrontalShieldBlock(c,p,attackers.get(i),8.0F);p.releaseUsingItem();
+                }
+                tickWardPlayers(c,players,21,()->{
+                    for(int i=0;i<hands.length;i++) {
+                        var p=players.get(i);var attacker=attackers.get(i);
+                        c.assertFalse(p.isBlocking(),"Releasing the shield ends native blocking");
+                        attacker.setPos(p.getX(),p.getY(),p.getZ()+2);float health=p.getHealth();
+                        c.assertTrue(p.hurtServer(c.getLevel(),c.getLevel().damageSources().mobAttack(attacker),4.0F),"The same frontal source hurts after native damage cooldown and shield release");
+                        c.assertTrue(p.getHealth()<health,"Actual damage without a raised shield proves the blocked hits were not an invulnerable fixture");
+                    }
+                    c.succeed();
+                });
+            });
+        });
+    }
+    @GameTest(maxTicks=50) public void mixedWardAndVanillaShieldsKeepNativeHandPriority(GameTestHelper c) {
+        var players=new java.util.ArrayList<ServerPlayer>();
+        var attackers=new java.util.ArrayList<LivingEntity>();
+        var vanillaShields=new java.util.ArrayList<ItemStack>();
+        var vanillaDamage=new java.util.ArrayList<Integer>();
+        var hands=InteractionHand.values();
+        int delay=gear("shield").get(DataComponents.BLOCKS_ATTACKS).blockDelayTicks();
+        for(int i=0;i<hands.length;i++) {
+            var p=survival(c);players.add(p);attackers.add(wardAttacker(c,p,i));
+            var vanilla=new ItemStack(Items.SHIELD);vanillaShields.add(vanilla);
+            var other=hands[i]==InteractionHand.MAIN_HAND?InteractionHand.OFF_HAND:InteractionHand.MAIN_HAND;
+            p.setItemInHand(hands[i],gear("shield"));p.setItemInHand(other,vanilla);p.setShiftKeyDown(true);
+            vanilla.getItem().use(c.getLevel(),p,other);
+            c.assertValueEqual(p.getUsedItemHand(),other,"Ordinary shield use respects the selected hand with Ward equipped");
+            c.assertFalse(p.hasEffect(MobEffects.RESISTANCE)||p.hasEffect(MobEffects.ABSORPTION),"Using ordinary shields never casts the other hand's Ward");
+            c.assertFalse(Convergence.state(p).cooldown.containsKey("shield_ward"),"Ordinary shield use spends no Ward cooldown");
+            p.getItemInHand(hands[i]).getItem().use(c.getLevel(),p,hands[i]);
+            c.assertTrue(p.hasEffect(MobEffects.RESISTANCE)&&p.hasEffect(MobEffects.ABSORPTION),"Ward still grants its power while another native shield is raised");
+            c.assertValueEqual(p.getUsedItemHand(),other,"Ward cannot replace an already active native use hand");
+            c.assertTrue(p.getUseItem()==vanilla,"An active ordinary shield remains the original stack");
+            clearWardDefense(p);
+        }
+        tickWardPlayers(c,players,delay+1,()->{
+            for(int i=0;i<hands.length;i++) {
+                var p=players.get(i);var vanilla=vanillaShields.get(i);
+                c.assertTrue(p.getItemBlockingWith()==vanilla,"Native defense retains the already active ordinary shield");
+                assertFrontalShieldBlock(c,p,attackers.get(i),4.0F);
+                c.assertTrue(vanilla.getDamageValue()>0,"The ordinary shield actually absorbs durability damage");
+                c.assertValueEqual(p.getItemInHand(hands[i]).getDamageValue(),0,"The inactive Ward does not take the ordinary shield's hit");
+                vanillaDamage.add(vanilla.getDamageValue());p.releaseUsingItem();
+                p.getItemInHand(hands[i]).getItem().use(c.getLevel(),p,hands[i]);
+                c.assertValueEqual(p.getUsedItemHand(),hands[i],"After release the explicitly selected Ward hand can become active");
+                c.assertFalse(p.hasEffect(MobEffects.RESISTANCE)||p.hasEffect(MobEffects.ABSORPTION),"Selecting Ward during its cooldown grants no extra powers");
+            }
+            tickWardPlayers(c,players,delay+1,()->{
+                for(int i=0;i<hands.length;i++) {
+                    var p=players.get(i);
+                    c.assertTrue(p.getItemBlockingWith()==p.getItemInHand(hands[i]),"Selected Ward blocks even when another ordinary shield is equipped");
+                    assertFrontalShieldBlock(c,p,attackers.get(i),8.0F);
+                    c.assertValueEqual(vanillaShields.get(i).getDamageValue(),vanillaDamage.get(i),"The now inactive ordinary shield takes no damage");
+                }
+                c.succeed();
+            });
+        });
+    }
+    @GameTest public void decoratedWardKeepsOwnedNameAndNativeShieldNames(GameTestHelper c) {
+        var registries=c.getLevel().registryAccess();
+        var ops=registries.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+        var viewer=c.makeMockServerPlayerInLevel();var context=viewer.connection.getPacketContext();
+        var patterns=new net.minecraft.world.level.block.entity.BannerPatternLayers.Builder()
+            .add(registries.lookupOrThrow(Registries.BANNER_PATTERN)
+                .getOrThrow(net.minecraft.world.level.block.entity.BannerPatterns.STRIPE_BOTTOM),net.minecraft.world.item.DyeColor.BLUE)
+            .build();
+        for(var color:net.minecraft.world.item.DyeColor.values()) {
+            var ward=gear("shield");ward.set(DataComponents.BASE_COLOR,color);ward.set(DataComponents.BANNER_PATTERNS,patterns);
+            c.assertValueEqual(ward.getHoverName(),GearNames.text("shield"),"A decorated Ward keeps its full owned name in "+color);
+            c.assertValueEqual(ward.get(DataComponents.BASE_COLOR),color,"Naming does not discard the native banner base color");
+            c.assertValueEqual(ward.get(DataComponents.BANNER_PATTERNS),patterns,"Naming does not discard native banner patterns");
+            var encoded=ItemStack.CODEC.encodeStart(ops,ward).getOrThrow();
+            var loaded=ItemStack.CODEC.parse(ops,encoded).getOrThrow();
+            c.assertTrue(ItemStack.isSameItemSameComponents(ward,loaded),"Native save/reload preserves the decorated Ward components");
+            c.assertValueEqual(loaded.getHoverName(),GearNames.text("shield"),"A reloaded decorated Ward keeps the readable name");
+            var wire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(ward,context,registries);
+            c.assertValueEqual(wire.getItem(),Items.SHIELD,"A decorated Ward uses the actual native shield projection");
+            c.assertValueEqual(wire.getHoverName(),GearNames.text("shield"),"The actual native shield projection keeps the full Infinity name");
+            c.assertValueEqual(wire.get(DataComponents.BASE_COLOR),color,"Projection preserves the actual banner base color");
+            c.assertValueEqual(wire.get(DataComponents.BANNER_PATTERNS),patterns,"Projection preserves the actual banner patterns");
+            var restored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire,registries);
+            c.assertTrue(ItemStack.isSameItemSameComponents(ward,restored),"Restoration preserves all original decorated Ward components");
+            c.assertFalse(ward.has(DataComponents.CUSTOM_NAME)||restored.has(DataComponents.CUSTOM_NAME),
+                "The outgoing readability name is never fabricated on the canonical Ward");
+
+            var vanilla=new ItemStack(Items.SHIELD);vanilla.set(DataComponents.BASE_COLOR,color);vanilla.set(DataComponents.BANNER_PATTERNS,patterns);
+            c.assertTrue(vanilla.getHoverName().getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents,
+                "Ordinary decorated shields retain Minecraft's translated color names");
+            var contents=(net.minecraft.network.chat.contents.TranslatableContents)vanilla.getHoverName().getContents();
+            c.assertValueEqual(contents.getKey(),"item.minecraft.shield."+color.getName(),"Ward naming leaves ordinary colored shield keys untouched");
+            var ordinaryWire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(vanilla,context,registries);
+            c.assertTrue(ItemStack.isSameItemSameComponents(vanilla,ordinaryWire),"Ordinary decorated shields retain their real components through Polymer");
+            c.assertValueEqual(ordinaryWire.getHoverName(),vanilla.getHoverName(),"Ordinary shield projection keeps its native color name");
+
+            var title=net.minecraft.network.chat.Component.literal("My "+color.getName()+" Ward").withStyle(net.minecraft.ChatFormatting.GOLD);
+            loaded.set(DataComponents.CUSTOM_NAME,title);
+            var renamed=ItemStack.CODEC.parse(ops,ItemStack.CODEC.encodeStart(ops,loaded).getOrThrow()).getOrThrow();
+            c.assertValueEqual(renamed.getHoverName(),title,"A styled custom name takes priority and survives native save/reload");
+            c.assertValueEqual(renamed.get(DataComponents.BANNER_PATTERNS),patterns,"Renaming retains the actual banner pattern");
+            var renamedWire=eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(renamed,context,registries);
+            c.assertValueEqual(renamedWire.getHoverName(),title,"Projection gives the real styled anvil name priority over the Ward fallback");
+            var renamedRestored=eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(renamedWire,registries);
+            c.assertTrue(ItemStack.isSameItemSameComponents(renamed,renamedRestored),"Styled anvil names and banners survive actual Polymer restoration");
+        }
         c.succeed();
     }
     @GameTest public void nativeBowConsumesCustomArrowAndKeepsProjectileType(GameTestHelper c) {

@@ -138,6 +138,9 @@ public final class InfinityCreativeBridge implements Extension {
                 }
                 prepared.put(protocol.getIntKey(), aliases);
             }
+            // Retain the real Java weapon classes while correcting only the four
+            // owned custom definitions. Ordinary native items/arrow IDs stay intact.
+            OwnedEquipmentSupport equipment = OwnedEquipmentSupport.install(catalogue);
             // Atomic validation boundary: only our newly registered aliases are changed after every protocol passes.
             for (Catalogue.Entry entry : catalogue.items) {
                 int id = aliasIds.get(entry.path()); Items.register(replacements.get(id), id);
@@ -165,7 +168,11 @@ public final class InfinityCreativeBridge implements Extension {
             receipt.addProperty("unowned_primary_and_java_items_unchanged", true);
             receipt.addProperty("request_guard_delegate_class", guard.delegateClassName());
             receipt.addProperty("unowned_packet_translators_unchanged", true);
-            if (Boolean.getBoolean("infinity.creative.proof")) receipt.add("proof", CreativeProtocolProof.run(catalogue, aliasIds));
+            receipt.add("owned_equipment", equipment.receipt());
+            if (Boolean.getBoolean("infinity.creative.proof")) {
+                receipt.add("proof", CreativeProtocolProof.run(catalogue, aliasIds));
+                receipt.add("owned_equipment_proof", OwnedEquipmentProof.run(catalogue, equipment));
+            }
             writeReceipt("ready.json", receipt);
             logger().info("Infinity Creative bridge ready: " + catalogue.items.size() + " items, " + prepared.size() + " Bedrock protocols");
         } catch (Exception error) {

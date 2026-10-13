@@ -34,7 +34,8 @@ def supplementary_sources() -> dict[str, str]:
     """Bind imported proof/copy helpers as well as the two new source files."""
     paths = [Path(__file__).resolve(), SOURCE,
              ROOT / "tools/benchmark_helpers.py", ROOT / "tools/prepare_crossplay.py",
-             ROOT / "tools/package_crossplay.py", ROOT / "tools/smoke_creative_wire.py"]
+             ROOT / "tools/package_crossplay.py", ROOT / "tools/smoke_creative_wire.py",
+             ROOT / "tools/verify_owned_equipment.py"]
     return {path.relative_to(ROOT).as_posix(): digest(path) for path in paths}
 
 
