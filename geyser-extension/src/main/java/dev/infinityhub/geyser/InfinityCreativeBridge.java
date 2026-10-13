@@ -157,11 +157,14 @@ public final class InfinityCreativeBridge implements Extension {
             }
             for (int i = 0; i < originalJavaItems.size(); i++) if (!ownedIds.contains(i) && Registries.JAVA_ITEMS.get().get(i) != originalJavaItems.get(i))
                 throw new IllegalStateException("An unowned Java item changed");
+            CreativeRequestGuard guard = CreativeRequestGuard.install(catalogue, aliasIds);
             JsonObject receipt = new JsonObject(); receipt.addProperty("format_version", 1); receipt.addProperty("geyser_sha256", GEYSER_SHA256);
             receipt.addProperty("catalogue_sha256", catalogue.sha256); receipt.addProperty("items", catalogue.items.size());
             JsonObject protocols = new JsonObject(); prepared.forEach((protocol, entries) -> protocols.addProperty(protocol.toString(), entries.size()));
             receipt.add("protocols", protocols);
             receipt.addProperty("unowned_primary_and_java_items_unchanged", true);
+            receipt.addProperty("request_guard_delegate_class", guard.delegateClassName());
+            receipt.addProperty("unowned_packet_translators_unchanged", true);
             if (Boolean.getBoolean("infinity.creative.proof")) receipt.add("proof", CreativeProtocolProof.run(catalogue, aliasIds));
             writeReceipt("ready.json", receipt);
             logger().info("Infinity Creative bridge ready: " + catalogue.items.size() + " items, " + prepared.size() + " Bedrock protocols");

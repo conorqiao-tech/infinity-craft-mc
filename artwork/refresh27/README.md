@@ -16,6 +16,14 @@ Reproduce with Python plus Pillow:
 python3 artwork/refresh27/pack_art.py
 ```
 
-`uv-manifest.json` records source hashes, crop/UV rectangles and generated texture hashes. Inspect `inventory-preview.png`, `armor-uv-preview.png` and `block-tiling-preview.png`. These are artwork contact sheets, not Minecraft screenshots. Static armor uses native humanoid geometry; wing geometry and animations are retained. No new 3D armor model is claimed.
+`uv-manifest.json` records source hashes, crop/UV rectangles and generated texture hashes. Inspect `inventory-preview.png`, `armor-uv-preview.png` and `block-tiling-preview.png`. These are artwork contact sheets, not Minecraft screenshots.
+
+`resource_models.py` independently authors thirteen Bedrock armor/backpack assemblies and a separate open flight chest shell, using the original packed face artwork and the player's animated joint bindings. It does not read or copy another armor model. The flight shell has segmented plates, side ribs and short shoulder guards; the actual elytra keeps its native wing geometry, materials, scripts and flight animations. The solid Convergence chestplate remains a separate item. Ordinary Bedrock elytra shares the retained wing artwork and extra shell while this pack is active. Java still renders the original equipment textures on Minecraft's engine humanoid armor mesh; these Bedrock models do not replace that Java mesh.
+
+To regenerate only model/controller JSON without changing PNGs:
+
+```sh
+python3 artwork/refresh27/resource_models.py
+```
 
 Resource tests cover hashes, face opacity, unused transparency, model references, equipped slots/max-stack components, pack revisions, unique attachables and isolation from ordinary armor. Native tests cover real equipment, set powers, inventory/box placement, permissions, sessions and saving. Actual Java/iPad visuals need a device check after an approved installation. See `server/ORIGINAL_ARTWORK.md` for controls and crossplay limits.

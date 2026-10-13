@@ -54,6 +54,17 @@ def main():
         assert proof["occupied_different_item_replacement_cases"] == receipt["items"] * len(receipt["protocols"])
         assert len(proof["encoded_hotbar_packets"]) == expected_selections
         assert len(proof["encoded_oversized_packets"]) == receipt["items"] * len(receipt["protocols"])
+        guard = proof["stale_request_guard"]
+        protocols = len(receipt["protocols"])
+        stale = receipt["items"] * protocols * 3
+        assert guard["stale_survival_alias_requests"] == stale
+        assert guard["adventure_and_spectator_requests"] == protocols * 2
+        assert guard["mixed_ordinary_survival_batches"] == protocols
+        assert guard["request_metadata_preservation_cases"] == stale
+        assert guard["native_response_and_resync_wire_packets"] == (stale + protocols * 3) * 9
+        assert guard["complete_cached_components_counts_and_network_ids_preserved"] is True
+        assert guard["native_error_cursor_inventory_armor_offhand_and_crafting_resync"] is True
+        assert guard["ordinary_requests_and_unowned_creative_entries_unchanged"] is True
         proof_folder = ROOT / "research/integration/creative-bridge"
         proof_folder.mkdir(exist_ok=True)
         (proof_folder / "ready.json").write_text(json.dumps(receipt, indent=2) + "\n")
@@ -108,6 +119,8 @@ def main():
     print(f"Creative bridge transport passed: {receipt['items']} items across {len(receipt['protocols'])} protocols; "
           f"{expected_selections} actual hotbar selections and {expected_selections * 2} cursor/drop requests. "
           "Via/Fabric acceptance and rendered device appearance are separate checks.")
+    print(f"Stale Creative request guard passed: {stale} Survival, {protocols * 2} Adventure/Spectator "
+          f"and {protocols} mixed ordinary batches; {guard['native_response_and_resync_wire_packets']} native codec response/resync packets.")
 
 
 if __name__ == "__main__":

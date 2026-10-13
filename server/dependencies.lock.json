@@ -1,6 +1,6 @@
 {
   "minecraft": "26.3",
-  "version": "2.13.0-explore.37",
+  "version": "2.13.0-explore.38",
   "downloads": [
     {
       "path": "fabric/mods/polymer-bundled-0.18.2+26.3.jar",
@@ -41,8 +41,8 @@
   ],
   "bundled": [
     {
-      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.37.jar",
-      "sha256": "147985050d9856723978c0b27108d8fe8e4b54900ccb68f3e14790536d3dfe76"
+      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.38.jar",
+      "sha256": "adf372f526eeb4a191307f79cfc87269c24f4c37926fd07be72b735c0643552f"
     },
     {
       "path": "fabric/mods/fabric-api-0.161.0+26.3.jar",
@@ -50,11 +50,11 @@
     },
     {
       "path": "geyser/packs/Infinity_Armor_Crossplay.mcpack",
-      "sha256": "b350084dd94a269c21a6dd916978ef9b70e10ed2b86479de77cd5b20cc2adc4a"
+      "sha256": "1bcb4d71ba92d5505cba43db9b2f0106bcdb36e4f2cf457045587f2762c24973"
     },
     {
       "path": "geyser/extensions/InfinityCreativeBridge.jar",
-      "sha256": "f6f736ceca1dab1f73527bd8d6a9c66b7a8379aa463b2be60a4e4955141d0827"
+      "sha256": "d6cb814fe7db831d7076aaae1b7c678027b9db06e84c00b4a11dff1fb7255d86"
     }
   ],
   "creative_bridge": {
@@ -65,9 +65,11 @@
       "geyser-extension/extension.yml": "bd9996c39e24863b6c103a869f0e5354ba79b77ec6abf4c32aa0319676a750a0",
       "geyser-extension/src/main/java/dev/infinityhub/geyser/Catalogue.java": "12fece18ca140464788642b7d8a600005fca5a016708d3a91e696faf35979db0",
       "geyser-extension/src/main/java/dev/infinityhub/geyser/CatalogueItem.java": "f8604c26dd42d4f9db0c32eda425f2716766ce82ab46e96099d26d58dafa9329",
-      "geyser-extension/src/main/java/dev/infinityhub/geyser/CreativeProtocolProof.java": "b0b33e1a66d7762c445a0797306114729f040a4bb0731eab2f4027a6cb0b67ec",
-      "geyser-extension/src/main/java/dev/infinityhub/geyser/InfinityCreativeBridge.java": "67d35d25bcd626bf7a6583df2df63bf0c783fa20b5aae6b4c1607da20df05c1c"
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/CreativeGuardProof.java": "a3d8c26b51faf2237b0ea4ae702b58594732dcb390ddb064ea2522f71c841984",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/CreativeProtocolProof.java": "5f07882cd121a8614e2970fc5dbb23a3f5f540c3ba0cabe658d95ef0a54925ac",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/CreativeRequestGuard.java": "383b9abfe47f2ff996d2c156a7fd4a384d10c43ebe26901130a6e80bcdb92c79",
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/InfinityCreativeBridge.java": "0f332a096352542b78562836b217824d6448edd2259cd106b380a24397b219fa"
     },
-    "extension_sha256": "f6f736ceca1dab1f73527bd8d6a9c66b7a8379aa463b2be60a4e4955141d0827"
+    "extension_sha256": "d6cb814fe7db831d7076aaae1b7c678027b9db06e84c00b4a11dff1fb7255d86"
   }
 }

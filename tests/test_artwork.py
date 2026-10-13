@@ -8,7 +8,9 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import shutil
 import struct
+import tempfile
 import unittest
 import zipfile
 import zlib
@@ -172,8 +174,17 @@ class OriginalArtworkTests(unittest.TestCase):
                 self.assertEqual(alias,dict(desc,identifier="infinity_catalog:"+name),"Prediction aliases share exactly the real item's worn artwork")
             controllers = json.loads(pack.read("render_controllers/original_static_armor.json"))["render_controllers"]
             self.assertCountEqual(controllers,["controller.render.convergence."+name+"_original" for name in wearable])
+            wings = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
+            flight = json.loads(pack.read("models/entity/original_armor/flight_shell.geo.json"))["minecraft:geometry"][0]
+            self.assertEqual(wings["geometry"]["infinity_armor"],flight["description"]["identifier"])
+            self.assertEqual(wings["geometry"]["default"],"geometry.elytra","The real native wings keep their own geometry")
+            self.assertEqual(json.loads(pack.read("attachables/elytra.json")),
+                             json.loads((ROOT / "bedrock/resource_pack/attachables/elytra.json").read_text()),
+                             "The installed candidate must include the same tested flight attachment")
             for material in ("netherite","leather"):
                 for layer in (1,2): self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
+                for piece in ("helmet","chestplate","leggings","boots"):
+                    self.assertNotIn(f"textures/items/{material}_{piece}.png",pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
             version = re.search(r'^VERSION = "([^"\n]+)"$', (ROOT / "tools/prepare_crossplay.py").read_text(), re.MULTILINE).group(1)
             expected_version = [2,12,int(version.rsplit(".",1)[-1])]
@@ -188,7 +199,8 @@ class OriginalArtworkTests(unittest.TestCase):
         for outfit in ("aurora","ember"):
             for piece in ("helmet","chestplate","leggings","boots"):
                 expected[outfit+"_"+piece] = expected["cuirass" if piece=="chestplate" else piece]
-        self.assertCountEqual([p.stem.replace(".geo","") for p in (bed / "models/entity/original_armor").glob("*.geo.json")],expected)
+        self.assertCountEqual([p.stem.replace(".geo","") for p in (bed / "models/entity/original_armor").glob("*.geo.json")],
+                              list(expected)+["flight_shell"])
         for name,joints in expected.items():
             desc = json.loads((bed / f"attachables/refresh27/{name}.json").read_text())["minecraft:attachable"]["description"]
             geo = json.loads((bed / f"models/entity/original_armor/{name}.geo.json").read_text())["minecraft:geometry"][0]
@@ -217,6 +229,75 @@ class OriginalArtworkTests(unittest.TestCase):
                         for py in range(y,y+h):
                             for px in range(x,x+w):
                                 self.assertEqual(rows[py][px*4+3],255,"No face samples the transparent unused UV cells")
+
+    def test_original_flight_shell_has_animated_joint_bindings_and_opaque_faces(self):
+        bed = ROOT / "bedrock/resource_pack"
+        wings = json.loads((bed / "attachables/elytra.json").read_text())["minecraft:attachable"]["description"]
+        geometry = json.loads((bed / "models/entity/original_armor/flight_shell.geo.json").read_text())["minecraft:geometry"][0]
+        self.assertEqual(geometry["description"]["identifier"],"geometry.convergence.flight_shell_original")
+        self.assertEqual(wings["geometry"],{"default":"geometry.elytra","infinity_armor":geometry["description"]["identifier"]})
+        self.assertEqual(wings["animations"],{"default_controller":"controller.animation.elytra.default",
+            **{state:"animation.elytra."+state for state in ("default","gliding","sneaking","sleeping","swimming")}})
+        self.assertEqual(wings["scripts"],{"parent_setup":"variable.chest_layer_visible = 0.0;","animate":["default_controller"]})
+        self.assertEqual(wings["materials"],{"default":"elytra","enchanted":"elytra_glint",
+            "infinity_armor":"armor","infinity_armor_enchanted":"armor_enchanted"})
+        self.assertEqual(wings["render_controllers"],["controller.render.armor","controller.render.convergence.flight_chest"])
+        controller = json.loads((bed / "render_controllers/flight.json").read_text())["render_controllers"]["controller.render.convergence.flight_chest"]
+        self.assertEqual(controller["geometry"],"Geometry.infinity_armor")
+        self.assertEqual(controller["textures"],["Texture.infinity_armor","Texture.enchanted"])
+        bones = geometry["bones"]
+        self.assertEqual({b["binding"] for b in bones},{"'body'","'rightArm'","'leftArm'"})
+        self.assertEqual(len(bones),3,"The extra shell binds only its torso and short shoulder guards, with no wing skeleton")
+        self.assertTrue(all(b["name"].startswith("infinity_flight_") for b in bones))
+        static = json.loads((bed / "models/entity/original_armor/cuirass.geo.json").read_text())["minecraft:geometry"][0]
+        self.assertNotEqual([b["cubes"] for b in bones],[b["cubes"] for b in static["bones"]],
+                            "Flight uses an open segmented harness, not a copied solid chestplate")
+        width,height,rows = rgba_png((bed / (wings["textures"]["infinity_armor"]+".png")).read_bytes())
+        self.assertEqual((geometry["description"]["texture_width"],geometry["description"]["texture_height"]),(width,height))
+        for b in bones:
+            for cube in b["cubes"]:
+                self.assertTrue(all(n>0 for n in cube["size"]))
+                self.assertCountEqual(cube["uv"],("up","down","east","west","north","south"))
+                for face in cube["uv"].values():
+                    x,y = face["uv"]; w,h = face["uv_size"]
+                    self.assertTrue(0<=x<x+w<=width and 0<=y<y+h<=height)
+                    for py in range(y,y+h):
+                        for px in range(x,x+w):
+                            self.assertEqual(rows[py][px*4+3],255,"The flight shell must not sample unused transparent cells")
+
+    def test_bedrock_generator_reproduces_models_without_other_armor_models_or_png_changes(self):
+        spec = importlib.util.spec_from_file_location("original_bedrock_models",ART / "resource_models.py")
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        source = ROOT / "bedrock/resource_pack"
+        with tempfile.TemporaryDirectory() as directory:
+            isolated = Path(directory)
+            bed = isolated / "bedrock/resource_pack"
+            bed.mkdir(parents=True)
+            # No existing static geometry, attachables or controller is supplied.
+            # Keep only the native flight attachment and bitmap inputs untouched.
+            shutil.copytree(source / "textures",bed / "textures")
+            native = json.loads((source / "attachables/elytra.json").read_text())
+            native["minecraft:attachable"]["description"]["geometry"]["infinity_armor"] = "geometry.humanoid.armor.chestplate"
+            (bed / "attachables").mkdir()
+            (bed / "attachables/elytra.json").write_text(json.dumps(native))
+            (isolated / "artwork/refresh27").mkdir(parents=True)
+            shutil.copy2(ART / "uv-manifest.json",isolated / "artwork/refresh27/uv-manifest.json")
+            hashes = lambda:{p.relative_to(bed).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in bed.rglob("*.png")}
+            before_pngs = hashes()
+            generator.ROOT = isolated
+            generator.BED = bed
+            generator.bedrock_models()
+            generated = {p.relative_to(bed).as_posix():p.read_bytes() for p in bed.rglob("*.json")}
+            self.assertEqual(hashes(),before_pngs,"Model generation must preserve all custom and legacy native PNG bytes")
+            updated = json.loads((bed / "attachables/elytra.json").read_text())
+            native["minecraft:attachable"]["description"]["geometry"]["infinity_armor"] = "geometry.convergence.flight_shell_original"
+            self.assertEqual(updated,native,"Only the extra chest geometry may change in the native flight attachment")
+            for name,data in generated.items():
+                self.assertEqual(data,(source / name).read_bytes(),"The checked-in model must reproduce without inherited geometry: "+name)
+            generator.bedrock_models()
+            self.assertEqual(generated,{p.relative_to(bed).as_posix():p.read_bytes() for p in bed.rglob("*.json")})
+            self.assertEqual(hashes(),before_pngs)
 
     def test_ranged_blocking_and_spear_models_have_real_state_and_context_branches(self):
         items = {n:json.loads((JAVA / f"items/{n}.json").read_text())["model"] for n in ("bow","crossbow","shield","spear")}

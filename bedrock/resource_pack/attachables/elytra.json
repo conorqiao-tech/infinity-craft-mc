@@ -16,7 +16,7 @@
       },
       "geometry": {
         "default": "geometry.elytra",
-        "infinity_armor": "geometry.humanoid.armor.chestplate"
+        "infinity_armor": "geometry.convergence.flight_shell_original"
       },
       "animations": {
         "default_controller": "controller.animation.elytra.default",

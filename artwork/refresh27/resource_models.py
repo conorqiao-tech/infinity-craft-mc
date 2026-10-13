@@ -111,6 +111,31 @@ def armor_geometry(path, collection, piece, uv):
                         "visible_bounds_offset": [0, 1, 0]}, "bones": bones}]}
 
 
+def flight_shell_geometry(uv):
+    """Original open flight harness; neither a native nor static armor model.
+
+    Segmented front plates, side ribs and a small rear mount leave space for
+    the engine's moving wings. Short shoulder guards follow each player arm;
+    this layer never defines or animates the actual elytra bones.
+    """
+    bones = [bone("flight_body", "body", [0, 24, 0], [
+        cube(uv, "body", [-4.4, 22.2, -2.45], [8.8, 1.65, 0.7]),
+        cube(uv, "body", [-3.45, 15.2, -2.7], [6.9, 6.6, 0.85]),
+        cube(uv, "body", [-4.1, 12.1, -2.55], [8.2, 2.4, 0.7]),
+        cube(uv, "body", [-4.4, 13, -1.8], [0.9, 8.9, 3.2]),
+        cube(uv, "body", [3.5, 13, -1.8], [0.9, 8.9, 3.2]),
+        cube(uv, "body", [-1.4, 20.2, 2.2], [2.8, 2.8, 0.55])])]
+    for side, joint, x, pivot in (("right_arm", "rightArm", -8.5, [-5, 22, 0]),
+                                  ("left_arm", "leftArm", 3.5, [5, 22, 0])):
+        bones.append(bone("flight_" + side, joint, pivot, [
+            cube(uv, "arm", [x, 20.7, -2.45], [5, 3.4, 4.9]),
+            cube(uv, "arm", [x + 0.65, 19.5, -2.6], [3.7, 1, 0.55])]))
+    return {"format_version": "1.19.30", "minecraft:geometry": [{
+        "description": {"identifier": "geometry.convergence.flight_shell_original", "texture_width": 128,
+                        "texture_height": 64, "visible_bounds_width": 2.5, "visible_bounds_height": 3,
+                        "visible_bounds_offset": [0, 1, 0]}, "bones": bones}]}
+
+
 def bedrock_models():
     uv = json.loads((ROOT / "artwork/refresh27/uv-manifest.json").read_text())["armor"]["convergence"]["uv_rectangles"]
     controllers = {}
@@ -145,6 +170,14 @@ def bedrock_models():
         alias = dict(description, identifier="infinity_catalog:" + path)
         write_json(BED / f"attachables/refresh27/catalog_{path}.json", {"format_version": "1.10.0", "minecraft:attachable": {"description": alias}})
     write_json(BED / "render_controllers/original_static_armor.json", {"format_version": "1.8.0", "render_controllers": controllers})
+    flight = flight_shell_geometry(uv)
+    write_json(BED / "models/entity/original_armor/flight_shell.geo.json", flight)
+    wings_path = BED / "attachables/elytra.json"
+    wings = json.loads(wings_path.read_text())
+    # Only the extra chest layer changes. Native wing geometry, materials,
+    # animation controllers and engine scripts remain exactly as supplied.
+    wings["minecraft:attachable"]["description"]["geometry"]["infinity_armor"] = flight["minecraft:geometry"][0]["description"]["identifier"]
+    write_json(wings_path, wings)
 
 
 def model(name):
@@ -220,7 +253,7 @@ def java_models():
 def generate():
     bedrock_models()
     java_models()
-    print("Authored 13 independent Bedrock armor assemblies, 13 catalog attachable aliases and original Java ranged/shield/spear state models; PNGs and native elytra untouched.")
+    print("Authored 13 independent Bedrock armor assemblies, an original flight chest shell, 13 catalog attachable aliases and original Java ranged/shield/spear state models; PNGs and native wing geometry/animations retained.")
 
 
 if __name__ == "__main__":

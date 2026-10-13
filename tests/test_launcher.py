@@ -244,6 +244,60 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(InterruptedError,"Startup cancelled"):
             launcher.wait_creative_ready(service,self.root,stop)
 
+    def ready_creative_fixture(self):
+        import hashlib
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        folder = self.root / "geyser/extensions/infinitycreativebridge"
+        folder.mkdir(parents=True)
+        catalogue = self.root / "geyser/infinity-catalogue.json"
+        catalogue.write_text('{"items":[{"path":"helmet"}]}')
+        (self.root / "dependencies.lock.json").write_text(json.dumps({"creative_bridge":{"geyser_sha256":"test-pin"}}))
+        receipt = {"format_version":1,"geyser_sha256":"test-pin",
+                   "catalogue_sha256":hashlib.sha256(catalogue.read_bytes()).hexdigest(),
+                   "items":1,"protocols":{"test-protocol":1},"unowned_primary_and_java_items_unchanged":True}
+        (folder / "ready.json").write_text(json.dumps(receipt))
+        return SimpleNamespace(process=Mock(poll=Mock(return_value=None))), receipt
+
+    def test_existing_creative_ready_receipt_does_not_override_owner_cancellation(self):
+        import threading
+        service, _ = self.ready_creative_fixture()
+        stop = threading.Event(); stop.set()
+        with self.assertRaisesRegex(InterruptedError,"Startup cancelled"):
+            launcher.wait_creative_ready(service,self.root,stop)
+
+    def test_existing_creative_ready_receipt_does_not_override_child_exit(self):
+        service, _ = self.ready_creative_fixture()
+        service.process.poll.return_value = 1
+        with self.assertRaisesRegex(RuntimeError,"startup did not finish"):
+            launcher.wait_creative_ready(service,self.root)
+
+    def test_exit_during_actual_creative_receipt_validation_is_not_reported_ready(self):
+        service, _ = self.ready_creative_fixture()
+        verify = launcher.verify_creative_ready
+        def finish_then_exit(root):
+            receipt = verify(root)
+            service.process.poll.return_value = 1
+            return receipt
+        with patch.object(launcher,"verify_creative_ready",side_effect=finish_then_exit):
+            with self.assertRaisesRegex(RuntimeError,"startup did not finish"):
+                launcher.wait_creative_ready(service,self.root)
+
+    def test_live_uncancelled_child_with_matching_creative_receipt_is_ready(self):
+        service, receipt = self.ready_creative_fixture()
+        self.assertEqual(launcher.wait_creative_ready(service,self.root),receipt)
+
+    def test_cancellation_during_actual_creative_receipt_validation_stays_cancelled(self):
+        import threading
+        service, _ = self.ready_creative_fixture()
+        stop = threading.Event()
+        verify = launcher.verify_creative_ready
+        def finish_then_cancel(root):
+            receipt = verify(root); stop.set(); return receipt
+        with patch.object(launcher,"verify_creative_ready",side_effect=finish_then_cancel):
+            with self.assertRaisesRegex(InterruptedError,"Startup cancelled"):
+                launcher.wait_creative_ready(service,self.root,stop)
+
 
     def test_bedrock_pack_preserves_vanilla_armor_and_custom_wings(self):
         import zipfile
@@ -260,7 +314,8 @@ class LauncherTests(unittest.TestCase):
             desc = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
             self.assertEqual(desc["identifier"], "minecraft:elytra")
             self.assertEqual(desc["geometry"]["default"], "geometry.elytra")
-            self.assertEqual(desc["geometry"]["infinity_armor"], "geometry.humanoid.armor.chestplate")
+            self.assertEqual(desc["geometry"]["infinity_armor"], "geometry.convergence.flight_shell_original")
+            self.assertIn("models/entity/original_armor/flight_shell.geo.json",pack.namelist())
             self.assertEqual(desc["scripts"]["animate"], ["default_controller"])
             self.assertNotIn("pre_animation", desc["scripts"], "Chest appearance must not depend on an unset custom entity property")
             for name in ("default", "gliding", "sneaking", "sleeping", "swimming"):

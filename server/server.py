@@ -362,13 +362,23 @@ def verify_creative_ready(root=ROOT):
 def wait_creative_ready(service, root=ROOT, cancel=None):
     folder = root / "geyser/extensions/infinitycreativebridge"
     deadline = time.monotonic() + 20
-    while not (folder / "ready.json").exists() and not (folder / "failed.json").exists():
+
+    def check_startup():
         if cancel is not None and cancel.is_set():
             raise InterruptedError("Startup cancelled")
-        if service.process.poll() is not None or time.monotonic() >= deadline:
+        if service.process is None or service.process.poll() is not None or time.monotonic() >= deadline:
             raise RuntimeError("Infinity Creative catalogue startup did not finish; see geyser/launcher.log.")
+
+    while True:
+        # A receipt proves translation readiness, not that the process survived
+        # or that the owner still wants this startup to complete.
+        check_startup()
+        if (folder / "ready.json").exists() or (folder / "failed.json").exists():
+            break
         time.sleep(.05)
-    return verify_creative_ready(root)
+    receipt = verify_creative_ready(root)
+    check_startup()
+    return receipt
 
 
 def parse_args(argv=None):
