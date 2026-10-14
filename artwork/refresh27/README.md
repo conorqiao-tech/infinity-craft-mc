@@ -8,7 +8,7 @@ Generation directions:
 - Icons: transparent seven-column/six-row pixel-art atlas of armor, solid and winged chestpieces, weapons, tools, arrows, backpack and gadgets. Six supplemental Studio motifs are retained as art, not new gameplay features or replacement native outfit implementations.
 - Blocks: ten original square tiles: Infinity Block, Infinity Bricks, Polished Infinity, Radiant Infinity, Aurora Tiles, Obsidian Lattice, Copper Circuit, Moonstone, Sunstone Lamp and Verdant Mosaic.
 
-`pack_art.py` mechanically crops and resizes generated pixels. It remaps face rectangles, samples the closest opaque pixel of the same face for alpha holes, and leaves unused UV cells transparent. Connected sprite bounds exclude neighboring-row scraps while preserving paired boots/legs. Nearest-neighbor resizing makes 64×64 icons and 32×32 tiles. It updates custom equipment/models/atlases and the established shared native elytra resource; ordinary leather/netherite resources never enter the pack.
+`pack_art.py` mechanically crops and resizes generated pixels. It remaps face rectangles, samples the closest opaque pixel of the same face for alpha holes, and leaves unused UV cells transparent. Connected sprite bounds exclude neighboring-row scraps while preserving paired boots/legs. Nearest-neighbor resizing makes 64×64 icons and 32×32 tiles. It updates custom equipment/models/atlases and legacy standalone wing resources. The crossplay preparation excludes ordinary leather/netherite and native elytra overrides so Minecraft's normal equipment remains intact.
 
 Reproduce with Python plus Pillow:
 
@@ -18,7 +18,7 @@ python3 artwork/refresh27/pack_art.py
 
 `uv-manifest.json` records source hashes, crop/UV rectangles and generated texture hashes. Inspect `inventory-preview.png`, `armor-uv-preview.png` and `block-tiling-preview.png`. These are artwork contact sheets, not Minecraft screenshots.
 
-`resource_models.py` independently authors thirteen Bedrock armor/backpack assemblies and a separate open flight chest shell, using the original packed face artwork and the player's animated joint bindings. It does not read or copy another armor model. The flight shell has segmented plates, side ribs and short shoulder guards; the actual elytra keeps its native wing geometry, materials, scripts and flight animations. The solid Convergence chestplate remains a separate item. Ordinary Bedrock elytra shares the retained wing artwork and extra shell while this pack is active. Java still renders the original equipment textures on Minecraft's engine humanoid armor mesh; these Bedrock models do not replace that Java mesh.
+`resource_models.py` independently authors thirteen Bedrock armor/backpack assemblies and a separate open flight chest shell, using the original packed face artwork and the player's animated joint bindings. It does not read or copy another armor model. The legacy standalone flight shell has segmented plates, side ribs and short shoulder guards. The repaired server crossplay pack excludes its global native elytra attachable and icon overrides, so normal elytra and real Convergence Wings keep Minecraft's normal Bedrock flight artwork. The Infinity Creative wing preview remains original. The solid Convergence chestplate remains a separate item. Java still renders original equipment textures on Minecraft's engine humanoid armor mesh; these Bedrock models do not replace that Java mesh.
 
 To regenerate only model/controller JSON without changing PNGs:
 
