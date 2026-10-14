@@ -33,6 +33,7 @@ import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -44,10 +45,11 @@ import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 final class CrossplaySupport {
     static final Map<String, Item> BASES = new LinkedHashMap<>();
     static final Map<String, BlockState> BLOCK_STATES = new LinkedHashMap<>();
-    // Bedrock custom items cannot reproduce all native shield/glider/projectile behavior.
-    // Static armor uses item-specific attachables, never shared native armor textures.
-    // Keep native flight, ranged and offhand behavior where a custom definition loses it.
-    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate", "shield", "totem", "bow", "crossbow",
+    // Actual flight keeps its native elytra mapping. Arrow identities stay native
+    // so ordinary Bedrock bows can load them. The pinned bridge supplies original
+    // held bow/crossbow definitions with Creative and firework ammunition behavior.
+    // Static armor and held tools never replace ordinary native armor/textures.
+    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate",
         "infinity_arrow", "void_arrow", "starfire_arrow");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
         "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
@@ -121,6 +123,12 @@ final class CrossplaySupport {
                     out.set(DataComponents.ITEM_NAME,GearNames.text(entry.getKey()));
                     var customName=stack.get(DataComponents.CUSTOM_NAME);
                     if(customName!=null)out.set(DataComponents.CUSTOM_NAME,GearNames.readableName(customName));
+                    else if(entry.getKey().equals("shield")&&stack.has(DataComponents.BASE_COLOR)) {
+                        // The native shield projection replaces ITEM_NAME with its
+                        // color name. Name only the outgoing projection; Polymer's
+                        // canonical payload keeps the real banner and custom-name state.
+                        out.set(DataComponents.CUSTOM_NAME,GearNames.text("shield"));
+                    }
                     // A native equipment component preserves the slot on Bedrock; its
                     // item-model mapping selects the custom attachable. Java without
                     // the pack still needs the complete native worn asset.
@@ -247,15 +255,20 @@ final class CrossplaySupport {
             options.addProperty("icon", "convergence_" + path);
             options.addProperty("allow_offhand", true);
             options.addProperty("display_handheld", POWER_ITEMS.contains(path));
-            // Geyser 2.11 cannot translate a Bedrock Creative-list drag for custom
-            // definitions back to a Java item. Keep the item mapping and texture,
-            // but grant real gear into the player inventory from server controls.
+            // Canonical model mappings stay hidden in Creative. The pinned bridge
+            // separately owns visible aliases and restores their server identities.
             int protection = switch (path) { case "helmet", "boots" -> 6; case "cuirass" -> 10; case "leggings" -> 8; default -> 0; };
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);
             var components = new JsonObject();
+            var equippable = stack.get(DataComponents.EQUIPPABLE);
             for (var type : new DataComponentType<?>[]{DataComponents.MAX_STACK_SIZE, DataComponents.MAX_DAMAGE,
                 DataComponents.EQUIPPABLE, DataComponents.ENCHANTABLE, DataComponents.ENCHANTMENT_GLINT_OVERRIDE}) {
+                // Pinned Geyser accepts wearable slots here, not Minecraft's shield
+                // offhand slot. Keep the native component on the real Ward stack;
+                // the owned Bedrock definition already enables allow_offhand.
+                if (path.equals("shield") && type == DataComponents.EQUIPPABLE
+                    && equippable != null && equippable.slot() == EquipmentSlot.OFFHAND) continue;
                 addComponent(components, stack, type, ops);
             }
             definition.add("components", components);

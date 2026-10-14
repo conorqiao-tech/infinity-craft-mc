@@ -1,0 +1,49 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "infinity_catalog:crossbow",
+      "materials": {
+        "default": "entity_alphatest",
+        "enchanted": "entity_alphatest_glint"
+      },
+      "textures": {
+        "default": "textures/convergence/items/refresh27/crossbow",
+        "enchanted": "textures/misc/enchanted_item_glint"
+      },
+      "geometry": {
+        "default": "geometry.convergence.crossbow_held_standby",
+        "pulling_0": "geometry.convergence.crossbow_held_pulling_0",
+        "pulling_1": "geometry.convergence.crossbow_held_pulling_1",
+        "pulling_2": "geometry.convergence.crossbow_held_pulling_2",
+        "arrow": "geometry.convergence.crossbow_held_arrow",
+        "rocket": "geometry.convergence.crossbow_held_rocket"
+      },
+      "animations": {
+        "first": "animation.convergence.crossbow_held_first",
+        "draw": "animation.convergence.crossbow_held_draw",
+        "third": "animation.convergence.crossbow_held_third"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "first": "context.is_first_person && !variable.infinity_using"
+          },
+          {
+            "draw": "context.is_first_person && variable.infinity_using"
+          },
+          {
+            "third": "!context.is_first_person"
+          }
+        ],
+        "pre_animation": [
+          "variable.infinity_using = context.item_slot == 'main_hand' && query.is_item_name_any('slot.weapon.mainhand', 'convergence:crossbow', 'infinity_catalog:crossbow') && query.main_hand_item_use_duration > 0.0;",
+          "variable.infinity_charge = variable.infinity_using ? math.clamp((query.main_hand_item_max_duration - (query.main_hand_item_use_duration - query.frame_alpha + 1.0)) / 20.0, 0.0, 1.0) : 0.0;"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.convergence.crossbow_held_original"
+      ]
+    }
+  }
+}

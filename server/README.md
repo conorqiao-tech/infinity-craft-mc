@@ -1,6 +1,6 @@
-# Infinity Armor Exploration Server — 2.13.0-explore.38 candidate
+# Infinity Armor Exploration Server — 2.13.0-explore.39 candidate
 
-Explore.38 retains explore.37's 46-entry Creative catalogue, supported Java Creative tab, readable item names, independent Bedrock armor models and Java weapon poses. It adds an original wing chest shell, rejects stale custom Creative requests after a game-mode change, and fixes canceled or exited startups being reported ready. See [CREATIVE_INVENTORY.md](CREATIVE_INVENTORY.md) for the inventory path. The playable server remains **explore.36**; this source requires separate approval for installation. Check [VALIDATION.md](VALIDATION.md) for current evidence and device limits.
+Explore.39 adds independently authored held models for the Infinity bow, crossbow, Ward Shield and totem, while retaining the 46-entry Creative catalogue, supported Java Creative tab, readable item names, independent Bedrock armor models and Java weapon poses. The original wing chest shell, stale Creative-request protection and startup cancellation checks from explore.38 remain. See [CREATIVE_INVENTORY.md](CREATIVE_INVENTORY.md) for the inventory path. The playable server runs **explore.38**, installed with approval and a verified stopped-world backup on October 12, 2026; explore.39 requires separate approval for installation. Check [VALIDATION.md](VALIDATION.md) for current evidence and device limits.
 
 Explore.36's exact-session fixes remain: delayed menu cleanup from an old login cannot erase replacement state or supply trade consent. Both AI approvals, trade revisions and durable inventory journals remain.
 

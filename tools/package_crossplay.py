@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
+from verify_owned_equipment import verify_owned_equipment
 
 
 def verified_test_hash(provenance, test_mod):
@@ -56,6 +57,7 @@ def verified_creative_wire(root, lock, provenance):
     native = bounded_json(native_file)
     ready_file = checks / "ready.json"
     ready = bounded_json(ready_file)
+    verify_owned_equipment(ready)
     startup_file = checks / "startup.json"
     catalogue = root / "research/integration/crossplay-export/infinity-catalogue.json"
     actual_hashes = {
@@ -113,7 +115,7 @@ def verified_creative_persistence(root, lock, provenance):
         raise RuntimeError("Creative persistence must record both executed Via dependencies")
     sources = ["tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java",
                "tools/benchmark_helpers.py", "tools/prepare_crossplay.py", "tools/package_crossplay.py",
-               "tools/smoke_creative_wire.py"]
+               "tools/smoke_creative_wire.py", "tools/verify_owned_equipment.py"]
     if receipt["source_hashes"] != {name: digest(root / name) for name in sources}:
         raise RuntimeError("Creative persistence source differs from its proof; rerun the isolated check")
     if (receipt["version"] != VERSION or receipt["java_sources"] != provenance["java_sources"]
@@ -251,6 +253,7 @@ def main():
     assert ready_file.stat().st_mtime >= mod.stat().st_mtime
     assert ready["unowned_primary_and_java_items_unchanged"] is True
     assert ready["items"] == 46 and ready["proof"]["actual_creative_hotbar_selections"] > 0
+    verify_owned_equipment(ready)
     guard = ready["proof"]["stale_request_guard"]
     protocols = len(ready["protocols"])
     stale = ready["items"] * protocols * 3
@@ -330,7 +333,7 @@ def main():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
-        "tools/smoke_geyser.py", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
+        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()

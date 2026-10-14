@@ -26,4 +26,6 @@ To regenerate only model/controller JSON without changing PNGs:
 python3 artwork/refresh27/resource_models.py
 ```
 
+`held_models.py` authors separate held models and hand/use poses for the Infinity bow, crossbow, shield and totem. Texture meshes extrude the existing original sprites; small original arrow/firework shapes distinguish crossbow loaded states. It imports no native geometry and edits no PNGs. Regenerate its JSON with `python3 artwork/refresh27/held_models.py`. Engine query contracts select the draw/blocking states; actual client positioning and query values remain device checks.
+
 Resource tests cover hashes, face opacity, unused transparency, model references, equipped slots/max-stack components, pack revisions, unique attachables and isolation from ordinary armor. Native tests cover real equipment, set powers, inventory/box placement, permissions, sessions and saving. Actual Java/iPad visuals need a device check after an approved installation. See `server/ORIGINAL_ARTWORK.md` for controls and crossplay limits.

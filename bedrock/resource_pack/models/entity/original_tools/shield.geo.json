@@ -1,0 +1,56 @@
+{
+  "format_version": "1.19.30",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.convergence.shield_held_standby",
+        "texture_width": 64,
+        "texture_height": 64,
+        "visible_bounds_width": 3,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [
+          0,
+          1,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "infinity_held_root",
+          "binding": "query.item_slot_to_bone_name(context.item_slot)",
+          "pivot": [
+            -6,
+            15,
+            1
+          ],
+          "texture_meshes": [
+            {
+              "texture": "default",
+              "local_pivot": [
+                32,
+                0,
+                32
+              ],
+              "position": [
+                -6,
+                15,
+                1
+              ],
+              "rotation": [
+                90,
+                0,
+                0
+              ],
+              "scale": [
+                0.235,
+                0.3,
+                0.255
+              ],
+              "use_pixel_depth": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
