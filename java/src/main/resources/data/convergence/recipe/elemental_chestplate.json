@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "D D",
+    "DCD",
+    "DDD"
+  ],
+  "key": {
+    "D": "minecraft:diamond",
+    "C": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "convergence:elemental_chestplate",
+    "count": 1
+  }
+}

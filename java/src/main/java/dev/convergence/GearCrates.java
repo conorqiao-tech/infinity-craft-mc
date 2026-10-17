@@ -31,13 +31,17 @@ final class GearCrates {
     static final List<String> CONVERGENCE_SET=List.of("helmet","cuirass","leggings","boots","chestplate");
     static final List<String> AURORA_SET=List.of("aurora_helmet","aurora_chestplate","aurora_leggings","aurora_boots");
     static final List<String> EMBER_SET=List.of("ember_helmet","ember_chestplate","ember_leggings","ember_boots");
-    private static final int CATALOG_REVISION=27;
+    static final List<String> ELEMENTAL_SET=List.of("elemental_helmet","elemental_chestplate","elemental_leggings","elemental_boots");
+    static final List<String> INFINITY_SET=List.of("infinity_helmet","infinity_chestplate","infinity_leggings","infinity_boots");
+    private static final int CATALOG_REVISION=41;
     /** Real equipment goes into empty player slots; never replace or drop owned items. */
     static int giveDirect(ServerPlayer player) {
         if(!ServerMenu.gearAllowed(player)||player.containerMenu!=player.inventoryMenu
             ||!player.inventoryMenu.getCarried().isEmpty())return 0;
         var paths=new ArrayList<String>(STARTER);
         ExpandedGear.COSMETIC_ARMOR.keySet().stream().sorted().forEach(paths::add);paths.add("backpack");
+        // Keep the starter grant below capacity so the compass and a tool swap
+        // still fit. New sets have atomic, separately selected Forge kits.
         int added=0,missing=0;
         for(var path:paths) {
             var item=Convergence.ITEMS.get("convergence:"+path);boolean present=false;
@@ -60,7 +64,10 @@ final class GearCrates {
         result.add(crate(Items.DYED_SHULKER_BOX.purple(),"Convergence Set • Armor & Wings",CONVERGENCE_SET.stream().map(GearCrates::stack).toList()));
         result.add(crate(Items.DYED_SHULKER_BOX.cyan(),"Aurora Set • All Four Pieces",AURORA_SET.stream().map(GearCrates::stack).toList()));
         result.add(crate(Items.DYED_SHULKER_BOX.orange(),"Ember Set • All Four Pieces",EMBER_SET.stream().map(GearCrates::stack).toList()));
+        result.add(crate(Items.DYED_SHULKER_BOX.cyan(),"Elemental Armor • Switchable Elements",ELEMENTAL_SET.stream().map(GearCrates::stack).toList()));
+        result.add(crate(Items.DYED_SHULKER_BOX.purple(),"Infinity Armor • Ultimate Set",INFINITY_SET.stream().map(GearCrates::stack).toList()));
         var grouped=new java.util.HashSet<String>(CONVERGENCE_SET);grouped.addAll(AURORA_SET);grouped.addAll(EMBER_SET);
+        grouped.addAll(ELEMENTAL_SET);grouped.addAll(INFINITY_SET);
         var gear=new ArrayList<ItemStack>();
         Convergence.ITEMS.keySet().stream().map(name->name.split(":")[1]).filter(path->!grouped.contains(path)).sorted().forEach(path->gear.add(stack(path)));
         gear.add(new ItemStack(Items.FIREWORK_ROCKET,64));gear.add(new ItemStack(Items.WHEAT_SEEDS,64));
@@ -123,7 +130,7 @@ final class GearCrates {
         for(int i=0;i<boxes.size();i++)player.getInventory().setItem(empty.get(i),boxes.get(i));
         GameModes.state(player).putBoolean("gear_crates27_"+GameModes.current(player).name().toLowerCase(java.util.Locale.ROOT),true);
         player.inventoryMenu.sendAllDataToRemote();
-        player.sendSystemMessage(Component.literal("Convergence, Aurora and Ember sets added to your inventory with the tools and blocks boxes. Place a labeled box and open it."));return 1;
+        player.sendSystemMessage(Component.literal("Convergence, Aurora, Ember, Elemental and Infinity sets added with the tools and blocks boxes. Place a labeled box and open it."));return 1;
     }
 
     static void register() {

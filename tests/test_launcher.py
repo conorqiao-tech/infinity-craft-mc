@@ -327,10 +327,10 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 42)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 42)
+        self.assertEqual(len(definitions), 59)
+        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 59)
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
-        static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember") for piece in ("helmet","chestplate","leggings","boots"))}
+        static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember","elemental","infinity") for piece in ("helmet","chestplate","leggings","boots"))}
         mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}
         self.assertNotIn("chestplate",mapped,"Keep the existing glider on native elytra behavior")
         self.assertTrue({"bow", "crossbow", "shield", "totem"}.issubset(mapped), "Original held items have their own canonical model mappings")
@@ -341,7 +341,7 @@ class LauncherTests(unittest.TestCase):
             self.assertIn("slot",mapped[path]["components"]["minecraft:equippable"])
         self.assertTrue(all(not entry["display_name"].startswith(("item.","block.")) for entry in definitions), "Custom mappings use literal human names")
         blocks = json.loads((exports / "infinity-blocks.json").read_text())
-        self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 10)
+        self.assertEqual(len(blocks["blocks"]["minecraft:note_block"]["state_overrides"]), 15)
         with zipfile.ZipFile(root / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
             atlas = json.loads(pack.read("textures/item_texture.json"))["texture_data"]
             for definition in definitions:

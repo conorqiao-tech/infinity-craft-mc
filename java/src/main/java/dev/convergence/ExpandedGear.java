@@ -50,16 +50,25 @@ import net.minecraft.world.phys.Vec3;
 
 /** Additional gear uses native items, blocks, and projectile entities wherever possible. */
 final class ExpandedGear {
-   static final Set<String> NEW_BLOCKS = Set.of("aurora_tiles", "obsidian_lattice", "copper_circuit", "moonstone", "sunstone_lamp", "verdant_mosaic");
+   static final Set<String> ELEMENTAL_BLOCKS = Set.of("ember_crystal", "tide_glass", "earth_rune", "air_lattice", "infinity_prism");
+   static final Set<String> NEW_BLOCKS = Set.of("aurora_tiles", "obsidian_lattice", "copper_circuit", "moonstone", "sunstone_lamp", "verdant_mosaic",
+      "ember_crystal", "tide_glass", "earth_rune", "air_lattice", "infinity_prism");
    static final Set<String> BLOCKS = Set.of("infinity_block", "polished_infinity", "infinity_bricks", "radiant_infinity",
-      "aurora_tiles", "obsidian_lattice", "copper_circuit", "moonstone", "sunstone_lamp", "verdant_mosaic");
+      "aurora_tiles", "obsidian_lattice", "copper_circuit", "moonstone", "sunstone_lamp", "verdant_mosaic",
+      "ember_crystal", "tide_glass", "earth_rune", "air_lattice", "infinity_prism");
    static final Map<String,Item> COSMETIC_ARMOR = Map.of(
       "aurora_helmet",Items.LEATHER_HELMET,"aurora_chestplate",Items.LEATHER_CHESTPLATE,
       "aurora_leggings",Items.LEATHER_LEGGINGS,"aurora_boots",Items.LEATHER_BOOTS,
       "ember_helmet",Items.LEATHER_HELMET,"ember_chestplate",Items.LEATHER_CHESTPLATE,
       "ember_leggings",Items.LEATHER_LEGGINGS,"ember_boots",Items.LEATHER_BOOTS);
    static float hardness(String path) {return NEW_BLOCKS.contains(path)?3.0F:12.0F;}
-   static int light(String path) {return path.equals("radiant_infinity")||path.equals("sunstone_lamp")?15:0;}
+   static int light(String path) {return switch(path) {
+      case "radiant_infinity", "sunstone_lamp", "ember_crystal" -> 15;
+      case "infinity_prism" -> 12;
+      case "tide_glass" -> 7;
+      case "air_lattice" -> 5;
+      default -> 0;
+   };}
    static final Set<String> ARROWS = Set.of("infinity_arrow", "void_arrow", "starfire_arrow");
    static final Map<String,Item> STUDIO_ITEMS=Map.of("blink_wand",Items.AMETHYST_SHARD,"party_wand",Items.FIREWORK_STAR,
       "plane_remote",Items.ECHO_SHARD,"blueprint_wand",Items.PAPER,"storm_staff",Items.BLAZE_ROD);

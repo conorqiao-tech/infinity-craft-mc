@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:prismarine",
+    "C": "minecraft:prismarine_crystals"
+  },
+  "result": {
+    "id": "convergence:tide_glass",
+    "count": 8
+  }
+}

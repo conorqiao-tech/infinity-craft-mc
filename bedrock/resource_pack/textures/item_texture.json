@@ -157,6 +157,57 @@
     },
     "convergence_verdant_mosaic": {
       "textures": "textures/convergence/blocks/refresh27/verdant_mosaic"
+    },
+    "convergence_elemental_helmet": {
+      "textures": "textures/convergence/items/elemental41/elemental_helmet"
+    },
+    "convergence_elemental_chestplate": {
+      "textures": "textures/convergence/items/elemental41/elemental_chestplate"
+    },
+    "convergence_elemental_leggings": {
+      "textures": "textures/convergence/items/elemental41/elemental_leggings"
+    },
+    "convergence_elemental_boots": {
+      "textures": "textures/convergence/items/elemental41/elemental_boots"
+    },
+    "convergence_infinity_helmet": {
+      "textures": "textures/convergence/items/elemental41/infinity_helmet"
+    },
+    "convergence_infinity_chestplate": {
+      "textures": "textures/convergence/items/elemental41/infinity_chestplate"
+    },
+    "convergence_infinity_leggings": {
+      "textures": "textures/convergence/items/elemental41/infinity_leggings"
+    },
+    "convergence_infinity_boots": {
+      "textures": "textures/convergence/items/elemental41/infinity_boots"
+    },
+    "convergence_firebrand": {
+      "textures": "textures/convergence/items/elemental41/firebrand"
+    },
+    "convergence_tidecaller": {
+      "textures": "textures/convergence/items/elemental41/tidecaller"
+    },
+    "convergence_terra_gauntlet": {
+      "textures": "textures/convergence/items/elemental41/terra_gauntlet"
+    },
+    "convergence_windstep": {
+      "textures": "textures/convergence/items/elemental41/windstep"
+    },
+    "convergence_ember_crystal": {
+      "textures": "textures/convergence/blocks/elemental41/ember_crystal"
+    },
+    "convergence_tide_glass": {
+      "textures": "textures/convergence/blocks/elemental41/tide_glass"
+    },
+    "convergence_earth_rune": {
+      "textures": "textures/convergence/blocks/elemental41/earth_rune"
+    },
+    "convergence_air_lattice": {
+      "textures": "textures/convergence/blocks/elemental41/air_lattice"
+    },
+    "convergence_infinity_prism": {
+      "textures": "textures/convergence/blocks/elemental41/infinity_prism"
     }
   }
 }

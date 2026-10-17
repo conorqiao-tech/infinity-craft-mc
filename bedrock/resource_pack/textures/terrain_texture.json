@@ -33,6 +33,21 @@
     },
     "convergence_copper_circuit": {
       "textures": "textures/convergence/blocks/refresh27/copper_circuit"
+    },
+    "convergence_ember_crystal": {
+      "textures": "textures/convergence/blocks/elemental41/ember_crystal"
+    },
+    "convergence_tide_glass": {
+      "textures": "textures/convergence/blocks/elemental41/tide_glass"
+    },
+    "convergence_earth_rune": {
+      "textures": "textures/convergence/blocks/elemental41/earth_rune"
+    },
+    "convergence_air_lattice": {
+      "textures": "textures/convergence/blocks/elemental41/air_lattice"
+    },
+    "convergence_infinity_prism": {
+      "textures": "textures/convergence/blocks/elemental41/infinity_prism"
     }
   }
 }

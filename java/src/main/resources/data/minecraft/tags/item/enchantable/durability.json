@@ -16,6 +16,14 @@
     "convergence:shield",
     "convergence:bow",
     "convergence:crossbow",
-    "convergence:cuirass"
+    "convergence:cuirass",
+    "convergence:elemental_helmet",
+    "convergence:elemental_chestplate",
+    "convergence:elemental_leggings",
+    "convergence:elemental_boots",
+    "convergence:infinity_helmet",
+    "convergence:infinity_chestplate",
+    "convergence:infinity_leggings",
+    "convergence:infinity_boots"
   ]
 }

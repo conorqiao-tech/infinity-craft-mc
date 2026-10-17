@@ -24,6 +24,7 @@ from benchmark_helpers import copy_cached_runtime, runtime_inputs
 from package_crossplay import verified_creative_wire
 from prepare_crossplay import VERSION, expected_native_tests
 from smoke_creative_wire import bounded_json, digest, java_sources, NESTED, VIAFABRIC, VIABACKWARDS
+from verify_owned_equipment import creative_capture_counts
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "tools/native_checks/CreativeBridgePersistenceGameTests.java"
@@ -111,16 +112,12 @@ def main() -> None:
     wire_receipt_hash = digest(wire_receipt_file)
     captured = bounded_json(capture); startup_file = capture.with_name("startup.json"); startup = bounded_json(startup_file)
     capture_hash = digest(capture); startup_hash = digest(startup_file); catalogue_hash = digest(catalogue)
-    bounded_json(catalogue, 131_072)
+    canonical_catalogue = bounded_json(catalogue, 131_072)
     if (startup["ready_sha256"] != capture_hash or catalogue_hash != captured["catalogue_sha256"]
             or catalogue_hash != startup["catalogue_sha256"]
             or capture_hash != bounded_json(wire_receipt_file)["capture_sha256"]):
         raise ValueError("Actual ready/startup/catalogue bytes must match the current verified wire proof")
-    hotbar = captured["proof"]["encoded_hotbar_packets"]
-    distinct = {(sample["path"], sample["count"]) for sample in hotbar}
-    identities = {sample["path"] for sample in hotbar}
-    if len(hotbar) != 180 or len(distinct) != 60 or len(identities) != 46:
-        raise ValueError("Require the complete actual capture: 180 inputs, 60 item/count pairs and all 46 identities")
+    expected_counts = creative_capture_counts(canonical_catalogue, captured)
     pinned = {entry["path"]: entry["sha256"] for entry in lock["downloads"] + lock["bundled"]}
     for name in (VIAFABRIC, VIABACKWARDS):
         for path in (ROOT / "server/fabric/mods" / name, runtime / "mods" / name):
@@ -180,13 +177,9 @@ def main() -> None:
     except ValueError as error:
         raise RuntimeError(f"Supplementary real ingress/disk/rejoin proof failed; see {log_path}") from error
     native = bounded_json(native_proof)
-    expected_counts = {"hotbar_cases": 180, "distinct_item_count_cases": 60, "disk_cases": 60,
-                       "rejoin_cases": 60, "canonical_identities": 46, "native_save_batches": 2,
-                       "genuine_reconnects": 2, "variant_inputs": 5, "framed_inbound_packets": 245,
-                       "backpack_styles_preserved": 3}
     expected_true = ("catalogue_equivalent", "receive_hook_canonical_before_listener",
                      "renamed_damaged_weapon_preserved", "personal_backpack_preserved", "observer_file_unchanged")
-    if (any(native.get(field) != value for field, value in expected_counts.items())
+    if (any(type(native.get(field)) is not int or native[field] != value for field, value in expected_counts.items())
             or any(native.get(field) is not True for field in expected_true)
             or native["capture_sha256"] != capture_hash or native["catalogue_sha256"] != catalogue_hash
             or native["native_catalogue_sha256"] != digest(target / "crossplay-export/infinity-catalogue.json")
@@ -222,7 +215,9 @@ def main() -> None:
     # Exclusive creation preserves every earlier successful proof, including explore.37.
     with receipt_path.open("x") as output_file:
         output_file.write(json.dumps(output, indent=2) + "\n")
-    print(f"Supplementary persistence proof passed: 180 real inbound inputs, 60 disk/rejoin item-count cases, all 46 identities; {receipt_path}")
+    print(f"Supplementary persistence proof passed: {expected_counts['hotbar_cases']} real inbound inputs, "
+          f"{expected_counts['disk_cases']} disk/rejoin item-count cases, all {expected_counts['canonical_identities']} "
+          f"identities across {expected_counts['genuine_reconnects']} genuine reconnects; {receipt_path}")
 
 
 if __name__ == "__main__":

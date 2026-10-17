@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "convergence:infinity_armor"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "convergence:infinity_armor"
+      }
+    ]
+  }
+}

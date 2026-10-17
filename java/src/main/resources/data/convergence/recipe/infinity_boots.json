@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "D D",
+    "DCD"
+  ],
+  "key": {
+    "D": "minecraft:netherite_ingot",
+    "C": "minecraft:nether_star"
+  },
+  "result": {
+    "id": "convergence:infinity_boots",
+    "count": 1
+  }
+}

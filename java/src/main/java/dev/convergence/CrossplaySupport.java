@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -52,7 +53,8 @@ final class CrossplaySupport {
     static final Set<String> NATIVE_BEDROCK = Set.of("chestplate",
         "infinity_arrow", "void_arrow", "starfire_arrow");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
-        "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff");
+        "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff",
+        "firebrand", "tidecaller", "terra_gauntlet", "windstep");
 
     static boolean bedrock(ServerPlayer player) {
         var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
@@ -90,6 +92,11 @@ final class CrossplaySupport {
         BASES.put("crossbow", Items.CROSSBOW);
         BASES.put("backpack", Items.LEATHER_CHESTPLATE);
         BASES.putAll(ExpandedGear.COSMETIC_ARMOR);
+        for (var suit : ElementalArmor.Suit.values()) for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
+            String path = suit.prefix() + "_" + piece;
+            BASES.put(path, ElementalArmor.baseItem(path));
+        }
+        for (String path : ElementalRelics.PATHS) BASES.put(path, ElementalRelics.BASES.get(path));
         BASES.put("builder_wand",Items.BLAZE_ROD);
         BASES.put("sculptor_wand",Items.STICK);
         BASES.putAll(ExpandedGear.STUDIO_ITEMS);
@@ -165,6 +172,7 @@ final class CrossplaySupport {
         String name = Convergence.id(player.getMainHandItem());
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());
+        if (ElementalRelics.PATHS.contains(path)) return ElementalRelics.cast(player);
         if (!CreativeStudio.controlKind(player, player.getMainHandItem()).isEmpty()) {
             if (!CreativeStudio.allowed(player)) {
                 player.sendSystemMessage(Component.literal("This gadget requires Creative Studio access."));
@@ -228,7 +236,7 @@ final class CrossplaySupport {
                 case "helmet", "boots" -> 6;
                 case "cuirass" -> 10;
                 case "leggings" -> 8;
-                default -> 0;
+             default -> ElementalArmor.protection(path);
             });
             item.addProperty("handheld", POWER_ITEMS.contains(path));
             item.addProperty("native_appearance", NATIVE_BEDROCK.contains(path));
@@ -257,7 +265,7 @@ final class CrossplaySupport {
             options.addProperty("display_handheld", POWER_ITEMS.contains(path));
             // Canonical model mappings stay hidden in Creative. The pinned bridge
             // separately owns visible aliases and restores their server identities.
-            int protection = switch (path) { case "helmet", "boots" -> 6; case "cuirass" -> 10; case "leggings" -> 8; default -> 0; };
+            int protection = switch (path) { case "helmet", "boots" -> 6; case "cuirass" -> 10; case "leggings" -> 8; default -> ElementalArmor.protection(path); };
             options.addProperty("protection_value", protection);
             definition.add("bedrock_options", options);
             var components = new JsonObject();

@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 import gzip
+from verify_owned_equipment import catalogue_item_count_pairs
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'server'))
@@ -84,7 +85,9 @@ def main():
             assert data[0]==0x1c
             assert (root/'fabric/crossplay-export/infinity-items.json').is_file()
             creative = launcher.verify_creative_ready(root)
-            assert creative['items'] == 46
+            catalogue = json.loads((root/'fabric/crossplay-export/infinity-catalogue.json').read_text())
+            canonical_paths = {path for path, count in catalogue_item_count_pairs(catalogue)}
+            assert type(creative['items']) is int and creative['items'] == len(canonical_paths)
             print('Full-stack Infinity Creative catalogue ready, run', attempt + 1)
             assert (root/'fabric/world/infinity-built-in-maps.json').is_file()
             assert (root/'fabric/world/infinity-built-in-lobbies.json').is_file()

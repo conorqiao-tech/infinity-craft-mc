@@ -1,3 +1,7 @@
+# Elemental Forge original assets (explore.41)
+
+The Elemental/Infinity armor, four relic icons and five rune-block tiles are original project artwork authored from blank RGBA canvases by `artwork/elemental41/generate.py`. Separate cuboids, UV mappings and item-specific attachables are authored in the same generator. Engine slot/joint names and the equipment atlas layout are compatibility contracts, not imported armor art. Existing PNG bytes are preserved. The explore.41 repair changes the original Bedrock armor model geometry only, separating coplanar surfaces that could flicker.
+
 # Infinity Armor - texture credits
 
 All armour, weapon, wing and inventory artwork in this pack is original work

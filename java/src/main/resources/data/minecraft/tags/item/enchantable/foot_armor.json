@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "convergence:boots"
+    "convergence:boots",
+    "convergence:elemental_boots",
+    "convergence:infinity_boots"
   ]
 }

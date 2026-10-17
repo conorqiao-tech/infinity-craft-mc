@@ -1,3 +1,7 @@
+# Elemental Forge candidate — explore.41
+
+The new armor, relics, building styles and Bedrock armor-seam repair are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). The owner approved installing this candidate on October 17, 2026; local Java/Bedrock startup checks pass. Actual iPad appearance still awaits confirmation. See [VALIDATION.md](VALIDATION.md).
+
 # Infinity Armor Exploration Server — 2.13.0-explore.40 candidate
 
 Explore.40 adds [Circuit Keepers' Commons](COMMONS.md): Builder Exchange's live redstone/hopper trials, Harvest Together's cooperative pantry, saved gifts and original banners. Permanent additions include Expedition Atlas, a usable Seedlight Jar and a reviewable Pack Organizer. Enter through Infinity Menu; Java chest controls and native Bedrock forms share the same actions. This source candidate needs separate approval for live installation. See [VALIDATION.md](VALIDATION.md) for actual results and device limits.

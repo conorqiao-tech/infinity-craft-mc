@@ -1,0 +1,276 @@
+{
+  "format_version": "1.19.30",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.convergence.infinity_chestplate_elemental41",
+        "texture_width": 128,
+        "texture_height": 64,
+        "visible_bounds_width": 2.5,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [
+          0,
+          1,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "infinity_body",
+          "binding": "'body'",
+          "pivot": [
+            0,
+            24,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.32,
+                11.68,
+                -2.32
+              ],
+              "size": [
+                8.64,
+                12.64,
+                4.64
+              ],
+              "uv": {
+                "up": {
+                  "uv": [
+                    40,
+                    32
+                  ],
+                  "uv_size": [
+                    16,
+                    8
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    56,
+                    32
+                  ],
+                  "uv_size": [
+                    16,
+                    8
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    32,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "north": {
+                  "uv": [
+                    40,
+                    40
+                  ],
+                  "uv_size": [
+                    16,
+                    24
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    56,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    64,
+                    40
+                  ],
+                  "uv_size": [
+                    16,
+                    24
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "infinity_right_arm",
+          "binding": "'rightArm'",
+          "pivot": [
+            -5,
+            22,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -8.44,
+                11.56,
+                -2.44
+              ],
+              "size": [
+                4.88,
+                12.88,
+                4.88
+              ],
+              "uv": {
+                "up": {
+                  "uv": [
+                    88,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    96,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    80,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "north": {
+                  "uv": [
+                    88,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    96,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    104,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "infinity_left_arm",
+          "binding": "'leftArm'",
+          "pivot": [
+            5,
+            22,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                3.56,
+                11.56,
+                -2.44
+              ],
+              "size": [
+                4.88,
+                12.88,
+                4.88
+              ],
+              "uv": {
+                "up": {
+                  "uv": [
+                    88,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    96,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    80,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "north": {
+                  "uv": [
+                    88,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    96,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    104,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

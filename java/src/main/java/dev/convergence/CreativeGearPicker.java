@@ -32,6 +32,7 @@ final class CreativeGearPicker {
     static final int STUDIO=47;
     static final int ADMIN_BLOCKS=48;
     static final int AURORA=46, CONVERGENCE=50, ALL_GEAR=51;
+    static final int FORGE=52;
     enum Collection { ALL, AURORA, CONVERGENCE }
     private static final String PICKER_NAME = "Infinity Gear Picker";
     private static final Map<UUID,Integer> OPEN_AFTER = new HashMap<>();
@@ -146,6 +147,7 @@ final class CreativeGearPicker {
         CreativeStudio.icon(view,AURORA,Items.DIAMOND_CHESTPLATE,"Aurora Set • four pieces","Helmet, chestplate, leggings and boots.","Choose a piece to put the real item in your hotbar.");
         CreativeStudio.icon(view,CONVERGENCE,Items.NETHERITE_CHESTPLATE,"Convergence Set • armor & wings","Solid armor chestplate and existing flight wings are separate choices.");
         CreativeStudio.icon(view,ALL_GEAR,Items.CHEST,"All Infinity gear • armor, tools & blocks");
+        CreativeStudio.icon(view,FORGE,Items.AMETHYST_SHARD,"Elemental Forge • new armor & relics");
         CreativeStudio.icon(view,STUDIO,Items.PAINTING,"Creative Studio");
         if (Memberships.operator(player)) CreativeStudio.icon(view,ADMIN_BLOCKS,Items.COMMAND_BLOCK,"Get Admin Blocks • inventory toolbox",
             "Real command blocks, barriers, lights and structure tools.","Requires Creative and OP4. Clear one inventory slot.");
@@ -214,6 +216,7 @@ final class CreativeGearPicker {
                 if(slot==CONVERGENCE){owner.closeContainer();open(owner,0,Collection.CONVERGENCE);return;}
                 if(slot==ALL_GEAR){owner.closeContainer();open(owner,0,Collection.ALL);return;}
                 if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
+                if(slot==FORGE){owner.closeContainer();ElementalForgeMenu.open(owner);return;}
                 if(slot==ADMIN_BLOCKS){owner.closeContainer();GearCrates.giveAdmin(owner);return;}
                 if(slot==49){owner.closeContainer();ServerMenu.open(owner);return;}
                 int index=pageIndex*45+slot;

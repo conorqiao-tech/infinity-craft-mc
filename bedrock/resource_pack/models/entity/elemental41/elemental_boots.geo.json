@@ -1,0 +1,191 @@
+{
+  "format_version": "1.19.30",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.convergence.elemental_boots_elemental41",
+        "texture_width": 128,
+        "texture_height": 64,
+        "visible_bounds_width": 2.5,
+        "visible_bounds_height": 3,
+        "visible_bounds_offset": [
+          0,
+          1,
+          0
+        ]
+      },
+      "bones": [
+        {
+          "name": "elemental_right_leg",
+          "binding": "'rightLeg'",
+          "pivot": [
+            -1.9,
+            12,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.22,
+                -0.32,
+                -2.32
+              ],
+              "size": [
+                4.17,
+                3.7199999999999998,
+                4.64
+              ],
+              "uv": {
+                "up": {
+                  "uv": [
+                    8,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    16,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    0,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "north": {
+                  "uv": [
+                    8,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    16,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    24,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "elemental_left_leg",
+          "binding": "'leftLeg'",
+          "pivot": [
+            1.9,
+            12,
+            0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                0.05,
+                -0.32,
+                -2.32
+              ],
+              "size": [
+                4.17,
+                3.7199999999999998,
+                4.64
+              ],
+              "uv": {
+                "up": {
+                  "uv": [
+                    8,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "down": {
+                  "uv": [
+                    16,
+                    32
+                  ],
+                  "uv_size": [
+                    8,
+                    8
+                  ]
+                },
+                "west": {
+                  "uv": [
+                    0,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "north": {
+                  "uv": [
+                    8,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "east": {
+                  "uv": [
+                    16,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                },
+                "south": {
+                  "uv": [
+                    24,
+                    40
+                  ],
+                  "uv_size": [
+                    8,
+                    24
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

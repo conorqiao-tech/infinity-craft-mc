@@ -51,6 +51,7 @@ final class ServerMenu {
     static final int STUDIO = 8;
     static final int COMMONS = 0;
     static final int PLAYER_WORKSHOP = 2;
+    static final int ELEMENTAL_FORGE = 18;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -209,6 +210,7 @@ final class ServerMenu {
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
                 "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
             icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • journal & prophecy","Discover three realms, track your ruins and claim gifts.","Recover your prophecy through the journal.");
+            icon(view,ELEMENTAL_FORGE,Items.AMETHYST_SHARD,"Elemental Forge • armor, relics & runes","Choose Fire, Water, Earth or Air for your Elemental suit.","New Infinity Armor, four usable relics and five building styles.");
             icon(view, GEAR, Items.NETHERITE_SWORD, "Weapons, tools and blocks", "Choose any Infinity item.", "Requires Creative, Admin or OP2.", "Your old items are preserved.");
             icon(view, KIT, Items.CHEST, "Full Infinity kit", "All gear plus rockets and seeds.", "Requires Creative, Admin or OP2.");
             icon(view, BUILDING, Items.QUARTZ_BLOCK, "Building kit", "Building blocks and both wands.", "Requires Creative, Admin or OP4.");
@@ -231,7 +233,7 @@ final class ServerMenu {
                 "Admin/OP4: edit players or loaded AI helpers.",
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
-            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Armor, tools & blocks • inventory boxes","Five labeled boxes: Convergence, Aurora, Ember, tools and blocks.","Place and open the boxes to take items. Requires Creative or gear permission.");
+            icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Armor, tools & blocks • inventory boxes","Labeled sets: Convergence, Aurora, Ember, Elemental and Infinity.","Place and open the boxes to take items. Requires Creative or gear permission.");
             icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
             icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
             icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
@@ -253,6 +255,7 @@ final class ServerMenu {
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
             icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Keeps native elytra flight on Bedrock.","Choose the separate Convergence armor chestplate for solid armor.","Requires Creative, Admin or OP2.");
             icon(view,16,Items.NETHERITE_CHESTPLATE,"Convergence Armor Chestplate","Solid custom armor; the wings remain a separate item.","Requires Creative, Admin or OP2.");
+            icon(view,22,Items.AMETHYST_SHARD,"Elemental & Infinity Armor • Forge","New solid four-piece sets and saved elemental attunement.","Craft in Survival, or claim with Creative/Admin/OP2.");
         } else if(page==Page.RANKS) {
             title="Ranks & subscriptions";var memberships=Memberships.get(player.level().getServer());
             memberships.syncAchievements(player);
@@ -362,12 +365,14 @@ final class ServerMenu {
                 if(slot==10 || slot==12) { owner.closeContainer();BackpackStorage.armor(owner,slot==10?"aurora":"ember"); }
                 else if(slot==14) { owner.closeContainer();Convergence.holdCreativeItem(owner,"chestplate"); }
                 else if(slot==16) { owner.closeContainer();Convergence.holdCreativeItem(owner,"cuirass"); }
+                else if(slot==22) { owner.closeContainer();ElementalForgeMenu.open(owner); }
                 return;
             }
             if (page != Page.MAIN) return;
             if(slot==COMMONS){owner.closeContainer();CommonsMenu.open(owner);return;}
             if(slot==PLAYER_WORKSHOP){owner.closeContainer();CommonsMenu.open(owner,CommonsMenu.Page.ATLAS);return;}
             if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
+            if(slot==ELEMENTAL_FORGE){owner.closeContainer();ElementalForgeMenu.open(owner);return;}
             if(slot==PROPHECY){owner.closeContainer();OdysseyJournal.open(owner);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }
             if (slot == ARMOR) { navigate(Page.ARMOR, 0); return; }

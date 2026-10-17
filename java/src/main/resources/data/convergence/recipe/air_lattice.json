@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:quartz_block",
+    "C": "minecraft:feather"
+  },
+  "result": {
+    "id": "convergence:air_lattice",
+    "count": 8
+  }
+}

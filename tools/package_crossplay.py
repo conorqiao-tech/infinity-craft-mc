@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
-from verify_owned_equipment import verify_owned_equipment
+from verify_owned_equipment import creative_capture_counts, verify_owned_equipment
 
 
 def verified_test_hash(provenance, test_mod):
@@ -60,6 +60,7 @@ def verified_creative_wire(root, lock, provenance):
     verify_owned_equipment(ready)
     startup_file = checks / "startup.json"
     catalogue = root / "research/integration/crossplay-export/infinity-catalogue.json"
+    expected_counts = creative_capture_counts(bounded_json(catalogue, 131_072), ready)
     actual_hashes = {
         "report_sha256": digest(report), "native_proof_sha256": digest(native_file),
         "log_sha256": digest(runtime / "wire.log"), "capture_sha256": digest(ready_file),
@@ -75,7 +76,7 @@ def verified_creative_wire(root, lock, provenance):
     if (receipt["native_tests"] != 2 or len(cases) != 2
             or any(case.find(kind) is not None for case in cases for kind in ("failure", "error", "skipped"))):
         raise RuntimeError("Creative wire native tests must both pass without skips")
-    hotbar = len(ready["proof"]["encoded_hotbar_packets"])
+    hotbar = expected_counts["hotbar_cases"]
     overflow = len(ready["proof"]["encoded_oversized_packets"])
     if (hotbar <= 0 or overflow <= 0 or native["hotbar_cases"] != hotbar
             or native["survival_cases"] != hotbar or native["via_survival_cases"] != hotbar
@@ -149,13 +150,12 @@ def verified_creative_persistence(root, lock, provenance):
     if (receipt["native_tests"] != 2 or len(cases) != 2
             or any(case.find(kind) is not None for case in cases for kind in ("failure", "error", "skipped"))):
         raise RuntimeError("Creative persistence native tests must both pass without skips")
-    expected_counts = {"hotbar_cases":180, "distinct_item_count_cases":60, "disk_cases":60,
-                       "rejoin_cases":60, "canonical_identities":46, "native_save_batches":2,
-                       "genuine_reconnects":2, "variant_inputs":5, "framed_inbound_packets":245,
-                       "backpack_styles_preserved":3}
+    expected_counts = creative_capture_counts(
+        bounded_json(root / "research/integration/crossplay-export/infinity-catalogue.json", 131_072),
+        bounded_json(checks / "ready.json"))
     flags = ("catalogue_equivalent", "receive_hook_canonical_before_listener",
              "renamed_damaged_weapon_preserved", "personal_backpack_preserved", "observer_file_unchanged")
-    if (any(native.get(key) != value for key, value in expected_counts.items())
+    if (any(type(native.get(key)) is not int or native[key] != value for key, value in expected_counts.items())
             or any(native.get(key) is not True for key in flags)
             or native["capture_sha256"] != actual["capture_sha256"]
             or native["catalogue_sha256"] != actual["captured_catalogue_sha256"]
@@ -252,7 +252,8 @@ def main():
         (ROOT / "research/integration/crossplay-export/infinity-catalogue.json").read_bytes()).hexdigest()
     assert ready_file.stat().st_mtime >= mod.stat().st_mtime
     assert ready["unowned_primary_and_java_items_unchanged"] is True
-    assert ready["items"] == 46 and ready["proof"]["actual_creative_hotbar_selections"] > 0
+    creative_capture_counts(json.loads(
+        (ROOT / "research/integration/crossplay-export/infinity-catalogue.json").read_text()), ready)
     verify_owned_equipment(ready)
     guard = ready["proof"]["stale_request_guard"]
     protocols = len(ready["protocols"])
@@ -271,7 +272,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "COMMONS.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "CONTRIBUTORS.md", "HOLIDAY_UPDATES.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "ELEMENTAL_FORGE.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "COMMONS.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "CONTRIBUTORS.md", "HOLIDAY_UPDATES.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
     for pin in sorted((server / "setup").glob("*.txt")):
@@ -327,12 +328,12 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/odyssey", "geyser-extension/src", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/odyssey", "geyser-extension/src", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
-        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
+        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
         "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
@@ -349,6 +350,7 @@ def main():
     shutil.copy2(server / "TRADING.md", dist / "Infinity_Armor_Trading.md")
     shutil.copy2(server / "AGENTS_GUIDE.md", dist / "Infinity_Armor_Agents.md")
     shutil.copy2(server / "EXPANSION.md", dist / "Infinity_Armor_Expansion.md")
+    shutil.copy2(server / "ELEMENTAL_FORGE.md", dist / "Infinity_Armor_Elemental_Forge.md")
     shutil.copy2(server / "EXPLORATION.md", dist / "Infinity_Armor_Exploration.md")
     shutil.copy2(server / "ODYSSEY.md", dist / "Infinity_Armor_Odyssey.md")
     shutil.copy2(server / "PINGGY_JOINING.md", dist / "Infinity_Armor_Pinggy_Joining.md")
@@ -356,7 +358,7 @@ def main():
     shutil.copy2(server / "PLAYER_TRADING.md", dist / "Infinity_Armor_Player_Trading.md")
     files = sorted([server_archive, source_archive, *(dist / name for name in [
         "Infinity_Armor_Lobbies_Guide.md", "Infinity_Armor_Public_Hosting.md",
-        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Subscriptions.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Odyssey.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Dynu_Joining.md", "Infinity_Armor_Player_Trading.md"])])
+        "Infinity_Armor_Game_Modes.md", "Infinity_Armor_Lobbies.md", "Infinity_Armor_Memberships.md", "Infinity_Armor_Subscriptions.md", "Infinity_Armor_Rewards.md", "Infinity_Armor_Trading.md", "Infinity_Armor_Agents.md", "Infinity_Armor_Expansion.md", "Infinity_Armor_Elemental_Forge.md", "Infinity_Armor_Exploration.md", "Infinity_Armor_Odyssey.md", "Infinity_Armor_Pinggy_Joining.md", "Infinity_Armor_Dynu_Joining.md", "Infinity_Armor_Player_Trading.md"])])
     (dist / "SHA256SUMS.txt").write_text("\n".join(hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.name for p in files) + "\n")
     for file in files:
         print(file.name, file.stat().st_size, "bytes")

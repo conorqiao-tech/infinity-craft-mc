@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:obsidian",
+    "C": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "convergence:infinity_prism",
+    "count": 8
+  }
+}
