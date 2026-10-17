@@ -8,6 +8,7 @@ import shutil
 import uuid
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
+from crossplay_resources import resource_version, vanilla_equipment_override
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "2.13.0-explore.39"
@@ -54,22 +55,21 @@ def prepare():
     resources = ROOT / "bedrock/resource_pack"
     files = {p.relative_to(resources).as_posix(): p.read_bytes() for p in resources.rglob("*") if p.is_file()}
     for name in list(files):
-        # Ordinary native armor must keep Minecraft's texture. Geyser's native
-        # wearable fallback cannot select a different skin just for our stack.
-        if re.fullmatch(r"textures/models/armor/(netherite|leather)_[12]\.png",name) or re.fullmatch(r"textures/items/(netherite|leather)_(helmet|chestplate|leggings|boots)\.png",name):
+        # Do not replace ordinary armor or elytra assets. Native Bedrock flight
+        # intentionally keeps the engine's elytra appearance and animations.
+        if vanilla_equipment_override(name):
             del files[name]
             continue
-        # Only item-specific original armor/tools and the native flight attachable.
+        # Only item-specific original armor/tools.
         # Exclude legacy duplicates and unsupported custom-glider definitions.
-        if name.startswith("attachables/") and name != "attachables/elytra.json" and not name.startswith(("attachables/refresh27/", "attachables/held/")):
+        if name.startswith("attachables/") and not name.startswith(("attachables/refresh27/", "attachables/held/")):
             del files[name]
         if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json", "render_controllers/original_static_armor.json", "render_controllers/original_tools.json"]:
             del files[name]
     manifest = json.loads(files["manifest.json"])
     # Bedrock caches UUID+version. Reusing [2,12,0] across exploration builds
     # kept stale armor/resources installed after a server update.
-    pack_revision = int(VERSION.rsplit(".", 1)[-1])
-    pack_version = [2, 12, pack_revision]
+    pack_version = resource_version(VERSION)
     manifest["header"].update({"name": "Infinity Armor Crossplay Resources", "version": pack_version,
         "description": "Resources for the shared Fabric/Geyser world. No behavior pack required.",
         "uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, "https://infinity-armor.local/crossplay/resources"))})

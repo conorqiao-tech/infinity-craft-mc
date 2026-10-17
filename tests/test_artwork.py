@@ -161,7 +161,7 @@ class OriginalArtworkTests(unittest.TestCase):
                 if name.startswith("attachables/"):
                     identifiers.append(json.loads(pack.read(name))["minecraft:attachable"]["description"]["identifier"])
             held = ("bow", "crossbow", "shield", "totem")
-            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held)]+["minecraft:elytra"])
+            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held)])
             self.assertEqual(len(identifiers),len(set(identifiers)),"Legacy duplicate attachables must not override the refreshed ones")
             for name,slot in wearable.items():
                 desc = json.loads(pack.read(f"attachables/refresh27/{name}.json"))["minecraft:attachable"]["description"]
@@ -175,20 +175,17 @@ class OriginalArtworkTests(unittest.TestCase):
                 self.assertEqual(alias,dict(desc,identifier="infinity_catalog:"+name),"Prediction aliases share exactly the real item's worn artwork")
             controllers = json.loads(pack.read("render_controllers/original_static_armor.json"))["render_controllers"]
             self.assertCountEqual(controllers,["controller.render.convergence."+name+"_original" for name in wearable])
-            wings = json.loads(pack.read("attachables/elytra.json"))["minecraft:attachable"]["description"]
-            flight = json.loads(pack.read("models/entity/original_armor/flight_shell.geo.json"))["minecraft:geometry"][0]
-            self.assertEqual(wings["geometry"]["infinity_armor"],flight["description"]["identifier"])
-            self.assertEqual(wings["geometry"]["default"],"geometry.elytra","The real native wings keep their own geometry")
-            self.assertEqual(json.loads(pack.read("attachables/elytra.json")),
-                             json.loads((ROOT / "bedrock/resource_pack/attachables/elytra.json").read_text()),
-                             "The installed candidate must include the same tested flight attachment")
+            self.assertNotIn("attachables/elytra.json",pack.namelist(),"Ordinary elytra must keep its native model, cape behavior and animations")
+            self.assertNotIn("textures/items/elytra.png",pack.namelist())
+            self.assertNotIn("textures/items/broken_elytra.png",pack.namelist())
             for material in ("netherite","leather"):
                 for layer in (1,2): self.assertNotIn(f"textures/models/armor/{material}_{layer}.png",pack.namelist())
                 for piece in ("helmet","chestplate","leggings","boots"):
                     self.assertNotIn(f"textures/items/{material}_{piece}.png",pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
             version = re.search(r'^VERSION = "([^"\n]+)"$', (ROOT / "tools/prepare_crossplay.py").read_text(), re.MULTILINE).group(1)
-            expected_version = [2,12,int(version.rsplit(".",1)[-1])]
+            release, revision = version.split("-explore.")
+            expected_version = [*map(int, release.split(".")[:2]), int(revision)]
             self.assertEqual(manifest["header"]["version"],expected_version)
             self.assertTrue(all(m["version"] == expected_version for m in manifest["modules"]))
 

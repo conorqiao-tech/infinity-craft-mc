@@ -115,7 +115,7 @@ def verified_creative_persistence(root, lock, provenance):
         raise RuntimeError("Creative persistence must record both executed Via dependencies")
     sources = ["tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java",
                "tools/benchmark_helpers.py", "tools/prepare_crossplay.py", "tools/package_crossplay.py",
-               "tools/smoke_creative_wire.py", "tools/verify_owned_equipment.py"]
+               "tools/smoke_creative_wire.py", "tools/verify_owned_equipment.py", "tools/crossplay_resources.py"]
     if receipt["source_hashes"] != {name: digest(root / name) for name in sources}:
         raise RuntimeError("Creative persistence source differs from its proof; rerun the isolated check")
     if (receipt["version"] != VERSION or receipt["java_sources"] != provenance["java_sources"]
