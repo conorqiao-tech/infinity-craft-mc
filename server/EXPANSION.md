@@ -1,6 +1,6 @@
 # Elemental Forge — explore.41 candidate
 
-New switchable Elemental Armor, a separate ultimate Infinity set, four craftable relics and five original rune-block styles are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). The same candidate separates overlapping Bedrock armor model surfaces; existing PNGs and normal Minecraft textures stay intact. This section describes source work, not a live installation.
+New switchable Elemental Armor, a separate ultimate Infinity set, four craftable relics and five original rune-block styles are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). The same candidate separates overlapping Bedrock armor model surfaces; existing PNGs and normal Minecraft textures stay intact. The owner approved installing this candidate on October 17, 2026; the actual iPad appearance remains unverified.
 
 # Infinity Armor expansion — 2.13.0-explore.24
 

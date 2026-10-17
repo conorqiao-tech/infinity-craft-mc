@@ -1,6 +1,6 @@
 # Elemental Forge and armor seam repair — 2.13.0-explore.41 candidate
 
-Validated with Minecraft **26.3 / Java 25** and the unchanged pinned Fabric/Geyser/Via stack. **523/523 unique native GameTests** pass across **15 disposable groups**, bound to all **678** Java source/resource files and the exact production/test jars. **289/289 Python launcher, artwork, packaging and owner-identity tests** pass with resource warnings treated as errors, zero skips. The playable Downloads server was not stopped or changed; explore.40 remains installed.
+Validated with Minecraft **26.3 / Java 25** and the unchanged pinned Fabric/Geyser/Via stack. **523/523 unique native GameTests** pass across **15 disposable groups**, bound to all **678** Java source/resource files and the exact production/test jars. **289/289 Python launcher, artwork, packaging and owner-identity tests** pass with resource warnings treated as errors, zero skips. During source validation the playable Downloads server was not stopped or changed. The owner subsequently approved installation of the exact tested candidate; the follow-up below records its verified state.
 
 The twenty-one new native cases cover all eight registered armor pieces, literal names, distinct equipment assets, native durability/enchanting/slot modifiers, actual item and player-file saves, all four selected elements, Infinity powers, mixed/wrong-slot/spoofed armor, admin bases and unrelated modifiers, mode guards, Earth cleanup on death, and real connected-player effect expiry. Forge tests exercise atomic kit claims, native disk reloads, permission loss, stale/foreign Java screens, actual encoded Bedrock form callbacks, replay/expiry and occupied cursors. Relic tests exercise real hostile queries, range/cone/obstruction/friend/player exclusions, six-target limits, native damage/velocity/healing, stronger potion preservation, real 99+1 tick shared recharge and unchanged inventory/equipment. The actual recipe manager crafts all seventeen new recipes; block checks verify real registry entries, pickaxe tags, light and loot-table drops.
 
@@ -8,11 +8,15 @@ Fresh Geyser transport checks cover all **63 identities** in all **three pinned 
 
 Both isolated full-stack startup/save/backup/restart/shutdown cycles pass. Their final lifecycle and regular Geyser logs contain no ERROR records. Native tests still produce dependency/context warnings and intentional refusal/error fixtures; these are not described as an error-free game. No authenticated iPad or graphical Java login was performed.
 
+## Owner-approved local installation follow-up
+
+The exact tested server ZIP was installed on October 17, 2026. A fresh stopped-world ZIP was verified against all 95 saved files. All 83 package files matched and all 41 private snapshots stayed byte-identical during overlay. The protected-area refresh committed once for the exact explore.41 mod hash, preserving all 26 compact record files. Fifteen personal files remain byte-identical; the course-selector registry retains identical JSON with native key ordering. Private credentials/settings, helpers, stats and both AI approval gates remain. Fabric/Geyser startup has zero ERROR/Exception records in the inspected logs; all 63 catalogue entries load across three protocols. Local Java TCP25565 reports 26.3/protocol777 and Bedrock UDP19132 responds. Public authenticated joining and actual device rendering remain unverified. The package archives are immutable snapshots of the earlier validation stage; this follow-up changes documentation only. Main remains unchanged while PR #4 is a draft.
+
 ## Rendering finding and scope
 
 The owner reports worn armor pieces overlapping/flickering. Inspection found positive-area coplanar surfaces at the leggings/boots, waist, neck and shoulders of the existing Bedrock models. The repaired original geometry separates those surfaces. `tests/test_armor_seams.py` reproduces the old boot conflict and checks all five complete suits. New independent assets also pass full UV, joint, identity-guard, hash and complete-suit surface validation. All **286 pre-task PNG files remain byte-identical**. Prepared resources use revision **[2,13,41]**; ordinary leather, netherite and elytra overrides remain absent.
 
-Software previews show generated cuboids/UVs in standing and walking-pivot poses. They are **not Minecraft client captures**. The owner says their current in-game appearance differs from the preview; explore.40 is still installed and no screenshot of that actual rendering has been supplied yet. The exact client symptom and the effectiveness of this candidate on the owner's device remain unverified. After separate installation approval, reconnect, accept the pack, equip each set and inspect front/back, walking, crouching and head turns. Do not call the reported visual issue fixed in the live game until that check succeeds.
+Software previews show generated cuboids/UVs in standing and walking-pivot poses. They are **not Minecraft client captures**. Before installation, the owner said the in-game appearance differed from the preview; explore.40 was installed at that time and no screenshot of that actual rendering had been supplied. The exact client symptom and the effectiveness of this candidate on the owner's device remain unverified. After the approved installation, the owner was asked to reconnect, accept the pack, equip each set and inspect front/back, walking, crouching and head turns. Do not call the reported visual issue fixed in the live game until that check succeeds.
 
 ## Other failures found and corrected
 
@@ -24,7 +28,7 @@ Software previews show generated cuboids/UVs in standing and walking-pivot poses
 
 Production mod SHA256: `812b169f0c7b379e33ae6548cf9f7796bd11b6a9e5e8fc9c0954dce0a48a86da`. Native test jar: `14a157c84b9c3d5c6bb5887a4cf604d11fb2eb7bfa5ba7a3623690cb3d938803`. Aggregate native report: `b8e2870c57fce9b9c478801fadaba10c7487dbf99bbef15fef01e5c548a646e9`. Crossplay pack: `43e00b0c87cbba281b09c04eaf80fac215fb2bfa21d657fd6c9de2cd3af1c495`. Creative bridge remains unchanged at `0f55a1e84106d53c14f90b698d9ddb14e63a576e5b2c1ca8cbe6638348346b87`.
 
-No live installation, terrain refresh, website deployment or public release was performed for explore.41. [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md) provides exact menu paths, powers, costs and recipes.
+The automated validation did not modify the live server. After explicit owner approval, explore.41 was installed with a verified fresh backup and protected-area refresh; no website deployment or public release was performed. [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md) provides exact menu paths, powers, costs and recipes.
 
 ---
 

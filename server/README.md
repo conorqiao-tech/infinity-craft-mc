@@ -1,6 +1,6 @@
 # Elemental Forge candidate — explore.41
 
-The new armor, relics, building styles and Bedrock armor-seam repair are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). Source/build status is separate from the actually installed server; see [VALIDATION.md](VALIDATION.md).
+The new armor, relics, building styles and Bedrock armor-seam repair are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). The owner approved installing this candidate on October 17, 2026; local Java/Bedrock startup checks pass. Actual iPad appearance still awaits confirmation. See [VALIDATION.md](VALIDATION.md).
 
 # Infinity Armor Exploration Server — 2.13.0-explore.40 candidate
 
