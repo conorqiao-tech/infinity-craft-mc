@@ -18,6 +18,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import package_crossplay
+from verify_owned_equipment import creative_capture_counts, PROTOCOLS
 
 PINNED_GEYSER_SHA256 = "17a9e00f3be106c797066664679ca73ebf25af693a750f378a9669ca93b4c07e"
 SPEC = importlib.util.spec_from_file_location(
@@ -299,10 +300,13 @@ class CreativeWirePackagingTests(unittest.TestCase):
             "checks/creative-bridge-wire-test.jar": (self.isolated / runtime / "mods" / f"Infinity-Armor-{package_crossplay.VERSION}-gametest.jar").read_bytes(),
             "checks/creative-bridge-wire-log.txt": (self.isolated / runtime / "wire.log").read_bytes(),
         })
-        self.assertEqual(receipt["proof"]["hotbar_cases"], 180)
-        self.assertEqual(receipt["proof"]["overflow_cases"], 138)
-        self.assertEqual(receipt["proof"]["survival_cases"], 180)
-        self.assertEqual(receipt["proof"]["via_survival_cases"], 180)
+        expected = creative_capture_counts(
+            json.loads((self.isolated / "research/integration/crossplay-export/infinity-catalogue.json").read_text()),
+            json.loads((self.isolated / self.checks / "ready.json").read_text()))
+        self.assertEqual(receipt["proof"]["hotbar_cases"], expected["hotbar_cases"])
+        self.assertEqual(receipt["proof"]["overflow_cases"], expected["canonical_identities"] * len(PROTOCOLS))
+        self.assertEqual(receipt["proof"]["survival_cases"], expected["hotbar_cases"])
+        self.assertEqual(receipt["proof"]["via_survival_cases"], expected["hotbar_cases"])
 
 
 if __name__ == "__main__":

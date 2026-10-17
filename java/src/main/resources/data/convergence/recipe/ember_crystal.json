@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:polished_blackstone",
+    "C": "minecraft:blaze_powder"
+  },
+  "result": {
+    "id": "convergence:ember_crystal",
+    "count": 8
+  }
+}

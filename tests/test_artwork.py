@@ -161,7 +161,9 @@ class OriginalArtworkTests(unittest.TestCase):
                 if name.startswith("attachables/"):
                     identifiers.append(json.loads(pack.read(name))["minecraft:attachable"]["description"]["identifier"])
             held = ("bow", "crossbow", "shield", "totem")
-            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held)])
+            forge = tuple(suit + "_" + piece for suit in ("elemental", "infinity")
+                          for piece in ("helmet", "chestplate", "leggings", "boots"))
+            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held, *forge)])
             self.assertEqual(len(identifiers),len(set(identifiers)),"Legacy duplicate attachables must not override the refreshed ones")
             for name,slot in wearable.items():
                 desc = json.loads(pack.read(f"attachables/refresh27/{name}.json"))["minecraft:attachable"]["description"]

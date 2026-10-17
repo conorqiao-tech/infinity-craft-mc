@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "DDD",
+    "DCD",
+    "D D"
+  ],
+  "key": {
+    "D": "minecraft:diamond",
+    "C": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "convergence:elemental_leggings",
+    "count": 1
+  }
+}

@@ -27,6 +27,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeMap;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.component.DataComponents;
@@ -66,14 +67,16 @@ public class CreativeBridgePersistenceGameTests {
         final List<JsonObject> samples=new ArrayList<>();
         final List<JsonObject> distinct=new ArrayList<>();
         final List<Integer> collectionSlots=new ArrayList<>();
+        final HashSet<String> canonicalPaths=new HashSet<>();
         final HashSet<String> persistedPaths=new HashSet<>();
+        final int expectedDistinct,expectedHotbar,expectedBatches;
         final Protocol26_3To26_2 protocol;
         Joined owner,observer;
         EmbeddedChannel viaChannel;
         UserConnectionImpl via;
         byte[] observerBefore;
         ItemStack expectedInbound;
-        int observed,hotbarCases,diskCases,rejoinCases,rejoins,variantInputs;
+        int observed,hotbarCases,diskCases,rejoinCases,saveBatches,rejoins,variantInputs;
         String nativeCatalogueSha;
 
         Scenario(GameTestHelper c) {
@@ -89,28 +92,38 @@ public class CreativeBridgePersistenceGameTests {
             for(var field:expected.entrySet())if(!field.getKey().equals("items"))
                 c.assertValueEqual(actual.get(field.getKey()),field.getValue(),"Native catalogue header matches the capture");
             c.assertValueEqual(byPath(c,actual),byPath(c,expected),"All native catalogue entry fields match, independent of iteration order");
-            c.assertValueEqual(capture.get("items").getAsInt(),Convergence.ITEMS.size(),"Capture covers the current canonical set");
+            c.assertValueEqual(exactInt(capture,"items"),Convergence.ITEMS.size(),"Capture covers the current canonical set");
+            var registries=capture.getAsJsonObject("protocols");
+            c.assertValueEqual(registries.keySet(),Set.of("1001","2168","2193"),"Every pinned Bedrock registry is independently required");
+            for(var bedrock:registries.keySet())c.assertValueEqual(exactInt(registries,bedrock),Convergence.ITEMS.size(),"Every pinned registry covers the canonical catalogue");
+            int countCases=0;
+            for(var entry:Convergence.ITEMS.entrySet()) {
+                canonicalPaths.add(Identifier.parse(entry.getKey()).getPath());
+                countCases+=entry.getValue().getDefaultInstance().getMaxStackSize()==1?1:2;
+            }
+            expectedDistinct=countCases;expectedHotbar=countCases*registries.size();
             var byCase=new TreeMap<String,JsonObject>();var seen=new HashSet<String>();
             for(var value:capture.getAsJsonObject("proof").getAsJsonArray("encoded_hotbar_packets")) {
-                var sample=value.getAsJsonObject();String path=sample.get("path").getAsString();int count=sample.get("count").getAsInt();
-                String bedrock=sample.get("bedrock_protocol").getAsString();
-                c.assertTrue(capture.getAsJsonObject("protocols").has(bedrock),"Captured packet uses an advertised Bedrock protocol");
+                var sample=value.getAsJsonObject();String path=sample.get("path").getAsString();int count=exactInt(sample,"count");
+                String bedrock=Integer.toString(exactInt(sample,"bedrock_protocol"));
+                c.assertTrue(registries.has(bedrock),"Captured packet uses an advertised Bedrock protocol");
                 c.assertTrue(seen.add(bedrock+":"+path+":"+count),"Capture has no duplicate protocol/item/count case");
                 var item=Convergence.ITEMS.get("convergence:"+path);
                 c.assertTrue(item!=null,"Every capture path is a current canonical item");
                 c.assertTrue(count==1||count==item.getDefaultInstance().getMaxStackSize(),"Every packet has a promised valid count");
                 samples.add(sample);byCase.putIfAbsent(path+":"+count,sample);
             }
-            for(var bedrock:capture.getAsJsonObject("protocols").keySet())for(var entry:Convergence.ITEMS.entrySet()) {
+            for(var bedrock:registries.keySet())for(var entry:Convergence.ITEMS.entrySet()) {
                 String path=Identifier.parse(entry.getKey()).getPath();int max=entry.getValue().getDefaultInstance().getMaxStackSize();
                 c.assertTrue(seen.contains(bedrock+":"+path+":1")&&seen.contains(bedrock+":"+path+":"+max),"Each item/protocol has both applicable counts");
             }
             distinct.addAll(byCase.values());
-            c.assertValueEqual(samples.size(),180,"All 180 real captured hotbar inputs are required");
-            c.assertValueEqual(distinct.size(),60,"All 60 distinct item/count disk cases are required");
-            c.assertValueEqual(Convergence.ITEMS.size(),46,"This proof covers all 46 canonical identities");
+            c.assertValueEqual(samples.size(),expectedHotbar,"Every canonical protocol/item/count input is required independently of capture length");
+            c.assertValueEqual(exactInt(capture.getAsJsonObject("proof"),"actual_creative_hotbar_selections"),expectedHotbar,"The capture's selection counter matches every required input");
+            c.assertValueEqual(distinct.size(),expectedDistinct,"Every canonical item/count disk case is required independently of capture length");
             for(int slot=1;slot<36;slot++)if(slot!=6&&slot!=7&&slot!=8&&slot!=34&&slot!=35)collectionSlots.add(slot);
-            c.assertValueEqual(collectionSlots.size(),30,"Two complete batches fit around the unchanged fixture controls");
+            c.assertValueEqual(collectionSlots.size(),30,"Native collection capacity fits around every unchanged fixture control");
+            expectedBatches=(expectedDistinct+collectionSlots.size()-1)/collectionSlots.size();
             var manager=Via.getManager().getProtocolManager();manager.completeMappingDataLoading(Protocol26_3To26_2.class);
             protocol=manager.getProtocol(Protocol26_3To26_2.class);
             c.assertTrue(protocol!=null,"The real pinned ViaBackwards protocol is registered");
@@ -252,8 +265,11 @@ public class CreativeBridgePersistenceGameTests {
         }
 
         void runBatch(int batch) {
-            for(int i=0;i<30;i++) {
-                var sample=distinct.get(batch*30+i);admit(sample);moveScratch(collectionSlots.get(i));
+            int first=batch*collectionSlots.size();
+            int count=Math.min(collectionSlots.size(),distinct.size()-first);
+            c.assertTrue(count>0,"Each full or partial batch contains actual new captured cases");
+            for(int i=0;i<count;i++) {
+                var sample=distinct.get(first+i);admit(sample);moveScratch(collectionSlots.get(i));
                 persistedPaths.add(sample.get("path").getAsString());
             }
             var snapshot=new Snapshot(owner.player);PlayerPersistence.save(owner.player);
@@ -262,19 +278,19 @@ public class CreativeBridgePersistenceGameTests {
             c.assertValueEqual(disk.getCompoundOrEmpty("InfinityModes"),snapshot.modes,"Real disk NBT contains the exact mode/backpack state");
             var restored=new ServerPlayer(server,owner.player.level(),owner.player.getGameProfile(),owner.player.clientInformation());
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING,restored.registryAccess(),disk));
-            snapshot.assertMatches(c,restored,"actual disk read");diskCases+=30;assertObserver();
+            snapshot.assertMatches(c,restored,"actual disk read");diskCases+=count;saveBatches++;assertObserver();
             var oldPlayer=owner.player;var oldListener=owner.player.connection;
             reconnect(owner,fresh->{
                 owner=fresh;
                 c.assertTrue(owner.player!=oldPlayer&&owner.player.connection!=oldListener,"Saved reconnect creates a genuinely fresh native player/listener");
                 c.assertTrue(server.getPlayerList().getPlayer(owner.player.getUUID())==owner.player,"Native PlayerList installs the exact saved same-UUID replacement");
-                snapshot.assertMatches(c,owner.player,"genuine saved reconnect");rejoinCases+=30;rejoins++;assertObserver();
+                snapshot.assertMatches(c,owner.player,"genuine saved reconnect");rejoinCases+=count;rejoins++;assertObserver();
                 c.assertValueEqual(BackpackStorage.open(owner.player),1,"Fresh saved session reopens its real personal backpack");
                 var bag=((ChestMenu)owner.player.containerMenu).getContainer();
                 for(int i=0;i<BackpackStorage.SIZE;i++)c.assertTrue(ItemStack.matches(bag.getItem(i),snapshot.backpack.get(i)),"Fresh backpack menu retains exact sparse items/components at slot "+i);
                 owner.player.closeContainer();attachActualIngress();
                 for(var slot:collectionSlots)owner.player.getInventory().setItem(slot,ItemStack.EMPTY);
-                if(batch==0)runBatch(1);else finishProof();
+                if(first+count<distinct.size())runBatch(batch+1);else finishProof();
             });
         }
 
@@ -284,17 +300,18 @@ public class CreativeBridgePersistenceGameTests {
         }
 
         void finishProof() {
-            c.assertValueEqual(hotbarCases,180,"Every captured protocol/item/count frame was accepted through real ingress");
-            c.assertValueEqual(diskCases,60,"Both actual native file saves retain every distinct item/count case");
-            c.assertValueEqual(rejoinCases,60,"Both genuine native saved reconnects retain every distinct item/count case");
-            c.assertValueEqual(persistedPaths.size(),46,"Actual file saves and reconnects cover every canonical identity");
-            c.assertValueEqual(rejoins,2,"Two genuine same-UUID saved logins completed");
+            c.assertValueEqual(hotbarCases,expectedHotbar,"Every captured protocol/item/count frame was accepted through real ingress");
+            c.assertValueEqual(diskCases,expectedDistinct,"Actual native file saves retain every canonical item/count case, including the partial final batch");
+            c.assertValueEqual(rejoinCases,expectedDistinct,"Genuine native saved reconnects retain every canonical item/count case");
+            c.assertValueEqual(persistedPaths,canonicalPaths,"Actual file saves and reconnects cover exactly every canonical identity");
+            c.assertValueEqual(saveBatches,expectedBatches,"Each full or partial batch completed an actual native file save and read");
+            c.assertValueEqual(rejoins,expectedBatches,"Every full or partial batch completed its own genuine same-UUID saved login");
             c.assertValueEqual(observed,hotbarCases+diskCases+variantInputs,"Every admitted input used real framed decoding/hook observation");assertObserver();
             var report=new JsonObject();report.addProperty("capture_sha256",sha(captureBytes));report.addProperty("catalogue_sha256",sha(catalogueBytes));
             report.addProperty("native_catalogue_sha256",nativeCatalogueSha);report.addProperty("catalogue_equivalent",true);
             report.addProperty("hotbar_cases",hotbarCases);report.addProperty("distinct_item_count_cases",distinct.size());
             report.addProperty("disk_cases",diskCases);report.addProperty("rejoin_cases",rejoinCases);report.addProperty("canonical_identities",persistedPaths.size());
-            report.addProperty("native_save_batches",2);report.addProperty("genuine_reconnects",rejoins);report.addProperty("variant_inputs",variantInputs);
+            report.addProperty("native_save_batches",saveBatches);report.addProperty("genuine_reconnects",rejoins);report.addProperty("variant_inputs",variantInputs);
             report.addProperty("framed_inbound_packets",observed);report.addProperty("receive_hook_canonical_before_listener",true);
             report.addProperty("renamed_damaged_weapon_preserved",true);report.addProperty("backpack_styles_preserved",3);
             report.addProperty("personal_backpack_preserved",true);report.addProperty("observer_file_unchanged",true);
@@ -356,6 +373,12 @@ public class CreativeBridgePersistenceGameTests {
     private static void write(Path path,String value){try{Files.createDirectories(path.toAbsolutePath().getParent());Files.writeString(path,value);}catch(Exception error){throw new IllegalStateException("Cannot write actual persistence proof",error);}}
     private static String sha(byte[] bytes){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));}catch(Exception error){throw new IllegalStateException(error);}}
     private static JsonObject parse(byte[] bytes){return JsonParser.parseString(new String(bytes,java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();}
+    private static int exactInt(JsonObject object,String key) {
+        var value=object.get(key);
+        if(value==null||!value.isJsonPrimitive()||!value.getAsJsonPrimitive().isNumber()||!value.getAsString().matches("-?[0-9]+"))
+            throw new IllegalStateException("Actual proof field must be an exact integer: "+key);
+        return value.getAsBigDecimal().intValueExact();
+    }
     private static TreeMap<String,JsonObject> byPath(GameTestHelper c,JsonObject catalogue) {
         var entries=new TreeMap<String,JsonObject>();
         for(var value:catalogue.getAsJsonArray("items")){var entry=value.getAsJsonObject();String path=entry.get("path").getAsString();c.assertTrue(entries.putIfAbsent(path,entry)==null,"Catalogue rejects duplicate canonical paths");}

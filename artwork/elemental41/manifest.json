@@ -1,0 +1,222 @@
+{
+  "format": 1,
+  "authorship": "Original pixel canvases and cuboids; no source images loaded",
+  "preview": "Asset inspection only; not a game/client render",
+  "armor_uv": {
+    "head_top": [
+      8,
+      0,
+      16,
+      8
+    ],
+    "head_bottom": [
+      16,
+      0,
+      24,
+      8
+    ],
+    "head_right": [
+      0,
+      8,
+      8,
+      16
+    ],
+    "head_front": [
+      8,
+      8,
+      16,
+      16
+    ],
+    "head_left": [
+      16,
+      8,
+      24,
+      16
+    ],
+    "head_back": [
+      24,
+      8,
+      32,
+      16
+    ],
+    "leg_top": [
+      4,
+      16,
+      8,
+      20
+    ],
+    "leg_bottom": [
+      8,
+      16,
+      12,
+      20
+    ],
+    "leg_right": [
+      0,
+      20,
+      4,
+      32
+    ],
+    "leg_front": [
+      4,
+      20,
+      8,
+      32
+    ],
+    "leg_left": [
+      8,
+      20,
+      12,
+      32
+    ],
+    "leg_back": [
+      12,
+      20,
+      16,
+      32
+    ],
+    "body_top": [
+      20,
+      16,
+      28,
+      20
+    ],
+    "body_bottom": [
+      28,
+      16,
+      36,
+      20
+    ],
+    "body_right": [
+      16,
+      20,
+      20,
+      32
+    ],
+    "body_front": [
+      20,
+      20,
+      28,
+      32
+    ],
+    "body_left": [
+      28,
+      20,
+      32,
+      32
+    ],
+    "body_back": [
+      32,
+      20,
+      40,
+      32
+    ],
+    "arm_top": [
+      44,
+      16,
+      48,
+      20
+    ],
+    "arm_bottom": [
+      48,
+      16,
+      52,
+      20
+    ],
+    "arm_right": [
+      40,
+      20,
+      44,
+      32
+    ],
+    "arm_front": [
+      44,
+      20,
+      48,
+      32
+    ],
+    "arm_left": [
+      48,
+      20,
+      52,
+      32
+    ],
+    "arm_back": [
+      52,
+      20,
+      56,
+      32
+    ]
+  },
+  "suits": [
+    "elemental",
+    "infinity"
+  ],
+  "icons": [
+    "elemental_helmet",
+    "elemental_chestplate",
+    "elemental_leggings",
+    "elemental_boots",
+    "infinity_helmet",
+    "infinity_chestplate",
+    "infinity_leggings",
+    "infinity_boots",
+    "firebrand",
+    "tidecaller",
+    "terra_gauntlet",
+    "windstep"
+  ],
+  "blocks": [
+    "ember_crystal",
+    "tide_glass",
+    "earth_rune",
+    "air_lattice",
+    "infinity_prism"
+  ],
+  "sha256": {
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/elemental_armor.png": "5cfa0e8824a1856cb47714f693bf8be4c30d64ddd9177bbcbf04a3de1071be8b",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/elemental_armor.png": "5cfa0e8824a1856cb47714f693bf8be4c30d64ddd9177bbcbf04a3de1071be8b",
+    "bedrock/resource_pack/textures/convergence/models/armor/elemental41/elemental.png": "5cfa0e8824a1856cb47714f693bf8be4c30d64ddd9177bbcbf04a3de1071be8b",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/infinity_armor.png": "2efa8727d3194476d22b31165b781038845511c43a06ebaca25169981ae66297",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/infinity_armor.png": "2efa8727d3194476d22b31165b781038845511c43a06ebaca25169981ae66297",
+    "bedrock/resource_pack/textures/convergence/models/armor/elemental41/infinity.png": "2efa8727d3194476d22b31165b781038845511c43a06ebaca25169981ae66297",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/elemental_helmet.png": "017c3d4fe825eecb6a6669883889df902aac1c3deabcdf93c7a77e901db66980",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/elemental_helmet.png": "017c3d4fe825eecb6a6669883889df902aac1c3deabcdf93c7a77e901db66980",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/elemental_chestplate.png": "76841d994d63218ccae07bad162092df3be917dfb8a26bed20c0ce6652dea39a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/elemental_chestplate.png": "76841d994d63218ccae07bad162092df3be917dfb8a26bed20c0ce6652dea39a",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/elemental_leggings.png": "0b3ac4804c2b9071ffb4f681e5f038743c15310214cce709d27f3496b2f6513c",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/elemental_leggings.png": "0b3ac4804c2b9071ffb4f681e5f038743c15310214cce709d27f3496b2f6513c",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/elemental_boots.png": "e3cba2de1834b067dbc68b243799349c61f38e92554dc6f811bdbfcb7d1c889b",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/elemental_boots.png": "e3cba2de1834b067dbc68b243799349c61f38e92554dc6f811bdbfcb7d1c889b",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/infinity_helmet.png": "9bbf090471456829d12ecb22ff614efa64f5e7a9ce6a4edcbcead0234d84900d",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/infinity_helmet.png": "9bbf090471456829d12ecb22ff614efa64f5e7a9ce6a4edcbcead0234d84900d",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/infinity_chestplate.png": "41a5ca727a82959d65cde30522cd81c6218e6c9ac684f11ec44b22c7e23e990a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/infinity_chestplate.png": "41a5ca727a82959d65cde30522cd81c6218e6c9ac684f11ec44b22c7e23e990a",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/infinity_leggings.png": "5a8bc1647d2f287223974280f475494f3fc2c5344f8ca9eefb37bc413a6c9869",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/infinity_leggings.png": "5a8bc1647d2f287223974280f475494f3fc2c5344f8ca9eefb37bc413a6c9869",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/infinity_boots.png": "0e246f1e3b63bc5b3de3488a0f6aca623d08715156cafa09d4bf418001588e29",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/infinity_boots.png": "0e246f1e3b63bc5b3de3488a0f6aca623d08715156cafa09d4bf418001588e29",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/firebrand.png": "a2f57211b929c4a0532d6771f5b100eb705461a02d7e7a551d9209609c11a52a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/firebrand.png": "a2f57211b929c4a0532d6771f5b100eb705461a02d7e7a551d9209609c11a52a",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/tidecaller.png": "1dcb10e16785f5335ff627738e46098cd21fb2886d9ad3775ae6fe473b1ea46a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/tidecaller.png": "1dcb10e16785f5335ff627738e46098cd21fb2886d9ad3775ae6fe473b1ea46a",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/terra_gauntlet.png": "841c46a4ed39cf7b84c92c88b68e8502dffe44d59f873d53ad9c1e6fdd5aaa2e",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/terra_gauntlet.png": "841c46a4ed39cf7b84c92c88b68e8502dffe44d59f873d53ad9c1e6fdd5aaa2e",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/windstep.png": "5e1d695e8847d58e4d23246373bcdc49028a4dc9e042c692d031434ead8b4102",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/windstep.png": "5e1d695e8847d58e4d23246373bcdc49028a4dc9e042c692d031434ead8b4102",
+    "java/src/main/resources/assets/convergence/textures/block/elemental41/ember_crystal.png": "4ab7eb31dc0af939b497e3d9b2e8c3ef7b9be6e22cc21f0d7491298affff7fc1",
+    "bedrock/resource_pack/textures/convergence/blocks/elemental41/ember_crystal.png": "4ab7eb31dc0af939b497e3d9b2e8c3ef7b9be6e22cc21f0d7491298affff7fc1",
+    "java/src/main/resources/assets/convergence/textures/block/elemental41/tide_glass.png": "c95a80d8899683d760c4237a28fa000b2e9052835e908bfbc556157785108d5a",
+    "bedrock/resource_pack/textures/convergence/blocks/elemental41/tide_glass.png": "c95a80d8899683d760c4237a28fa000b2e9052835e908bfbc556157785108d5a",
+    "java/src/main/resources/assets/convergence/textures/block/elemental41/earth_rune.png": "1d4b22ed2e120257c866c6118dd0bb57053872326eda42e94bb88a2c0cd7ea4c",
+    "bedrock/resource_pack/textures/convergence/blocks/elemental41/earth_rune.png": "1d4b22ed2e120257c866c6118dd0bb57053872326eda42e94bb88a2c0cd7ea4c",
+    "java/src/main/resources/assets/convergence/textures/block/elemental41/air_lattice.png": "5212275036f81750c2c8d53c978a769d193cca73dc753488063979ca4c8d9f16",
+    "bedrock/resource_pack/textures/convergence/blocks/elemental41/air_lattice.png": "5212275036f81750c2c8d53c978a769d193cca73dc753488063979ca4c8d9f16",
+    "java/src/main/resources/assets/convergence/textures/block/elemental41/infinity_prism.png": "6525a7a98b94d4881054695c880d4edd550802ab980a37ca494ba55f36e39d4e",
+    "bedrock/resource_pack/textures/convergence/blocks/elemental41/infinity_prism.png": "6525a7a98b94d4881054695c880d4edd550802ab980a37ca494ba55f36e39d4e",
+    "artwork/elemental41/asset-preview.png": "8599a6ac929d6d516f04ba524a5e7393ca94b0895b8b9fd7b4da3fa7cd5f8c4e",
+    "artwork/elemental41/geometry-preview.png": "959f7a1859dd9b3627f16c630f9fee34a0d64a52496c2685b7adc04f223bf555",
+    "artwork/elemental41/elemental-uv.png": "5cfa0e8824a1856cb47714f693bf8be4c30d64ddd9177bbcbf04a3de1071be8b",
+    "artwork/elemental41/infinity-uv.png": "2efa8727d3194476d22b31165b781038845511c43a06ebaca25169981ae66297"
+  }
+}

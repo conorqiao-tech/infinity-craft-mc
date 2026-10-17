@@ -2,6 +2,8 @@
   "replace": false,
   "values": [
     "convergence:chestplate",
-    "convergence:cuirass"
+    "convergence:cuirass",
+    "convergence:elemental_chestplate",
+    "convergence:infinity_chestplate"
   ]
 }

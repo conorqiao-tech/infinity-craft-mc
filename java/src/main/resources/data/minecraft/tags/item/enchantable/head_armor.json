@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "convergence:helmet"
+    "convergence:helmet",
+    "convergence:elemental_helmet",
+    "convergence:infinity_helmet"
   ]
 }

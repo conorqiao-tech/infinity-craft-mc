@@ -1,6 +1,87 @@
-"""Reject missing or partial native evidence for original Bedrock held equipment."""
+"""Require complete catalogue coverage and native held-equipment evidence."""
+
+import re
 
 PROTOCOLS = [1001, 2168, 2193]
+# These slots exclude the scratch slot, navigator, picker and component controls.
+# The native fixture independently constructs and checks this same capacity.
+PERSISTENCE_COLLECTION_SLOTS = tuple(slot for slot in range(1, 36)
+                                     if slot not in (6, 7, 8, 34, 35))
+
+
+def catalogue_item_count_pairs(catalogue):
+    """Derive requirements from the full exported catalogue, never the capture.
+
+    Native checks independently compare this document with the booted canonical
+    registry. This validator is only the coverage/count gate, not native proof.
+    """
+    if (not isinstance(catalogue, dict)
+            or type(catalogue.get("format_version")) is not int
+            or catalogue["format_version"] != 1 or catalogue.get("minecraft") != "26.3"
+            or not isinstance(catalogue.get("items"), list)
+            or not 1 <= len(catalogue["items"]) <= 128):
+        raise ValueError("Require a complete supported canonical catalogue")
+    paths = set()
+    pairs = set()
+    for entry in catalogue["items"]:
+        if not isinstance(entry, dict):
+            raise ValueError("Canonical catalogue entry must be an object")
+        path = entry.get("path")
+        maximum = entry.get("max_stack_size")
+        if (not isinstance(path, str) or not re.fullmatch(r"[a-z0-9_]{1,64}", path)
+                or path in paths or type(maximum) is not int or not 1 <= maximum <= 64):
+            raise ValueError("Canonical catalogue has a duplicate/invalid identity or stack size")
+        paths.add(path)
+        pairs.update(((path, 1), (path, maximum)))
+    return pairs
+
+
+def creative_capture_counts(catalogue, captured):
+    """Reject omissions/duplicates before deriving exact native proof counts.
+
+    The expected cross product comes from every canonical item and its applicable
+    counts across all pinned protocols; a shortened capture cannot lower it.
+    Successful schema validation does not establish that any packet was executed.
+    """
+    pairs = catalogue_item_count_pairs(catalogue)
+    identities = len(catalogue["items"])
+    if not isinstance(captured, dict):
+        raise ValueError("Require the complete actual Creative capture")
+    registries = captured.get("protocols")
+    if (type(captured.get("items")) is not int or captured["items"] != identities
+            or not isinstance(registries, dict)
+            or set(registries) != {str(protocol) for protocol in PROTOCOLS}
+            or any(type(value) is not int or value != identities for value in registries.values())):
+        raise ValueError("Creative capture registries do not cover the full canonical catalogue")
+    proof = captured.get("proof")
+    samples = proof.get("encoded_hotbar_packets") if isinstance(proof, dict) else None
+    if not isinstance(samples, list):
+        raise ValueError("Missing complete actual Creative hotbar capture")
+    expected = {(protocol, path, count) for protocol in PROTOCOLS for path, count in pairs}
+    observed = set()
+    for sample in samples:
+        if (not isinstance(sample, dict) or not isinstance(sample.get("path"), str)
+                or type(sample.get("count")) is not int
+                or type(sample.get("bedrock_protocol")) is not int):
+            raise ValueError("Creative capture has an invalid protocol/item/count case")
+        case = (sample["bedrock_protocol"], sample["path"], sample["count"])
+        if case not in expected or case in observed:
+            raise ValueError("Creative capture has an unexpected or duplicate protocol/item/count case")
+        observed.add(case)
+    if observed != expected:
+        raise ValueError("Creative capture omits canonical protocol/item/count cases")
+    hotbar = len(expected)
+    if (type(proof.get("actual_creative_hotbar_selections")) is not int
+            or proof["actual_creative_hotbar_selections"] != hotbar):
+        raise ValueError("Creative capture selection count differs from the complete actual capture")
+    distinct = len(pairs)
+    batches = (distinct + len(PERSISTENCE_COLLECTION_SLOTS) - 1) // len(PERSISTENCE_COLLECTION_SLOTS)
+    return {"hotbar_cases": hotbar, "distinct_item_count_cases": distinct,
+            "disk_cases": distinct, "rejoin_cases": distinct,
+            "canonical_identities": identities, "native_save_batches": batches,
+            "genuine_reconnects": batches, "variant_inputs": 5,
+            "framed_inbound_packets": hotbar + distinct + 5,
+            "backpack_styles_preserved": 3}
 
 
 def verify_owned_equipment(ready):
@@ -11,8 +92,10 @@ def verify_owned_equipment(ready):
         raise ValueError("Missing owned equipment native evidence; rerun Geyser checks")
     protocols = ready.get("protocols")
     support_protocols = support.get("protocols")
-    if (not isinstance(protocols, dict) or set(protocols) != {str(p) for p in PROTOCOLS}
-            or any(type(count) is not int or count != 46 for count in protocols.values())
+    items = ready.get("items")
+    if (type(items) is not int or not 1 <= items <= 128
+            or not isinstance(protocols, dict) or set(protocols) != {str(p) for p in PROTOCOLS}
+            or any(type(count) is not int or count != items for count in protocols.values())
             or not isinstance(support_protocols, list)
             or any(type(protocol) is not int for protocol in support_protocols)
             or support_protocols != PROTOCOLS):

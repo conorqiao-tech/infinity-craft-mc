@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.40",
+  "version": "2.13.0-explore.41",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -56,7 +56,10 @@
       "dev.convergence.CommunityTeleportGameTests",
       "dev.convergence.MenuSessionGameTests",
       "dev.convergence.AgentSessionGameTests",
-      "dev.convergence.TradeSessionGameTests"
+      "dev.convergence.TradeSessionGameTests",
+      "dev.convergence.ElementalArmorGameTests",
+      "dev.convergence.ElementalForgeMenuGameTests",
+      "dev.convergence.ElementalRelicGameTests"
     ]
   },
   "mixins": [
@@ -88,7 +91,9 @@
       "dev.convergence.HardcoreExitGameTests",
       "dev.convergence.FixedDestinationGameTests",
       "dev.convergence.LobbyArrivalGameTests",
-      "dev.convergence.CommunityTeleportGameTests"
+      "dev.convergence.CommunityTeleportGameTests",
+      "dev.convergence.ElementalRelicGameTests",
+      "dev.convergence.ElementalArmorGameTests"
     ]
   },
   "depends": {

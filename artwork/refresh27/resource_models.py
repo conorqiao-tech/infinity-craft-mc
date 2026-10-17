@@ -75,25 +75,34 @@ def armor_geometry(path, collection, piece, uv):
         bones = [bone("head", "head", [0, 24, 0], [shell] + details)]
     elif piece == "chestplate":
         bones = [bone("body", "body", [0, 24, 0], [
-            cube(uv, "body", [-4 - plate, 12 - plate, -2 - plate], [8 + plate * 2, 12 + plate * 2, 4 + plate * 2]),
+            cube(uv, "body", [-4 - plate, 12 - plate, -2 - plate], [8 + plate * 2, 11.45 + plate, 4 + plate * 2]),
             # A raised breastplate emblem and two articulated shoulder guards.
             cube(uv, "body", [-2.7, 17, -2 - plate - 0.65], [5.4, 4.5, 0.6])])]
         for side, joint, x, pivot in (("right_arm", "rightArm", -8, [-5, 22, 0]),
                                       ("left_arm", "leftArm", 4, [5, 22, 0])):
+            # The torso and arm shells meet at the shoulder. Distinct depths
+            # prevent two positive-area faces from occupying the same plane.
+            arm_plate = plate - 0.08
             bones.append(bone(side, joint, pivot, [
-                cube(uv, "arm", [x - plate, 12 - plate, -2 - plate], [4 + plate * 2, 12 + plate * 2, 4 + plate * 2]),
+                cube(uv, "arm", [x - arm_plate, 12 - arm_plate, -2 - arm_plate], [4 + arm_plate * 2, 12 + arm_plate * 2, 4 + arm_plate * 2]),
                 cube(uv, "arm", [x - 0.6, 21.3, -2.6], [5.2, 2.6, 5.2])]))
     elif piece in ("leggings", "boots"):
         bones = []
         for side, joint, x, pivot in (("right_leg", "rightLeg", -3.9, [-1.9, 12, 0]),
                                       ("left_leg", "leftLeg", -0.1, [1.9, 12, 0])):
+            # Leggings form an inner layer under the torso and boots. Their
+            # lower seam clears the boot, and left/right plates have a narrow
+            # centre seam instead of overlapping coplanar front/back strips.
+            layer = plate * 0.5 if piece == "leggings" else plate
+            outer_x = -3.9 - layer if side == "right_leg" else 0.04
+            width = 3.86 + layer
             if piece == "leggings":
                 # End above the boot; the waist and both thighs remain visible.
-                cubes = [cube(uv, "leg", [x - plate, 3.6, -2 - plate], [4 + plate * 2, 8.65, 4 + plate * 2]),
-                         cube(uv, "leg", [x - plate - 0.08, 6.8, -2 - plate - 0.35], [4 + plate * 2 + 0.16, 2.4, 0.3])]
+                cubes = [cube(uv, "leg", [outer_x, 4.25, -2 - layer], [width, 8.0, 4 + layer * 2]),
+                         cube(uv, "leg", [outer_x + 0.12, 6.8, -2 - layer - 0.35], [width - 0.24, 2.4, 0.3])]
             else:
-                cubes = [cube(uv, "leg", [x - plate, -plate, -2 - plate], [4 + plate * 2, 4.0 + plate, 4 + plate * 2]),
-                         cube(uv, "leg", [x - plate, -plate, -2 - plate - 0.8], [4 + plate * 2, 1.5, 0.75])]
+                cubes = [cube(uv, "leg", [outer_x, -plate, -2 - plate], [width, 4.0 + plate, 4 + plate * 2]),
+                         cube(uv, "leg", [outer_x, -plate, -2 - plate - 0.8], [width, 1.5, 0.75])]
             bones.append(bone(side, joint, pivot, cubes))
     elif piece == "backpack":
         # A real pack sits behind the torso, not a second recolored chest shell.

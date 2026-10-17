@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "convergence:leggings"
+    "convergence:leggings",
+    "convergence:elemental_leggings",
+    "convergence:infinity_leggings"
   ]
 }

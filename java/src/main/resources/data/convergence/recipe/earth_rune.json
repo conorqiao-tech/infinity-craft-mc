@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": "minecraft:stone_bricks",
+    "C": "minecraft:moss_block"
+  },
+  "result": {
+    "id": "convergence:earth_rune",
+    "count": 8
+  }
+}

@@ -63,7 +63,7 @@ public class EquipmentGameTests {
             c.assertTrue(p.getInventory().contains(gear("aurora_chestplate")),"Choosing another item preserves the previous chestplate");
             CreativeGearPicker.open(p);var next=(CreativeGearPicker.PickerHandler)p.containerMenu;
             next.clicked(53,0,ContainerInput.QUICK_MOVE,p);var page=(CreativeGearPicker.PickerHandler)p.containerMenu;
-            c.assertValueEqual(page.pageIndex,1,"All 46 registered items remain reachable through pagination");
+            c.assertValueEqual(page.pageIndex,1,"All 63 registered items remain reachable through pagination");
             page.clicked(CreativeGearPicker.CONVERGENCE,0,ContainerInput.PICKUP,p);
             var stale=(CreativeGearPicker.PickerHandler)p.containerMenu;p.setGameMode(GameType.SURVIVAL);
             var before=p.getMainHandItem().copy();stale.clicked(0,0,ContainerInput.PICKUP,p);
@@ -75,7 +75,7 @@ public class EquipmentGameTests {
 
     @GameTest public void namedCollectionBoxesCoverEveryItemOnceAndSurviveNativeSave(GameTestHelper c) {
         var counts=new java.util.HashMap<net.minecraft.world.item.Item,Integer>();
-        var boxes=GearCrates.crates();c.assertValueEqual(boxes.size(),5,"Separate three armor sets and two tools/block boxes");
+        var boxes=GearCrates.crates();c.assertValueEqual(boxes.size(),7,"Separate five armor sets and two tools/block boxes");
         var ops=net.minecraft.resources.RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE,c.getLevel().registryAccess());
         for(var box:boxes) {
             c.assertTrue(GearCrates.isCrate(box),"Every labeled box is recognized, including Ember's orange box");
@@ -370,7 +370,7 @@ public class EquipmentGameTests {
             c.assertValueEqual(block.defaultBlockState().getDestroySpeed(c.getLevel(),BlockPos.ZERO),3.0F,"New decoration is mineable with normal hardness");
             c.assertTrue(seen.add(CrossplaySupport.stateIdentifier(CrossplaySupport.BLOCK_STATES.get(path))),"Distinct block visuals are exported for Java and Bedrock");
         }
-        c.assertValueEqual(ExpandedGear.NEW_BLOCKS.size(),6,"Six original building materials are registered");c.succeed();
+        c.assertValueEqual(ExpandedGear.NEW_BLOCKS.size(),11,"Six established building materials and five Elemental rune styles are registered");c.succeed();
     }
 
     @GameTest public void gearBoxesPreserveInventoryContainEveryItemAndPlaceNatively(GameTestHelper c) {

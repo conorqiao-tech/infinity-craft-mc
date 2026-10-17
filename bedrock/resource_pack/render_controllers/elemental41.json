@@ -1,0 +1,165 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.elemental_helmet_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "elemental_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:elemental_helmet', 'infinity_catalog:elemental_helmet') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.elemental_chestplate_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "elemental_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate') && !context.is_first_person"
+        },
+        {
+          "elemental_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate')"
+        },
+        {
+          "elemental_left_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate')"
+        }
+      ]
+    },
+    "controller.render.convergence.elemental_leggings_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "elemental_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && !context.is_first_person"
+        },
+        {
+          "elemental_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.elemental_boots_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "elemental_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && !context.is_first_person"
+        },
+        {
+          "elemental_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.infinity_helmet_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:infinity_helmet', 'infinity_catalog:infinity_helmet') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.infinity_chestplate_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate') && !context.is_first_person"
+        },
+        {
+          "infinity_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate')"
+        },
+        {
+          "infinity_left_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate')"
+        }
+      ]
+    },
+    "controller.render.convergence.infinity_leggings_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && !context.is_first_person"
+        }
+      ]
+    },
+    "controller.render.convergence.infinity_boots_elemental41": {
+      "geometry": "Geometry.default",
+      "materials": [
+        {
+          "*": "variable.is_enchanted ? Material.enchanted : Material.default"
+        }
+      ],
+      "textures": [
+        "Texture.default",
+        "Texture.enchanted"
+      ],
+      "part_visibility": [
+        {
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && !context.is_first_person"
+        },
+        {
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && !context.is_first_person"
+        }
+      ]
+    }
+  }
+}

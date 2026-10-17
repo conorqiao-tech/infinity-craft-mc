@@ -230,7 +230,7 @@ public class Convergence implements ModInitializer {
       for(String path:ExpandedGear.BLOCKS.stream().sorted().toList())
          player.getInventory().placeItemBackInInventory(new ItemStack(ITEMS.get("convergence:"+path),64), Prediction.SERVER_ONLY);
       for(String path:List.of("builder_wand","sculptor_wand"))player.getInventory().placeItemBackInInventory(ITEMS.get("convergence:"+path).getDefaultInstance(), Prediction.SERVER_ONLY);
-      say(player,"Building kit: ten block styles and two Creative wands. Hold a block, then choose Swap Hands in Infinity Menu to use it in offhand.");return 1;
+       say(player,"Building kit: "+ExpandedGear.BLOCKS.size()+" block styles and two Creative wands. Hold a block, then choose Swap Hands in Infinity Menu to use it in offhand.");return 1;
    }
 
    static int giveKit(ServerPlayer player) {
@@ -289,6 +289,8 @@ public class Convergence implements ModInitializer {
    public void onInitialize() {
       Catalog.register();
       ExpandedGear.register();
+      ElementalArmor.register();
+      ElementalRelics.register();
       OdysseyStructure.register();
       ExpandedGear.registerEvents();
       BackpackStorage.registerItems();
@@ -305,6 +307,7 @@ public class Convergence implements ModInitializer {
       AgentCompanions.initialize();
       ServerAssistant.initialize();
       ServerMenu.register();
+      ElementalForgeMenu.register();
       CreativeStudio.register();
       CommonsEvents.register();
       RcPlanes.register();
@@ -593,6 +596,7 @@ public class Convergence implements ModInitializer {
 
       for (ServerPlayer p : players.getPlayers()) {
          if (!p.isAlive()) {
+            ElementalArmor.tick(p); // Remove only this suit's transient Earth bonus on death.
             STATES.remove(p.getUUID());
          } else {
             Convergence.State s = state(p);
@@ -630,6 +634,7 @@ public class Convergence implements ModInitializer {
    }
 
    static void armor(ServerPlayer p) {
+       ElementalArmor.tick(p);
       boolean head = id(p.getItemBySlot(EquipmentSlot.HEAD)).equals("convergence:helmet");
       String chestId = id(p.getItemBySlot(EquipmentSlot.CHEST));
       boolean chest = chestId.equals("convergence:chestplate") || chestId.equals("convergence:cuirass");

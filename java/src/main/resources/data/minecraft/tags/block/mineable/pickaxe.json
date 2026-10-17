@@ -10,6 +10,11 @@
     "convergence:copper_circuit",
     "convergence:moonstone",
     "convergence:sunstone_lamp",
-    "convergence:verdant_mosaic"
+    "convergence:verdant_mosaic",
+    "convergence:ember_crystal",
+    "convergence:tide_glass",
+    "convergence:earth_rune",
+    "convergence:air_lattice",
+    "convergence:infinity_prism"
   ]
 }
