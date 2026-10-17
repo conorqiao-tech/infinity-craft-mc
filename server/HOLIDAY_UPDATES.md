@@ -1,5 +1,11 @@
 # Holiday and public-event updates
 
+## Source candidate: Builder Exchange and Harvest Together
+
+The owner explicitly requested implementing these two themes, plus additional permanent features. [COMMONS.md](COMMONS.md) describes the explore.40 source candidate: real redstone/hopper trials, reviewed cooperative pantry deliveries, saved gifts and titles, original native banner compositions and Infinity-block blueprints. Expedition Atlas, a Seedlight Jar and reviewed Pack Organizer extend it beyond the generated proposals. This is separate from live installation, which still requires the owner's approval. No real-time event window or console schedule was assigned.
+
+The inspiring dates were checked against the organizers: [OpenAI DevDay Exchange 2026](https://events.openai.com/devdayexchange2026) lists Bengaluru on October 16, and [FAO](https://www.fao.org/world-food-day/en/) identifies World Food Day as October 16, 2026. These are inspiration dates, not automatic server activation dates. All other themes below remain unbuilt proposals.
+
 The owner selected the existing ChatGPT conversation [Update Holiday Schedule](chatgpt-conversation://6ac98567-9ea8-83e8-9aec-06aed050c77f) as a source of ideas for future InfinityCraft updates. A Codex follow-up checks its new plans daily at 9:10 a.m. in the owner's local timezone, after the original planner's reported 9:00 a.m. run. The original planner has not been replaced or edited.
 
 These plans are **design proposals, not installed gameplay or native scheduled commands**. Event dates and proposed update windows must be verified before an actual calendar is assigned. Source implementation, a tested package and live installation are separate stages. The owner still approves each live installation/restart; both AI-action approvals remain separate.

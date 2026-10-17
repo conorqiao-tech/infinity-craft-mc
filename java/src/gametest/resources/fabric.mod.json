@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.39",
+  "version": "2.13.0-explore.40",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
     "fabric-gametest": [
+      "dev.convergence.CommonsGameTests",
       "dev.convergence.InfinityGameTests",
       "dev.convergence.CommunityGameTests",
       "dev.convergence.PlayerPersistenceGameTests",

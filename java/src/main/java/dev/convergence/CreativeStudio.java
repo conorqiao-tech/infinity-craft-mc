@@ -51,7 +51,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 /** Native items and chest controls keep the Studio usable through Geyser. */
 final class CreativeStudio {
     enum Brush { PLANE, LINE, SPHERE, CUBE, RING }
-    enum Stamp { ARCH, PAVILION, TREE }
+    enum Stamp { ARCH, PAVILION, TREE, EXCHANGE, HARVEST_GARDEN }
     record Palette(String name, Block wall, Block accent, Block light) {}
     static final List<Palette> PALETTES = List.of(
         new Palette("Aurora", Blocks.QUARTZ_BLOCK, Blocks.CONCRETE.cyan(), Blocks.SEA_LANTERN),
@@ -243,6 +243,7 @@ final class CreativeStudio {
     static Map<BlockPos,BlockState> stamp(ServerPlayer p,BlockPos origin){
         var palette=palette(p);var blocks=new LinkedHashMap<BlockPos,BlockState>();
         var kind=Stamp.values()[option(p,"stamp",Stamp.values().length)];
+        if(kind==Stamp.EXCHANGE||kind==Stamp.HARVEST_GARDEN)return CommonsEvents.blueprint(origin,kind==Stamp.HARVEST_GARDEN);
         if(kind==Stamp.ARCH){
             for(int y=0;y<4;y++){blocks.put(origin.offset(-2,y,0),palette.wall().defaultBlockState());blocks.put(origin.offset(2,y,0),palette.wall().defaultBlockState());}
             for(int x=-2;x<=2;x++)blocks.put(origin.offset(x,4,0),palette.accent().defaultBlockState());
@@ -285,7 +286,7 @@ final class CreativeStudio {
             var before=p.level().getBlockState(entry.getKey());
             if(p.level().setBlock(entry.getKey(),entry.getValue(),3))changes.add(new Change(entry.getKey(),before,entry.getValue()));
         }
-        record(p,changes);Convergence.say(p,"Built "+changes.size()+" blocks. Studio Undo restores the last edit.");return changes.size();
+        record(p,changes);CommonsEvents.built(p,preview,changes.size());Convergence.say(p,"Built "+changes.size()+" blocks. Studio Undo restores the last edit.");return changes.size();
     }
     static void icon(SimpleContainer view,int slot,Item item,String name,String... lore){
         var stack=new ItemStack(item);stack.set(DataComponents.CUSTOM_NAME,Component.literal(name));
@@ -354,7 +355,7 @@ final class CreativeStudio {
             if(slot==CREATIVE){owner.closeContainer();GameModes.request(owner,GameModes.Mode.CREATIVE,null);return;}
             if(!allowed(owner)){owner.sendOverlayMessage(Component.literal("Choose Play Creative to use the Studio."));return;}
             String key=switch(slot){case BRUSH->"brush";case RADIUS->"radius";case PALETTE->"palette";case STAMP->"stamp";case SPEED->"speed";default->null;};
-            if(key!=null){int size=key.equals("brush")?Brush.values().length:key.equals("palette")?PALETTES.size():3;settings(owner).putInt(key,(option(owner,key,size)+1)%size);reopen();return;}
+            if(key!=null){int size=key.equals("brush")?Brush.values().length:key.equals("palette")?PALETTES.size():key.equals("stamp")?Stamp.values().length:3;settings(owner).putInt(key,(option(owner,key,size)+1)%size);reopen();return;}
             if(slot==TRAIL){settings(owner).putBoolean("trail",!settings(owner).getBooleanOr("trail",false));reopen();return;}
             if(slot==HOVER){RcPlanes.hover(owner);reopen();return;}
             owner.closeContainer();
