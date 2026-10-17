@@ -49,6 +49,8 @@ final class ServerMenu {
     static final int INVENTORY_GEAR = 50, RANKS = 52;
     static final int PROPHECY = 6;
     static final int STUDIO = 8;
+    static final int COMMONS = 0;
+    static final int PLAYER_WORKSHOP = 2;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -201,6 +203,8 @@ final class ServerMenu {
         var view = new SimpleContainer(54);
         String title = "Infinity Menu";
         if (page == Page.MAIN) {
+            icon(view,COMMONS,Items.LANTERN,"Commons • Builder Exchange & Harvest Together","Working circuits, live delivery trials and a shared village pantry.","Earn permanent gifts, titles and original banners.");
+            icon(view,PLAYER_WORKSHOP,Items.MAP,"Expedition Atlas & Pack Organizer","Permanent biome discoveries and Wayfinder rewards.","Review a safe sort of your main inventory.");
             icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
             icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
                 "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
@@ -361,6 +365,8 @@ final class ServerMenu {
                 return;
             }
             if (page != Page.MAIN) return;
+            if(slot==COMMONS){owner.closeContainer();CommonsMenu.open(owner);return;}
+            if(slot==PLAYER_WORKSHOP){owner.closeContainer();CommonsMenu.open(owner,CommonsMenu.Page.ATLAS);return;}
             if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}
             if(slot==PROPHECY){owner.closeContainer();OdysseyJournal.open(owner);return;}
             if (slot == GEAR) { navigate(Page.GEAR, 0); return; }

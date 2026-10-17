@@ -249,9 +249,10 @@ final class Memberships {
     void badge(ServerPlayer p) {
         var board=server.getScoreboard();String label=label(p.getUUID());String name="infinity_"+label.toLowerCase(Locale.ROOT);
         var previous=board.getPlayersTeam(p.getScoreboardName());
-        if(previous!=null&&!previous.getName().startsWith("infinity_"))return;
+        if(previous!=null&&!previous.getName().startsWith("infinity_")){CommonsEvents.refreshTitleIfChanged(p);return;}
         var team=board.getPlayerTeam(name);if(team==null) {team=board.addPlayerTeam(name);team.setPlayerPrefix(Component.literal("["+label+"] "));team.setColor(Optional.of(switch(label){case "GO"->TeamColor.GREEN;case "PLUS"->TeamColor.AQUA;case "PRO"->TeamColor.LIGHT_PURPLE;case "ULTRA"->TeamColor.GOLD;case "ADMIN","OP"->TeamColor.RED;default->TeamColor.GRAY;}));}
         if(previous!=team){board.addPlayerToTeam(p.getScoreboardName(),team);server.getCommands().sendCommands(p);}
+        CommonsEvents.refreshTitleIfChanged(p);
     }
     int rank(ServerPlayer p) {
         syncAchievements(p);var a=account(p.getUUID());

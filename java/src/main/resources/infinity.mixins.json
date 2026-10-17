@@ -3,6 +3,7 @@
   "package": "dev.convergence.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "CommonsTitleMixin",
     "ModePlayerMixin",
     "ModeRespawnMixin",
     "PlayerSaveAccess",
