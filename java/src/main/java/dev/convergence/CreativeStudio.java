@@ -75,8 +75,9 @@ final class CreativeStudio {
     private CreativeStudio() {}
 
     static boolean allowed(ServerPlayer p) {
-        return ServerMenu.allowed(p) && p.isCreative() && p.mayBuild()
-            && (GameModes.of(p.level()) == GameModes.Mode.CREATIVE || GameModes.operator(p));
+        return ServerMenu.allowed(p) && p.mayBuild()
+            && (Memberships.gameplayBypass(p)
+                || p.isCreative() && GameModes.of(p.level()) == GameModes.Mode.CREATIVE);
     }
     static CompoundTag settings(ServerPlayer p) {
         var state=GameModes.state(p);
@@ -165,7 +166,7 @@ final class CreativeStudio {
             var stack=new ItemStack(kind.equals("gust")?Items.FEATHER:Items.ECHO_SHARD);
             stack.set(DataComponents.CUSTOM_NAME,Component.literal(kind.equals("gust")?"Infinity Gust Glove":"Infinity Anchor Charm"));
             var tag=new CompoundTag();tag.putString("infinity_studio_gadget",kind);stack.set(DataComponents.CUSTOM_DATA,CustomData.of(tag));
-            stack.set(DataComponents.LORE,new ItemLore(List.of(Component.literal(kind.equals("gust")?"Creative • a short upward gust":"Creative • sneak-use to set; use to return within 48 blocks"))));
+            stack.set(DataComponents.LORE,new ItemLore(List.of(Component.literal(kind.equals("gust")?"Studio • a short upward gust":"Studio • sneak-use to set; use to return within 48 blocks"))));
             return stack;
         }
         String path=switch(kind){case "blink"->"blink_wand";case "party"->"party_wand";case "blueprint"->"blueprint_wand";default->"plane_remote";};
@@ -305,7 +306,8 @@ final class CreativeStudio {
             icon(view,ANCHOR,Items.ECHO_SHARD,"Get Infinity Anchor Charm","Sneak-use to set an anchor. Use to return within 48 blocks.");
             icon(view,SET_ANCHOR,Items.COMPASS,"Set anchor here","Saves this location for the Anchor Charm.");
             icon(view,TIDE,Items.DIAMOND_CHESTPLATE,"Tidewarden armor","Complete diamond outfit with copper Tide trim.");
-            icon(view,4,Items.NETHER_STAR,"Creative Studio",allowed(p)?"Build, dress up and pilot your own RC plane.":"Choose Play Creative to use these tools.");
+            icon(view,4,Items.NETHER_STAR,"Creative Studio",allowed(p)?"Build, dress up and pilot your own RC plane.":"Requires Creative-world access or Admin/OP4 build permission.",
+                "Admin/OP4 can use Studio tools in Survival without changing worlds or inventory.");
             icon(view,BRUSH,Items.PAINTING,"Brush: "+brush(p),"Tap to cycle Plane, Line, Sphere, Cube, Ring.");
             icon(view,RADIUS,Items.SPYGLASS,"Brush radius: "+radius(p),"Radius 1, 2 or 3. At most 343 cells per edit.");
             icon(view,PALETTE,palette(p).accent().asItem(),"Theme: "+palette(p).name(),"Cycles palettes, plane colors and particle styles.");
@@ -353,7 +355,7 @@ final class CreativeStudio {
                 else if(slot==CANCEL){PREVIEWS.remove(owner.getUUID());reopen();}return;
             }
             if(slot==CREATIVE){owner.closeContainer();GameModes.request(owner,GameModes.Mode.CREATIVE,null);return;}
-            if(!allowed(owner)){owner.sendOverlayMessage(Component.literal("Choose Play Creative to use the Studio."));return;}
+            if(!allowed(owner)){owner.sendOverlayMessage(Component.literal("Studio requires Creative-world access or Admin/OP4 build permission."));return;}
             String key=switch(slot){case BRUSH->"brush";case RADIUS->"radius";case PALETTE->"palette";case STAMP->"stamp";case SPEED->"speed";default->null;};
             if(key!=null){int size=key.equals("brush")?Brush.values().length:key.equals("palette")?PALETTES.size():key.equals("stamp")?Stamp.values().length:3;settings(owner).putInt(key,(option(owner,key,size)+1)%size);reopen();return;}
             if(slot==TRAIL){settings(owner).putBoolean("trail",!settings(owner).getBooleanOr("trail",false));reopen();return;}

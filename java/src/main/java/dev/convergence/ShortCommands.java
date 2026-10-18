@@ -15,7 +15,11 @@ final class ShortCommands {
         Map.entry("ench", "enchant"), Map.entry("loc", "locate"), Map.entry("diff", "difficulty"),
         Map.entry("attr", "attribute"), Map.entry("i", "give"), Map.entry("wx", "weather"),
         Map.entry("tm", "time"), Map.entry("ag", "agent"), Map.entry("ic", "convergence"),
-        Map.entry("mg", "minigame"), Map.entry("adv", "adventure"), Map.entry("lb", "leaderboard"));
+        Map.entry("mg", "minigame"), Map.entry("adv", "adventure"), Map.entry("lb", "leaderboard"),
+        Map.entry("fl", "fill"), Map.entry("cl", "clone"), Map.entry("exec", "execute"),
+        Map.entry("dt", "data"), Map.entry("summ", "summon"), Map.entry("wb", "worldborder"),
+        Map.entry("sb", "scoreboard"), Map.entry("tk", "tick"), Map.entry("fn", "function"),
+        Map.entry("stats", "adminstats"), Map.entry("st", "adminstats"));
 
     static void install(CommandDispatcher<CommandSourceStack> dispatcher) {
         var root = dispatcher.getRoot();

@@ -1,3 +1,23 @@
+# Armor visibility, original pixel art and admin tools — explore.42 candidate
+
+## Reproduction and confirmed root cause
+
+On the owner’s iPad, armor pieces were missing in third-person and in the inventory character; only the chestplate was visible. The installed explore.41 pack and equipment-slot definitions matched their expected bytes, and all four Elemental pieces existed in the saved equipment snapshot. A new offline native Geyser check sends all four actual equipment fields and decodes their wire representations; it cannot prove client rendering.
+
+The confirmed asset defect was omitted player skin: all five helmets were inside the visible hat layer and leggings were inside pants, with incomplete inner-thigh coverage. Aurora sleeves also intersected outer skin. The repaired original cuboids cover wide/Slim skin envelopes with at least 0.1 model units of clearance. Boot/leg seams overlap at different depths. Regression tests reproduce the old occluded surfaces and verify the full new envelopes and representative rigid joint poses. These are model-space checks, not Minecraft screenshots.
+
+Twenty new original icons and five coordinated worn atlases use imagegen source retained with its exact prompt and a reproducible mechanical packer. Historical PNGs and ordinary leather/netherite/elytra textures remain unchanged. Existing Admin/OP4 users can use Studio tools in Survival while build, loaded-chunk, container, collision, stale-session and undo checks remain. Eleven additional aliases reuse native argument trees and permissions, including `/stats` and `/st`.
+
+## Verification stage
+
+528/528 native GameTests passed across fifteen disposable groups with exact release dependencies, including the new Survival admin and native building-command cases. The new offline armor proof passes all five suits, twenty pieces and three pinned protocols: 303 codec round trips, canonical and actual Creative-derived definitions, complete suits, independent slot changes and clearing. The new art and skin-clearance checks pass. Two isolated full-stack startup/save/backup/restart/shutdown cycles and Geyser startup/protocol checks pass. Supplementary Via/Fabric inputs, native disk/rejoin checks and all 303 Python tests pass without skips. The checked server and source ZIPs are built locally. No live server files or player data have been changed.
+
+The earlier Python attempt was intentionally rerun after resolving its actual failure: the model-only generator still emitted old texture references after the new artwork became active. The generator now reproduces active references. Packaging-dependent tests require final native provenance and the current supplementary receipt. The complete suite was rerun after that evidence was available and the freshly executed, byte-identical explore.42 persistence receipt replaced the earlier explore.41 receipt pointer. Missing or stale evidence was not counted as a pass.
+
+Actual iPad/Java rendering remains unverified. In particular, the geometry defect is real but is not proof that every cause of the reported missing pieces has been fixed. Device acceptance requires all four pieces in third-person and inventory, then head turns, walking and crouching after a separately approved installation. See [ARMOR_REPAIR.md](ARMOR_REPAIR.md).
+
+---
+
 # Elemental Forge and armor seam repair — 2.13.0-explore.41 candidate
 
 Validated with Minecraft **26.3 / Java 25** and the unchanged pinned Fabric/Geyser/Via stack. **523/523 unique native GameTests** pass across **15 disposable groups**, bound to all **678** Java source/resource files and the exact production/test jars. **289/289 Python launcher, artwork, packaging and owner-identity tests** pass with resource warnings treated as errors, zero skips. During source validation the playable Downloads server was not stopped or changed. The owner subsequently approved installation of the exact tested candidate; the follow-up below records its verified state.

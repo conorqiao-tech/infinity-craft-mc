@@ -1,3 +1,7 @@
+# Armor visibility, fresh pixel artwork and admin tools — explore.42 candidate
+
+The current source candidate fixes player-skin layers covering all five custom armor sets, adds original matching worn textures and twenty inventory icons, and verifies native Geyser armor packets in all four equipment slots. Admin/OP4 Studio tools work in Survival; additional command shortcuts preserve native permissions. See `server/ARMOR_REPAIR.md` and `server/CREATIVE_STUDIO.md`. 528 native and 303 Python tests pass. This candidate requires a separately approved live installation; actual iPad rendering is not established by a source build.
+
 # Elemental Forge and armor seam repair — explore.41 candidate
 
 Adds one four-piece Elemental suit with saved Fire/Water/Earth/Air attunement, a separate ultimate Infinity suit, four usable relics and five original full-cube blocks. `ElementalArmor.java`, `ElementalRelics.java` and `ElementalForgeMenu.java` supply real server behavior. Seventeen ordinary crafting recipes and discovery advancements connect the content to Survival. All 63 catalogue identities must pass actual pinned-protocol capture, native persistence and rejoin checks before packaging. See `server/ELEMENTAL_FORGE.md` for use and `server/VALIDATION.md` for completed evidence and remaining device checks.

@@ -64,6 +64,41 @@ public class PlaygroundGameTests {
         } finally { p.closeContainer(); OperatorGameTests.deop(p); p.level().getServer().getPlayerList().remove(p); }
         c.succeed();
     }
+    @GameTest public void buildingShortcutsEditRealBlocksAndRejectDeoppedPlayers(GameTestHelper c) throws Exception {
+        var p = new OperatorGameTests().operator(c, "build-shortcuts");
+        var dispatcher = c.getLevel().getServer().getCommands().getDispatcher();
+        var position = c.absolutePos(new BlockPos(1, 2, 1));
+        var before = c.getLevel().getBlockState(position);
+        String coordinates = position.getX()+" "+position.getY()+" "+position.getZ();
+        try {
+            p.setGameMode(GameType.SURVIVAL);
+            var source = p.createCommandSourceStack();
+            c.assertValueEqual(dispatcher.execute("fl "+coordinates+" "+coordinates+" minecraft:diamond_block", source), 1,
+                "Fill shortcut executes the native parser and changes a loaded block");
+            c.assertTrue(c.getLevel().getBlockState(position).is(Blocks.DIAMOND_BLOCK), "Real block changes");
+            c.assertValueEqual(dispatcher.execute("exec run fl "+coordinates+" "+coordinates+" minecraft:gold_block", source), 1,
+                "Execute shortcut redirects to the actual native command tree");
+            c.assertTrue(c.getLevel().getBlockState(position).is(Blocks.GOLD_BLOCK), "Nested native fill changes the block");
+            c.assertValueEqual(dispatcher.execute("stats", source), 1, "Short stats command opens the real editor");
+            c.assertTrue(p.containerMenu != p.inventoryMenu, "Actual admin stat controls are shown");
+            p.closeContainer();
+            OperatorGameTests.deop(p);
+            var denied = p.createCommandSourceStack();
+            for (String alias : java.util.List.of("fl", "cl", "exec", "dt", "summ", "wb", "sb", "tk", "fn", "stats", "st")) {
+                var node = dispatcher.getRoot().getChild(alias);
+                c.assertTrue(node != null && !node.canUse(denied), "Native permissions apply to /"+alias);
+            }
+            try {
+                dispatcher.execute("fl "+coordinates+" "+coordinates+" minecraft:air", denied);
+                throw new AssertionError("Ordinary player executed fill shortcut");
+            } catch (com.mojang.brigadier.exceptions.CommandSyntaxException expected) { }
+            c.assertTrue(c.getLevel().getBlockState(position).is(Blocks.GOLD_BLOCK), "Rejected fill preserves terrain");
+        } finally {
+            c.getLevel().setBlock(position, before, 3);
+            p.closeContainer(); OperatorGameTests.deop(p); p.level().getServer().getPlayerList().remove(p);
+        }
+        c.succeed();
+    }
     @GameTest public void shortCommandsPreserveExistingCommandNames(GameTestHelper c) throws Exception {
         var dispatcher = new com.mojang.brigadier.CommandDispatcher<net.minecraft.commands.CommandSourceStack>();
         dispatcher.register(net.minecraft.commands.Commands.literal("gamemode").executes(context -> 11));

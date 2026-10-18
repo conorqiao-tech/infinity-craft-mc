@@ -1,6 +1,6 @@
-# Elemental Forge — explore.41 candidate
+# Elemental Forge
 
-The owner approved and installed this exact explore.41 candidate on October 17, 2026 after a verified stopped-world backup. Java and Bedrock local listeners respond; actual iPad rendering is still awaiting the owner’s check. The pull request remains a draft.
+Explore.41 was installed with owner approval on October 17, 2026 and subsequently merged into main. The owner's iPad check reported missing armor pieces in third-person and the inventory character. [ARMOR_REPAIR.md](ARMOR_REPAIR.md) describes the explore.42 source repair and fresh artwork; that candidate is not installed by merging or building source.
 
 Open **Infinity Menu → Elemental Forge**, **Armor sets → Elemental & Infinity Armor**, or **Creative Gear Picker → Elemental Forge**. Bedrock uses native touch buttons; Java uses a chest menu. No command is required. In the real Creative inventory, search **Elemental**, **Infinity**, or the exact item name. The new sets have four solid armor pieces each; Convergence wings remain separate and ordinary elytra artwork stays normal.
 

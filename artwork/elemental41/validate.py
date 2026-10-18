@@ -50,9 +50,9 @@ def validate():
         cubes = []
         equipment = json.loads((JAVA / f"equipment/{suit}_armor.json").read_text())
         for layer in ("humanoid", "humanoid_leggings"):
-            assert equipment["layers"][layer] == [{"texture": f"convergence:{suit}_armor"}]
-            assert (JAVA / f"textures/entity/equipment/{layer}/{suit}_armor.png").read_bytes() == (BED / f"textures/convergence/models/armor/elemental41/{suit}.png").read_bytes()
-        width, height, rows = png(BED / f"textures/convergence/models/armor/elemental41/{suit}.png")
+            assert equipment["layers"][layer] == [{"texture": f"convergence:armor42/{suit}"}]
+            assert (JAVA / f"textures/entity/equipment/{layer}/armor42/{suit}.png").read_bytes() == (BED / f"textures/convergence/models/armor/armor42/{suit}.png").read_bytes()
+        width, height, rows = png(BED / f"textures/convergence/models/armor/armor42/{suit}.png")
         assert (width, height) == (128, 64)
         used = {(x, y) for rect in manifest["armor_uv"].values()
                 for y in range(rect[1] * 2, rect[3] * 2) for x in range(rect[0] * 2, rect[2] * 2)}
@@ -79,7 +79,9 @@ def validate():
             for bone in geo["bones"]:
                 for cube in bone["cubes"]:
                     cubes.append((name + "/" + bone["name"], cube))
-                    assert len(cube["size"]) == 3 and all(0 < value <= 13 for value in cube["size"])
+                    # Slim sleeves extend below the wide-skin shoulder model.
+                    # The independent skin-envelope regression bounds coverage.
+                    assert len(cube["size"]) == 3 and all(0 < value <= 14 for value in cube["size"])
                     assert set(cube["uv"]) == {"up", "down", "north", "south", "east", "west"}
                     for face in cube["uv"].values():
                         x, y = face["uv"]; w, h = face["uv_size"]
@@ -106,7 +108,8 @@ def validate():
         assert (JAVA / f"items/{name}.json").is_file()
         assert (JAVA / f"models/item/{name}.json").is_file()
         entry = items["convergence_" + name]
-        assert "/elemental41/" in entry["textures"]
+        folder = "armor42" if name.startswith(("elemental_", "infinity_")) and name not in manifest["blocks"] else "elemental41"
+        assert f"/{folder}/" in entry["textures"]
         assert (BED / (entry["textures"] + ".png")).is_file()
         if name in manifest["blocks"]:
             assert terrain["convergence_" + name] == entry

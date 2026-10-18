@@ -2,12 +2,12 @@
   "layers": {
     "humanoid": [
       {
-        "texture": "convergence:ember_refresh27"
+        "texture": "convergence:armor42/ember"
       }
     ],
     "humanoid_leggings": [
       {
-        "texture": "convergence:ember_refresh27"
+        "texture": "convergence:armor42/ember"
       }
     ]
   }

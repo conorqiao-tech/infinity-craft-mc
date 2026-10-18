@@ -55,6 +55,109 @@ public class CreativeStudioGameTests {
         var preview=new CreativeStudio.Preview(p,p.connection,p.level(),at,CreativeStudio.stamp(p,at),p.level().getServer().getTickCount()+600);
         CreativeStudio.PREVIEWS.put(p.getUUID(),preview);return preview;
     }
+    private ServerPlayer survivalPlayer(GameTestHelper c,String name){
+        var p=new ModeGameTests().player(c,name);
+        p.closeContainer();p.setGameMode(GameType.SURVIVAL);GameModes.state(p).putString("active","SURVIVAL");
+        p.getInventory().clearContent();p.setNoGravity(true);
+        var at=c.absolutePos(new BlockPos(2,180,2));p.setPos(at.getX()+.5,at.getY(),at.getZ()+.5);
+        return p;
+    }
+    private BlockPos previewGround(ServerPlayer p){
+        var ground=p.blockPosition().offset(0,-1,4);
+        for(var pos:BlockPos.betweenClosed(ground.offset(-3,1,-1),ground.offset(3,6,1)))
+            p.level().setBlock(pos,Blocks.AIR.defaultBlockState(),3);
+        p.level().setBlock(ground,Blocks.STONE.defaultBlockState(),3);
+        p.setPos(ground.getX()+.5,ground.getY()+2,ground.getZ()-.5);
+        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES,Vec3.atCenterOf(ground));
+        return ground;
+    }
+    @GameTest public void survivalOpBuildsAndUndoesWithNativeWandWithoutChangingWorldOrInventory(GameTestHelper c){
+        var p=survivalPlayer(c,"studio-op-build");
+        try{
+            OperatorGameTests.level(p,LevelBasedPermissionSet.OWNER);
+            c.assertFalse(Memberships.get(p.level().getServer()).account(p.getUUID()).admin,"Manual OP4 does not need a separate membership role");
+            c.assertValueEqual(GameModes.of(p.level()),GameModes.Mode.SURVIVAL,"The fixture builds in the actual Survival world");
+            c.assertTrue(CreativeStudio.allowed(p),"A living Survival OP4 with native build permission can use Studio");
+            var at=p.blockPosition().offset(0,0,4);var tools=new EquipmentGameTests();tools.wall(p,at);tools.aim(p,at);
+            var keepsake=new ItemStack(Items.DIAMOND,7);keepsake.set(DataComponents.CUSTOM_NAME,net.minecraft.network.chat.Component.literal("Keep my Survival items"));
+            p.getInventory().setItem(6,keepsake.copy());
+            p.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Convergence.ITEMS.get("convergence:builder_wand")));
+            p.setItemInHand(InteractionHand.OFF_HAND,new ItemStack(Items.QUARTZ_BLOCK,3));
+            c.assertValueEqual(PoweredTools.creativeUse(p,"convergence:builder_wand",at,Direction.NORTH),9,"The existing native builder places the full face in Survival for OP4");
+            c.assertTrue(p.level().getBlockState(at.north()).is(Blocks.QUARTZ_BLOCK),"The real Survival terrain contains the placed block");
+            c.assertValueEqual(CreativeStudio.undo(p),9,"The same native undo restores all nine cells");
+            c.assertTrue(p.level().getBlockState(at.north()).isAir(),"Undo restores the actual world");
+            c.assertTrue(ItemStack.matches(p.getInventory().getItem(6),keepsake),"Authorized tools preserve named Survival possessions");
+            c.assertValueEqual(p.getOffhandItem().getCount(),3,"Authorized Studio creation does not consume the offhand material");
+            c.assertValueEqual(p.gameMode(),GameType.SURVIVAL,"Building does not silently switch vanilla game mode");
+            c.assertValueEqual(GameModes.current(p),GameModes.Mode.SURVIVAL,"Building does not switch world profiles");
+            CreativeStudio.settings(p).putInt("brush",CreativeStudio.Brush.CUBE.ordinal());CreativeStudio.settings(p).putInt("radius",2);
+            c.assertValueEqual(CreativeStudio.brushPositions(p,at,Direction.NORTH).size(),343,"OP4 retains the existing maximum per-edit resource budget");
+        }finally{cleanup(p);}c.succeed();
+    }
+    @GameTest public void survivalAdminUsesActualStudioMenuAndBlueprintReview(GameTestHelper c){
+        var p=survivalPlayer(c,"studio-admin");var members=Memberships.get(p.level().getServer());
+        try{
+            c.assertTrue(members.grantAdmin(p.getUUID()),"The saved Admin role grants native OP4 first");
+            c.assertTrue(CreativeStudio.allowed(p),"Saved Admin has Studio access in Survival");
+            c.assertValueEqual(CreativeStudio.open(p),1,"Admin opens the actual Studio chest menu");
+            p.containerMenu.clicked(CreativeStudio.PALETTE,0,ContainerInput.PICKUP,p);
+            c.assertValueEqual(CreativeStudio.option(p,"palette",CreativeStudio.PALETTES.size()),1,"A real Survival Admin menu action changes the palette");
+            p.closeContainer();var ground=previewGround(p);
+            c.assertValueEqual(CreativeStudio.preview(p),1,"A real native upward-face raycast opens blueprint review in Survival");
+            var preview=CreativeStudio.PREVIEWS.get(p.getUUID());
+            c.assertTrue(preview!=null&&p.containerMenu instanceof CreativeStudio.Handler,"Review retains the exact native preview and session");
+            p.containerMenu.clicked(CreativeStudio.CONFIRM,0,ContainerInput.PICKUP,p);
+            c.assertTrue(p.level().getBlockState(ground.above(5)).is(Blocks.SHROOMLIGHT),"Confirmed native blueprint places the Admin's selected themed lamp");
+            c.assertValueEqual(CreativeStudio.undo(p),13,"Survival Admin can undo all thirteen blueprint cells");
+            c.assertValueEqual(p.gameMode(),GameType.SURVIVAL,"Menu and blueprint leave the Admin in Survival");
+        }finally{members.revokeAdmin(p.getUUID());cleanup(p);}c.succeed();
+    }
+    @GameTest public void studioAdminOverridePreservesOrdinarySurvivalAdventureAndSpectatorRestrictions(GameTestHelper c){
+        var p=survivalPlayer(c,"studio-denied");
+        try{
+            p.setItemInHand(InteractionHand.MAIN_HAND,new ItemStack(Convergence.ITEMS.get("convergence:builder_wand")));
+            p.setItemInHand(InteractionHand.OFF_HAND,new ItemStack(Items.QUARTZ_BLOCK));var at=p.blockPosition().offset(0,0,4);
+            p.level().setBlock(at,Blocks.STONE.defaultBlockState(),3);
+            c.assertFalse(CreativeStudio.allowed(p),"Ordinary Survival still cannot use Studio building powers");
+            c.assertValueEqual(PoweredTools.creativeUse(p,"convergence:builder_wand",at,Direction.NORTH),0,"A real custom wand cannot bypass ordinary Survival permissions");
+            c.assertValueEqual(CreativeStudio.deliver(p,List.of(new ItemStack(Items.DIAMOND))),0,"Ordinary Survival cannot claim Studio items");
+            OperatorGameTests.level(p,LevelBasedPermissionSet.OWNER);
+            for(var mode:List.of(GameType.ADVENTURE,GameType.SPECTATOR)){
+                p.setGameMode(mode);
+                c.assertFalse(p.mayBuild(),"The native mode withholds general building permission: "+mode);
+                c.assertFalse(CreativeStudio.allowed(p),"OP4 does not bypass native Adventure/Spectator build restrictions");
+                c.assertValueEqual(PoweredTools.creativeUse(p,"convergence:builder_wand",at,Direction.NORTH),0,"Native tool mutation refuses the restricted mode");
+                c.assertValueEqual(CreativeStudio.deliver(p,List.of(new ItemStack(Items.DIAMOND))),0,"Restricted modes cannot claim Studio items");
+            }
+            c.assertTrue(p.level().getBlockState(at).is(Blocks.STONE),"Every denied action preserves the original world block");
+            c.assertTrue(p.level().getBlockState(at.north()).isAir(),"Denied actions never place a new block");
+        }finally{cleanup(p);}c.succeed();
+    }
+    @GameTest public void survivalStudioReviewsRejectRevokedPermissionReplacementSessionsAndStaleMenus(GameTestHelper c){
+        var p=survivalPlayer(c,"studio-review-op");var other=survivalPlayer(c,"studio-session");
+        try{
+            OperatorGameTests.level(p,LevelBasedPermissionSet.OWNER);var ground=previewGround(p);
+            c.assertValueEqual(CreativeStudio.preview(p),1,"Authorized Survival OP4 creates a real reviewed blueprint");
+            var review=p.containerMenu;var pending=CreativeStudio.PREVIEWS.get(p.getUUID());
+            OperatorGameTests.deop(p);review.clicked(CreativeStudio.CONFIRM,0,ContainerInput.PICKUP,p);
+            for(var pos:pending.blocks().keySet())c.assertTrue(p.level().getBlockState(pos).isAir(),"Revoked permission cannot confirm any part of a pending blueprint");
+            c.assertFalse(CreativeStudio.PREVIEWS.containsKey(p.getUUID()),"Denied confirmation consumes only its own stale preview");
+            OperatorGameTests.level(p,LevelBasedPermissionSet.OWNER);
+            c.assertValueEqual(CreativeStudio.preview(p),1,"Reauthorized OP4 can prepare a fresh native review");
+            pending=CreativeStudio.PREVIEWS.get(p.getUUID());var connection=p.connection;
+            try{
+                p.connection=other.connection;
+                c.assertValueEqual(CreativeStudio.confirm(p,pending),0,"A different native listener cannot use the old session's preview");
+            }finally{p.connection=connection;}
+            for(var pos:pending.blocks().keySet())c.assertTrue(p.level().getBlockState(pos).isAir(),"Replacement-session rejection leaves the full footprint unchanged");
+            p.closeContainer();c.assertValueEqual(CreativeStudio.preview(p),1,"The original session can prepare another native review");
+            var stale=p.containerMenu;p.closeContainer();ServerMenu.open(p);var current=p.containerMenu;
+            stale.clicked(CreativeStudio.CONFIRM,0,ContainerInput.PICKUP,p);
+            c.assertTrue(p.containerMenu==current,"A stale Studio packet cannot close or act through a replacement screen");
+            c.assertTrue(p.level().getBlockState(ground.above(5)).isAir(),"Stale menu confirmation never places the blueprint lamp");
+        }finally{cleanup(p);cleanup(other);}c.succeed();
+    }
     @GameTest public void studioMenuRejectsForeignClicksAndSurvivalMutations(GameTestHelper c){
         var p=player(c,"studio-owner");var other=player(c,"studio-other");
         try{

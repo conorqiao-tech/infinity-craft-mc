@@ -140,8 +140,12 @@ class OriginalArtworkTests(unittest.TestCase):
                 self.assertTrue(reference.startswith("convergence:item/"), "Custom sprites never select a native gear model")
                 self.assertTrue((JAVA / ("models/"+reference.split(":",1)[1]+".json")).is_file(),reference)
             model = json.loads((JAVA / f"models/item/{name}.json").read_text())
-            self.assertEqual(model["textures"]["layer0"],"convergence:item/refresh27/"+name)
-            image = JAVA / f"textures/item/refresh27/{name}.png"
+            repaired_armor = {"helmet", "cuirass", "leggings", "boots"} | {
+                outfit+"_"+piece for outfit in ("aurora", "ember")
+                for piece in ("helmet", "chestplate", "leggings", "boots")}
+            folder = "armor42" if name in repaired_armor else "refresh27"
+            self.assertEqual(model["textures"]["layer0"],"convergence:item/"+folder+"/"+name)
+            image = JAVA / f"textures/item/{folder}/{name}.png"
             self.assertEqual(rgba_png(image.read_bytes())[:2],(64,64))
         for name in manifest["blocks"]:
             model = json.loads((JAVA / f"models/block/{name}.json").read_text())

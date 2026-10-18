@@ -1,12 +1,12 @@
-# Creative Studio — 2.13.0-explore.25
+# Creative Studio — explore.42 candidate
 
-Open **Infinity Menu → Creative Studio**, or choose **Creative Studio** at the bottom of the Creative gear picker. The controls use native chest icons on Java and iPad/Bedrock. Choose **Play Creative** to begin. Ordinary players build in the Creative world; OP4 can also use the Studio in another world after switching their actual game mode to Creative. Separate mode inventories remain intact.
+Open **Infinity Menu → Creative Studio**, or choose **Creative Studio** at the bottom of the Creative gear picker. The controls use native chest icons on Java and iPad/Bedrock. Ordinary players choose **Play Creative** and build in the Creative world. Existing Admin/OP4 access also permits Studio building tools in Survival without switching game mode. Adventure and Spectator remain non-building modes. Separate mode inventories remain intact.
 
 ## Building and blueprints
 
 Choose a **brush** (Plane, Line, Sphere, Cube or Ring), radius 1–3, and a theme: Aurora, Ember, Sakura, Clockwork or Frost. The Builder Wand places solid cubes from your offhand into empty cells; the Sculptor Wand removes editable blocks without drops. Use **Swap main hand and offhand** in Infinity Menu to select a building block on iPad. Containers, unbreakable blocks, protected maps and occupied placement cells are preserved. A radius-three Cube considers at most 343 cells.
 
-**Get themed building kit** delivers three stacks and both building wands into five empty slots. A full inventory receives nothing rather than a partial kit or dropped items. **Undo last Studio edit** restores the latest brush or blueprint edit in the same world and session. If someone changes any affected block, or restoring a block would enclose a living entity, the entire undo is refused. Undo creates no item drops. It is temporary and expires when you disconnect or leave Creative.
+**Get themed building kit** delivers three stacks and both building wands into five empty slots. A full inventory receives nothing rather than a partial kit or dropped items. **Undo last Studio edit** restores the latest brush or blueprint edit in the same world and session. If someone changes any affected block, or restoring a block would enclose a living entity, the entire undo is refused. Undo creates no item drops. It is temporary and expires when you disconnect, change worlds or lose Studio access.
 
 Choose **Arch**, **Pavilion** or **Tree**, then aim at clear ground and select **Preview blueprint**, or use the **Infinity Blueprint Wand**. A particle preview and review screen show the position and block count. **Confirm building** places the reviewed footprint; Cancel places nothing. Approval expires after 30 seconds and checks your current permission, connection, world, distance and every target cell again. These are small native structures, separate from naturally generated Odyssey ruins.
 
@@ -37,3 +37,11 @@ The Bedrock server pack no longer replaces ordinary leather/netherite armor text
 Primed TNT detonations are queued across all worlds: at most two per server tick, with the second deferred if the first already used the short explosion-work window. Undetonated charges keep ticking and moving until their turn; they are not deleted. Ordinary explosion power stays unchanged; excessive single explosion radii are capped at eight, and invalid non-finite power becomes zero.
 
 This reduces explosion bursts; it cannot make the server or iPad immune to lag. Huge entity counts, generation, many players, TNT minecarts and repeated non-TNT explosions can still overload hardware. If the iPad app itself freezes, fully close Minecraft through the app switcher and reopen it. A responsive server does not prove the client is responsive.
+
+## Admin controls and command shortcuts
+
+Existing health, absorption, armor and combat-stat edits retain their expanded server-side ranges and exact review/confirmation. `/stats` or `/st` opens the existing admin-stat editor. This is an alias of `/adminstats` and keeps its permissions. Client bars and finite native number storage still apply.
+
+Additional native shortcuts: `/fl` fill, `/cl` clone, `/exec` execute, `/dt` data, `/summ` summon, `/wb` worldborder, `/sb` scoreboard, `/tk` tick and `/fn` function. They accept the same arguments and suggestions and retain the original permissions. Existing command names win collisions. `/shortcuts` shows the commands you can use.
+
+These changes remove an avoidable Creative-only requirement for authorized admins. They do not claim infinite world height, infinite numeric values, unlimited client rendering or unlimited synchronous terrain work. Loaded-chunk, collision, container, inventory, undo-conflict and bounded-work checks remain to prevent the freezes and item loss the owner previously reported. The separate human and live Codex AI approvals remain required.

@@ -3,16 +3,16 @@
   "texture_name": "atlas.items",
   "texture_data": {
     "convergence_helmet": {
-      "textures": "textures/convergence/items/refresh27/helmet"
+      "textures": "textures/convergence/items/armor42/helmet"
     },
     "convergence_chestplate": {
       "textures": "textures/convergence/items/refresh27/chestplate"
     },
     "convergence_leggings": {
-      "textures": "textures/convergence/items/refresh27/leggings"
+      "textures": "textures/convergence/items/armor42/leggings"
     },
     "convergence_boots": {
-      "textures": "textures/convergence/items/refresh27/boots"
+      "textures": "textures/convergence/items/armor42/boots"
     },
     "convergence_sword": {
       "textures": "textures/convergence/items/refresh27/sword"
@@ -69,31 +69,31 @@
       "textures": "textures/convergence/items/refresh27/sculptor_wand"
     },
     "convergence_aurora_helmet": {
-      "textures": "textures/convergence/items/refresh27/aurora_helmet"
+      "textures": "textures/convergence/items/armor42/aurora_helmet"
     },
     "convergence_aurora_chestplate": {
-      "textures": "textures/convergence/items/refresh27/aurora_chestplate"
+      "textures": "textures/convergence/items/armor42/aurora_chestplate"
     },
     "convergence_aurora_leggings": {
-      "textures": "textures/convergence/items/refresh27/aurora_leggings"
+      "textures": "textures/convergence/items/armor42/aurora_leggings"
     },
     "convergence_aurora_boots": {
-      "textures": "textures/convergence/items/refresh27/aurora_boots"
+      "textures": "textures/convergence/items/armor42/aurora_boots"
     },
     "convergence_ember_helmet": {
-      "textures": "textures/convergence/items/refresh27/ember_helmet"
+      "textures": "textures/convergence/items/armor42/ember_helmet"
     },
     "convergence_ember_chestplate": {
-      "textures": "textures/convergence/items/refresh27/ember_chestplate"
+      "textures": "textures/convergence/items/armor42/ember_chestplate"
     },
     "convergence_ember_leggings": {
-      "textures": "textures/convergence/items/refresh27/ember_leggings"
+      "textures": "textures/convergence/items/armor42/ember_leggings"
     },
     "convergence_ember_boots": {
-      "textures": "textures/convergence/items/refresh27/ember_boots"
+      "textures": "textures/convergence/items/armor42/ember_boots"
     },
     "convergence_cuirass": {
-      "textures": "textures/convergence/items/refresh27/cuirass"
+      "textures": "textures/convergence/items/armor42/cuirass"
     },
     "convergence_blink_wand": {
       "textures": "textures/convergence/items/refresh27/blink_wand"
@@ -159,28 +159,28 @@
       "textures": "textures/convergence/blocks/refresh27/verdant_mosaic"
     },
     "convergence_elemental_helmet": {
-      "textures": "textures/convergence/items/elemental41/elemental_helmet"
+      "textures": "textures/convergence/items/armor42/elemental_helmet"
     },
     "convergence_elemental_chestplate": {
-      "textures": "textures/convergence/items/elemental41/elemental_chestplate"
+      "textures": "textures/convergence/items/armor42/elemental_chestplate"
     },
     "convergence_elemental_leggings": {
-      "textures": "textures/convergence/items/elemental41/elemental_leggings"
+      "textures": "textures/convergence/items/armor42/elemental_leggings"
     },
     "convergence_elemental_boots": {
-      "textures": "textures/convergence/items/elemental41/elemental_boots"
+      "textures": "textures/convergence/items/armor42/elemental_boots"
     },
     "convergence_infinity_helmet": {
-      "textures": "textures/convergence/items/elemental41/infinity_helmet"
+      "textures": "textures/convergence/items/armor42/infinity_helmet"
     },
     "convergence_infinity_chestplate": {
-      "textures": "textures/convergence/items/elemental41/infinity_chestplate"
+      "textures": "textures/convergence/items/armor42/infinity_chestplate"
     },
     "convergence_infinity_leggings": {
-      "textures": "textures/convergence/items/elemental41/infinity_leggings"
+      "textures": "textures/convergence/items/armor42/infinity_leggings"
     },
     "convergence_infinity_boots": {
-      "textures": "textures/convergence/items/elemental41/infinity_boots"
+      "textures": "textures/convergence/items/armor42/infinity_boots"
     },
     "convergence_firebrand": {
       "textures": "textures/convergence/items/elemental41/firebrand"

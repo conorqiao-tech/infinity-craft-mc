@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/refresh27/ember_helmet"
+    "layer0": "convergence:item/armor42/ember_helmet"
   }
 }

@@ -8,7 +8,7 @@
         "enchanted": "armor_enchanted"
       },
       "textures": {
-        "default": "textures/convergence/models/armor/elemental41/elemental",
+        "default": "textures/convergence/models/armor/armor42/elemental",
         "enchanted": "textures/misc/enchanted_actor_glint"
       },
       "geometry": {

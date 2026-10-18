@@ -60,3 +60,7 @@ The existing original refresh19 armor and icon PNGs are now also selected throug
 ## explore.27 original collection artwork
 
 Four complete humanoid armor/backpack atlases, fresh registered gear sprites and all ten Infinity block tiles are mechanically packed from new built-in image generation artwork. No vanilla PNG was used as a source. The source atlas includes 42 motifs; 36 are registered gear icons and six are supplemental Studio art without new gameplay implementations. Original supplied PNGs and checksums remain unchanged. See `artwork/refresh27/README.md` and its UV/hash manifest. Static Bedrock armor selects custom identifiers; normal leather/netherite are not overridden. The established native elytra animation/geometry and shared wing artwork are retained.
+
+## Armor42 original pixel art
+
+The built-in image generation tool created the original five-set raster source retained at `artwork/armor42/source-sheet.png`, using the exact prompt in `artwork/armor42/prompt.txt`. No vanilla texture or other armor file was used as an input. `pack_art.py` mechanically crops and packs twenty item sprites and five opaque native UV atlases, with matching Java/Bedrock pixels. `manifest.json` and `validate.py` record and check source, prompt, packer, output hashes and active references. Historical source images and native Minecraft textures remain unchanged.

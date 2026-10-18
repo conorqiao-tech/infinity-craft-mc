@@ -58,10 +58,13 @@ def bone(name, joint, pivot, cubes):
 
 def armor_geometry(path, collection, piece, uv):
     """Small original plate assemblies; no inherited/imported armor geometry."""
-    plate = {"convergence": 0.35, "aurora": 0.28, "ember": 0.42, "backpack": 0.3}[collection]
+    # Skin clothing is still rendered below an attachable: hats inflate by .5,
+    # sleeves/jackets/pants by .25. Clearing only the base skin clips that layer.
+    plate = {"convergence": 0.40, "aurora": 0.38, "ember": 0.44, "backpack": 0.3}[collection]
     if piece == "helmet":
-        shell = cube(uv, "head", [-4 - plate, 24 - plate, -4 - plate],
-                     [8 + plate * 2, 8 + plate * 2, 8 + plate * 2])
+        head_plate = max(0.60, plate + 0.20)
+        shell = cube(uv, "head", [-4 - head_plate, 24 - head_plate, -4 - head_plate],
+                     [8 + head_plate * 2, 8 + head_plate * 2, 8 + head_plate * 2])
         details = []
         if collection == "aurora":
             # Two jade crown fins follow the helmet rather than a shoulder joint.
@@ -71,38 +74,42 @@ def armor_geometry(path, collection, piece, uv):
             details = [cube(uv, "head", [x, 30, -0.7], [1.3, 2.8, 1.4], [0, 0, tilt], [x + 0.65, 30, 0])
                        for x, tilt in ((-5.1, 20), (3.8, -20))]
         else:
-            details = [cube(uv, "head", [-2.2, 32 + plate, -1.3], [4.4, 0.65, 2.6])]
+            details = [cube(uv, "head", [-2.2, 32 + head_plate, -1.3], [4.4, 0.65, 2.6])]
         bones = [bone("head", "head", [0, 24, 0], [shell] + details)]
     elif piece == "chestplate":
         bones = [bone("body", "body", [0, 24, 0], [
-            cube(uv, "body", [-4 - plate, 12 - plate, -2 - plate], [8 + plate * 2, 11.45 + plate, 4 + plate * 2]),
+            cube(uv, "body", [-4 - plate, 12 - plate, -2 - plate], [8 + plate * 2, 12 + plate * 2, 4 + plate * 2]),
             # A raised breastplate emblem and two articulated shoulder guards.
             cube(uv, "body", [-2.7, 17, -2 - plate - 0.65], [5.4, 4.5, 0.6])])]
         for side, joint, x, pivot in (("right_arm", "rightArm", -8, [-5, 22, 0]),
                                       ("left_arm", "leftArm", 4, [5, 22, 0])):
             # The torso and arm shells meet at the shoulder. Distinct depths
             # prevent two positive-area faces from occupying the same plane.
-            arm_plate = plate - 0.08
+            arm_plate = plate + 0.08
             bones.append(bone(side, joint, pivot, [
-                cube(uv, "arm", [x - arm_plate, 12 - arm_plate, -2 - arm_plate], [4 + arm_plate * 2, 12 + arm_plate * 2, 4 + arm_plate * 2]),
+                # Slim sleeves reach y=11.25; wide sleeves reach y=24.25.
+                # Enclose their union without changing either joint binding.
+                cube(uv, "arm", [x - arm_plate, 11.15, -2 - arm_plate], [4 + arm_plate * 2, 24 + arm_plate - 11.15, 4 + arm_plate * 2]),
                 cube(uv, "arm", [x - 0.6, 21.3, -2.6], [5.2, 2.6, 5.2])]))
     elif piece in ("leggings", "boots"):
         bones = []
         for side, joint, x, pivot in (("right_leg", "rightLeg", -3.9, [-1.9, 12, 0]),
                                       ("left_leg", "leftLeg", -0.1, [1.9, 12, 0])):
-            # Leggings form an inner layer under the torso and boots. Their
-            # lower seam clears the boot, and left/right plates have a narrow
-            # centre seam instead of overlapping coplanar front/back strips.
-            layer = plate * 0.5 if piece == "leggings" else plate
-            outer_x = -3.9 - layer if side == "right_leg" else 0.04
-            width = 3.86 + layer
+            # Full-width shells enclose each leg's pants overlay, including the
+            # inner thigh. A tiny left-side depth/Y stagger separates shared
+            # centre faces without cutting a gap through the visible skin.
+            stagger = 0.012 if side == "left_leg" else 0.0
+            layer = plate + (-0.02 if piece == "leggings" else 0.12) + stagger
+            outer_x = x - layer
+            width = 4 + layer * 2
             if piece == "leggings":
-                # End above the boot; the waist and both thighs remain visible.
-                cubes = [cube(uv, "leg", [outer_x, 4.25, -2 - layer], [width, 8.0, 4 + layer * 2]),
-                         cube(uv, "leg", [outer_x + 0.12, 6.8, -2 - layer - 0.35], [width - 0.24, 2.4, 0.3])]
+                # The boot overlaps this inner layer at a different depth;
+                # neither a skin gap nor a pair of coplanar seam faces remains.
+                cubes = [cube(uv, "leg", [outer_x, 3.75 - stagger, -2 - layer], [width, 8.6 + stagger * 2, 4 + layer * 2]),
+                         cube(uv, "leg", [outer_x + 0.12, 6.8 - stagger, -2 - layer - 0.35], [width - 0.24, 2.4 + stagger * 2, 0.3])]
             else:
-                cubes = [cube(uv, "leg", [outer_x, -plate, -2 - plate], [width, 4.0 + plate, 4 + plate * 2]),
-                         cube(uv, "leg", [outer_x, -plate, -2 - plate - 0.8], [width, 1.5, 0.75])]
+                cubes = [cube(uv, "leg", [outer_x, -layer, -2 - layer], [width, 4.1 + stagger + layer, 4 + layer * 2]),
+                         cube(uv, "leg", [outer_x, -layer, -2 - layer - 0.8], [width, 1.5 + stagger * 2, 0.75])]
             bones.append(bone(side, joint, pivot, cubes))
     elif piece == "backpack":
         # A real pack sits behind the torso, not a second recolored chest shell.
@@ -164,7 +171,8 @@ def bedrock_models():
             "textures": ["Texture.default", "Texture.enchanted"], "part_visibility": visibility}
         description = {"identifier": "convergence:" + path,
             "materials": {"default": "armor", "enchanted": "armor_enchanted"},
-            "textures": {"default": f"textures/convergence/models/armor/refresh27/{collection}_refresh27",
+            "textures": {"default": (f"textures/convergence/models/armor/refresh27/{collection}_refresh27" if collection == "backpack"
+                                     else f"textures/convergence/models/armor/armor42/{collection}"),
                          "enchanted": "textures/misc/enchanted_actor_glint"},
             "geometry": {"default": geometry["minecraft:geometry"][0]["description"]["identifier"]},
             "scripts": {"parent_setup": "variable." + {"head":"helmet", "chest":"chest", "legs":"leg", "feet":"boot"}[slot] + "_layer_visible = 0.0;"},

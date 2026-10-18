@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/elemental41/infinity_helmet"
+    "layer0": "convergence:item/armor42/infinity_helmet"
   }
 }

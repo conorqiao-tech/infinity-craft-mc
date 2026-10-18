@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "convergence:item/elemental41/elemental_boots"
+    "layer0": "convergence:item/armor42/elemental_boots"
   }
 }

@@ -269,30 +269,37 @@ def face_uv(part):
 
 def geometry(suit, piece):
     """Independent restrained plates in the engine's upright bind pose."""
-    plate = 0.26 if suit == "elemental" else 0.32
+    # The native player's outer clothing remains visible under attachables.
+    # Shells must clear .25 clothing and .5 hat inflation, not just base skin.
+    plate = 0.38 if suit == "elemental" else 0.42
     def box(part, origin, size):
         return {"origin": origin, "size": size, "uv": face_uv(part)}
     def bone(name, joint, pivot, cubes):
         return {"name": suit + "_" + name, "binding": "'" + joint + "'", "pivot": pivot, "cubes": cubes}
     if piece == "helmet":
-        head_plate = plate + 0.08
+        head_plate = max(0.60, plate + 0.20)
         bones = [bone("head", "head", [0, 24, 0], [box("head", [-4 - head_plate, 24 - head_plate, -4 - head_plate], [8 + 2 * head_plate] * 3)])]
     elif piece == "chestplate":
         bones = [bone("body", "body", [0, 24, 0], [box("body", [-4 - plate, 12 - plate, -2 - plate], [8 + 2 * plate, 12 + 2 * plate, 4 + 2 * plate])])]
         for side, joint, x, pivot in (("right_arm", "rightArm", -8, [-5, 22, 0]), ("left_arm", "leftArm", 4, [5, 22, 0])):
             # A distinct arm depth avoids a coplanar front/back strip where
             # animated sleeves meet the body. The silhouette stays compact.
-            arm_plate = plate + 0.12
-            bones.append(bone(side, joint, pivot, [box("arm", [x - arm_plate, 12 - arm_plate, -2 - arm_plate], [4 + 2 * arm_plate, 12 + 2 * arm_plate, 4 + 2 * arm_plate])]))
+            arm_plate = plate + 0.08
+            # Wide/slim sleeve union spans y11.25..24.25. Give its lower
+            # edge .1 clearance instead of assuming the wide skin's y12 start.
+            bones.append(bone(side, joint, pivot, [box("arm", [x - arm_plate, 11.15, -2 - arm_plate], [4 + 2 * arm_plate, 24 + arm_plate - 11.15, 4 + 2 * arm_plate])]))
     else:
         bones = []
-        leg_plate = 0.10 if piece == "leggings" else plate + 0.06
-        outer = 3.9 + leg_plate
-        for side, joint, x, pivot in (("right_leg", "rightLeg", -outer, [-1.9, 12, 0]), ("left_leg", "leftLeg", 0.05, [1.9, 12, 0])):
-            # The centre seam removes an upright coplanar overlap between two
-            # leg fronts. Boot top3.4 < leg bottom3.65 leaves a real separation.
-            y, height = (3.65, 8.50) if piece == "leggings" else (-leg_plate, 3.4 + leg_plate)
-            bones.append(bone(side, joint, pivot, [box("leg", [x, y, -2 - leg_plate], [outer - 0.05, height, 4 + 2 * leg_plate])]))
+        for side, joint, x, pivot in (("right_leg", "rightLeg", -3.9, [-1.9, 12, 0]), ("left_leg", "leftLeg", -0.1, [1.9, 12, 0])):
+            # Enclose the entire pants layer, including the inner thigh. The
+            # slight left-leg stagger separates centre faces in all three axes;
+            # trimming them to x=0 would instead expose the native skin.
+            stagger = 0.012 if side == "left_leg" else 0.0
+            leg_plate = plate + (-0.02 if piece == "leggings" else 0.12) + stagger
+            y, top = (3.10 - stagger, 12.35 + stagger) if piece == "leggings" else (-leg_plate, 3.50 + stagger)
+            # Boots overlap the thinner leggings; the distinct depth avoids a
+            # coplanar seam while covering the previously exposed ankle strip.
+            bones.append(bone(side, joint, pivot, [box("leg", [x - leg_plate, y, -2 - leg_plate], [4 + 2 * leg_plate, top - y, 4 + 2 * leg_plate])]))
     return {"format_version": "1.19.30", "minecraft:geometry": [{"description": {
         "identifier": "geometry.convergence." + suit + "_" + piece + "_elemental41", "texture_width": 128, "texture_height": 64,
         "visible_bounds_width": 2.5, "visible_bounds_height": 3, "visible_bounds_offset": [0, 1, 0]}, "bones": bones}]}
@@ -404,7 +411,7 @@ def main():
             controllers[controller] = {"geometry": "Geometry.default", "materials": [{"*": "variable.is_enchanted ? Material.enchanted : Material.default"}],
                                        "textures": ["Texture.default", "Texture.enchanted"], "part_visibility": visibility}
             description = {"identifier": "convergence:" + name, "materials": {"default": "armor", "enchanted": "armor_enchanted"},
-                           "textures": {"default": f"textures/convergence/models/armor/elemental41/{suit}", "enchanted": "textures/misc/enchanted_actor_glint"},
+                           "textures": {"default": f"textures/convergence/models/armor/armor42/{suit}", "enchanted": "textures/misc/enchanted_actor_glint"},
                            "geometry": {"default": geo["minecraft:geometry"][0]["description"]["identifier"]},
                            "scripts": {"parent_setup": "variable." + {"head": "helmet", "chest": "chest", "legs": "leg", "feet": "boot"}[slot] + "_layer_visible = 0.0;"},
                            "render_controllers": [controller]}

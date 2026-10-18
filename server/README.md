@@ -1,3 +1,7 @@
+## Explore.42 source candidate
+
+See [Armor repair](ARMOR_REPAIR.md) for the five-set skin-clearance fix and new original pixel artwork, and [Creative Studio](CREATIVE_STUDIO.md) for Survival access for existing Admin/OP4 users and additional native command shortcuts. This tested source candidate needs separately approved installation; actual iPad rendering remains a required device check. The currently installed explore.41 armor problem has not been declared fixed.
+
 # Elemental Forge candidate — explore.41
 
 The new armor, relics, building styles and Bedrock armor-seam repair are documented in [ELEMENTAL_FORGE.md](ELEMENTAL_FORGE.md). The owner approved installing this candidate on October 17, 2026; local Java/Bedrock startup checks pass. Actual iPad appearance still awaits confirmation. See [VALIDATION.md](VALIDATION.md).

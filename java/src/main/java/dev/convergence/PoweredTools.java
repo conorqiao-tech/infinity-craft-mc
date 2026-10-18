@@ -120,13 +120,13 @@ final class PoweredTools {
             &&(GameModes.of(p.level())==GameModes.Mode.CREATIVE||GameModes.operator(p));
     }
     static void creativeAimed(ServerPlayer p,String id) {
-        if(!creativeAllowed(p,id)){Convergence.say(p,"Building wands need Creative mode in the Creative world; OP4 can build in other worlds with /gamemode creative.");return;}
+        if(!creativeAllowed(p,id)){Convergence.say(p,"Building wands require Creative-world access or Admin/OP4 build permission.");return;}
         var hit=p.pick(p.blockInteractionRange(),1,false);
         if(hit instanceof BlockHitResult b&&hit.getType()==HitResult.Type.BLOCK)creativeUse(p,id,b.getBlockPos(),b.getDirection());
-        else Convergence.say(p,"Aim at a block within 6 blocks. Builder uses a solid block in your offhand; Sculptor clears a 3x3 face.");
+        else Convergence.say(p,"Aim at a block within your building reach. Builder uses a solid block in your offhand; Sculptor clears your selected brush shape.");
     }
     static int creativeUse(ServerPlayer p,String id,BlockPos at,Direction face) {
-        if(!creativeAllowed(p,id)){Convergence.say(p,"Building wands require Creative mode in the Creative world, or OP4 Creative access.");return 0;}
+        if(!creativeAllowed(p,id)){Convergence.say(p,"Building wands require Creative-world access or Admin/OP4 build permission.");return 0;}
         if(p.getEyePosition().distanceToSqr(Vec3.atCenterOf(at))>Math.pow(p.blockInteractionRange()+1,2)||!editable(p,at))return 0;
         var hit=p.pick(p.blockInteractionRange(),1,false);
         if(!(hit instanceof BlockHitResult b)||hit.getType()!=HitResult.Type.BLOCK||!b.getBlockPos().equals(at)||b.getDirection()!=face)return 0;

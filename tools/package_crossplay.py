@@ -202,6 +202,27 @@ def archive(path, entries, prefix):
         assert output.testzip() is None
 
 
+def verified_armor_packets(root):
+    """Require fresh native armor transport evidence without claiming rendering."""
+    from verify_armor_equipment import digest, validate_receipt, validate_pack
+    receipt_path = root / "research/armor42/native-armor-packets.json"
+    receipt = json.loads(receipt_path.read_text())
+    validate_receipt(receipt)
+    expected = ["tools/verify_armor_equipment.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java",
+                "server/geyser/Geyser-Standalone.jar", "server/geyser/extensions/InfinityCreativeBridge.jar",
+                "server/geyser/packs/Infinity_Armor_Crossplay.mcpack",
+                *("research/integration/crossplay-export/" + name for name in
+                  ("infinity-catalogue.json", "infinity-items.json", "infinity-blocks.json"))]
+    actual = {str((root / name).resolve()): digest(root / name) for name in expected}
+    if receipt.get("input_sha256") != actual:
+        raise RuntimeError("Armor transport proof inputs changed; rerun the native armor check")
+    if receipt.get("prepared_pack_identity_check") != validate_pack(root / expected[4]):
+        raise RuntimeError("Armor transport proof belongs to a different prepared pack")
+    # Public packages keep reproducible repository paths, never local home paths.
+    receipt["input_sha256"] = {name: actual[str((root / name).resolve())] for name in expected}
+    return {"checks/armor-equipment-native.json": (json.dumps(receipt, indent=2) + "\n").encode()}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--launcher-patch", action="store_true",
@@ -288,6 +309,8 @@ def main():
         entries["checks/creative-bridge-" + name] = (creative_checks / name).read_bytes()
     entries.update(wire_entries)
     entries.update(persistence_entries)
+    entries.update(verified_armor_packets(ROOT))
+    entries["ARMOR_REPAIR.md"] = (server / "ARMOR_REPAIR.md").read_bytes()
     capacity_checks = ROOT / "research/capacity-performance" / VERSION
     if capacity_checks.exists():
         from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
@@ -328,13 +351,13 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/odyssey", "geyser-extension/src", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/armor42", "artwork/odyssey", "geyser-extension/src", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
-        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
+        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()

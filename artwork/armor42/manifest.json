@@ -1,0 +1,685 @@
+{
+  "format_version": 1,
+  "mode": "built-in imagegen raster source; mechanical crop/palette/nearest-neighbor UV packing",
+  "source": "source-sheet.png",
+  "source_sha256": "bda6db29c3395da7da02bd0af5407f06ca73df17d5992b1e34c2a1ddb250dde5",
+  "prompt": "prompt.txt",
+  "prompt_sha256": "948c421c5a3fe5bb013355c2bbb40538056a174de8d54dc401fc2ec29e148fcd",
+  "packer_sha256": "8c8a96a031d2509269b49b2ca72608205573c87c72bc0be969ae2614516cffb7",
+  "generation_tool": "image_gen.imagegen",
+  "generation_options": {
+    "transparent_background": true
+  },
+  "source_size": [
+    1586,
+    992
+  ],
+  "suits": {
+    "convergence": {
+      "icons": {
+        "helmet": [
+          64,
+          64
+        ],
+        "cuirass": [
+          64,
+          64
+        ],
+        "leggings": [
+          64,
+          64
+        ],
+        "boots": [
+          64,
+          64
+        ]
+      },
+      "icon_source_rectangles": {
+        "helmet": [
+          25,
+          0,
+          211,
+          207
+        ],
+        "cuirass": [
+          216,
+          0,
+          449,
+          207
+        ],
+        "leggings": [
+          451,
+          0,
+          609,
+          207
+        ],
+        "boots": [
+          612,
+          0,
+          808,
+          207
+        ]
+      },
+      "panel_source_rectangles": {
+        "head": [
+          827,
+          21,
+          994,
+          180
+        ],
+        "body": [
+          1023,
+          21,
+          1195,
+          180
+        ],
+        "arm": [
+          1223,
+          21,
+          1305,
+          180
+        ],
+        "leg": [
+          1423,
+          21,
+          1491,
+          180
+        ]
+      },
+      "texture_size": [
+        128,
+        64
+      ],
+      "palette_colors": 64,
+      "texture": "armor42/convergence"
+    },
+    "aurora": {
+      "icons": {
+        "aurora_helmet": [
+          64,
+          64
+        ],
+        "aurora_chestplate": [
+          64,
+          64
+        ],
+        "aurora_leggings": [
+          64,
+          64
+        ],
+        "aurora_boots": [
+          64,
+          64
+        ]
+      },
+      "icon_source_rectangles": {
+        "aurora_helmet": [
+          25,
+          187,
+          211,
+          402
+        ],
+        "aurora_chestplate": [
+          216,
+          187,
+          449,
+          402
+        ],
+        "aurora_leggings": [
+          451,
+          187,
+          609,
+          402
+        ],
+        "aurora_boots": [
+          612,
+          187,
+          808,
+          402
+        ]
+      },
+      "panel_source_rectangles": {
+        "head": [
+          827,
+          212,
+          994,
+          374
+        ],
+        "body": [
+          1023,
+          212,
+          1195,
+          374
+        ],
+        "arm": [
+          1223,
+          212,
+          1305,
+          374
+        ],
+        "leg": [
+          1423,
+          212,
+          1491,
+          374
+        ]
+      },
+      "texture_size": [
+        128,
+        64
+      ],
+      "palette_colors": 64,
+      "texture": "armor42/aurora"
+    },
+    "ember": {
+      "icons": {
+        "ember_helmet": [
+          64,
+          64
+        ],
+        "ember_chestplate": [
+          64,
+          64
+        ],
+        "ember_leggings": [
+          64,
+          64
+        ],
+        "ember_boots": [
+          64,
+          64
+        ]
+      },
+      "icon_source_rectangles": {
+        "ember_helmet": [
+          25,
+          382,
+          211,
+          595
+        ],
+        "ember_chestplate": [
+          216,
+          382,
+          449,
+          595
+        ],
+        "ember_leggings": [
+          451,
+          382,
+          609,
+          595
+        ],
+        "ember_boots": [
+          612,
+          382,
+          808,
+          595
+        ]
+      },
+      "panel_source_rectangles": {
+        "head": [
+          827,
+          409,
+          994,
+          566
+        ],
+        "body": [
+          1023,
+          409,
+          1195,
+          566
+        ],
+        "arm": [
+          1223,
+          409,
+          1305,
+          566
+        ],
+        "leg": [
+          1423,
+          409,
+          1491,
+          566
+        ]
+      },
+      "texture_size": [
+        128,
+        64
+      ],
+      "palette_colors": 64,
+      "texture": "armor42/ember"
+    },
+    "elemental": {
+      "icons": {
+        "elemental_helmet": [
+          64,
+          64
+        ],
+        "elemental_chestplate": [
+          64,
+          64
+        ],
+        "elemental_leggings": [
+          64,
+          64
+        ],
+        "elemental_boots": [
+          64,
+          64
+        ]
+      },
+      "icon_source_rectangles": {
+        "elemental_helmet": [
+          25,
+          575,
+          211,
+          787
+        ],
+        "elemental_chestplate": [
+          216,
+          575,
+          449,
+          787
+        ],
+        "elemental_leggings": [
+          451,
+          575,
+          609,
+          787
+        ],
+        "elemental_boots": [
+          612,
+          575,
+          808,
+          787
+        ]
+      },
+      "panel_source_rectangles": {
+        "head": [
+          827,
+          600,
+          994,
+          755
+        ],
+        "body": [
+          1023,
+          600,
+          1195,
+          755
+        ],
+        "arm": [
+          1223,
+          600,
+          1305,
+          755
+        ],
+        "leg": [
+          1423,
+          600,
+          1491,
+          755
+        ]
+      },
+      "texture_size": [
+        128,
+        64
+      ],
+      "palette_colors": 64,
+      "texture": "armor42/elemental"
+    },
+    "infinity": {
+      "icons": {
+        "infinity_helmet": [
+          64,
+          64
+        ],
+        "infinity_chestplate": [
+          64,
+          64
+        ],
+        "infinity_leggings": [
+          64,
+          64
+        ],
+        "infinity_boots": [
+          64,
+          64
+        ]
+      },
+      "icon_source_rectangles": {
+        "infinity_helmet": [
+          25,
+          767,
+          211,
+          987
+        ],
+        "infinity_chestplate": [
+          216,
+          767,
+          449,
+          987
+        ],
+        "infinity_leggings": [
+          451,
+          767,
+          609,
+          987
+        ],
+        "infinity_boots": [
+          612,
+          767,
+          808,
+          987
+        ]
+      },
+      "panel_source_rectangles": {
+        "head": [
+          827,
+          789,
+          994,
+          951
+        ],
+        "body": [
+          1023,
+          789,
+          1195,
+          951
+        ],
+        "arm": [
+          1223,
+          789,
+          1305,
+          951
+        ],
+        "leg": [
+          1423,
+          789,
+          1491,
+          951
+        ]
+      },
+      "texture_size": [
+        128,
+        64
+      ],
+      "palette_colors": 64,
+      "texture": "armor42/infinity"
+    }
+  },
+  "sha256": {
+    "java/src/main/resources/assets/convergence/textures/item/armor42/helmet.png": "6b60508f0214adbe324062d64bc4074caf4608893ae0d4bc4c48ea11faf8ff1d",
+    "bedrock/resource_pack/textures/convergence/items/armor42/helmet.png": "6b60508f0214adbe324062d64bc4074caf4608893ae0d4bc4c48ea11faf8ff1d",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/cuirass.png": "388da08e2e15756d8561db4eaa70b146a1d5386d96aa185ac9b376d174dc8b00",
+    "bedrock/resource_pack/textures/convergence/items/armor42/cuirass.png": "388da08e2e15756d8561db4eaa70b146a1d5386d96aa185ac9b376d174dc8b00",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/leggings.png": "254286515cc2aef0ab140d7fee2ec8da1cd7b22821462b5a6cdcc1e6fe0f449a",
+    "bedrock/resource_pack/textures/convergence/items/armor42/leggings.png": "254286515cc2aef0ab140d7fee2ec8da1cd7b22821462b5a6cdcc1e6fe0f449a",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/boots.png": "e116e688a0304b00bf3e0014720f71406d3cd840a5dda1acf2fc363336c37dd4",
+    "bedrock/resource_pack/textures/convergence/items/armor42/boots.png": "e116e688a0304b00bf3e0014720f71406d3cd840a5dda1acf2fc363336c37dd4",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
+    "bedrock/resource_pack/textures/convergence/models/armor/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/aurora_helmet.png": "d497c26d7b92b53be666bff55492a5897e793126c6b5826391cfda545d7f3838",
+    "bedrock/resource_pack/textures/convergence/items/armor42/aurora_helmet.png": "d497c26d7b92b53be666bff55492a5897e793126c6b5826391cfda545d7f3838",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/aurora_chestplate.png": "e1be1e1f2fe9a339baf489c2d22c0321dc08ef2b6652f2ac4cd4837e0b86981b",
+    "bedrock/resource_pack/textures/convergence/items/armor42/aurora_chestplate.png": "e1be1e1f2fe9a339baf489c2d22c0321dc08ef2b6652f2ac4cd4837e0b86981b",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/aurora_leggings.png": "9a094fba395e4955bd7c376a4525ffb819d98268aa023f43c5a18a4b32951283",
+    "bedrock/resource_pack/textures/convergence/items/armor42/aurora_leggings.png": "9a094fba395e4955bd7c376a4525ffb819d98268aa023f43c5a18a4b32951283",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/aurora_boots.png": "0d67b7bccd62810ef0b05b16ded13596ad6bf7f73e674e9bdd71f3c55e2574e6",
+    "bedrock/resource_pack/textures/convergence/items/armor42/aurora_boots.png": "0d67b7bccd62810ef0b05b16ded13596ad6bf7f73e674e9bdd71f3c55e2574e6",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/armor42/aurora.png": "a9edd9ccdf0d28e094c48009497d238d151510212c74a69faf2eb8e867c78979",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/armor42/aurora.png": "a9edd9ccdf0d28e094c48009497d238d151510212c74a69faf2eb8e867c78979",
+    "bedrock/resource_pack/textures/convergence/models/armor/armor42/aurora.png": "a9edd9ccdf0d28e094c48009497d238d151510212c74a69faf2eb8e867c78979",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/ember_helmet.png": "45a626b350ce2cc93f7980a83a0594055bf6bfac2a535e9456f7d1683bb0ee08",
+    "bedrock/resource_pack/textures/convergence/items/armor42/ember_helmet.png": "45a626b350ce2cc93f7980a83a0594055bf6bfac2a535e9456f7d1683bb0ee08",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/ember_chestplate.png": "6e2a291623aa04981a494042d3d8130be32ea3727047643ccc9e911bfcd3b747",
+    "bedrock/resource_pack/textures/convergence/items/armor42/ember_chestplate.png": "6e2a291623aa04981a494042d3d8130be32ea3727047643ccc9e911bfcd3b747",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/ember_leggings.png": "788bb22e20f73c80883635fe35a647f715eb0ab95b2e534076baf7cdec7d7364",
+    "bedrock/resource_pack/textures/convergence/items/armor42/ember_leggings.png": "788bb22e20f73c80883635fe35a647f715eb0ab95b2e534076baf7cdec7d7364",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/ember_boots.png": "3e4c50bab39c48857978bd0b63c2bcc00e62e2437f269450836ae3c029931597",
+    "bedrock/resource_pack/textures/convergence/items/armor42/ember_boots.png": "3e4c50bab39c48857978bd0b63c2bcc00e62e2437f269450836ae3c029931597",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/armor42/ember.png": "93033e2d76587e22a385711946c66a15c2a25b7d3f32d93a10f41b456148243b",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/armor42/ember.png": "93033e2d76587e22a385711946c66a15c2a25b7d3f32d93a10f41b456148243b",
+    "bedrock/resource_pack/textures/convergence/models/armor/armor42/ember.png": "93033e2d76587e22a385711946c66a15c2a25b7d3f32d93a10f41b456148243b",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/elemental_helmet.png": "75266a38f9f087938d6721d65fcc728ad9ba70e7ffa7d25ee34688e63bda5b7e",
+    "bedrock/resource_pack/textures/convergence/items/armor42/elemental_helmet.png": "75266a38f9f087938d6721d65fcc728ad9ba70e7ffa7d25ee34688e63bda5b7e",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/elemental_chestplate.png": "7d66afaac28b6e8562c6f02b0b1946c2074b36c96f7264e8089e773fec4a5835",
+    "bedrock/resource_pack/textures/convergence/items/armor42/elemental_chestplate.png": "7d66afaac28b6e8562c6f02b0b1946c2074b36c96f7264e8089e773fec4a5835",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/elemental_leggings.png": "c7ac71cf71d0e643c40c70a91658cbdca4da6ca558d17179dbd6e2de9be911d5",
+    "bedrock/resource_pack/textures/convergence/items/armor42/elemental_leggings.png": "c7ac71cf71d0e643c40c70a91658cbdca4da6ca558d17179dbd6e2de9be911d5",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/elemental_boots.png": "61e35144c4b2ccfb1981c9f0c5078511ded1d5fd50f4b74aca99c4fae7398cf8",
+    "bedrock/resource_pack/textures/convergence/items/armor42/elemental_boots.png": "61e35144c4b2ccfb1981c9f0c5078511ded1d5fd50f4b74aca99c4fae7398cf8",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/armor42/elemental.png": "f930bf19a012301f3de5d63abfb85718f64444d66b92fd9276be226b30660132",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/armor42/elemental.png": "f930bf19a012301f3de5d63abfb85718f64444d66b92fd9276be226b30660132",
+    "bedrock/resource_pack/textures/convergence/models/armor/armor42/elemental.png": "f930bf19a012301f3de5d63abfb85718f64444d66b92fd9276be226b30660132",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/infinity_helmet.png": "1d452cd0a017e6d998064a10611a7dff9865e8b5cc3fe43b586fabee1aa4e9d9",
+    "bedrock/resource_pack/textures/convergence/items/armor42/infinity_helmet.png": "1d452cd0a017e6d998064a10611a7dff9865e8b5cc3fe43b586fabee1aa4e9d9",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/infinity_chestplate.png": "a975a1bbc6922412e395af6356312ef26dff0365bcf47f64e7fe6f5bcddc39bb",
+    "bedrock/resource_pack/textures/convergence/items/armor42/infinity_chestplate.png": "a975a1bbc6922412e395af6356312ef26dff0365bcf47f64e7fe6f5bcddc39bb",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/infinity_leggings.png": "fa1a730e2a3eee6dd3060eaf8b3db1343a4bf90e82d52b31fff41458bf058653",
+    "bedrock/resource_pack/textures/convergence/items/armor42/infinity_leggings.png": "fa1a730e2a3eee6dd3060eaf8b3db1343a4bf90e82d52b31fff41458bf058653",
+    "java/src/main/resources/assets/convergence/textures/item/armor42/infinity_boots.png": "cbec061797dc832613c545f407ed852ff1efca397fbb1a7d2e64eef0c434a023",
+    "bedrock/resource_pack/textures/convergence/items/armor42/infinity_boots.png": "cbec061797dc832613c545f407ed852ff1efca397fbb1a7d2e64eef0c434a023",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid/armor42/infinity.png": "e7dd7843aaf8e9046a9e0f6c36a6d9728787a61175a8096a56ffeeda5b77d0f1",
+    "java/src/main/resources/assets/convergence/textures/entity/equipment/humanoid_leggings/armor42/infinity.png": "e7dd7843aaf8e9046a9e0f6c36a6d9728787a61175a8096a56ffeeda5b77d0f1",
+    "bedrock/resource_pack/textures/convergence/models/armor/armor42/infinity.png": "e7dd7843aaf8e9046a9e0f6c36a6d9728787a61175a8096a56ffeeda5b77d0f1",
+    "artwork/armor42/inventory-and-uv-preview.png": "4cf50777bda7c7e7ac5b6d93d9f602e65f29ef4cbea02d8b368e54f5c54dbf22",
+    "artwork/armor42/uv-preview.png": "f88a5f252463121988176174139ec84078b4e6dd59aa75babf7232bfc0a711df"
+  },
+  "uv_rectangles": {
+    "head_top": [
+      8,
+      0,
+      16,
+      8
+    ],
+    "head_bottom": [
+      16,
+      0,
+      24,
+      8
+    ],
+    "head_right": [
+      0,
+      8,
+      8,
+      16
+    ],
+    "head_front": [
+      8,
+      8,
+      16,
+      16
+    ],
+    "head_left": [
+      16,
+      8,
+      24,
+      16
+    ],
+    "head_back": [
+      24,
+      8,
+      32,
+      16
+    ],
+    "leg_top": [
+      4,
+      16,
+      8,
+      20
+    ],
+    "leg_bottom": [
+      8,
+      16,
+      12,
+      20
+    ],
+    "leg_right": [
+      0,
+      20,
+      4,
+      32
+    ],
+    "leg_front": [
+      4,
+      20,
+      8,
+      32
+    ],
+    "leg_left": [
+      8,
+      20,
+      12,
+      32
+    ],
+    "leg_back": [
+      12,
+      20,
+      16,
+      32
+    ],
+    "body_top": [
+      20,
+      16,
+      28,
+      20
+    ],
+    "body_bottom": [
+      28,
+      16,
+      36,
+      20
+    ],
+    "body_right": [
+      16,
+      20,
+      20,
+      32
+    ],
+    "body_front": [
+      20,
+      20,
+      28,
+      32
+    ],
+    "body_left": [
+      28,
+      20,
+      32,
+      32
+    ],
+    "body_back": [
+      32,
+      20,
+      40,
+      32
+    ],
+    "arm_top": [
+      44,
+      16,
+      48,
+      20
+    ],
+    "arm_bottom": [
+      48,
+      16,
+      52,
+      20
+    ],
+    "arm_right": [
+      40,
+      20,
+      44,
+      32
+    ],
+    "arm_front": [
+      44,
+      20,
+      48,
+      32
+    ],
+    "arm_left": [
+      48,
+      20,
+      52,
+      32
+    ],
+    "arm_back": [
+      52,
+      20,
+      56,
+      32
+    ]
+  },
+  "ordinary_armor_and_elytra_changed": false,
+  "preview_is_client_capture": false,
+  "texture_reference_files": [
+    "java/src/main/resources/assets/convergence/equipment/armor.json",
+    "java/src/main/resources/assets/convergence/equipment/cuirass.json",
+    "java/src/main/resources/assets/convergence/models/item/helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_helmet.json",
+    "java/src/main/resources/assets/convergence/models/item/cuirass.json",
+    "bedrock/resource_pack/attachables/refresh27/cuirass.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_cuirass.json",
+    "java/src/main/resources/assets/convergence/models/item/leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_leggings.json",
+    "java/src/main/resources/assets/convergence/models/item/boots.json",
+    "bedrock/resource_pack/attachables/refresh27/boots.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_boots.json",
+    "java/src/main/resources/assets/convergence/equipment/aurora_armor.json",
+    "java/src/main/resources/assets/convergence/models/item/aurora_helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/aurora_helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_aurora_helmet.json",
+    "java/src/main/resources/assets/convergence/models/item/aurora_chestplate.json",
+    "bedrock/resource_pack/attachables/refresh27/aurora_chestplate.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_aurora_chestplate.json",
+    "java/src/main/resources/assets/convergence/models/item/aurora_leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/aurora_leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_aurora_leggings.json",
+    "java/src/main/resources/assets/convergence/models/item/aurora_boots.json",
+    "bedrock/resource_pack/attachables/refresh27/aurora_boots.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_aurora_boots.json",
+    "java/src/main/resources/assets/convergence/equipment/ember_armor.json",
+    "java/src/main/resources/assets/convergence/models/item/ember_helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/ember_helmet.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_ember_helmet.json",
+    "java/src/main/resources/assets/convergence/models/item/ember_chestplate.json",
+    "bedrock/resource_pack/attachables/refresh27/ember_chestplate.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_ember_chestplate.json",
+    "java/src/main/resources/assets/convergence/models/item/ember_leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/ember_leggings.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_ember_leggings.json",
+    "java/src/main/resources/assets/convergence/models/item/ember_boots.json",
+    "bedrock/resource_pack/attachables/refresh27/ember_boots.json",
+    "bedrock/resource_pack/attachables/refresh27/catalog_ember_boots.json",
+    "java/src/main/resources/assets/convergence/equipment/elemental_armor.json",
+    "java/src/main/resources/assets/convergence/models/item/elemental_helmet.json",
+    "bedrock/resource_pack/attachables/elemental41/elemental_helmet.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_elemental_helmet.json",
+    "java/src/main/resources/assets/convergence/models/item/elemental_chestplate.json",
+    "bedrock/resource_pack/attachables/elemental41/elemental_chestplate.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_elemental_chestplate.json",
+    "java/src/main/resources/assets/convergence/models/item/elemental_leggings.json",
+    "bedrock/resource_pack/attachables/elemental41/elemental_leggings.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_elemental_leggings.json",
+    "java/src/main/resources/assets/convergence/models/item/elemental_boots.json",
+    "bedrock/resource_pack/attachables/elemental41/elemental_boots.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_elemental_boots.json",
+    "java/src/main/resources/assets/convergence/equipment/infinity_armor.json",
+    "java/src/main/resources/assets/convergence/models/item/infinity_helmet.json",
+    "bedrock/resource_pack/attachables/elemental41/infinity_helmet.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_infinity_helmet.json",
+    "java/src/main/resources/assets/convergence/models/item/infinity_chestplate.json",
+    "bedrock/resource_pack/attachables/elemental41/infinity_chestplate.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_infinity_chestplate.json",
+    "java/src/main/resources/assets/convergence/models/item/infinity_leggings.json",
+    "bedrock/resource_pack/attachables/elemental41/infinity_leggings.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_infinity_leggings.json",
+    "java/src/main/resources/assets/convergence/models/item/infinity_boots.json",
+    "bedrock/resource_pack/attachables/elemental41/infinity_boots.json",
+    "bedrock/resource_pack/attachables/elemental41/catalog_infinity_boots.json",
+    "bedrock/resource_pack/textures/item_texture.json"
+  ]
+}
