@@ -1,4 +1,13 @@
-# Explore.43 candidate • Astral Wilds and Infini
+# Bedrock armor visibility repair for explore.43
+
+The owner installed explore.43 and reported that only the chest sleeves render
+on iPad. The focused [visibility repair](ARMOR_VISIBILITY_REPAIR.md) changes the
+two armor controllers and pack revision. Its local resource, Geyser, inventory
+persistence and isolated restart checks pass; actual iPad rendering is still
+pending. It is not installed by changing source. See [VALIDATION.md](VALIDATION.md)
+for the current stage; the older candidate notes below are historical.
+
+## Explore.43 candidate • Astral Wilds and Infini
 
 This candidate combines the explore.42 armor repair with three native Odyssey guardian variants, three original craftable tools, six advancement rewards, earnable Infini and reviewed cosmetic/staff applications. Real-money checkout is disabled; the owner cancelled the payment-provider integration. The live server remains explore.41. See [ASTRAL_WILDS.md](ASTRAL_WILDS.md), [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) and [ARMOR_REPAIR.md](ARMOR_REPAIR.md).
 

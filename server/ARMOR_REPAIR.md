@@ -1,5 +1,11 @@
 # Armor rendering repair — explore.42 candidate
 
+**Later device result:** the owner installed explore.43 and supplied an image
+showing only the chest sleeves; the torso was missing too. The skin-clearance
+repair below did not resolve that reported rendering problem. See
+[the focused visibility repair](ARMOR_VISIBILITY_REPAIR.md) for the subsequent
+resource-only candidate, its narrower evidence and the required iPad check.
+
 This candidate has passed 528 native tests and 303 Python tests, with no skips. Its complete local package includes checked native armor packets and the fresh original art. Explore.41 remains the installed version;
 the owner reported that only the chestplate is visible in third-person and in
 the inventory character, across the armor sets. No live installation is implied

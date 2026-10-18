@@ -165,7 +165,9 @@ def bedrock_models():
         visibility = []
         for b in geometry["minecraft:geometry"][0]["bones"]:
             third_person = b["name"] not in ("infinity_right_arm", "infinity_left_arm")
-            visibility.append({b["name"]: equipped + (" && !context.is_first_person" if third_person else "")})
+            # Use the current entity render pass, with an explicit inventory
+            # allowance. A held attachable context is not our worn camera test.
+            visibility.append({b["name"]: equipped + (" && (query.is_in_ui || !query.is_first_person)" if third_person else "")})
         controllers[controller] = {"geometry": "Geometry.default",
             "materials": [{"*": "variable.is_enchanted ? Material.enchanted : Material.default"}],
             "textures": ["Texture.default", "Texture.enchanted"], "part_visibility": visibility}

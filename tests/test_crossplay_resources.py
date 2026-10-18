@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +67,20 @@ class ResourceRepairTests(unittest.TestCase):
         self.assertGreater(resources.resource_version("3.0.0-explore.1"), [2, 13, 40])
         with self.assertRaisesRegex(ValueError, "release version"):
             resources.resource_version("unknown")
+
+    def test_resource_only_repairs_replace_cached_43_without_blocking_44(self):
+        self.assertEqual(resources.resource_version("2.13.0-explore.42"), [2, 13, 42])
+        self.assertEqual(resources.resource_version("2.13.0-explore.43"), [2, 13, 43001])
+        self.assertGreater(resources.resource_version("2.13.0-explore.43"), [2, 13, 43])
+        self.assertEqual(resources.resource_version("2.13.0-explore.44"), [2, 13, 44000])
+        with patch.dict(resources.RESOURCE_REPAIRS, {}, clear=True):
+            self.assertEqual(resources.resource_version("2.13.0-explore.43"), [2, 13, 43000])
+        with patch.dict(resources.RESOURCE_REPAIRS, {(2, 13, 43): 999}):
+            self.assertLess(resources.resource_version("2.13.0-explore.43"), resources.resource_version("2.13.0-explore.44"))
+        for invalid in (-1, 1000, True, 1.5):
+            with self.subTest(invalid=invalid), patch.dict(resources.RESOURCE_REPAIRS, {(2, 13, 43): invalid}):
+                with self.assertRaisesRegex(ValueError, "between 0 and 999"):
+                    resources.resource_version("2.13.0-explore.43")
 
 
 if __name__ == "__main__":

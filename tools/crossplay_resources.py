@@ -15,6 +15,11 @@ ELYTRA_OVERRIDES = frozenset({
     "textures/entity/elytra.png",
 })
 
+# Resource-only repairs keep the Java mod version (and terrain policy) intact.
+# Starting with explore.43 reserve 1,000 cache revisions per exploration release
+# so the next full release always supersedes this release's repairs.
+RESOURCE_REPAIRS = {(2, 13, 43): 1}
+
 
 def vanilla_equipment_override(name):
     return (name in ELYTRA_OVERRIDES
@@ -26,10 +31,14 @@ def resource_version(version):
     match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.[0-9]+-explore\.([0-9]+)", version)
     if not match:
         raise ValueError("Expected an Infinity exploration release version")
-    # Use the actual release minor, rather than the old hard-coded 12. This
-    # repair advances explore.39 from [2,12,39] to [2,13,39]; later releases keep
-    # increasing naturally without changing the mod or refreshing terrain.
-    return [int(value) for value in match.groups()]
+    major, minor, explore = (int(value) for value in match.groups())
+    if (major, minor, explore) >= (2, 13, 43):
+        repair = RESOURCE_REPAIRS.get((major, minor, explore), 0)
+        if type(repair) is not int or not 0 <= repair < 1000:
+            raise ValueError("Resource repair revision must be between 0 and 999")
+        return [major, minor, explore * 1000 + repair]
+    # Keep already shipped historical revisions stable, including elytra39.
+    return [major, minor, explore]
 
 
 def repair_pack(source, destination, version):

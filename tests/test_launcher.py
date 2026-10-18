@@ -47,8 +47,10 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Prepared Bedrock pack unavailable in source-only checkout")
         with zipfile.ZipFile(pack) as archive:
             manifest = json.loads(archive.read("manifest.json"))
-        release, revision = lock["version"].split("-explore.")
-        expected = [*map(int, release.split(".")[:2]), int(revision)]
+        resource_spec = importlib.util.spec_from_file_location("resource_revision", root / "tools/crossplay_resources.py")
+        resources = importlib.util.module_from_spec(resource_spec)
+        resource_spec.loader.exec_module(resources)
+        expected = resources.resource_version(lock["version"])
         self.assertEqual(manifest["header"]["version"], expected)
         self.assertTrue(all(module["version"] == expected for module in manifest["modules"]))
 

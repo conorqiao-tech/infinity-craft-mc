@@ -14,7 +14,7 @@
       ],
       "part_visibility": [
         {
-          "elemental_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:elemental_helmet', 'infinity_catalog:elemental_helmet') && !context.is_first_person"
+          "elemental_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:elemental_helmet', 'infinity_catalog:elemental_helmet') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     },
@@ -31,7 +31,7 @@
       ],
       "part_visibility": [
         {
-          "elemental_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate') && !context.is_first_person"
+          "elemental_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate') && (query.is_in_ui || !query.is_first_person)"
         },
         {
           "elemental_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:elemental_chestplate', 'infinity_catalog:elemental_chestplate')"
@@ -54,10 +54,10 @@
       ],
       "part_visibility": [
         {
-          "elemental_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && !context.is_first_person"
+          "elemental_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && (query.is_in_ui || !query.is_first_person)"
         },
         {
-          "elemental_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && !context.is_first_person"
+          "elemental_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:elemental_leggings', 'infinity_catalog:elemental_leggings') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     },
@@ -74,10 +74,10 @@
       ],
       "part_visibility": [
         {
-          "elemental_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && !context.is_first_person"
+          "elemental_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && (query.is_in_ui || !query.is_first_person)"
         },
         {
-          "elemental_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && !context.is_first_person"
+          "elemental_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:elemental_boots', 'infinity_catalog:elemental_boots') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     },
@@ -94,7 +94,7 @@
       ],
       "part_visibility": [
         {
-          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:infinity_helmet', 'infinity_catalog:infinity_helmet') && !context.is_first_person"
+          "infinity_head": "query.is_item_name_any('slot.armor.head', 0, 'convergence:infinity_helmet', 'infinity_catalog:infinity_helmet') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     },
@@ -111,7 +111,7 @@
       ],
       "part_visibility": [
         {
-          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate') && !context.is_first_person"
+          "infinity_body": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate') && (query.is_in_ui || !query.is_first_person)"
         },
         {
           "infinity_right_arm": "query.is_item_name_any('slot.armor.chest', 0, 'convergence:infinity_chestplate', 'infinity_catalog:infinity_chestplate')"
@@ -134,10 +134,10 @@
       ],
       "part_visibility": [
         {
-          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && !context.is_first_person"
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && (query.is_in_ui || !query.is_first_person)"
         },
         {
-          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && !context.is_first_person"
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.legs', 0, 'convergence:infinity_leggings', 'infinity_catalog:infinity_leggings') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     },
@@ -154,10 +154,10 @@
       ],
       "part_visibility": [
         {
-          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && !context.is_first_person"
+          "infinity_right_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && (query.is_in_ui || !query.is_first_person)"
         },
         {
-          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && !context.is_first_person"
+          "infinity_left_leg": "query.is_item_name_any('slot.armor.feet', 0, 'convergence:infinity_boots', 'infinity_catalog:infinity_boots') && (query.is_in_ui || !query.is_first_person)"
         }
       ]
     }

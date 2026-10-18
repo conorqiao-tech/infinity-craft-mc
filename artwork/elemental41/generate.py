@@ -406,7 +406,9 @@ def main():
             write_json(BED / f"models/entity/elemental41/{name}.geo.json", geo)
             controller = f"controller.render.convergence.{name}_elemental41"
             equipped = f"query.is_item_name_any('slot.armor.{slot}', 0, 'convergence:{name}', 'infinity_catalog:{name}')"
-            visibility = [{bone["name"]: equipped + ("" if bone["binding"] in ("'rightArm'", "'leftArm'") else " && !context.is_first_person")}
+            # Inventory previews must show the complete suit even if their
+            # render pass also reports first person; gameplay eyes stay clear.
+            visibility = [{bone["name"]: equipped + ("" if bone["binding"] in ("'rightArm'", "'leftArm'") else " && (query.is_in_ui || !query.is_first_person)")}
                           for bone in geo["minecraft:geometry"][0]["bones"]]
             controllers[controller] = {"geometry": "Geometry.default", "materials": [{"*": "variable.is_enchanted ? Material.enchanted : Material.default"}],
                                        "textures": ["Texture.default", "Texture.enchanted"], "part_visibility": visibility}

@@ -190,8 +190,10 @@ class OriginalArtworkTests(unittest.TestCase):
                     self.assertNotIn(f"textures/items/{material}_{piece}.png",pack.namelist())
             manifest = json.loads(pack.read("manifest.json"))
             version = re.search(r'^VERSION = "([^"\n]+)"$', (ROOT / "tools/prepare_crossplay.py").read_text(), re.MULTILINE).group(1)
-            release, revision = version.split("-explore.")
-            expected_version = [*map(int, release.split(".")[:2]), int(revision)]
+            spec = importlib.util.spec_from_file_location("resource_revision", ROOT / "tools/crossplay_resources.py")
+            resources = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(resources)
+            expected_version = resources.resource_version(version)
             self.assertEqual(manifest["header"]["version"],expected_version)
             self.assertTrue(all(m["version"] == expected_version for m in manifest["modules"]))
 

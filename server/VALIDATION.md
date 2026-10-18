@@ -1,3 +1,41 @@
+# Bedrock render views — explore.43 resource repair r1
+
+Explore.43 is installed and running under the owner's earlier approval. Its
+actual iPad check failed: only the patterned sleeves appeared, including a
+missing chest torso. The new resource-only candidate replaces the shared
+non-arm perspective condition with explicit entity-render and UI queries;
+matching-item and equipment-slot guards remain. See
+[ARMOR_VISIBILITY_REPAIR.md](ARMOR_VISIBILITY_REPAIR.md).
+
+**338/338 Python tests pass**, with resource warnings treated as errors and no
+skips. The new bounded-expression regression checks source and prepared pack,
+all forty armor identities plus both backpacks, held-item exclusions and
+first-person/third-person/UI truth tables. Twenty-six repair-package fixtures
+reject unsafe archives, changed dependencies, mappings, artwork, geometry,
+identity guards or unrelated pack fields. The real repair bundle has exactly
+three changed resource entries; 1,017 protected Java/artwork/model/attachable,
+dependency and immutable-release inputs remain byte-identical.
+
+Fresh Geyser checks pass 66 catalogue identities across three protocols, 255
+hotbar selections, 510 cursor/drop cases, 594 stale Survival requests and 5,427
+codec response/resync packets. Fresh synthetic armor transport passes 303 codec
+round trips. The real supplementary inventory persistence check passes 255
+inbound frames, 85 saved item/count cases and three same-UUID reconnects. Two
+fresh isolated full-stack startup/save/backup/restart/shutdown cycles pass.
+The first Python attempt correctly rejected an older persistence receipt bound
+to the previous launcher-test bytes; a genuine fresh run replaced that stale
+receipt before the complete passing rerun.
+
+The Java mod is unchanged (`7c8180df518ea357e9627a1d1771c7e2a8d9e91e17199945a76ae069fbd1fbb3`);
+the full 577-test native suite is retained baseline evidence, not claimed as a
+fresh run. The repair's pack/module revision is `[2,13,43001]`. No live files,
+worlds, private settings or terrain policy were changed. The device's actual
+query values and rendered pixels remain unverified; source predicates and
+packet round trips do not establish an iPad rendering pass. Separate approval
+is required before installing this resource-only repair.
+
+---
+
 # Astral Wilds, Infini and armor visibility — explore.43 candidate
 
 Validated with the unchanged **Minecraft 26.3 / Java 25** Fabric/Geyser/Via stack. **577/577 unique native GameTests** pass across **18 disposable groups**, bound to **743 Java source/resource files** and the exact production/test jars. **307/307 Python checks** pass with resource warnings treated as errors, zero skips. The playable Downloads server remains running explore.41 with its unchanged mod hash; no installation, live restart, terrain refresh, public release, main merge or website deployment occurred during this validation.
