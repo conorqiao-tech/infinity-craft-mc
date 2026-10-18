@@ -19,7 +19,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemLore;
 
-/** Read-only vanilla chest screens keep the helper controls usable through Geyser. */
+/** Java chest controls; Bedrock uses native touch forms rather than simulated inventory clicks. */
 final class AgentMenu {
     static final int FOLLOW = 28, GUARD = 30, STAY = 32, INFO = 34, CEASEFIRE = 37, ASK = 39, RECALL = 41, DISMISS = 43, BACK = 49;
     static final int CONFIRM = 11, CANCEL = 15;
@@ -91,6 +91,7 @@ final class AgentMenu {
             player.sendSystemMessage(Component.literal("Close your current screen and empty the cursor before opening helpers."));
             return 0;
         }
+        if (CrossplaySupport.bedrock(player)) return BedrockAgentMenu.open(player);
         var helpers = AgentCompanions.get(player.level().getServer());
         var selected = helperId == null ? null : helpers.data.agents.get(helperId);
         if (page != Page.ROSTER && (selected == null || !selected.owner().equals(player.getStringUUID()))) {
@@ -128,6 +129,7 @@ final class AgentMenu {
             icon(view, INFO, Items.BOOK, "Help • chat and approval commands");
             hive(view, helpers, player);
             squadProfiles(view, helpers, player);
+            emptySquadControls(view, helpers, player);
             icon(view, BACK, Items.ARROW, "Back to Infinity Menu");
         } else {
             title = selected.name() + (page == Page.DISMISS ? " • Dismiss?" : " • Helper");
@@ -157,6 +159,14 @@ final class AgentMenu {
         icon(view, FOLLOW, Items.LEAD, label + " • follow");
         icon(view, GUARD, Items.SHIELD, label + " • guard current area");
         icon(view, STAY, Items.REDSTONE_TORCH, label + " • stay / pause");
+    }
+
+    private static void emptySquadControls(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
+        if (helpers.count(owner) != 0) return;
+        for (int slot : new int[]{FOLLOW, GUARD, STAY, RECALL, FORMATION, SQUAD_PRIMITIVE, SQUAD_REGULAR, SQUAD_ULTIMATE}) {
+            icon(view, slot, Items.BARRIER, "Create a helper first");
+            description(view, slot, "Your roster is empty. Select the green Create your first helper button above. Nothing spawns automatically.");
+        }
     }
 
     private static void askButton(SimpleContainer view, ServerPlayer owner) {
@@ -266,6 +276,7 @@ final class AgentMenu {
                 }
                 hive(view, helpers, owner);
                 squadProfiles(view, helpers, owner);
+                emptySquadControls(view, helpers, owner);
             } else if (page == Page.HELPER) {
                 var agent = selected(helpers, helperId);
                 if (agent == null) { stale(); return; }
@@ -295,6 +306,14 @@ final class AgentMenu {
             if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                 || button < 0 || button > 1 || !getCarried().isEmpty()) { sendAllDataToRemote(); return; }
             var helpers = AgentCompanions.get(owner.level().getServer());
+            if (page == Page.ROSTER && helpers.count(owner) == 0
+                    && (clicked == FOLLOW || clicked == GUARD || clicked == STAY || clicked == RECALL
+                        || clicked == FORMATION || clicked == SQUAD_PRIMITIVE || clicked == SQUAD_REGULAR || clicked == SQUAD_ULTIMATE)) {
+                owner.closeContainer();
+                var message = Component.literal("Your roster is empty. Reopen AI Helpers and choose Create your first helper.");
+                owner.sendSystemMessage(message); owner.sendOverlayMessage(message);
+                return;
+            }
             if(clicked==FORMATION&&page!=Page.DISMISS){AgentCompanions.cycleFormation(owner);refresh();return;}
             if(clicked==ORDERS && page!=Page.DISMISS) { owner.closeContainer();AgentOrdersMenu.open(owner);return; }
             if (clicked == CEASEFIRE && page != Page.DISMISS) {

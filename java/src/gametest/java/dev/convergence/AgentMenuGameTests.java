@@ -75,6 +75,26 @@ public class AgentMenuGameTests {
         click(player, slot);
     }
 
+    @GameTest public void emptyJavaSquadShowsCreateFirstInsteadOfSilentMovementControls(GameTestHelper c) {
+        var owner = player(c, "menu-empty-help");
+        var helpers = AgentCompanions.get(c.getLevel().getServer());
+        var queue = AgentActions.get(helpers.server);
+        int proposals = queue.data.proposals.size();
+        try {
+            for (int slot : new int[]{AgentMenu.FOLLOW, AgentMenu.GUARD, AgentMenu.STAY, AgentMenu.RECALL,
+                    AgentMenu.FORMATION, AgentMenu.SQUAD_PRIMITIVE, AgentMenu.SQUAD_REGULAR, AgentMenu.SQUAD_ULTIMATE}) {
+                AgentMenu.open(owner);
+                c.assertValueEqual(menu(owner).view.getItem(slot).getHoverName().getString(),
+                    "Create a helper first", "Empty-roster control has an explicit requirement");
+                click(owner, slot);
+                c.assertTrue(owner.containerMenu == owner.inventoryMenu, "Requirement feedback is revealed rather than hidden beneath a chest");
+                c.assertValueEqual(helpers.count(owner), 0, "A disabled squad control never creates a helper");
+            }
+            c.assertValueEqual(queue.data.proposals.size(), proposals, "Empty controls never queue or approve a command");
+        } finally { cleanup(helpers, owner); }
+        c.succeed();
+    }
+
     @GameTest public void helperMenuRequiresCurrentOwnerAndRechecksOpFour(GameTestHelper c) {
         var owner = player(c, "menu-owner");
         var other = player(c, "menu-other");

@@ -1,3 +1,54 @@
+# Explore.45 helper-controls candidate
+
+The source adds native Bedrock helper/order forms, explicit creation/profile
+selection, empty-roster feedback and read-only combo diagnostics. Existing combat
+mechanics, attack speed, saved helpers/stats and both owner/live Codex approval
+gates are retained. See [HELPER_CONTROLS.md](HELPER_CONTROLS.md) for use and exact
+regression scenarios.
+
+**604/604 native gameplay tests pass**, with zero skipped cases, across **22
+separate disposable groups**, bound to all **755 Java source/resource files**.
+That includes 27 additional regressions: encoded touch-form actions and real
+helper lifecycle operations, exact session/ownership/replay/expiry checks,
+transitioning player-target reviews, send-failure cleanup and accurate expired
+combo status. Existing autonomous native spear charging, elytra glide and mace
+attack tests pass. The preliminary run passed every case but was rejected by its
+final source-stability guard; the accepted complete rerun uses the frozen inputs.
+
+Fresh final Geyser checks cover all **66 catalogue identities over three
+protocols**, 255 hotbar selections, 510 cursor/drop cases, 594 Survival refusals,
+six Adventure/Spectator refusals, three mixed requests and 5,427 response/resync
+codec packets. Held native equipment has 57 cases / 69 packets. The native armor
+proof passes **303 wire round trips**. Two isolated full-stack startup, cold-lobby,
+save, backup, restart and shutdown cycles pass. Their Geyser/full-stack logs have
+no ERROR records. The two-case native wire proof passes 255 actual incoming selections,
+198 overflow refusals and 255 Survival refusals. The separate two-case native
+persistence proof passes 255 framed inputs, 85 saved item/count pairs, all 66
+identities and three genuine saved reconnects. **357/357 Python tests pass**,
+with ResourceWarning treated as an error and zero skips. The package verifier
+revalidates every native/source/artifact/receipt binding before writing archives.
+
+The explore.45 pack preserves all **259 content entries** of the installed
+explore.44 r1 resources byte-for-byte; only its manifest revision advances to
+`[2,13,45000]`. No fresh armor-art or motion claim is made by this menu repair.
+
+**Known diagnostic:** the native suite retains an existing ERROR-level Polymer
+packet-context diagnostic during chunk sending to embedded test players. The
+same stack is present in preserved explore.43 evidence and the affected relic
+fixture sources match explore.44. Required tests pass, but this is not a log-clean
+native run and does not establish recipient-specific chunk projection for every
+real client. Pinned dependencies were preserved rather than upgraded within this
+menu repair. Actual iPad touch reception, moving/crouching armor appearance,
+rendered helper animations and authenticated public joining remain device checks.
+
+The playable server remains the separately installed explore.44 mod with
+resource revision `[2,13,44001]`. Local Java/Bedrock startup checks passed after
+its owner-approved resource-only repair; no terrain refresh occurred. This
+explore.45 source candidate has not been installed, merged to main or published
+as a release.
+
+---
+
 # Limb-motion hypothesis — explore.44 resource repair r1
 
 The owner's actual explore.44 iPad check confirms the missing armor pieces and

@@ -316,6 +316,8 @@ def main():
     entries["ARMOR_REPAIR.md"] = (server / "ARMOR_REPAIR.md").read_bytes()
     entries["ARMOR_VISIBILITY_REPAIR.md"] = (server / "ARMOR_VISIBILITY_REPAIR.md").read_bytes()
     entries["RELIC_ART.md"] = (server / "RELIC_ART.md").read_bytes()
+    entries["ARMOR_MOTION_REPAIR.md"] = (server / "ARMOR_MOTION_REPAIR.md").read_bytes()
+    entries["HELPER_CONTROLS.md"] = (server / "HELPER_CONTROLS.md").read_bytes()
     capacity_checks = ROOT / "research/capacity-performance" / VERSION
     if capacity_checks.exists():
         from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
@@ -362,7 +364,7 @@ def main():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
-        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
+        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()

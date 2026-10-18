@@ -1,8 +1,16 @@
-> **Resource-only motion candidate (explore.44 r1):** The owner confirmed the
-> missing pieces and held totem were fixed, but walking/crouching flicker remains.
-> A separately tested lowercase limb-binding candidate is described in
-> [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md). It is not installed and does not change
-> the mod, world or terrain marker. Actual iPad acceptance is still required.
+# Explore.45 source candidate • helper touch controls and combo status
+
+See [Helper controls](HELPER_CONTROLS.md) for native iPad helper creation,
+movement/profile controls, visible combo prerequisites and exact order reviews.
+This source candidate retains the separate owner and live Codex approvals and
+does not install itself on the playable server. Completed checks are recorded in
+[VALIDATION.md](VALIDATION.md).
+
+The separately approved **explore.44 r1 resource repair** is installed on the
+owner's Mac with the explore.44 mod and existing terrain unchanged. Its actual
+iPad motion comparison remains pending. [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md)
+describes the narrow binding change. The older candidate notes below are
+historical; the private live installation receipt records installed artifacts.
 
 # Explore.44 candidate • armor render views and Elemental relic art
 

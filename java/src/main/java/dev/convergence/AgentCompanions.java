@@ -849,6 +849,7 @@ public final class AgentCompanions {
         return true;
     }
     public static void initialize() {
+        HelperForms.register();
         AgentActions.initialize();
         AgentChat.initialize();
         AgentCodeRequests.initialize();

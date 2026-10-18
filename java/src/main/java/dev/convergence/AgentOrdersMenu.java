@@ -21,7 +21,9 @@ final class AgentOrdersMenu {
     static final int TARGET=10,PENDING=12,APPROVE=11,CANCEL=15,BACK=49,PREVIOUS=45,NEXT=53;
     private static final Map<Integer,String> ACTIONS=Map.of(19,"set day",21,"set night",23,"clear weather",25,"make it rain",28,"save world",30,"list players");
     private AgentOrdersMenu() {}
-    static int open(ServerPlayer owner) { return show(owner,Page.MAIN,0,null); }
+    static int open(ServerPlayer owner) {
+        return CrossplaySupport.bedrock(owner) ? BedrockAgentOrdersMenu.open(owner) : show(owner,Page.MAIN,0,null);
+    }
     private static int show(ServerPlayer owner,Page page,int index,String proposalId) {
         if(!AgentMenu.allowed(owner)||owner.containerMenu!=owner.inventoryMenu||!owner.inventoryMenu.getCarried().isEmpty())return 0;
         var queue=AgentActions.get(owner.level().getServer());queue.expire();
