@@ -16,14 +16,14 @@ BED = ROOT / "bedrock/resource_pack/models/entity"
 SKIN = {
     "head": ((-4.5, 23.5, -4.5), (4.5, 32.5, 4.5)),
     "body": ((-4.25, 11.75, -2.25), (4.25, 24.25, 2.25)),
-    "rightArm": ((-8.25, 11.25, -2.25), (-3.75, 24.25, 2.25)),
-    "leftArm": ((3.75, 11.25, -2.25), (8.25, 24.25, 2.25)),
-    "rightLeg": ((-4.15, -.25, -2.25), (.35, 12.25, 2.25)),
-    "leftLeg": ((-.35, -.25, -2.25), (4.15, 12.25, 2.25)),
+    "rightarm": ((-8.25, 11.25, -2.25), (-3.75, 24.25, 2.25)),
+    "leftarm": ((3.75, 11.25, -2.25), (8.25, 24.25, 2.25)),
+    "rightleg": ((-4.15, -.25, -2.25), (.35, 12.25, 2.25)),
+    "leftleg": ((-.35, -.25, -2.25), (4.15, 12.25, 2.25)),
 }
 PIVOTS = {"head": (0, 24, 0), "body": (0, 24, 0),
-          "rightArm": (-5, 22, 0), "leftArm": (5, 22, 0),
-          "rightLeg": (-1.9, 12, 0), "leftLeg": (1.9, 12, 0)}
+          "rightarm": (-5, 22, 0), "leftarm": (5, 22, 0),
+          "rightleg": (-1.9, 12, 0), "leftleg": (1.9, 12, 0)}
 
 
 def bounds(cube):
@@ -69,7 +69,7 @@ class ArmorSkinClearanceTests(unittest.TestCase):
         old = [({"origin": [-4.28, 23.72, -4.28], "size": [8.56] * 3}, SKIN["head"]),
                ({"origin": [-4, 3.65, -2.1], "size": [3.95, 8.5, 4.2]},
                 ((-4.15, 4, -2.25), (.35, 12.25, 2.25))),
-               ({"origin": [-8.2, 11.8, -2.2], "size": [4.4, 12.4, 4.4]}, SKIN["rightArm"])]
+               ({"origin": [-8.2, 11.8, -2.2], "size": [4.4, 12.4, 4.4]}, SKIN["rightarm"])]
         for cube, skin in old:
             self.assertLess(margin(bounds(cube), skin), 0, "The old shell is occluded by opaque skin clothing")
 
@@ -83,7 +83,9 @@ class ArmorSkinClearanceTests(unittest.TestCase):
                 count += 1
         self.assertEqual(count, 40, "Each suit covers head, torso, two arms, two thighs and two feet")
 
-    def test_turn_walk_and_crouch_keep_skin_inside_same_joint_shell(self):
+    def test_rigid_same_joint_fixture_preserves_static_clearance(self):
+        # Conditional on successful engine binding: this reversible fixture
+        # checks shell containment, not actual Bedrock pose inheritance.
         poses = ((0, 0, 0), (35, 25, 0), (-28, -40, 12))
         for suit, piece, bone, skin in shells():
             outer = bounds(bone["cubes"][0]); joint = bone["binding"].strip("'")

@@ -1,3 +1,54 @@
+# Limb-motion hypothesis — explore.44 resource repair r1
+
+The owner's actual explore.44 iPad check confirms the missing armor pieces and
+held totem are restored, but armor still flickers during walking/crouching with
+empty hands. A new screenshot shows black forearm and thigh patches cutting
+through Infinity armor. This is a failed motion-rendering acceptance check.
+
+The resource-only candidate follows Microsoft's lowercase limb-binding literal
+convention. It changes exactly thirty literals across fifteen active models,
+plus the pack/module cache revision `[2,13,44001]`. All cube dimensions, pivots,
+bone names, UVs, PNGs, materials, controllers, item identities, attachables and
+inactive flight geometry remain unchanged. Two independent source/pack reviews
+verified the complete delta against the immutable explore.44 server ZIP.
+The cause remains a runtime case-normalization hypothesis: published skeleton
+JSON uses mixed-case names too, and Bedrock's actual lookup behavior has not been
+captured. Offline checks cannot certify this repairs the owner's moving limbs.
+See [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md).
+
+**357/357 Python tests pass**, with resource warnings treated as errors and no
+skips, including eighteen new scoped repair-package cases and all twenty-six
+older repair cases. The package contract reverses only the thirty exact binding
+changes, then compares every other model field and all remaining pack entries.
+Unsafe archives, private paths, changed artwork/UVs/pivots/controllers/UUIDs,
+missing coverage and changed dependencies/runtime/mappings are refused. All
+747 Java source/resource hashes and the exact production/test jars still match
+the earlier passing **577-test/18-group explore.44 native run**; that full suite
+is retained baseline evidence, not claimed as freshly rerun for this resource
+change. No Java class or gameplay behavior was edited.
+
+Fresh Geyser checks cover 66 identities across three protocols, 255 hotbar
+selections, 510 cursor/drop cases, 594 stale Survival requests and 5,427 codec
+response/resync packets. All 303 armor codec round trips pass. Fresh supplemental
+native wire checks accept 255 real frames and refuse 198 overflow/255 Survival
+frames. Fresh native persistence verifies 85 item/count pairs and three genuine
+same-UUID reconnects. Both isolated full-stack startup/save/backup/restart/
+shutdown cycles pass. Final regular Geyser and lifecycle logs contain no ERROR
+records. Original relic/armor validators, static skin-clearance checks and
+camera/UI predicates pass. The rigid same-joint fixture is explicitly conditional
+on successful engine binding; it does not exercise the client's actual matrices.
+
+The candidate pack SHA256 is
+`0365154c6f2ef9c2b911cb10bff471b3d84c07877122c02c1ccbe2b58adcfb55`.
+The explore.44 production mod remains
+`d838aa51e3a0763e89406ab897ec2198b961938f63c335e9d1a71f0ad5a16929`.
+The live server remains on the accepted explore.44 base pack during these
+checks. No live resource, world, setting, helper, approval queue or terrain
+marker has changed. A separate owner-approved resource installation/restart and
+empty-hand walking/crouching iPad comparison are required before acceptance.
+
+---
+
 # Armor views, held totem and relic artwork — explore.44 candidate
 
 This candidate uses the unchanged **Minecraft 26.3 / Java 25** Fabric/Geyser/Via

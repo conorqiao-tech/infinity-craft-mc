@@ -1,3 +1,9 @@
+> **Resource-only motion candidate (explore.44 r1):** The owner confirmed the
+> missing pieces and held totem were fixed, but walking/crouching flicker remains.
+> A separately tested lowercase limb-binding candidate is described in
+> [the motion repair guide](../server/ARMOR_MOTION_REPAIR.md). It is not installed and does not change
+> the mod, world or terrain marker. Actual iPad acceptance is still required.
+
 # Explore.44 source candidate
 
 This candidate carries the focused armor render-view repair and four original

@@ -22,8 +22,8 @@ SUITS = [("helmet", "cuirass", "leggings", "boots")]
 SUITS += [tuple(suit + "_" + piece for piece in ("helmet", "chestplate", "leggings", "boots"))
           for suit in ("aurora", "ember", "elemental", "infinity")]
 ARMOR_SLOTS = {name: "slot.armor." + slot for suit in SUITS for name, slot in zip(suit, SLOTS)}
-EXPECTED_JOINTS = {"head": {"head"}, "chest": {"body", "rightArm", "leftArm"},
-                   "legs": {"rightLeg", "leftLeg"}, "feet": {"rightLeg", "leftLeg"}}
+EXPECTED_JOINTS = {"head": {"head"}, "chest": {"body", "rightarm", "leftarm"},
+                   "legs": {"rightleg", "leftleg"}, "feet": {"rightleg", "leftleg"}}
 
 
 class VisibilityExpression:
@@ -210,7 +210,7 @@ class ArmorRenderVisibilityTests(unittest.TestCase):
                         )
                         for state, equipment, equipped in states:
                             for bone in geometry["bones"]:
-                                arm = bone["binding"] in ("'rightArm'", "'leftArm'")
+                                arm = bone["binding"] in ("'rightarm'", "'leftarm'")
                                 expected = equipped and (arm or ui or not first)
                                 actual = expressions[bone["name"]].evaluate(equipment, first, ui, legacy)
                                 with self.subTest(state=state, worn=matching, bone=bone["name"], first_person=first, ui=ui, legacy_first_person=legacy):

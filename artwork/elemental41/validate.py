@@ -44,8 +44,8 @@ def validate():
         png(path)
     controllers = json.loads((BED / "render_controllers/elemental41.json").read_text())["render_controllers"]
     assert len(controllers) == 8
-    expected_joints = {"helmet": {"'head'"}, "chestplate": {"'body'", "'rightArm'", "'leftArm'"},
-                       "leggings": {"'rightLeg'", "'leftLeg'"}, "boots": {"'rightLeg'", "'leftLeg'"}}
+    expected_joints = {"helmet": {"'head'"}, "chestplate": {"'body'", "'rightarm'", "'leftarm'"},
+                       "leggings": {"'rightleg'", "'leftleg'"}, "boots": {"'rightleg'", "'leftleg'"}}
     for suit in ("elemental", "infinity"):
         cubes = []
         equipment = json.loads((JAVA / f"equipment/{suit}_armor.json").read_text())

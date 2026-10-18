@@ -17,7 +17,7 @@
       "bones": [
         {
           "name": "infinity_right_leg",
-          "binding": "'rightLeg'",
+          "binding": "'rightleg'",
           "pivot": [
             -1.9,
             12,
@@ -176,7 +176,7 @@
         },
         {
           "name": "infinity_left_leg",
-          "binding": "'leftLeg'",
+          "binding": "'leftleg'",
           "pivot": [
             1.9,
             12,

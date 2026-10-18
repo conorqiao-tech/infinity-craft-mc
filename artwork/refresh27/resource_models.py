@@ -121,6 +121,11 @@ def armor_geometry(path, collection, piece, uv):
             cube(uv, "arm", [3.4, 15, 2.9], [0.95, 5.3, 2.7])])]
     else:
         raise ValueError(piece)
+    # Molang string literals preserve case. Follow the lowercase limb targets
+    # used by Microsoft's custom wearable example; head/body already agree.
+    # Keep this separate from the inactive legacy flight-shell generator.
+    for target in bones:
+        target["binding"] = target["binding"].lower()
     return {"format_version": "1.19.30", "minecraft:geometry": [{
         "description": {"identifier": "geometry.convergence." + path + "_original", "texture_width": 128,
                         "texture_height": 64, "visible_bounds_width": 2.5, "visible_bounds_height": 3,

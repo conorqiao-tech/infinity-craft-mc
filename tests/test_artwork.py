@@ -200,8 +200,8 @@ class OriginalArtworkTests(unittest.TestCase):
     def test_independent_static_armor_binds_each_moving_joint_and_opaque_original_uv(self):
         bed = ROOT / "bedrock/resource_pack"
         controllers = json.loads((bed / "render_controllers/original_static_armor.json").read_text())["render_controllers"]
-        expected = {"helmet":{"head"},"cuirass":{"body","rightArm","leftArm"},
-                    "leggings":{"rightLeg","leftLeg"},"boots":{"rightLeg","leftLeg"},"backpack":{"body"}}
+        expected = {"helmet":{"head"},"cuirass":{"body","rightarm","leftarm"},
+                    "leggings":{"rightleg","leftleg"},"boots":{"rightleg","leftleg"},"backpack":{"body"}}
         for outfit in ("aurora","ember"):
             for piece in ("helmet","chestplate","leggings","boots"):
                 expected[outfit+"_"+piece] = expected["cuirass" if piece=="chestplate" else piece]

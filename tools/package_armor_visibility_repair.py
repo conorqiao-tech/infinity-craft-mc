@@ -68,9 +68,11 @@ def safe_name(name):
     parts = name.rstrip("/").split("/")
     if any(part in ("", ".", "..") for part in parts):
         raise ValueError("Unsafe archive or dependency path")
-    if any(part.casefold() in {"world", "world_nether", "world_the_end", "backups", ".git"} for part in parts):
+    if any(part.casefold() in {"world", "world_nether", "world_the_end", "players", "backups", ".git",
+                              ".dynu", ".remote", ".pinggy", ".runtime"} for part in parts):
         raise ValueError("Runtime state cannot be packaged")
-    if parts[-1].casefold() in {"key.pem", "floodgate-key.pem", "infinity-ai-key.txt", "infinity-ai.json", "eula.txt"}:
+    if parts[-1].casefold() in {"key.pem", "floodgate-key.pem", "infinity-ai-key.txt", "infinity-ai.json", "eula.txt",
+                               "settings.json", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json"}:
         raise ValueError("Private runtime input cannot be packaged")
     return name
 
@@ -232,15 +234,31 @@ def contained_file(root, relative):
 
 
 def build_repair(baseline_zip, server_root, mapping_root, notes_path, output,
-                 *, expected_baseline_sha256=BASELINE_SHA256, expected_counts=None):
+                 *, expected_baseline_sha256=BASELINE_SHA256, expected_counts=None,
+                 pack_validator=None, repair_name="armor-visibility-explore43-r1",
+                 repair_prefix=REPAIR_PREFIX, notes_name=NOTES_PATH,
+                 packager_path=None, expected_release_version=None):
     """Validate all inputs before writing a new four-file repair ZIP.
 
     Tests may pin a tiny fixture ZIP with expected_baseline_sha256. Production
     callers should retain the immutable default and pass VISIBILITY_COUNTS.
+    A separately pinned repair may supply its own narrow pack contract while
+    reusing the bounded archive, dependency, runtime, mapping and output checks.
     """
+    if not repair_prefix.endswith("/"):
+        raise ValueError("Repair archive root must be a folder")
+    safe_name(repair_prefix)
+    safe_name(notes_name)
+    if notes_name in (LOCK_PATH, PACK_PATH, "PATCH.json") or notes_name.endswith("/"):
+        raise ValueError("Repair notes must have a separate safe payload name")
+    provenance_path = Path(packager_path or __file__).resolve()
+    try:
+        provenance_name = provenance_path.relative_to(ROOT).as_posix()
+    except ValueError as error:
+        raise ValueError("Repair packager must belong to the source tree") from error
     baseline_data = bounded_file(baseline_zip, MAX_ARCHIVE)
     if not SHA256.fullmatch(expected_baseline_sha256) or digest(baseline_data) != expected_baseline_sha256:
-        raise ValueError("Baseline ZIP is not the exact expected explore.43 package")
+        raise ValueError("Baseline ZIP is not the exact expected immutable package")
     baseline = safe_zip(baseline_data, maximum_entries=512)
     if any(not name.startswith(BASELINE_PREFIX) for name in baseline):
         raise ValueError("Unexpected baseline package root")
@@ -256,8 +274,10 @@ def build_repair(baseline_zip, server_root, mapping_root, notes_path, output,
     notes = bounded_file(notes_path, 256 * 1024)
     if not notes.strip():
         raise ValueError("Repair notes cannot be empty")
-    pack_report = validate_pack(old_pack, new_pack, expected_counts)
+    pack_report = (pack_validator or validate_pack)(old_pack, new_pack, expected_counts)
     old_lock, new_lock = json_object(old_lock_data), json_object(new_lock_data)
+    if expected_release_version is not None and old_lock.get("version") != expected_release_version:
+        raise ValueError("Baseline release identity differs from the repair contract")
     locked = validate_lock(old_lock, new_lock, digest(old_pack), digest(new_pack))
     if any(entry["path"] not in baseline for entry in old_lock["bundled"]):
         raise ValueError("Baseline is missing a bundled dependency")
@@ -284,8 +304,8 @@ def build_repair(baseline_zip, server_root, mapping_root, notes_path, output,
         if actual != matches[0]:
             raise ValueError("Current mapping differs from the baseline: " + name)
         mapping_hashes[name] = actual
-    payloads = {LOCK_PATH: new_lock_data, PACK_PATH: new_pack, NOTES_PATH: notes}
-    patch = {"format_version": 1, "repair": "armor-visibility-explore43-r1",
+    payloads = {LOCK_PATH: new_lock_data, PACK_PATH: new_pack, notes_name: notes}
+    patch = {"format_version": 1, "repair": repair_name,
              "baseline": {"file": Path(baseline_zip).name, "sha256": expected_baseline_sha256,
                           "version": old_lock.get("version")},
              "expected_old_sha256": {LOCK_PATH: digest(old_lock_data), PACK_PATH: digest(old_pack)},
@@ -294,9 +314,12 @@ def build_repair(baseline_zip, server_root, mapping_root, notes_path, output,
              "unchanged_mapping_sha256": mapping_hashes,
              "payload_sha256": {name: digest(data) for name, data in sorted(payloads.items())},
              "bundle_files": sorted([*payloads, "PATCH.json"]),
-             "provenance": {"packager": "tools/package_armor_visibility_repair.py",
-                            "packager_sha256": file_digest(__file__)},
+             "provenance": {"packager": provenance_name,
+                            "packager_sha256": file_digest(provenance_path)},
              "device_rendering_verified": False, "live_installation_performed": False}
+    if provenance_path != Path(__file__).resolve():
+        patch["provenance"]["shared_validator"] = "tools/package_armor_visibility_repair.py"
+        patch["provenance"]["shared_validator_sha256"] = file_digest(__file__)
     payloads["PATCH.json"] = encoded_json(patch)
     output = Path(output)
     if output.suffix.lower() != ".zip" or output.resolve() == Path(baseline_zip).resolve():
@@ -306,7 +329,7 @@ def build_repair(baseline_zip, server_root, mapping_root, notes_path, output,
     with output.open("xb") as stream:
         with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
             for name, data in sorted(payloads.items()):
-                info = zipfile.ZipInfo(REPAIR_PREFIX + name, (2026, 10, 18, 0, 0, 0))
+                info = zipfile.ZipInfo(repair_prefix + name, (2026, 10, 18, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = (stat.S_IFREG | 0o644) << 16
                 archive.writestr(info, data)

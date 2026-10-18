@@ -176,7 +176,7 @@
         },
         {
           "name": "infinity_right_arm",
-          "binding": "'rightArm'",
+          "binding": "'rightarm'",
           "pivot": [
             -5,
             22,
@@ -335,7 +335,7 @@
         },
         {
           "name": "infinity_left_arm",
-          "binding": "'leftArm'",
+          "binding": "'leftarm'",
           "pivot": [
             5,
             22,

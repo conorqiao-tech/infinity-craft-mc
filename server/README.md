@@ -1,3 +1,9 @@
+> **Resource-only motion candidate (explore.44 r1):** The owner confirmed the
+> missing pieces and held totem were fixed, but walking/crouching flicker remains.
+> A separately tested lowercase limb-binding candidate is described in
+> [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md). It is not installed and does not change
+> the mod, world or terrain marker. Actual iPad acceptance is still required.
+
 # Explore.44 candidate • armor render views and Elemental relic art
 
 This source combines the focused Bedrock armor visibility repair with original
