@@ -53,9 +53,24 @@ final class Memberships {
             task("enter an End gateway","end/enter_end_gateway"),
             task("find an End city","end/find_end_city"))));
     static final Map<MinecraftServer,Memberships> INSTANCES=new WeakHashMap<>();
+    /** Immutable purchase identity plus independently revocable desired-role state. */
+    static final class PaidAdminSource {
+        long generation, approvedAt, expiresAt;
+        boolean active, retired;
+    }
     static final class Account {
         Tier tier=Tier.FREE; long expires=0; Tier earned=Tier.FREE;
         boolean admin=false; int attempts=0; long lockedUntil=0;
+        // Version zero migrates an existing saved Admin as a free/manual source, never as a purchase.
+        int adminSourcesVersion=0;
+        boolean freeAdmin=false;
+        long adminGeneration=0;
+        Map<String,PaidAdminSource> paidAdminSources=new TreeMap<>();
+        // Native owner op/deop intent survives a crash between the provenance and ops-file writes.
+        boolean externalOpPending=false;
+        int externalOpLevel=-1;
+        boolean externalOpBypass=false;
+        String externalOpName="";
         // This UUID-keyed journal owns only the promotion performed for this role.
         boolean adminOpOwned=false, adminOpRevoking=false;
         int adminPreviousOpLevel=-1;
@@ -69,6 +84,8 @@ final class Memberships {
     }
     final MinecraftServer server; final Path file; final Path configFile;
     final Map<UUID,ServerOpListEntry> adminOwnedEntries=new HashMap<>();
+    // Fabric JOIN precedes PlayerList UUID publication. Only its exact verified handler may use this scope.
+    final Map<UUID,ServerPlayer> joiningAdminTargets=new HashMap<>();
     Data data=new Data(); Config config=new Config();
     Memberships(MinecraftServer server,Path file,Path configFile) {
         this.server=server;this.file=file;this.configFile=configFile;
@@ -81,6 +98,7 @@ final class Memberships {
                     if(a==null||a.tier==null||a.expires<0||a.attempts<0)throw new IllegalArgumentException("Invalid member");
                     if(a.earned==null)a.earned=Tier.FREE;
                     if(a.adminOperatorName==null)a.adminOperatorName="";
+                    validateSources(a);
                     if(a.adminOpOwned&&(a.adminPreviousOpLevel < -1 || a.adminPreviousOpLevel > 3
                         ||a.adminOperatorName.isEmpty()||a.adminOperatorName.length()>128
                         ||a.adminOperatorName.codePoints().anyMatch(Character::isISOControl))
@@ -125,8 +143,20 @@ final class Memberships {
     static String hash(String code) {try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(code.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}}
     private static Account copy(Account account) {return CommunityServer.GSON.fromJson(CommunityServer.GSON.toJson(account),Account.class);}
     private static int opLevel(ServerOpListEntry entry) {return entry==null?-1:entry.permissions().level().id();}
+    boolean duringAdminJoin(ServerPlayer player,java.util.function.BooleanSupplier action) {
+        if(!server.isSameThread()||player==null||player.level().getServer()!=server||player.isRemoved()||player.hasDisconnected()
+            ||player.connection==null||player.connection.player!=player)return false;
+        var id=player.getUUID();var published=server.getPlayerList().getPlayer(id);
+        if(published!=null&&published!=player||joiningAdminTargets.containsKey(id))return false;
+        joiningAdminTargets.put(id,player);
+        try{return action.getAsBoolean();}finally{joiningAdminTargets.remove(id,player);}
+    }
+    private ServerPlayer operatorTarget(UUID id) {
+        var published=server.getPlayerList().getPlayer(id);var joining=joiningAdminTargets.get(id);
+        return joining==null?published:published==null||published==joining?joining:null;
+    }
     private NameAndId principal(UUID id) {
-        var online=server.getPlayerList().getPlayer(id);
+        var online=operatorTarget(id);
         return online!=null?new NameAndId(online.getGameProfile()):new NameAndId(id,account(id).adminOperatorName);
     }
     private ServerOpListEntry opEntry(UUID id) {return server.getPlayerList().getOps().get(principal(id));}
@@ -148,89 +178,167 @@ final class Memberships {
         }
     }
     private void writeOperator(NameAndId principal,int level,boolean bypass) throws java.io.IOException {
-        var manager=server.getPlayerList();
-        if(level<0)manager.deop(principal);
-        else manager.op(principal,Optional.of(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(level))),Optional.of(bypass));
-        // Vanilla's convenience methods log IO failures. Verify persistence explicitly.
-        manager.getOps().save();
+        PurchasedAdminRoles.ownedOperatorWrite(()->{
+            var manager=server.getPlayerList();
+            if(level<0)manager.deop(principal);
+            else manager.op(principal,Optional.of(LevelBasedPermissionSet.forLevel(PermissionLevel.byId(level))),Optional.of(bypass));
+            // Native convenience methods log IO failures; verify the actual ops file explicitly.
+            manager.getOps().save();
+            // Native op/deop sends this only to already-published players. JOIN has not published ours yet.
+            var joining=joiningAdminTargets.get(principal.id());
+            if(joining!=null&&manager.getPlayer(principal.id())!=joining)manager.sendPlayerPermissionLevel(joining);
+        });
     }
-
-    /** Called only after owner authorization or a verified private code. Persist the intent first. */
-    boolean grantAdmin(UUID id) {
-        var account=account(id);var before=copy(account);var current=opEntry(id);
-        var online=server.getPlayerList().getPlayer(id);
-        boolean needsPromotion=online!=null&&opLevel(current)<4;
-        if(account.adminOpOwned&&!ownedPromotion(id,account,current))clearPromotion(id,account);
-        account.admin=true;account.attempts=0;account.lockedUntil=0;account.adminOpRevoking=false;
-        if(needsPromotion) {
-            account.adminOpOwned=true;account.adminPreviousOpLevel=opLevel(current);
-            account.adminPreviousBypass=current!=null&&current.getBypassesPlayerLimit();
-            account.adminOperatorName=online.getGameProfile().name();
+    private static void validateSources(Account a) {
+        if(a.adminSourcesVersion<0||a.adminSourcesVersion>1||a.adminGeneration<0)throw new IllegalArgumentException("Invalid Admin source version");
+        if(a.paidAdminSources==null)a.paidAdminSources=new TreeMap<>();
+        if(a.paidAdminSources.size()>32_000)throw new IllegalArgumentException("Too many Admin sources");
+        if(a.adminSourcesVersion==0&&(!a.paidAdminSources.isEmpty()||a.adminGeneration!=0||a.externalOpPending))
+            throw new IllegalArgumentException("Purchased Admin data requires explicit source version");
+        for(var e:a.paidAdminSources.entrySet()) {
+            var v=e.getValue();
+            if(!e.getKey().matches("[A-Za-z0-9._:-]{1,96}")||v==null||v.generation<=0||v.generation>a.adminGeneration
+                ||v.approvedAt<=0||v.expiresAt<0||(v.expiresAt>0&&v.expiresAt<=v.approvedAt)||v.retired&&v.active)
+                throw new IllegalArgumentException("Invalid purchased Admin provenance");
         }
+        if(a.externalOpName==null)a.externalOpName="";
+        if(a.externalOpPending&&(a.externalOpLevel < -1||a.externalOpLevel>4||a.externalOpName.isEmpty()
+            ||a.externalOpName.length()>128||a.externalOpName.codePoints().anyMatch(Character::isISOControl)))
+            throw new IllegalArgumentException("Invalid external operator intent");
+        sources(a);
+    }
+    private static void sources(Account a) {
+        if(a.adminSourcesVersion==0){a.freeAdmin=a.admin;a.adminSourcesVersion=1;}
+        if(a.paidAdminSources==null)a.paidAdminSources=new TreeMap<>();
+    }
+    private static void nextGeneration(Account a) {a.adminGeneration=Math.incrementExact(a.adminGeneration);}
+    private static boolean desiredAdmin(Account a) {
+        return a.freeAdmin||a.paidAdminSources.values().stream().anyMatch(s->s.active&&!s.retired);
+    }
+    private static void retireSources(Account a) {
+        a.freeAdmin=false;
+        for(var source:a.paidAdminSources.values()){source.active=false;source.retired=true;}
+        a.admin=false;
+    }
+    /** Save desired sources and owned OP journal before changing live permissions. */
+    private boolean saveAndApplyRole(UUID id,Account before) {
+        var a=account(id);var current=opEntry(id);var online=operatorTarget(id);
+        a.admin=desiredAdmin(a);
+        boolean undo=!a.admin&&ownedPromotion(id,a,current);
+        boolean promote=a.admin&&online!=null&&opLevel(current)<4;
+        if(a.adminOpOwned&&!ownedPromotion(id,a,current))clearPromotion(id,a);
+        if(promote) {
+            a.adminOpOwned=true;a.adminOpRevoking=false;a.adminPreviousOpLevel=opLevel(current);
+            a.adminPreviousBypass=current!=null&&current.getBypassesPlayerLimit();
+            a.adminOperatorName=online.getGameProfile().name();
+        } else if(undo)a.adminOpRevoking=true;
+        else if(!a.admin)clearPromotion(id,a);
         if(!saveBeforeOperatorChange(id,before))return false;
-        if(needsPromotion) {
-            try {writeOperator(new NameAndId(online.getGameProfile()),4,account.adminPreviousBypass);}
+        if(promote) {
+            try {writeOperator(new NameAndId(online.getGameProfile()),4,a.adminPreviousBypass);}
             catch(java.io.IOException|RuntimeException failure) {
-                // The durable role intent can retry on login, but no failed write leaves a new live OP.
                 try {writeOperator(new NameAndId(online.getGameProfile()),opLevel(current),current!=null&&current.getBypassesPlayerLimit());}
-                catch(java.io.IOException|RuntimeException rollback) {System.err.println("[Infinity] Operator persistence needs host repair; Admin promotion was not completed.");}
-                System.err.println("[Infinity] Admin promotion stopped because operator persistence failed.");
+                catch(java.io.IOException|RuntimeException rollback){System.err.println("[Infinity] Admin operator persistence requires host repair.");}
                 return false;
             }
+        } else if(undo) {
+            try {writeOperator(principal(id),a.adminPreviousOpLevel,a.adminPreviousBypass);}
+            catch(java.io.IOException|RuntimeException failure){System.err.println("[Infinity] Admin revocation journal remains pending.");return false;}
+            var journal=copy(a);clearPromotion(id,a);
+            try {save();}catch(IllegalStateException failure){data.accounts.put(id.toString(),journal);return false;}
         }
-        if(account.adminOpOwned&&opLevel(opEntry(id))==4)adminOwnedEntries.put(id,opEntry(id));
-        else adminOwnedEntries.remove(id);
+        if(a.adminOpOwned&&opLevel(opEntry(id))==4)adminOwnedEntries.put(id,opEntry(id));else adminOwnedEntries.remove(id);
         if(online!=null)badge(online);
         return true;
     }
-
-    /** Removes only a role-owned promotion; independent/manual operator grants survive. */
-    boolean revokeAdmin(UUID id) {
-        var account=account(id);var before=copy(account);var current=opEntry(id);
-        boolean undo=ownedPromotion(id,account,current);
-        account.admin=false;
-        if(undo)account.adminOpRevoking=true;
-        else clearPromotion(id,account);
-        if(!saveBeforeOperatorChange(id,before))return false;
-        if(undo) {
-            try {writeOperator(principal(id),account.adminPreviousOpLevel,account.adminPreviousBypass);}
-            catch(java.io.IOException|RuntimeException failure) {
-                // Keep the persisted revocation journal so restart/login retries it before play.
-                System.err.println("[Infinity] Admin revocation remains pending because operator persistence failed.");
-                return false;
-            }
-            clearPromotion(id,account);
-            try {save();}
-            catch(IllegalStateException failure) {
-                // The previous saved journal is sufficient to complete recovery after restart.
-                account.adminOpOwned=true;account.adminOpRevoking=true;
-                account.adminPreviousOpLevel=before.adminPreviousOpLevel;
-                account.adminPreviousBypass=before.adminPreviousBypass;
-                account.adminOperatorName=before.adminOperatorName;
-                System.err.println("[Infinity] Admin was revoked; final journal cleanup will retry on login.");
-                return false;
-            }
-        }
-        adminOwnedEntries.remove(id);
-        var online=server.getPlayerList().getPlayer(id);if(online!=null)badge(online);
-        return true;
+    /** A code or owner grant is a separate source; purchased expiry must never erase it. */
+    boolean grantAdmin(UUID id) {
+        if(!recoverExternalOperator(id))return false;
+        var a=account(id);var before=copy(a);sources(a);
+        try {nextGeneration(a);}catch(ArithmeticException failure){return false;}
+        a.freeAdmin=true;a.attempts=0;a.lockedUntil=0;
+        return saveAndApplyRole(id,before);
     }
-
-    /** Migrates saved Admin roles and recovers interrupted revocations before a player can act. */
-    boolean syncAdminOperator(ServerPlayer player) {
-        var id=player.getUUID();var account=account(id);var current=opEntry(id);
-        if(!account.admin&&(account.adminOpOwned||account.adminOpRevoking))return revokeAdmin(id);
-        if(!account.admin)return true;
-        if(opLevel(current)<4)return grantAdmin(id);
-        if(account.adminOpOwned) {
+    /** Explicit owner role revocation retires all current sources, without revoking independent OP. */
+    boolean revokeAdmin(UUID id) {
+        if(!recoverExternalOperator(id))return false;
+        var a=account(id);var before=copy(a);sources(a);
+        try {nextGeneration(a);}catch(ArithmeticException failure){return false;}
+        retireSources(a);
+        return saveAndApplyRole(id,before);
+    }
+    /** Called only by the trusted adapter after consulting the exact durable approved ledger record. */
+    boolean purchasedAdmin(InfiniEconomy.StaffRequest request,boolean enabled,boolean retire) {
+        UUID id=request.buyer();
+        if(!recoverExternalOperator(id))return false;
+        var a=account(id);var before=copy(a);sources(a);var source=a.paidAdminSources.get(request.id());
+        if(source==null) {
+            if(!enabled&&!retire)return syncAdminOperator(id);
+            if(request.approvedAt()<=0)return !enabled;
+            if(a.paidAdminSources.size()>=32_000)return false;
+            try {nextGeneration(a);}catch(ArithmeticException failure){return false;}
+            source=new PaidAdminSource();source.generation=a.adminGeneration;source.approvedAt=request.approvedAt();source.expiresAt=request.expiresAt();
+            a.paidAdminSources.put(request.id(),source);
+        } else if(source.approvedAt!=request.approvedAt()||source.expiresAt!=request.expiresAt())return false;
+        boolean active=enabled&&!retire&&!source.retired;
+        if(source.active==active&&(!retire||source.retired)&&a.admin==desiredAdmin(a))return syncAdminOperator(id);
+        source.active=active;source.retired|=retire;
+        try {nextGeneration(a);}catch(ArithmeticException failure){data.accounts.put(id.toString(),before);return false;}
+        return saveAndApplyRole(id,before);
+    }
+    /** Unknown/unreadable ledgers suspend paid sources; unrelated free/manual Admin remains intact. */
+    boolean suspendMissingPaidSources(UUID id,Set<String> present) {
+        var a=account(id);sources(a);var before=copy(a);boolean changed=false;
+        for(var e:a.paidAdminSources.entrySet())if(!present.contains(e.getKey())&&e.getValue().active){e.getValue().active=false;changed=true;}
+        if(!changed)return syncAdminOperator(id);
+        try {nextGeneration(a);}catch(ArithmeticException failure){data.accounts.put(id.toString(),before);return false;}
+        return saveAndApplyRole(id,before);
+    }
+    /** Migrates saved free roles and recovers interrupted writes without minting a free paid grant. */
+    boolean syncAdminOperator(ServerPlayer player) {return syncAdminOperator(player.getUUID());}
+    boolean syncAdminOperator(UUID id) {
+        if(!recoverExternalOperator(id))return false;
+        var a=account(id);sources(a);var current=opEntry(id);
+        boolean wanted=desiredAdmin(a);
+        if(a.admin!=wanted||(!wanted&&(a.adminOpOwned||a.adminOpRevoking))
+            ||wanted&&operatorTarget(id)!=null&&opLevel(current)<4)
+            return saveAndApplyRole(id,copy(a));
+        if(a.adminOpOwned) {
             var observed=adminOwnedEntries.get(id);
             if(observed!=null&&observed!=current) {
-                var before=copy(account);clearPromotion(id,account);
+                var before=copy(a);clearPromotion(id,a);
                 if(!saveBeforeOperatorChange(id,before))return false;
                 adminOwnedEntries.remove(id);
             } else adminOwnedEntries.put(id,current);
         }
         return true;
+    }
+    /** HEAD of a native external op/deop. A failed journal write prevents that command's mutation. */
+    boolean beginExternalOperator(NameAndId principal,int level,boolean bypass) {
+        var a=data.accounts.get(principal.id().toString());
+        if(a==null)return true;
+        sources(a);
+        if(!a.admin&&!a.adminOpOwned&&!a.externalOpPending&&a.paidAdminSources.isEmpty())return true;
+        if(!recoverExternalOperator(principal.id()))return false;
+        var before=copy(a);
+        try {nextGeneration(a);}catch(ArithmeticException failure){return false;}
+        if(level<4)retireSources(a);
+        clearPromotion(principal.id(),a);adminOwnedEntries.remove(principal.id());
+        a.externalOpPending=true;a.externalOpLevel=level;a.externalOpBypass=bypass;a.externalOpName=principal.name();
+        return saveBeforeOperatorChange(principal.id(),before);
+    }
+    /** RETURN of the same native operation; persist the ops file before acknowledging the journal. */
+    boolean finishExternalOperator(UUID id) {
+        var a=data.accounts.get(id.toString());if(a==null||!a.externalOpPending)return true;
+        try {server.getPlayerList().getOps().save();}catch(java.io.IOException|RuntimeException failure){return false;}
+        var before=copy(a);a.externalOpPending=false;
+        return saveBeforeOperatorChange(id,before);
+    }
+    boolean recoverExternalOperator(UUID id) {
+        var a=data.accounts.get(id.toString());if(a==null||!a.externalOpPending)return true;
+        try {writeOperator(new NameAndId(id,a.externalOpName),a.externalOpLevel,a.externalOpBypass);}
+        catch(java.io.IOException|RuntimeException failure){return false;}
+        return finishExternalOperator(id);
     }
     boolean redeem(UUID id,String code,long now) {
         var a=account(id);
@@ -277,21 +385,21 @@ final class Memberships {
         return CommunityServer.info(source,"Staff action applied: "+action+". Public-chat mutes last 10 minutes.");
     }
     static void register() {
-        ServerLifecycleEvents.SERVER_STARTED.register(server->{var s=get(server);for(var entry:new ArrayList<>(s.data.accounts.entrySet()))if(!entry.getValue().admin&&entry.getValue().adminOpOwned)s.revokeAdmin(UUID.fromString(entry.getKey()));});
+        ServerLifecycleEvents.SERVER_STARTED.register(server->{if(!PurchasedAdminRoles.reconcile(server))System.err.println("[Infinity] Some Admin sources await safe persistence; affected players cannot join until repaired.");});
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
-        ServerPlayConnectionEvents.JOIN.register((handler,sender,server)->{var s=get(server);if(!s.syncAdminOperator(handler.player)){handler.disconnect(Component.literal("Admin permissions could not be saved safely. Ask the host to check server storage."));return;}s.syncAchievements(handler.player);s.badge(handler.player);});
-        ServerTickEvents.END_SERVER_TICK.register(server->{if(server.getTickCount()%100==0){var s=get(server);for(var p:server.getPlayerList().getPlayers()){s.syncAdminOperator(p);s.syncAchievements(p);s.badge(p);}}});
+        ServerPlayConnectionEvents.JOIN.register((handler,sender,server)->{var s=get(server);if(!PurchasedAdminRoles.beforePlay(handler.player)){handler.disconnect(Component.literal("Admin permissions could not be verified and saved safely. Ask the host to check server storage."));return;}s.syncAchievements(handler.player);s.badge(handler.player);});
+        ServerTickEvents.END_SERVER_TICK.register(server->{
+            if(server.getTickCount()%20==0)PurchasedAdminRoles.reconcile(server);
+            if(server.getTickCount()%100==0){var s=get(server);for(var p:List.copyOf(server.getPlayerList().getPlayers())){s.syncAchievements(p);s.badge(p);}}
+        });
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment)->{
             dispatcher.register(Commands.literal("ranks").executes(ctx->{
-                CommunityServer.info(ctx.getSource(),"All ranks are free, permanent cosmetic badges. Complete all three server advancements listed for a rank, or exchange Survival items with /trades. Your highest permanent rank shows. FREE includes every game mode.");
+                CommunityServer.info(ctx.getSource(),"Earned ranks are free, permanent cosmetic badges. Complete all three advancements for each rank or exchange Survival items with /trades. Optional paid supporter cosmetics are separate in /subscribe. FREE includes every game mode.");
                 for(var goal:GOALS)CommunityServer.info(ctx.getSource(),goal.tier()+": "+String.join("; ",goal.milestones().stream().map(Milestone::task).toList()));
-                return CommunityServer.info(ctx.getSource(),"ADMIN requires a private code or owner grant and includes full OP4 commands and gameplay unlocks. AI server changes still need both approvals. /rank shows your progress.");
+                return CommunityServer.info(ctx.getSource(),"ADMIN comes from a private code, an owner grant, or an exact owner-approved staff application in /subscribe. A purchase alone never grants permissions. AI server changes still need both independent approvals. /rank shows your earned progress.");
             }));
             dispatcher.register(Commands.literal("rank").executes(ctx->get(ctx.getSource().getServer()).rank(ctx.getSource().getPlayerOrException())));
-            dispatcher.register(Commands.literal("subscribe").executes(ctx->{
-                CommunityServer.info(ctx.getSource(),"Planned optional supporter subscriptions (USD/month): Go $50, Plus $75, Pro $100, Ultra $200.");
-                return CommunityServer.info(ctx.getSource(),"Checkout is unavailable until the owner sets up Tebex; this command cannot charge you. Permanent cosmetic ranks remain free through achievements or Survival item trades. No game modes, powers, Admin, or OP require a purchase.");
-            }));
+            dispatcher.register(Commands.literal("subscribe").executes(ctx->{InfiniShopMenu.open(ctx.getSource().getPlayerOrException());return 1;}));
             dispatcher.register(Commands.literal("admincode").then(Commands.argument("code",StringArgumentType.greedyString()).executes(ctx->{var p=ctx.getSource().getPlayerOrException();var s=get(ctx.getSource().getServer());boolean ok=s.redeem(p.getUUID(),StringArgumentType.getString(ctx,"code"),System.currentTimeMillis());if(ok)s.badge(p);return CommunityServer.say(p,ok?"Admin unlocked: full OP level 4, gameplay unlocks and no Infinity ability cooldowns. AI server changes still require your approval and live Codex approval.":"Code rejected, temporarily locked, or permissions could not be saved. Ask the owner if retrying later does not help.");})));
             var staff=Commands.literal("staff").requires(Memberships::admin);
             for(String action:List.of("kick","mute","unmute"))staff.then(Commands.literal(action).then(Commands.argument("player",EntityArgument.player()).executes(ctx->moderate(ctx.getSource(),EntityArgument.getPlayer(ctx,"player"),action))));

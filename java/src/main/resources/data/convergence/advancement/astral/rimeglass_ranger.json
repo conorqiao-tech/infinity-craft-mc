@@ -1,0 +1,28 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:packed_ice"
+    },
+    "title": {
+      "text": "Rime and Reason"
+    },
+    "description": {
+      "text": "Defeat a Rimeglass Ranger."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "verified": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "verified"
+    ]
+  ],
+  "parent": "convergence:astral/first_contact"
+}

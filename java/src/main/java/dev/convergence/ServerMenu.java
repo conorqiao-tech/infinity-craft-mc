@@ -52,6 +52,7 @@ final class ServerMenu {
     static final int COMMONS = 0;
     static final int PLAYER_WORKSHOP = 2;
     static final int ELEMENTAL_FORGE = 18;
+    static final int INFINI = 4, ASTRAL = 20;
     static final int PREVIOUS = 45, BACK = 49, NEXT = 53, PAGE_SIZE = 45;
     private static final String MARKER = "infinity_server_menu";
     private static final String OWNER = "owner";
@@ -207,10 +208,12 @@ final class ServerMenu {
             icon(view,COMMONS,Items.LANTERN,"Commons • Builder Exchange & Harvest Together","Working circuits, live delivery trials and a shared village pantry.","Earn permanent gifts, titles and original banners.");
             icon(view,PLAYER_WORKSHOP,Items.MAP,"Expedition Atlas & Pack Organizer","Permanent biome discoveries and Wayfinder rewards.","Review a safe sort of your main inventory.");
             icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
-            icon(view, 4, Items.RECOVERY_COMPASS, "Your tools, worlds and helpers",
-                "Held: " + player.getMainHandItem().getHoverName().getString(), "Tap an icon. No /convergence command needed.");
+            icon(view,INFINI,Items.SUNFLOWER,"Infini • wallet, styles & permanent ranks",
+                "Earn currency through the Astral Journal. Review exact purchases.","USD checkout is not connected; this menu only spends saved Infini.");
             icon(view,PROPHECY,Items.WRITTEN_BOOK,"The Odyssey • journal & prophecy","Discover three realms, track your ruins and claim gifts.","Recover your prophecy through the journal.");
             icon(view,ELEMENTAL_FORGE,Items.AMETHYST_SHARD,"Elemental Forge • armor, relics & runes","Choose Fire, Water, Earth or Air for your Elemental suit.","New Infinity Armor, four usable relics and five building styles.");
+            icon(view,ASTRAL,Items.ECHO_SHARD,"Astral Wilds • guardians & Keeper's tools",
+                "Three rare Odyssey guardians, three craftable tools, six advancements.","Discover recipes and earn Infini plus Astral Orbit.");
             icon(view, GEAR, Items.NETHERITE_SWORD, "Weapons, tools and blocks", "Choose any Infinity item.", "Requires Creative, Admin or OP2.", "Your old items are preserved.");
             icon(view, KIT, Items.CHEST, "Full Infinity kit", "All gear plus rockets and seeds.", "Requires Creative, Admin or OP2.");
             icon(view, BUILDING, Items.QUARTZ_BLOCK, "Building kit", "Building blocks and both wands.", "Requires Creative, Admin or OP4.");
@@ -268,8 +271,10 @@ final class ServerMenu {
                 lines.add("Complete all three, or use the Survival item trade.");
                 icon(view,slot,Items.EMERALD,goal.tier().name(),lines.toArray(String[]::new));slot+=2;
             }
-            icon(view,28,Items.GOLD_INGOT,"Optional USD/month plans","Go $50 • Plus $75 • Pro $100 • Ultra $200","Checkout is off until the owner connects Tebex.");
-            icon(view,30,Items.COMMAND_BLOCK,"ADMIN / OP4","Free owner-controlled access. Cannot be purchased or earned by viewing a menu.");
+            icon(view,28,Items.SUNFLOWER,"Open Infini wallet & supporter shop",
+                "30-day and permanent cosmetic plans; exact Infini review.","1 Infini costs $2 USD when checkout is connected. It is currently off.");
+            icon(view,30,Items.COMMAND_BLOCK,"ADMIN • separate owner approval",
+                "A funded application alone never grants operator permissions.","Review terms in the Infini shop; the owner must separately approve.","AI actions still require both owner and live Codex approvals.");
         } else if (page == Page.HELP) {
             title = "Infinity Controls";
             information(view, "Controls", Convergence.helpText());
@@ -368,7 +373,10 @@ final class ServerMenu {
                 else if(slot==22) { owner.closeContainer();ElementalForgeMenu.open(owner); }
                 return;
             }
+            if(page==Page.RANKS&&(slot==28||slot==30)){owner.closeContainer();InfiniShopMenu.open(owner);return;}
             if (page != Page.MAIN) return;
+            if(slot==INFINI){owner.closeContainer();InfiniShopMenu.open(owner);return;}
+            if(slot==ASTRAL){owner.closeContainer();AstralJournal.open(owner);return;}
             if(slot==COMMONS){owner.closeContainer();CommonsMenu.open(owner);return;}
             if(slot==PLAYER_WORKSHOP){owner.closeContainer();CommonsMenu.open(owner,CommonsMenu.Page.ATLAS);return;}
             if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}

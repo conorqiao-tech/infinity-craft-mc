@@ -206,14 +206,21 @@ public final class CommonsEvents {
         case 1->state(p).getBooleanOr("gift_0",false)?"DevDay Builder":"";
         case 2->state(p).getBooleanOr("gift_2",false)?"Harvest Guardian":"";
         case 3->state(p).getBooleanOr("gift_3",false)?"Wayfinder":"";default->"";};}
-    public static Component tabName(ServerPlayer p,Component previous){String title=title(p);return title.isEmpty()?previous:(previous==null?p.getDisplayName():previous).copy().append(Component.literal(" • "+title));}
+    public static Component tabName(ServerPlayer p,Component previous){
+        String earned=title(p),supporter=SupporterEffects.title(p);
+        if(earned.isEmpty()&&supporter.isEmpty())return previous;
+        var display=(previous==null?p.getDisplayName():previous).copy();
+        if(!earned.isEmpty())display.append(Component.literal(" • "+earned));
+        if(!supporter.isEmpty())display.append(Component.literal(" • "+supporter));
+        return display;
+    }
     static String tabText(ServerPlayer p){var name=p.getTabListDisplayName();return name==null?"":name.getString();}
     static void refreshTitle(ServerPlayer p){
         TAB_NAMES.put(p,tabText(p));
         p.level().getServer().getPlayerList().broadcastAll(new net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket(net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME,p));
     }
     static void refreshTitleIfChanged(ServerPlayer p){
-        if(title(p).isEmpty()&&!TAB_NAMES.containsKey(p))return;
+        if(title(p).isEmpty()&&SupporterEffects.title(p).isEmpty()&&!TAB_NAMES.containsKey(p))return;
         if(!Objects.equals(TAB_NAMES.get(p),tabText(p)))refreshTitle(p);
     }
     static void title(ServerPlayer p,int title){

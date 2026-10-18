@@ -33,7 +33,7 @@ final class GearCrates {
     static final List<String> EMBER_SET=List.of("ember_helmet","ember_chestplate","ember_leggings","ember_boots");
     static final List<String> ELEMENTAL_SET=List.of("elemental_helmet","elemental_chestplate","elemental_leggings","elemental_boots");
     static final List<String> INFINITY_SET=List.of("infinity_helmet","infinity_chestplate","infinity_leggings","infinity_boots");
-    private static final int CATALOG_REVISION=41;
+    private static final int CATALOG_REVISION=43;
     /** Real equipment goes into empty player slots; never replace or drop owned items. */
     static int giveDirect(ServerPlayer player) {
         if(!ServerMenu.gearAllowed(player)||player.containerMenu!=player.inventoryMenu

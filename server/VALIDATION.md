@@ -1,3 +1,35 @@
+# Astral Wilds, Infini and armor visibility — explore.43 candidate
+
+Validated with the unchanged **Minecraft 26.3 / Java 25** Fabric/Geyser/Via stack. **577/577 unique native GameTests** pass across **18 disposable groups**, bound to **743 Java source/resource files** and the exact production/test jars. **307/307 Python checks** pass with resource warnings treated as errors, zero skips. The playable Downloads server remains running explore.41 with its unchanged mod hash; no installation, live restart, terrain refresh, public release, main merge or website deployment occurred during this validation.
+
+This candidate includes the original armor visibility/pixel-art repair below, three native Odyssey guardian variants, three genuinely craftable/useable Astral tools, six durable advancements, 15 earnable Infini and the Astral Orbit. Cosmetic supporter passes/permanent grants share the exact configured USD/Infini catalogue with website source. Actual checkout is disconnected; no payment service, webhook or card billing is included. ADMIN purchases only create pending applications; exact owner-console approval, durable source ownership and safe native role removal remain separate from financial receipts and both AI approval gates.
+
+## Failures reproduced and corrected
+
+- The earlier iPad symptom has a real asset cause: helmets/leggings/Aurora sleeves were occluded by native skin clothing. All five original suit envelopes now clear wide/Slim outer skin. Twenty new icons and five worn atlases are original; ordinary leather, netherite and elytra stay unchanged. Packet transport proves equipment delivery, not engine rendering.
+- Native `/gamemode` changes previously left logical mode snapshots unchanged. Exact shop reviews and Riftspool anchors now also capture/recheck native game type. Stale sessions, worlds, cursors and changed wallets refuse safely.
+- Known terminal guardian removals could reserve a world's encounter allowance forever. Real native discard/unload tests now distinguish ended tombstones from living unloaded guardians; terminal removals release capacity without respawning a spent ruin.
+- Fabric's actual JOIN event fires before vanilla publishes its UUID lookup. An approved offline staff member therefore missed the initial native promotion. A verified, finally-cleared joining-player scope now applies and delivers permissions to the exact current connection; foreign/replaced sessions remain refused.
+- A deleted initialized wallet primary could look like a fresh economy. A forced/read-back initialized previous-state marker now makes ambiguous missing history fail closed. Exact receipt conservation, source-traced chargebacks and crash recovery are tested. Event and byte reservations preserve room for existing full refunds/staff returns; normal new-growth refusals do not pause intact wallets. No history is pruned.
+- Failed immediate form transport now clears both spending/journal authority and delayed delivery state, with no debit or server tick failure.
+- Test-only failures were also preserved and corrected: canonical macOS temporary paths, native head rotation in the crop ray fixture, serialized shared guardian-cap assertions, and shutdown pacing that unnecessarily delayed native saves after halt. The old hardcoded item-count assertion now verifies the complete canonical identity set. Final full reruns retain the actual behavioral checks and require clean exits; incomplete bootstrap/terminated probes were not counted as successes.
+
+## Crossplay and persistence evidence
+
+Fresh Geyser checks cover **66 catalogue identities** across **three protocols**: **255 hotbar selections**, **510 cursor/drop cases**, **594 stale Survival requests**, six Adventure/Spectator requests, three mixed ordinary batches and **5,427 response/resync codec packets**. Held controls retain **57 native ranged/shield/totem cases and 69 wire packets**. Armor transport independently passes all five suits/twenty pieces with **303 codec round trips**. A fresh supplementary Via/Fabric check accepts all 255 actual frames and refuses 198 oversized/255 Survival frames. Its separate receive-hook persistence scenario verifies **85 item/count pairs**, all 66 identities and **three genuine same-UUID saved reconnects**, preserving named/damaged gear, backpacks/storage and the observer's saved file. Supplementary scenarios each include their framework baseline and are not added to the 577 unique game-test total.
+
+Both fresh isolated full-stack startup/save/backup/restart/shutdown cycles pass. Final regular Geyser/lifecycle logs contain no ERROR records; native fixtures retain intentional refusal/error cases, dependency warnings and deprecation messages. Original armor42/Astral43 artwork validators and all historical texture hashes pass. Source and server ZIP integrity/checksum audits are required before delivery.
+
+Production mod SHA256: `7c8180df518ea357e9627a1d1771c7e2a8d9e91e17199945a76ae069fbd1fbb3`. Original native test jar: `8dfb3a0968fc72421ef4cbaff107d1802f4828bf588dab051a7aa7eb89c3de77`. Aggregate native report: `4940f70d05aa6b304e9d23c3a2ef469361c39f0a251321909ec996c70d22014d`.
+
+## Player acceptance and known limits
+
+Actual iPad/graphical Java rendering, touch feel and public multiplayer load remain unverified. After a separately approved installation and resource-pack acceptance, check all four armor slots in third-person/inventory while walking/crouching; try **Infinity Menu → Astral Wilds** and **Infini**. These guides are complete: [ARMOR_REPAIR.md](ARMOR_REPAIR.md), [ASTRAL_WILDS.md](ASTRAL_WILDS.md), [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md), [INFINI_ECONOMY.md](INFINI_ECONOMY.md), [ADMIN_ROLE_LIFECYCLE.md](ADMIN_ROLE_LIFECYCLE.md).
+
+The world encounter/history and numeric/client safety budgets remain. Missing externally deleted guardian data is not inferred from unloaded chunks. Deletion of every wallet/marker/backup cannot be detected as different from a genuinely new world. Full OP4 is trusted staff authority, not a tamperproof rental; independent later owner/OP grants survive paid expiry. No lag-proof, unlimited-engine or glitch-free claim is made.
+
+---
+
 # Armor visibility, original pixel art and admin tools — explore.42 candidate
 
 ## Reproduction and confirmed root cause

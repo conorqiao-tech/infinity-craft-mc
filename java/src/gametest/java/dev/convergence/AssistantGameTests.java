@@ -61,11 +61,11 @@ public class AssistantGameTests {
         var command=c.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild("subscribe");
         c.assertTrue(command!=null&&command.canUse(source),"Every player may read the subscription plan");
         var plans=answer(source,"How do I subscribe?");
-        for(var price:new String[]{"Go $50", "Plus $75", "Pro $100", "Ultra $200"})
-            c.assertTrue(plans.contains(price),"Every planned USD monthly price is visible");
+        for(var price:new String[]{"Go $15", "Plus $30", "Pro $50", "Ultra $100", "Go $25", "Plus $50", "Pro $100", "Ultra $200"})
+            c.assertTrue(plans.contains(price),"Confirmed pass and permanent USD prices match the catalogue");
         c.assertTrue(plans.contains("Checkout is unavailable")&&plans.contains("cannot charge you"),"Guide does not offer an unconfigured checkout");
-        c.assertTrue(plans.contains("Admin and OP are never sold"),"Supporter plans do not sell staff rights");
-        c.assertTrue(answer(source,"How much does Plus cost?").contains("Plus $75"),"Rank price questions show USD supporter prices");
+        c.assertTrue(plans.contains("purchase alone cannot grant OP")&&plans.contains("owner-console approval"),"Staff applications preserve independent owner approval");
+        c.assertTrue(answer(source,"How much does Plus cost?").contains("Plus $30"),"Rank price questions show configured USD prices");
         c.assertTrue(answer(source,"How much does trade rank-plus cost?").contains(RewardTrades.find("rank-plus").costText()),
             "Explicit item-trade questions retain their item costs");
         c.assertTrue(answer(source,"Are ranks free?").contains("permanent cosmetic badges"),"Free permanent unlocks remain clear");

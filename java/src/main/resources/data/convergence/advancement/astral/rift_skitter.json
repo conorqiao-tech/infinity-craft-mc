@@ -1,0 +1,28 @@
+{
+  "display": {
+    "icon": {
+      "id": "minecraft:ender_pearl"
+    },
+    "title": {
+      "text": "A Fold in the Dark"
+    },
+    "description": {
+      "text": "Defeat a Rift Skitter."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "verified": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "verified"
+    ]
+  ],
+  "parent": "convergence:astral/first_contact"
+}

@@ -1,3 +1,9 @@
+# Explore.43 source candidate
+
+This candidate combines the explore.42 armor repair with three native Odyssey guardian variants, three original craftable tools, six advancement rewards, earnable Infini and reviewed cosmetic/staff applications. Real-money checkout is disabled; the owner cancelled the payment-provider integration. The live server remains explore.41. See `server/ASTRAL_WILDS.md`, `server/SUBSCRIPTIONS.md` and `server/ARMOR_REPAIR.md`.
+
+All 577 native game tests and 307 Python checks pass; current crossplay, inventory persistence and lifecycle checks pass. Tested packages are prepared locally; this candidate is not installed. These source notes do not authorize live installation or claim iPad rendering success.
+
 # Armor visibility, fresh pixel artwork and admin tools — explore.42 candidate
 
 The current source candidate fixes player-skin layers covering all five custom armor sets, adds original matching worn textures and twenty inventory icons, and verifies native Geyser armor packets in all four equipment slots. Admin/OP4 Studio tools work in Survival; additional command shortcuts preserve native permissions. See `server/ARMOR_REPAIR.md` and `server/CREATIVE_STUDIO.md`. 528 native and 303 Python tests pass. This candidate requires a separately approved live installation; actual iPad rendering is not established by a source build.

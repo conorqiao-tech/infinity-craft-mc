@@ -291,11 +291,13 @@ public class Convergence implements ModInitializer {
       ExpandedGear.register();
       ElementalArmor.register();
       ElementalRelics.register();
+      AstralItems.registerItems();
       OdysseyStructure.register();
       ExpandedGear.registerEvents();
       BackpackStorage.registerItems();
       CrossplaySupport.register();
       CommunityServer.register();
+      InfiniEconomy.register();
       Memberships.register();
       GameModes.register();
       CreativeGearPicker.register();
@@ -310,6 +312,10 @@ public class Convergence implements ModInitializer {
       ElementalForgeMenu.register();
       CreativeStudio.register();
       CommonsEvents.register();
+      SupporterEffects.register();
+      AstralItems.registerLifecycle();
+      AstralWilds.register();
+      AstralJournal.register();
       RcPlanes.register();
       GearCrates.register();
       OdysseyProphecy.register();

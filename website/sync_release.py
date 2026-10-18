@@ -8,8 +8,8 @@ import sys
 import zipfile
 
 
-VERSION = "2.12.0-explore.20"
 ROOT = Path(__file__).resolve().parent
+VERSION = re.search(r"^mod_version=([^\s]+)$", (ROOT.parent / "java/gradle.properties").read_text(), re.M).group(1)
 MAP = {
     "server.zip": f"dist/lobbies/Infinity_Armor_Lobbies_Server_v{VERSION}.zip",
     "source.zip": f"dist/lobbies/Infinity_Armor_Lobbies_Source_v{VERSION}.zip",
@@ -18,6 +18,22 @@ MAP = {
     "lobbies.md": "server/LOBBIES.md",
     "memberships.md": "server/MEMBERSHIPS.md",
     "subscriptions.md": "server/SUBSCRIPTIONS.md",
+    "infini_economy.md": "server/INFINI_ECONOMY.md",
+    "admin_role_lifecycle.md": "server/ADMIN_ROLE_LIFECYCLE.md",
+    "astral_wilds.md": "server/ASTRAL_WILDS.md",
+    "armor_repair.md": "server/ARMOR_REPAIR.md",
+    "creative_studio.md": "server/CREATIVE_STUDIO.md",
+    "elemental_forge.md": "server/ELEMENTAL_FORGE.md",
+    "commons.md": "server/COMMONS.md",
+    "creative_inventory.md": "server/CREATIVE_INVENTORY.md",
+    "reliability.md": "server/RELIABILITY.md",
+    "original_artwork.md": "server/ORIGINAL_ARTWORK.md",
+    "experience_polish.md": "server/EXPERIENCE_POLISH.md",
+    "odyssey.md": "server/ODYSSEY.md",
+    "world_refresh.md": "server/WORLD_REFRESH.md",
+    "elytra_repair.md": "server/ELYTRA_REPAIR.md",
+    "contributors.md": "server/CONTRIBUTORS.md",
+    "holiday_updates.md": "server/HOLIDAY_UPDATES.md",
     "modes.md": "server/MODES.md",
     "rewards.md": "server/REWARDS.md",
     "trading.md": "server/TRADING.md",

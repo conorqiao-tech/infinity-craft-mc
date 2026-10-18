@@ -8,7 +8,7 @@
   "item.convergence.spear": "Infinity Spear",
   "item.convergence.ingot": "Infinity Ingot",
   "death.attack.convergence.combo": "%1$s was struck by an Infinity weapon",
-  "death.attack.convergence.combo.player": "%1$s was struck by %2$s\u2019s Infinity weapon",
+  "death.attack.convergence.combo.player": "%1$s was struck by %2$s’s Infinity weapon",
   "item.convergence.pickaxe": "Infinity Pickaxe",
   "item.convergence.axe": "Infinity Axe",
   "item.convergence.shovel": "Infinity Shovel",
@@ -68,5 +68,8 @@
   "item.convergence.air_lattice": "Air Lattice",
   "block.convergence.air_lattice": "Air Lattice",
   "item.convergence.infinity_prism": "Infinity Prism",
-  "block.convergence.infinity_prism": "Infinity Prism"
+  "block.convergence.infinity_prism": "Infinity Prism",
+  "item.convergence.starshard_lantern": "Starshard Lantern",
+  "item.convergence.riftspool": "Riftspool",
+  "item.convergence.keepers_trowel": "Keeper's Trowel"
 }

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " S ",
+    "PEP",
+    " A "
+  ],
+  "key": {
+    "S": "minecraft:string",
+    "P": "minecraft:ender_pearl",
+    "E": "minecraft:echo_shard",
+    "A": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "convergence:riftspool",
+    "count": 1
+  }
+}

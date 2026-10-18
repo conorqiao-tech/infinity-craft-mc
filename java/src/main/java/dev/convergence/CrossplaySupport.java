@@ -54,7 +54,8 @@ final class CrossplaySupport {
         "infinity_arrow", "void_arrow", "starfire_arrow");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
         "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff",
-        "firebrand", "tidecaller", "terra_gauntlet", "windstep");
+        "firebrand", "tidecaller", "terra_gauntlet", "windstep",
+        "starshard_lantern", "riftspool", "keepers_trowel");
 
     static boolean bedrock(ServerPlayer player) {
         var api=org.geysermc.floodgate.api.FloodgateApi.getInstance();
@@ -97,6 +98,7 @@ final class CrossplaySupport {
             BASES.put(path, ElementalArmor.baseItem(path));
         }
         for (String path : ElementalRelics.PATHS) BASES.put(path, ElementalRelics.BASES.get(path));
+        for (String path : AstralItems.PATHS) BASES.put(path, AstralItems.BASES.get(path));
         BASES.put("builder_wand",Items.BLAZE_ROD);
         BASES.put("sculptor_wand",Items.STICK);
         BASES.putAll(ExpandedGear.STUDIO_ITEMS);
@@ -173,6 +175,7 @@ final class CrossplaySupport {
         if (!name.startsWith("convergence:")) return 0;
         String path = name.substring("convergence:".length());
         if (ElementalRelics.PATHS.contains(path)) return ElementalRelics.cast(player);
+        if (AstralItems.PATHS.contains(path)) return AstralItems.use(player);
         if (!CreativeStudio.controlKind(player, player.getMainHandItem()).isEmpty()) {
             if (!CreativeStudio.allowed(player)) {
                 player.sendSystemMessage(Component.literal("This gadget requires Creative Studio access."));

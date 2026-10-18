@@ -1,0 +1,99 @@
+{
+  "format_version": 1,
+  "generation_tool": "image_gen.imagegen",
+  "generation_options": {
+    "transparent_background": true
+  },
+  "source": "source-sheet.png",
+  "source_size": [
+    2172,
+    724
+  ],
+  "source_sha256": "b838b0a42fdd7c0b0e55f1937644875f318c16fa65277349b7937ae320ee97b8",
+  "prompt": "prompt.txt",
+  "prompt_sha256": "61ae68fa27ad08c9833a189fc8bc982a2268f968055a39354dc51418f15cf37c",
+  "packer_sha256": "0c4a8adc8cd3582e761cdf307647d3f9c5e4d64b1f1c89a44241d2954d0a0230",
+  "processing": "Measured cell cropping; alpha threshold128; remove detached scraps<8source pixels; adaptive64-color palette; nearest-neighbor fit58inside64",
+  "items": {
+    "starshard_lantern": {
+      "label": "Starshard Lantern",
+      "size": [
+        64,
+        64
+      ],
+      "cell": [
+        0,
+        0,
+        724,
+        724
+      ],
+      "source_bounds_in_cell": [
+        128,
+        22,
+        598,
+        700
+      ],
+      "java_texture": "convergence:item/astral43/starshard_lantern",
+      "bedrock_texture": "textures/convergence/items/astral43/starshard_lantern"
+    },
+    "riftspool": {
+      "label": "Riftspool",
+      "size": [
+        64,
+        64
+      ],
+      "cell": [
+        724,
+        0,
+        1448,
+        724
+      ],
+      "source_bounds_in_cell": [
+        95,
+        69,
+        670,
+        657
+      ],
+      "java_texture": "convergence:item/astral43/riftspool",
+      "bedrock_texture": "textures/convergence/items/astral43/riftspool"
+    },
+    "keepers_trowel": {
+      "label": "Keeper's Trowel",
+      "size": [
+        64,
+        64
+      ],
+      "cell": [
+        1448,
+        0,
+        2172,
+        724
+      ],
+      "source_bounds_in_cell": [
+        55,
+        45,
+        698,
+        688
+      ],
+      "java_texture": "convergence:item/astral43/keepers_trowel",
+      "bedrock_texture": "textures/convergence/items/astral43/keepers_trowel"
+    }
+  },
+  "sha256": {
+    "java/src/main/resources/assets/convergence/textures/item/astral43/starshard_lantern.png": "4aa00d958852a7ba314943d4dca5adfaff5ae2b15ed246ed26f6530b3ec4703a",
+    "bedrock/resource_pack/textures/convergence/items/astral43/starshard_lantern.png": "4aa00d958852a7ba314943d4dca5adfaff5ae2b15ed246ed26f6530b3ec4703a",
+    "java/src/main/resources/assets/convergence/models/item/starshard_lantern.json": "ccc056a5a468cc86d585a4f258afaa1c1fa1bc9a51c9727de31757e2552d3b3e",
+    "java/src/main/resources/assets/convergence/items/starshard_lantern.json": "721f10d2902fa534580fb5343d024e32dcea29bff2423c6500289ccaf63cee31",
+    "java/src/main/resources/assets/convergence/textures/item/astral43/riftspool.png": "014d96d8c58d91b4a3470914159be37ac9b0dc2ca2d85c0aee9a9979a9c8e9fb",
+    "bedrock/resource_pack/textures/convergence/items/astral43/riftspool.png": "014d96d8c58d91b4a3470914159be37ac9b0dc2ca2d85c0aee9a9979a9c8e9fb",
+    "java/src/main/resources/assets/convergence/models/item/riftspool.json": "dc542d08b36e71ede63975ce5c4e21e2afd4fbfefec90b3642851adfc777a91e",
+    "java/src/main/resources/assets/convergence/items/riftspool.json": "f3766f1abdfb628eb7c524d6a5423c23fe764028940d107ecc2d02c6e0f020c0",
+    "java/src/main/resources/assets/convergence/textures/item/astral43/keepers_trowel.png": "54c533301d582200d3f8d1da7f927786437ca7ff7a02c830c569cb5a2d793966",
+    "bedrock/resource_pack/textures/convergence/items/astral43/keepers_trowel.png": "54c533301d582200d3f8d1da7f927786437ca7ff7a02c830c569cb5a2d793966",
+    "java/src/main/resources/assets/convergence/models/item/keepers_trowel.json": "9b6215a09ad8bae32857686e64b1fba5d2166f259d8851d5902129c8916e2ef6",
+    "java/src/main/resources/assets/convergence/items/keepers_trowel.json": "bc519941e234715472ac5548f4820262614dc15ebadae5d04091600b3a69a6f1",
+    "artwork/astral43/preview.png": "02effb486a8d76e8a8f2be453e1274afae481baddd3f637e1e353cada93a5304",
+    "artwork/astral43/bedrock-atlas-entries.json": "679bfd22bd15056e1adcf2e53833d7bd788c4433c24b06f3983fafa4cdcf70df"
+  },
+  "preview_is_client_capture": false
+}

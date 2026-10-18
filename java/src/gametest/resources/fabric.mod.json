@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.41",
+  "version": "2.13.0-explore.43",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -59,7 +59,12 @@
       "dev.convergence.TradeSessionGameTests",
       "dev.convergence.ElementalArmorGameTests",
       "dev.convergence.ElementalForgeMenuGameTests",
-      "dev.convergence.ElementalRelicGameTests"
+      "dev.convergence.ElementalRelicGameTests",
+      "dev.convergence.InfiniEconomyGameTests",
+      "dev.convergence.AstralGameTests",
+      "dev.convergence.SupporterEffectsGameTests",
+      "dev.convergence.PurchasedAdminRolesGameTests",
+      "dev.convergence.AstralRemovalGameTests"
     ]
   },
   "mixins": [
@@ -93,7 +98,10 @@
       "dev.convergence.LobbyArrivalGameTests",
       "dev.convergence.CommunityTeleportGameTests",
       "dev.convergence.ElementalRelicGameTests",
-      "dev.convergence.ElementalArmorGameTests"
+      "dev.convergence.ElementalArmorGameTests",
+      "dev.convergence.AstralGameTests",
+      "dev.convergence.PurchasedAdminRolesGameTests",
+      "dev.convergence.AstralRemovalGameTests"
     ]
   },
   "depends": {

@@ -48,25 +48,44 @@ final class OdysseyJournal {
         int realm=realmIndex(p);
         if(!ServerMenu.allowed(p)||p.isCreative()||realm<0||discovered(p,realm)
             ||(GameModes.current(p)!=GameModes.Mode.SURVIVAL&&GameModes.current(p)!=GameModes.Mode.HARDCORE))return false;
-        var world=p.level();var pos=p.blockPosition();
+        var ruin=loadedRuin(p.level(),p.blockPosition(),0);
+        return ruin!=null&&record(p,realm,p.blockPosition(),ruin.theme());
+    }
+    /** Pure bounded lookup: no player state changes, chunk requests, world generation or ticket creation. */
+    record LoadedRuin(String key,BlockPos center,net.minecraft.world.level.levelgen.structure.BoundingBox bounds,String theme){}
+    static LoadedRuin loadedRuin(net.minecraft.server.level.ServerLevel world,BlockPos pos,int radius){
+        if(radius<0||radius>32)return null;
         var ruin=world.registryAccess().lookupOrThrow(Registries.STRUCTURE).getOrThrow(OdysseyStructure.KEY).value();
-        // A FULL ticket can exist before its chunk future completes. Discovery must
-        // never wait for terrain; the normal journal tick retries incomplete chunks.
-        var source=world.getChunkSource();var local=source.getChunkNow(pos.getX()>>4,pos.getZ()>>4);
-        if(local==null)return false;
-        var references=new HashSet<Long>();references.add(local.getPos().pack());
-        for(long reference:local.getReferencesForStructure(ruin))references.add(reference);
+        var source=world.getChunkSource();int chunkRadius=(radius+15)/16;
+        var current=source.getChunkNow(pos.getX()>>4,pos.getZ()>>4);if(current==null)return null;
+        var readyChunks=new java.util.HashMap<Long,net.minecraft.world.level.chunk.LevelChunk>();readyChunks.put(current.getPos().pack(),current);
+        var references=new HashSet<Long>();
+        for(int x=(pos.getX()>>4)-chunkRadius;x<=(pos.getX()>>4)+chunkRadius;x++)for(int z=(pos.getZ()>>4)-chunkRadius;z<=(pos.getZ()>>4)+chunkRadius;z++){
+            var packed=new net.minecraft.world.level.ChunkPos(x,z).pack();
+            var local=readyChunks.get(packed);if(local==null)local=source.getChunkNow(x,z);if(local==null)continue;readyChunks.put(packed,local);
+            references.add(local.getPos().pack());
+            for(long reference:local.getReferencesForStructure(ruin))if(references.size()<256)references.add(reference);
+        }
+        LoadedRuin nearest=null;long best=Long.MAX_VALUE;
         for(long reference:references){
             var chunk=new net.minecraft.world.level.ChunkPos((int)reference,(int)(reference>>>32));
-            var ready=source.getChunkNow(chunk.x(),chunk.z());if(ready==null)continue;
-            var start=ready.getStartForStructure(ruin);
-            if(start==null||!start.isValid())continue;
-            for(var piece:start.getPieces())if(piece instanceof OdysseyStructure.Piece&&piece.getBoundingBox().isInside(pos)){
-                String biome=world.getBiome(pos).unwrapKey().orElseThrow().identifier().toString();
-                return record(p,realm,pos,OdysseyStructure.theme(biome));
+            var ready=readyChunks.get(reference);if(ready==null)ready=source.getChunkNow(chunk.x(),chunk.z());if(ready==null)continue;readyChunks.put(reference,ready);
+            var start=ready.getStartForStructure(ruin);if(start==null||!start.isValid())continue;
+            for(var piece:start.getPieces())if(piece instanceof OdysseyStructure.Piece){
+                var box=piece.getBoundingBox();
+                long dx=Math.max(0,Math.max((long)box.minX()-pos.getX(),(long)pos.getX()-box.maxX()));
+                long dy=Math.max(0,Math.max((long)box.minY()-pos.getY(),(long)pos.getY()-box.maxY()));
+                long dz=Math.max(0,Math.max((long)box.minZ()-pos.getZ(),(long)pos.getZ()-box.maxZ()));
+                long distance=dx*dx+dy*dy+dz*dz;if(distance>(long)radius*radius)continue;
+                var center=box.getCenter();if(!world.getWorldBorder().isWithinBounds(center))continue;
+                String key=world.dimension().identifier()+"@"+reference+"@"+box.minX()+","+box.minY()+","+box.minZ();
+                if(distance<best||distance==best&&(nearest==null||key.compareTo(nearest.key())<0)){
+                    String biome=world.getBiome(pos).unwrapKey().orElseThrow().identifier().toString();
+                    nearest=new LoadedRuin(key,center,box,OdysseyStructure.theme(biome));best=distance;
+                }
             }
         }
-        return false;
+        return nearest;
     }
     static List<ItemStack> reward(ServerPlayer p,int tier){
         if(tier==1)return List.of(new ItemStack(Items.ECHO_SHARD,8));
@@ -108,6 +127,8 @@ final class OdysseyJournal {
             tier<=3?"Discover "+tier+" different realms.":"Discover all realms and finish Memory Circuit and Laser Gate Dash.",
             tier==2?"Complete four-piece Tidewarden armor.":tier==3?"Odyssey Circuit Trident.":tier==4?"Odyssey Memory Mace.":"Eight echo shards.");
         CreativeStudio.icon(view,4,Items.WRITTEN_BOOK,"Receive or recover your prophecy","Your original book and the shrine's chest contents are preserved.");
+        CreativeStudio.icon(view,8,Items.END_ROD,"Astral Wilds • living guardians & tools",
+            "Rare native guardian variants defend old circuits.","Craft three Keeper's tools and earn six advancements plus Infini.");
         CreativeStudio.icon(view,6,Items.COMPASS,"Scan for a nearby circuit","Search loaded natural terrain within "+OdysseyCompass.RANGE+" blocks.","Creates or updates your native Odyssey compass.","Never generates distant terrain or grants journal progress.");
         var scores=GameModes.state(p).getCompoundOrEmpty("scores");
         CreativeStudio.icon(view,15,Items.CLOCK,"Trials for the final gift",
@@ -130,6 +151,7 @@ final class OdysseyJournal {
             if(slot==26){owner.closeContainer();ServerMenu.open(owner);}
             else if(slot==4){owner.closeContainer();OdysseyProphecy.give(owner,true);}
             else if(slot==6){owner.closeContainer();OdysseyCompass.scan(owner);}
+            else if(slot==8){owner.closeContainer();AstralJournal.open(owner);}
             else if(slot>=19&&slot<=22){owner.closeContainer();claim(owner,slot-18);open(owner);}
         }
     }

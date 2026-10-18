@@ -64,3 +64,6 @@ Four complete humanoid armor/backpack atlases, fresh registered gear sprites and
 ## Armor42 original pixel art
 
 The built-in image generation tool created the original five-set raster source retained at `artwork/armor42/source-sheet.png`, using the exact prompt in `artwork/armor42/prompt.txt`. No vanilla texture or other armor file was used as an input. `pack_art.py` mechanically crops and packs twenty item sprites and five opaque native UV atlases, with matching Java/Bedrock pixels. `manifest.json` and `validate.py` record and check source, prompt, packer, output hashes and active references. Historical source images and native Minecraft textures remain unchanged.
+# Astral Wilds original artwork (explore.43)
+
+Starshard Lantern, Riftspool and Keeper's Trowel icons were generated from an original art direction, then mechanically cropped, palette-packed and resized to pixel sprites. Source, exact prompt, packer, matching Java/Bedrock output checksums and provenance are in `artwork/astral43/`. Ordinary Minecraft artwork is unchanged. The item preview is a packed asset sheet, not a gameplay screenshot.

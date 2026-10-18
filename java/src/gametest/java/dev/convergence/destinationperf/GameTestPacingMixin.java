@@ -12,9 +12,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class GameTestPacingMixin {
     @Inject(method="waitUntilNextTick",at=@At("RETURN"))
     private void paceColdFixtures(CallbackInfo callback) {
-        if(!Boolean.getBoolean("infinity.gametest.paced"))return;
+        var server=(GameTestServer)(Object)this;
+        if(!server.isRunning()||!Boolean.getBoolean("infinity.gametest.paced"))return;
         long until=System.nanoTime()+50_000_000L;
-        while(!Thread.currentThread().isInterrupted()) {
+        while(server.isRunning()&&!Thread.currentThread().isInterrupted()) {
             long remaining=until-System.nanoTime();if(remaining<=0)return;
             LockSupport.parkNanos(remaining);
         }

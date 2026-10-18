@@ -43,3 +43,6 @@ item.convergence:infinity_helmet.name=Infinity Helmet
 item.convergence:infinity_chestplate.name=Infinity Chestplate
 item.convergence:infinity_leggings.name=Infinity Leggings
 item.convergence:infinity_boots.name=Infinity Boots
+item.convergence.starshard_lantern=Starshard Lantern
+item.convergence.riftspool=Riftspool
+item.convergence.keepers_trowel=Keeper's Trowel

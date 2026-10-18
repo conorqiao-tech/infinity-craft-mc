@@ -208,6 +208,15 @@
     },
     "convergence_infinity_prism": {
       "textures": "textures/convergence/blocks/elemental41/infinity_prism"
+    },
+    "convergence_starshard_lantern": {
+      "textures": "textures/convergence/items/astral43/starshard_lantern"
+    },
+    "convergence_riftspool": {
+      "textures": "textures/convergence/items/astral43/riftspool"
+    },
+    "convergence_keepers_trowel": {
+      "textures": "textures/convergence/items/astral43/keepers_trowel"
     }
   }
 }

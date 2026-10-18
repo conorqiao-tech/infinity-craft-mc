@@ -327,8 +327,13 @@ class LauncherTests(unittest.TestCase):
             self.skipTest("Generated crossplay mapping exports are unavailable in this source-only checkout")
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
-        self.assertEqual(len(definitions), 59)
-        self.assertEqual(len({entry["bedrock_identifier"] for entry in definitions}), 59)
+        catalogue = json.loads((exports / "infinity-catalogue.json").read_text())
+        native_fallbacks = {"chestplate", "infinity_arrow", "void_arrow", "starfire_arrow"}
+        expected_mapped = {entry["path"] for entry in catalogue["items"]} - native_fallbacks
+        self.assertEqual(len(definitions), len(expected_mapped))
+        self.assertEqual({entry["bedrock_identifier"].split(":")[-1] for entry in definitions}, expected_mapped)
+        self.assertTrue({"starshard_lantern", "riftspool", "keepers_trowel"}.issubset(expected_mapped),
+            "All three new original Astral tools must be in the actual native catalogue")
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
         static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember","elemental","infinity") for piece in ("helmet","chestplate","leggings","boots"))}
         mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}

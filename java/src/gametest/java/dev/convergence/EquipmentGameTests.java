@@ -63,7 +63,7 @@ public class EquipmentGameTests {
             c.assertTrue(p.getInventory().contains(gear("aurora_chestplate")),"Choosing another item preserves the previous chestplate");
             CreativeGearPicker.open(p);var next=(CreativeGearPicker.PickerHandler)p.containerMenu;
             next.clicked(53,0,ContainerInput.QUICK_MOVE,p);var page=(CreativeGearPicker.PickerHandler)p.containerMenu;
-            c.assertValueEqual(page.pageIndex,1,"All 63 registered items remain reachable through pagination");
+            c.assertValueEqual(page.pageIndex,1,"Every registered item remains reachable through pagination");
             page.clicked(CreativeGearPicker.CONVERGENCE,0,ContainerInput.PICKUP,p);
             var stale=(CreativeGearPicker.PickerHandler)p.containerMenu;p.setGameMode(GameType.SURVIVAL);
             var before=p.getMainHandItem().copy();stale.clicked(0,0,ContainerInput.PICKUP,p);

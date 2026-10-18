@@ -33,7 +33,8 @@
     "RcPlaneStateAccess",
     "RcPlaneTickMixin",
     "TntBudgetMixin",
-    "BlastRadiusMixin"
+    "BlastRadiusMixin",
+    "AdminOperatorProvenanceMixin"
   ],
   "injectors": {
     "defaultRequire": 1

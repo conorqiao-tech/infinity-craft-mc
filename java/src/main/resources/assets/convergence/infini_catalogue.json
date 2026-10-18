@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "pricesStatus": "CONFIGURED",
+  "paymentsEnabled": false,
+  "usdPerInfiniCents": 200,
+  "products": [
+    {
+      "id": "go_pass",
+      "title": "Go Supporter • 30 days",
+      "tier": "GO",
+      "term": "PASS",
+      "enabled": true,
+      "styleId": "supporter_go",
+      "usdCents": 1500,
+      "units": 750,
+      "staff": false
+    },
+    {
+      "id": "plus_pass",
+      "title": "Plus Supporter • 30 days",
+      "tier": "PLUS",
+      "term": "PASS",
+      "enabled": true,
+      "styleId": "supporter_plus",
+      "usdCents": 3000,
+      "units": 1500,
+      "staff": false
+    },
+    {
+      "id": "pro_pass",
+      "title": "Pro Supporter • 30 days",
+      "tier": "PRO",
+      "term": "PASS",
+      "enabled": true,
+      "styleId": "supporter_pro",
+      "usdCents": 5000,
+      "units": 2500,
+      "staff": false
+    },
+    {
+      "id": "ultra_pass",
+      "title": "Ultra Supporter • 30 days",
+      "tier": "ULTRA",
+      "term": "PASS",
+      "enabled": true,
+      "styleId": "supporter_ultra",
+      "usdCents": 10000,
+      "units": 5000,
+      "staff": false
+    },
+    {
+      "id": "go_lifetime",
+      "title": "Go Supporter • permanent",
+      "tier": "GO",
+      "term": "LIFETIME",
+      "enabled": true,
+      "styleId": "supporter_go",
+      "usdCents": 2500,
+      "units": 1250,
+      "staff": false
+    },
+    {
+      "id": "plus_lifetime",
+      "title": "Plus Supporter • permanent",
+      "tier": "PLUS",
+      "term": "LIFETIME",
+      "enabled": true,
+      "styleId": "supporter_plus",
+      "usdCents": 5000,
+      "units": 2500,
+      "staff": false
+    },
+    {
+      "id": "pro_lifetime",
+      "title": "Pro Supporter • permanent",
+      "tier": "PRO",
+      "term": "LIFETIME",
+      "enabled": true,
+      "styleId": "supporter_pro",
+      "usdCents": 10000,
+      "units": 5000,
+      "staff": false
+    },
+    {
+      "id": "ultra_lifetime",
+      "title": "Ultra Supporter • permanent",
+      "tier": "ULTRA",
+      "term": "LIFETIME",
+      "enabled": true,
+      "styleId": "supporter_ultra",
+      "usdCents": 20000,
+      "units": 10000,
+      "staff": false
+    },
+    {
+      "id": "admin_pass",
+      "title": "ADMIN application • 30 days after approval",
+      "tier": "NONE",
+      "term": "PASS",
+      "units": 12500,
+      "usdCents": 25000,
+      "enabled": true,
+      "styleId": "",
+      "staff": true
+    },
+    {
+      "id": "admin_lifetime",
+      "title": "ADMIN application • permanent after approval",
+      "tier": "NONE",
+      "term": "LIFETIME",
+      "units": 50000,
+      "usdCents": 100000,
+      "enabled": true,
+      "styleId": "",
+      "staff": true
+    }
+  ],
+  "admin": {
+    "enabled": true,
+    "requiresSeparateOwnerApproval": true,
+    "status": "Infini purchase opens a pending staff application. Only a separate actual-server-console owner approval can activate operator rights. Denial returns Infini after safe native role removal. USD checkout is not connected."
+  },
+  "unitsPerInfini": 100
+}

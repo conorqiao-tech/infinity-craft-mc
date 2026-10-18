@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " A ",
+    "GEG",
+    " A "
+  ],
+  "key": {
+    "A": "minecraft:amethyst_shard",
+    "G": "minecraft:glowstone_dust",
+    "E": "minecraft:echo_shard"
+  },
+  "result": {
+    "id": "convergence:starshard_lantern",
+    "count": 1
+  }
+}

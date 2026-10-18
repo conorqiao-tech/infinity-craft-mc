@@ -1,0 +1,35 @@
+{
+  "display": {
+    "icon": {
+      "id": "convergence:starshard_lantern"
+    },
+    "title": {
+      "text": "The Wild Circuit"
+    },
+    "description": {
+      "text": "Encounter a native Astral guardian at a loaded Odyssey ruin."
+    },
+    "frame": "task",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false,
+    "background": "minecraft:gui/advancements/backgrounds/end"
+  },
+  "criteria": {
+    "verified": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "verified"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "convergence:starshard_lantern",
+      "convergence:riftspool",
+      "convergence:keepers_trowel"
+    ]
+  }
+}

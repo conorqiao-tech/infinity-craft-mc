@@ -177,18 +177,19 @@ public final class ServerAssistant {
         var trade=RewardTrades.find("rank-"+goal.tier().name().toLowerCase(Locale.ROOT));
         return bounded(goal.tier()+" needs all three: "+String.join("; ",goal.milestones().stream().map(Memberships.Milestone::task).toList())+".",
             "Or unlock it permanently with /trade "+trade.id()+" confirm for "+trade.costText()+". /trade "+trade.id()+" previews without paying.",
-            "This rank is a cosmetic badge. Lower ranks are not prerequisites; it does not grant powers. /rank shows progress; /subscribe lists planned optional USD supporter prices.");
+            "This rank is a cosmetic badge. Lower ranks are not prerequisites; it does not grant powers. /rank shows progress; /subscribe opens the separate Infini supporter shop.");
     }
     static List<String> subscriptions() {
-        return bounded("Planned optional supporter subscriptions (USD/month): Go $50; Plus $75; Pro $100; Ultra $200.",
-            "Checkout is unavailable until the owner sets up Tebex. /subscribe shows information only and cannot charge you.",
-            "All modes and permanent cosmetic ranks remain free. Earn ranks through three achievements or Survival item trades; powers have separate free unlocks. Admin and OP are never sold.");
+        return bounded("Cosmetic supporter 30-day passes: "+InfiniShopMenu.priceSummary(false)+".",
+            "Permanent cosmetic supporter styles: "+InfiniShopMenu.priceSummary(true)+". Earn Infini through Astral Wilds; 1 Infini costs $2 USD when checkout is connected.",
+            "Checkout is unavailable for real USD. /subscribe spends only reviewed existing Infini and cannot charge you.",
+            "ADMIN applications require a separate exact owner-console approval; purchase alone cannot grant OP. All game modes and earned ranks remain free; AI actions keep both approvals.");
     }
     static List<String> ranks() {
-        return bounded("Free has every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic badges from three achievements per rank OR Survival item trades. Optional USD supporter plans are planned, but checkout is unavailable.",
+        return bounded("Free has every game mode. Go, Plus, Pro, and Ultra are permanent cosmetic badges from three achievements per rank OR Survival item trades. Optional supporter styles are separate; real USD checkout is unavailable.",
             "Go: stone pickaxe, iron ingot, monster kill. Plus: iron pickaxe, diamond, enchanted item.",
             "Pro: Nether, blaze rod, End. Ultra: Ender Dragon, End gateway, End city. Complete all three in the chosen group; lower groups are not prerequisites.",
-            "/rank shows progress; /ranks lists goals; /trades lists item alternatives; /subscribe shows planned prices. Powers and particle cosmetics have their own unlocks. Admin is a free owner-controlled role that grants full OP4 access.");
+            "/rank shows progress; /ranks lists goals; /trades lists item alternatives; /subscribe opens Infini. Powers have free unlocks. ADMIN requires independent owner approval and never comes automatically from payment.");
     }
     static List<String> trades(String q,Set<String> w) {
         for(var trade:RewardTrades.TRADES)if(w.contains(trade.id())||(trade.rank()!=null&&w.contains(trade.rank().name().toLowerCase(Locale.ROOT))))

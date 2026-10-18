@@ -1,0 +1,28 @@
+{
+  "display": {
+    "icon": {
+      "id": "convergence:riftspool"
+    },
+    "title": {
+      "text": "A Constellation of Your Own"
+    },
+    "description": {
+      "text": "Defeat all three guardians and successfully use all three Astral tools."
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "criteria": {
+    "verified": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "requirements": [
+    [
+      "verified"
+    ]
+  ],
+  "parent": "convergence:astral/first_contact"
+}

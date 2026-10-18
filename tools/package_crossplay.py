@@ -205,7 +205,7 @@ def archive(path, entries, prefix):
 def verified_armor_packets(root):
     """Require fresh native armor transport evidence without claiming rendering."""
     from verify_armor_equipment import digest, validate_receipt, validate_pack
-    receipt_path = root / "research/armor42/native-armor-packets.json"
+    receipt_path = root / "research/armor-equipment" / (VERSION + ".json")
     receipt = json.loads(receipt_path.read_text())
     validate_receipt(receipt)
     expected = ["tools/verify_armor_equipment.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java",
@@ -295,7 +295,8 @@ def main():
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
         "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "ELEMENTAL_FORGE.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "COMMONS.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "CONTRIBUTORS.md", "HOLIDAY_UPDATES.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
-        "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py"]}
+        "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py",
+        "ASTRAL_WILDS.md", "INFINI_ECONOMY.md", "ADMIN_ROLE_LIFECYCLE.md"]}
     for pin in sorted((server / "setup").glob("*.txt")):
         entries["setup/" + pin.name] = pin.read_bytes()
     for file in lock["bundled"]:
@@ -351,7 +352,7 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/armor42", "artwork/odyssey", "geyser-extension/src", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/armor42", "artwork/astral43", "artwork/odyssey", "geyser-extension/src", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
