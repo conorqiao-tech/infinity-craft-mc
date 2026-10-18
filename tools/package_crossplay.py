@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import re
+import runpy
 import shutil
 import xml.etree.ElementTree as ET
 import zipfile
@@ -229,6 +230,7 @@ def main():
                         help="Build in a separate folder without overwriting the original mod-release packages")
     options = parser.parse_args()
     verify_odyssey()
+    runpy.run_path(str(ROOT / "artwork/relic44/validate.py"), run_name="__main__")
     report = ROOT / "research/integration/results.xml"
     tests = list(ET.parse(report).getroot().iter("testcase"))
     assert len(tests) == expected_native_tests() and all(t.find("failure") is None and t.find("error") is None and t.find("skipped") is None for t in tests)
@@ -312,6 +314,8 @@ def main():
     entries.update(persistence_entries)
     entries.update(verified_armor_packets(ROOT))
     entries["ARMOR_REPAIR.md"] = (server / "ARMOR_REPAIR.md").read_bytes()
+    entries["ARMOR_VISIBILITY_REPAIR.md"] = (server / "ARMOR_VISIBILITY_REPAIR.md").read_bytes()
+    entries["RELIC_ART.md"] = (server / "RELIC_ART.md").read_bytes()
     capacity_checks = ROOT / "research/capacity-performance" / VERSION
     if capacity_checks.exists():
         from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
@@ -352,13 +356,13 @@ def main():
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
     archive(server_archive, entries, "Infinity_Armor_Lobbies_Server")
     source = {"server/" + k: v for k, v in entries.items()}
-    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/armor42", "artwork/astral43", "artwork/odyssey", "geyser-extension/src", "vendor"]:
+    for directory in ["java/src", "java/gradle", "bedrock/resource_pack", "artwork/refresh19", "artwork/refresh27", "artwork/elemental41", "artwork/armor42", "artwork/astral43", "artwork/relic44", "artwork/odyssey", "geyser-extension/src", "vendor"]:
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
-        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
+        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()

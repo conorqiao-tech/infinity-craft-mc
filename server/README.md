@@ -1,4 +1,12 @@
-# Bedrock armor visibility repair for explore.43
+# Explore.44 candidate • armor render views and Elemental relic art
+
+This source combines the focused Bedrock armor visibility repair with original
+pixel-art redraws for Windstep, Firebrand, Tidecaller and Terra Gauntlet. Names,
+recipes and powers stay the same. See [Relic artwork](RELIC_ART.md) and
+[Armor visibility](ARMOR_VISIBILITY_REPAIR.md). The live server remains
+explore.43; a source build does not install this candidate.
+
+## Bedrock armor visibility repair for explore.43
 
 The owner installed explore.43 and reported that only the chest sleeves render
 on iPad. The focused [visibility repair](ARMOR_VISIBILITY_REPAIR.md) changes the

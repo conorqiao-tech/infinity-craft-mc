@@ -1,3 +1,74 @@
+# Armor views, held totem and relic artwork — explore.44 candidate
+
+This candidate uses the unchanged **Minecraft 26.3 / Java 25** Fabric/Geyser/Via
+stack. A fresh full native run passed **577/577 unique GameTests across 18
+isolated groups**, bound to **747 Java source/resource files** and the exact
+production/test jars. The final complete Python run passed **339/339 tests**
+with resource warnings treated as errors and no skips.
+
+The armor repair replaces the shared non-arm perspective predicate while
+preserving equipment-slot and item-identity guards. Regression checks cover
+source and prepared assets, all forty armor identities and both backpacks,
+first-person, third-person, inventory UI and held-item exclusions. The owner's
+actual explore.43 screenshot reproduced the sleeves-only symptom; the repaired
+client query values and rendered pixels have **not** yet been checked on iPad.
+The linked [ARMOR_VISIBILITY_REPAIR.md](ARMOR_VISIBILITY_REPAIR.md) documents
+the earlier focused explore.43r1 resource patch. Its resource-only installation
+steps do not apply to this full explore.44 package.
+
+The prepared pack excludes only the canonical and Creative-alias Infinity
+Totem's custom held attachables. Its original sprite, atlas entry, identities,
+offhand permission and native totem behavior remain. This removes the unverified
+custom grip used by the affected floating item and uses
+normal Bedrock sprite placement; the actual hand position and activation
+appearance still require a device check. Bow, crossbow and shield assets remain.
+
+Four independently generated original sprites replace the active Windstep,
+Firebrand, Tidecaller and Terra Gauntlet references on both editions. Retained
+source images, exact prompts, packing code, hashes and actual 16/64/128-pixel
+previews are in `artwork/relic44/`. All 373 historical PNGs and 24 protected
+texture-hash entries remain unchanged. All 301 production Java class files are
+byte-identical to explore.43; version metadata and four texture references are
+updated and four new textures are added. No gameplay capability was removed.
+
+Fresh Geyser checks pass **66 catalogue identities across three protocols**, 255
+hotbar selections, 510 cursor/drop cases, 594 stale Survival requests, six
+Adventure/Spectator requests, three mixed ordinary batches and 5,427 response/
+resync packets. Existing held controls pass 57 native cases and 69 wire packets.
+Fresh synthetic armor transport passes **303 codec round trips** for all twenty
+pieces across five sets and three protocols; this is transport, not rendering.
+The supplemental native wire check accepts 255 real inbound hotbar frames and
+refuses 198 overflow and 255 Survival frames. Separate native persistence checks
+save/read **85 item/count pairs across all 66 identities**, receive 255 real
+frames and complete **three genuine same-UUID reconnects**. Both isolated
+full-stack startup/save/backup/restart/shutdown cycles pass. Final Geyser and
+lifecycle logs contain no ERROR records; native fixtures retain intentional
+refusal/error cases and dependency/context warnings.
+
+An intermediate packaging check correctly refused a stale inventory-proof
+receipt after the final Geyser capture changed. The wire and persistence
+scenarios were genuinely rerun against the final pack and their hashes verified
+before the final passing Python suite. No evidence gate was weakened.
+
+Production mod SHA256: `d838aa51e3a0763e89406ab897ec2198b961938f63c335e9d1a71f0ad5a16929`.
+Prepared pack SHA256: `6ca8313c70da565c2a4be88be26b1fa777fb611c3af12903a4883faefb005623`.
+Pack/module revision: `[2,13,44000]`.
+
+The existing Convergence winged chest item still combines armor protection,
+native flight and set powers. Java retains its armor and wing layers. On iPad,
+the item keeps native elytra artwork to preserve real flight and normal ordinary
+elytras; a custom visible armor torso plus wings on that same Bedrock item is
+**not** provided by this repair. See [RELIC_ART.md](RELIC_ART.md).
+
+The live server remains **explore.43** during this validation. Its world, player
+files, private settings and terrain have not been changed. A separately approved
+backup/install/restart and resource-pack acceptance must precede checking all
+four armor pieces, the held totem in both hands/views, new relic art and winged
+chestplate flight on the owner's iPad. No authenticated client rendering,
+public multiplayer load or glitch-free result is claimed.
+
+---
+
 # Bedrock render views — explore.43 resource repair r1
 
 Explore.43 is installed and running under the owner's earlier approval. Its

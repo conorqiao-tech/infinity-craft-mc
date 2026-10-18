@@ -8,10 +8,10 @@ import shutil
 import uuid
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
-from crossplay_resources import resource_version, vanilla_equipment_override
+from crossplay_resources import NATIVE_SPRITE_ATTACHABLES, resource_version, vanilla_equipment_override
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.43"
+VERSION = "2.13.0-explore.44"
 
 
 def expected_native_tests():
@@ -57,7 +57,7 @@ def prepare():
     for name in list(files):
         # Do not replace ordinary armor or elytra assets. Native Bedrock flight
         # intentionally keeps the engine's elytra appearance and animations.
-        if vanilla_equipment_override(name):
+        if vanilla_equipment_override(name) or name in NATIVE_SPRITE_ATTACHABLES:
             del files[name]
             continue
         # Only item-specific original armor/tools.

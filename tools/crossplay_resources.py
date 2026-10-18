@@ -20,6 +20,13 @@ ELYTRA_OVERRIDES = frozenset({
 # so the next full release always supersedes this release's repairs.
 RESOURCE_REPAIRS = {(2, 13, 43): 1}
 
+# The totem's original sprite uses Bedrock's ordinary item grip. Its authored
+# attachable poses float away from the owner's hand on iPad. Keep these legacy
+# generator outputs in source, but never activate them in the crossplay pack.
+NATIVE_SPRITE_ATTACHABLES = frozenset({
+    "attachables/held/totem.json", "attachables/held/catalog_totem.json",
+})
+
 
 def vanilla_equipment_override(name):
     return (name in ELYTRA_OVERRIDES

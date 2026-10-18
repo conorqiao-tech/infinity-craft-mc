@@ -183,16 +183,16 @@
       "textures": "textures/convergence/items/armor42/infinity_boots"
     },
     "convergence_firebrand": {
-      "textures": "textures/convergence/items/elemental41/firebrand"
+      "textures": "textures/convergence/items/relic44/firebrand"
     },
     "convergence_tidecaller": {
-      "textures": "textures/convergence/items/elemental41/tidecaller"
+      "textures": "textures/convergence/items/relic44/tidecaller"
     },
     "convergence_terra_gauntlet": {
-      "textures": "textures/convergence/items/elemental41/terra_gauntlet"
+      "textures": "textures/convergence/items/relic44/terra_gauntlet"
     },
     "convergence_windstep": {
-      "textures": "textures/convergence/items/elemental41/windstep"
+      "textures": "textures/convergence/items/relic44/windstep"
     },
     "convergence_ember_crystal": {
       "textures": "textures/convergence/blocks/elemental41/ember_crystal"

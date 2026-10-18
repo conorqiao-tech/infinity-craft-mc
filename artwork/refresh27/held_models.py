@@ -22,6 +22,11 @@ These are held-item resources, not replacements for launched arrow entities or
 the Bedrock native totem activation animation. Owned shield poses follow
 Geyser's mainhand blocking priority; ordinary offhand shield render predicates
 remain native and require a mixed-hand device check.
+
+The historical totem poses remain reproducible here. Crossplay preparation
+intentionally excludes both totem attachables: its custom atlas sprite instead
+uses the engine's normal item placement after the owner's iPad showed a floating
+held model. Bow, crossbow and shield attachables remain active.
 """
 from __future__ import annotations
 

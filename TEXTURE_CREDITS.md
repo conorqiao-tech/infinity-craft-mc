@@ -67,3 +67,13 @@ The built-in image generation tool created the original five-set raster source r
 # Astral Wilds original artwork (explore.43)
 
 Starshard Lantern, Riftspool and Keeper's Trowel icons were generated from an original art direction, then mechanically cropped, palette-packed and resized to pixel sprites. Source, exact prompt, packer, matching Java/Bedrock output checksums and provenance are in `artwork/astral43/`. Ordinary Minecraft artwork is unchanged. The item preview is a packed asset sheet, not a gameplay screenshot.
+
+## Elemental relic redraws (explore.44)
+
+The built-in image-generation tool independently authored four transparent
+sources for Windstep, Firebrand, Tidecaller and Terra Gauntlet. Exact prompts
+and original sources are in `artwork/relic44/`; no vanilla artwork or other item
+image was used as input. Mechanical cropping, binary alpha, palette reduction
+and nearest-neighbor scaling produce matching Java/Bedrock pixels. The manifest
+and validator preserve source/output hashes and historical artwork. Previews
+show actual packed sprites at inventory sizes, not captured gameplay.

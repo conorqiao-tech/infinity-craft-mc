@@ -77,10 +77,14 @@ class HeldArtworkTests(unittest.TestCase):
 
     def test_prepared_pack_contains_exact_models_textures_and_animation_closure(self):
         with zipfile.ZipFile(ROOT / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
-            resources = {name: json.loads(pack.read(name)) for name in HELD.encoded_resources()}
-            self.assertEqual(HELD.validate(resources), {"files":14,"attachables":8,"geometries":12,"animations":11,"render_controllers":4})
+            excluded = {"attachables/held/totem.json", "attachables/held/catalog_totem.json"}
+            self.assertEqual(HELD.validate(), {"files":14,"attachables":8,"geometries":12,"animations":11,"render_controllers":4})
+            resources = {name: json.loads(pack.read(name)) for name in HELD.encoded_resources() if name not in excluded}
             for name, data in HELD.encoded_resources().items():
-                self.assertEqual(pack.read(name), data, name)
+                if name in excluded:
+                    self.assertNotIn(name, pack.namelist(), "Both totem identities use the native item grip")
+                else:
+                    self.assertEqual(pack.read(name), data, name)
             for name, body in resources.items():
                 if not name.startswith("attachables/"):
                     continue
@@ -89,6 +93,18 @@ class HeldArtworkTests(unittest.TestCase):
                 for key, texture in desc["textures"].items():
                     if key != "enchanted":
                         self.assertEqual(pack.read(texture+".png"), (BED / (texture+".png")).read_bytes())
+
+    def test_totem_keeps_original_sprite_without_the_floating_custom_hand_pose(self):
+        with zipfile.ZipFile(ROOT / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
+            for name in ("totem", "catalog_totem"):
+                self.assertNotIn("attachables/held/" + name + ".json", pack.namelist())
+            atlas = json.loads(pack.read("textures/item_texture.json"))["texture_data"]
+            texture = atlas["convergence_totem"]["textures"] + ".png"
+            self.assertEqual(texture, "textures/convergence/items/refresh27/totem.png")
+            self.assertEqual(pack.read(texture), (BED / texture).read_bytes())
+            self.assertEqual(hashlib.sha256(pack.read(texture)).hexdigest(),
+                             "ab956fc7078316b61ebf2125b0a255824a620b4ea088ef40ebe7aa154b36dd71")
+            self.assertNotIn("attachables/totem_of_undying.json", pack.namelist(), "Ordinary native totems are not overridden")
 
     def test_missing_geometry_animation_controller_or_wrong_namespace_is_rejected(self):
         for target in ("geometry", "animation", "controller", "namespace"):

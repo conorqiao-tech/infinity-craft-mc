@@ -1,0 +1,231 @@
+{
+  "format_version": 1,
+  "generation_tool": "image_gen.imagegen",
+  "generation_options": {
+    "transparent_background": true
+  },
+  "processing": {
+    "alpha_threshold": 128,
+    "palette_max_colors": 32,
+    "palette_method": "RGB MEDIANCUT, no dithering",
+    "crop": "opaque alpha bounding box; no component removal",
+    "fit_box": [
+      56,
+      56
+    ],
+    "canvas": [
+      64,
+      64
+    ],
+    "resampling": "NEAREST"
+  },
+  "items": {
+    "windstep": {
+      "label": "Windstep",
+      "source": "artwork/relic44/sources/windstep.png",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "source_bounds": [
+        206,
+        67,
+        1207,
+        1187
+      ],
+      "fitted_size": [
+        50,
+        56
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "pixel_bounds": [
+        7,
+        4,
+        57,
+        60
+      ],
+      "opaque_pixels": 1201,
+      "opaque_colors": 32,
+      "java_texture": "convergence:item/relic44/windstep",
+      "bedrock_texture": "textures/convergence/items/relic44/windstep"
+    },
+    "firebrand": {
+      "label": "Firebrand",
+      "source": "artwork/relic44/sources/firebrand.png",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "source_bounds": [
+        256,
+        98,
+        1091,
+        1174
+      ],
+      "fitted_size": [
+        43,
+        56
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "pixel_bounds": [
+        10,
+        4,
+        53,
+        60
+      ],
+      "opaque_pixels": 853,
+      "opaque_colors": 30,
+      "java_texture": "convergence:item/relic44/firebrand",
+      "bedrock_texture": "textures/convergence/items/relic44/firebrand"
+    },
+    "tidecaller": {
+      "label": "Tidecaller",
+      "source": "artwork/relic44/sources/tidecaller.png",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "source_bounds": [
+        75,
+        64,
+        1194,
+        1202
+      ],
+      "fitted_size": [
+        55,
+        56
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "pixel_bounds": [
+        4,
+        4,
+        59,
+        60
+      ],
+      "opaque_pixels": 1744,
+      "opaque_colors": 32,
+      "java_texture": "convergence:item/relic44/tidecaller",
+      "bedrock_texture": "textures/convergence/items/relic44/tidecaller"
+    },
+    "terra_gauntlet": {
+      "label": "Terra Gauntlet",
+      "source": "artwork/relic44/sources/terra_gauntlet.png",
+      "source_size": [
+        1254,
+        1254
+      ],
+      "source_bounds": [
+        115,
+        125,
+        1200,
+        1199
+      ],
+      "fitted_size": [
+        56,
+        55
+      ],
+      "size": [
+        64,
+        64
+      ],
+      "pixel_bounds": [
+        4,
+        4,
+        60,
+        59
+      ],
+      "opaque_pixels": 1747,
+      "opaque_colors": 32,
+      "java_texture": "convergence:item/relic44/terra_gauntlet",
+      "bedrock_texture": "textures/convergence/items/relic44/terra_gauntlet"
+    }
+  },
+  "sha256": {
+    "artwork/relic44/exact-prompts.json": "c4d5c4182e1889387552e6ffaae74eba6b40d49129056dc5d198e7010821f380",
+    "artwork/relic44/pack_art.py": "d439c1df6786579c63c50b216c9c6c880139cf82b1b11e87c5576c822e3be9de",
+    "artwork/relic44/validate.py": "814535b3fbe7f57e2eaa54866a0fb1c45810e6e01d6200f7801385c14652e850",
+    "artwork/relic44/README.md": "e56cc03e0abfe052539c0c3f7b2a31cb32124992952299bcabc06047aaba5874",
+    "artwork/relic44/sources/windstep.png": "c258259d38f73c38992a5c3cd7bbda9f3dad926ac0175e4e457bd0175ddc79af",
+    "artwork/relic44/sources/firebrand.png": "b98c6bfc4d8ecbbdfacd33d38d0a76f37ef53df9604607149d0ebfa00d412f5d",
+    "artwork/relic44/sources/tidecaller.png": "275c3812b547e1db1fd72c327b9d44cb5295bcb9ef5c5156a97322644b2bda57",
+    "artwork/relic44/sources/terra_gauntlet.png": "f6bceeb42a41cd8b267eb2585b113f6b61dbdbf67505d86fb364223c358f47bd",
+    "java/src/main/resources/assets/convergence/textures/item/relic44/windstep.png": "b741f2c6517069b98baa00ed9745748a4989314933cc1f73d674255889d4b766",
+    "bedrock/resource_pack/textures/convergence/items/relic44/windstep.png": "b741f2c6517069b98baa00ed9745748a4989314933cc1f73d674255889d4b766",
+    "java/src/main/resources/assets/convergence/textures/item/relic44/firebrand.png": "9cd84f28021156be680e00f27816e5fa2b87e037ba76d7598818ad77497959ae",
+    "bedrock/resource_pack/textures/convergence/items/relic44/firebrand.png": "9cd84f28021156be680e00f27816e5fa2b87e037ba76d7598818ad77497959ae",
+    "java/src/main/resources/assets/convergence/textures/item/relic44/tidecaller.png": "3a5ff516ddbd8d57b8702a398122802297496e5de3fa0f551e3498714920d206",
+    "bedrock/resource_pack/textures/convergence/items/relic44/tidecaller.png": "3a5ff516ddbd8d57b8702a398122802297496e5de3fa0f551e3498714920d206",
+    "java/src/main/resources/assets/convergence/textures/item/relic44/terra_gauntlet.png": "23d9dd5f1712eba214eda02b384a71bc7e0cfe5ed49eaab985e03f9309f8e6c8",
+    "bedrock/resource_pack/textures/convergence/items/relic44/terra_gauntlet.png": "23d9dd5f1712eba214eda02b384a71bc7e0cfe5ed49eaab985e03f9309f8e6c8",
+    "artwork/relic44/preview-64.png": "5319a4438af4efaef11cce8edead4ac2e20f627b3e3689dcc5ea66abefb75b34",
+    "artwork/relic44/preview-128.png": "e56000124f94f88c79389bb4be0b85fa1d5510a8c00f86617a3212bc3f99aee2",
+    "artwork/relic44/preview-16.png": "39b736ba9ae530a8be5b4825594791218480f8b970e55bd8aa6733dccd074a29",
+    "java/src/main/resources/assets/convergence/models/item/windstep.json": "1a9dbd669730c7d99eb629353e3e5ab902dab8181d77666c4e8dacf5bcffa481",
+    "java/src/main/resources/assets/convergence/models/item/firebrand.json": "f5d99a4b8cb2595f6928e49930881b0a5d74865b704027d2aba085b012ad531f",
+    "java/src/main/resources/assets/convergence/models/item/tidecaller.json": "e3b8a3edaf6fb6b29ae04e8be5a26beb0672a838ef340427a0744666bff63bea",
+    "java/src/main/resources/assets/convergence/models/item/terra_gauntlet.json": "a8da5a91830578f33850c87bb0b005601a0950ba1f81faa02f6b0f0c3a1371b4",
+    "bedrock/resource_pack/textures/item_texture.json": "851f4e248a876d86bb20e59bc6292b8e92f4f551226fe28efd9262dc6c1cb773"
+  },
+  "preserved_sha256": {
+    "java/src/main/java/dev/convergence/ElementalRelics.java": "e9c9bb027d44c3217b6750948f53e8465705c9ae57d646afb05ac0d3874a3969",
+    "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "9d37b10a34fc344e9a9a128f8771de1c4749077097a182c389c5ac37040bfc7b",
+    "java/src/main/java/dev/convergence/GearNames.java": "45c473150255494b16b8bf22ae2e0d0d5068af7cc3ad89881678006c7fbbfd63",
+    "java/src/main/java/dev/convergence/CrossplaySupport.java": "ccbb21fcfdec9d6d0cf3a25d7559f30b731cd2736acfaf2c109417627143a666",
+    "java/src/main/resources/assets/convergence/lang/en_us.json": "ff35b727a3176472b2afcbd117bc29d93262b80bdee4d2ad9ca8492b0786abef",
+    "java/src/main/resources/assets/convergence/items/windstep.json": "3a0872ef05f8b7a8bb3c47110abf9692db947511ffdb4005f463b98b8ab0ccca",
+    "java/src/main/resources/data/convergence/recipe/windstep.json": "fb7da1a5784e8d6c55a3d8c6cb5e4f8a019abc55a1e162b897a05bb20b152f5c",
+    "java/src/main/resources/data/convergence/advancement/recipes/elemental41/windstep.json": "d3955b36930226bd769a97600f531db9013758798fdb1609da5c88b07c8d14ef",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/windstep.png": "5e1d695e8847d58e4d23246373bcdc49028a4dc9e042c692d031434ead8b4102",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/windstep.png": "5e1d695e8847d58e4d23246373bcdc49028a4dc9e042c692d031434ead8b4102",
+    "java/src/main/resources/assets/convergence/items/firebrand.json": "65694467d7e4c828835459ef411b6ddc36882cbdb568f918158c2d7fb5bdf20c",
+    "java/src/main/resources/data/convergence/recipe/firebrand.json": "04076c6a21af865f8310a6b022f93b6389192ef5b2867fb04eb69586ddc21895",
+    "java/src/main/resources/data/convergence/advancement/recipes/elemental41/firebrand.json": "63a43ff72c33e7740f383535df1dd79a6e63ae0a91e2517ea765904136e08448",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/firebrand.png": "a2f57211b929c4a0532d6771f5b100eb705461a02d7e7a551d9209609c11a52a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/firebrand.png": "a2f57211b929c4a0532d6771f5b100eb705461a02d7e7a551d9209609c11a52a",
+    "java/src/main/resources/assets/convergence/items/tidecaller.json": "112ef1ef44df979fd9420a7ef8b010f06975208c54058e8505f77298845b413e",
+    "java/src/main/resources/data/convergence/recipe/tidecaller.json": "27585c40e10ce0458f3f9550c8906d4e33623601542353b94d2db52c2f4107ce",
+    "java/src/main/resources/data/convergence/advancement/recipes/elemental41/tidecaller.json": "87cbc9e641ee319cdb5782258e4c46c78dc7e8155fb065ea90b2ee2c14c52b29",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/tidecaller.png": "1dcb10e16785f5335ff627738e46098cd21fb2886d9ad3775ae6fe473b1ea46a",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/tidecaller.png": "1dcb10e16785f5335ff627738e46098cd21fb2886d9ad3775ae6fe473b1ea46a",
+    "java/src/main/resources/assets/convergence/items/terra_gauntlet.json": "6a1767848f31d6c911cbeb579c470e6896c07defc508e3641df1a9a6fc861537",
+    "java/src/main/resources/data/convergence/recipe/terra_gauntlet.json": "8d131f66b694de3178b6f1127c5c881b58c7867cdc7a0bdfcd6c388b11d44649",
+    "java/src/main/resources/data/convergence/advancement/recipes/elemental41/terra_gauntlet.json": "5f09f2ddbca059662829dfe10ce23fa7cb4f093ba4b8721087aa3c6320892e21",
+    "java/src/main/resources/assets/convergence/textures/item/elemental41/terra_gauntlet.png": "841c46a4ed39cf7b84c92c88b68e8502dffe44d59f873d53ad9c1e6fdd5aaa2e",
+    "bedrock/resource_pack/textures/convergence/items/elemental41/terra_gauntlet.png": "841c46a4ed39cf7b84c92c88b68e8502dffe44d59f873d53ad9c1e6fdd5aaa2e"
+  },
+  "reference_remainders_sha256": {
+    "bedrock/resource_pack/textures/item_texture.json": "a1ec79ebbf590dbab65e2f9b374b7c1fe179cf4f6bb40692661e8a745df89ce3",
+    "java/src/main/resources/assets/convergence/models/item/windstep.json": "9b9ef04cb728e6ce8e603330202164160e309319c54b7f2c3aeb70b4b6fbea9a",
+    "java/src/main/resources/assets/convergence/models/item/firebrand.json": "9b9ef04cb728e6ce8e603330202164160e309319c54b7f2c3aeb70b4b6fbea9a",
+    "java/src/main/resources/assets/convergence/models/item/tidecaller.json": "9b9ef04cb728e6ce8e603330202164160e309319c54b7f2c3aeb70b4b6fbea9a",
+    "java/src/main/resources/assets/convergence/models/item/terra_gauntlet.json": "9b9ef04cb728e6ce8e603330202164160e309319c54b7f2c3aeb70b4b6fbea9a"
+  },
+  "preview_order": [
+    "windstep",
+    "firebrand",
+    "tidecaller",
+    "terra_gauntlet"
+  ],
+  "preview_background": [
+    12,
+    19,
+    32,
+    255
+  ],
+  "preview_sizes": [
+    64,
+    128,
+    16
+  ],
+  "preview_is_client_capture": false,
+  "gameplay_or_native_equipment_changed": false
+}

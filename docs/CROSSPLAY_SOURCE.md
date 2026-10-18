@@ -1,4 +1,26 @@
-# Explore.43 source candidate
+# Explore.44 source candidate
+
+This candidate carries the focused armor render-view repair and four original
+Elemental relic redraws for Windstep, Firebrand, Tidecaller and Terra Gauntlet.
+All four armor slots retain their identities, geometry, equipment bindings and
+original artwork. The view predicates explicitly permit the inventory character
+and third-person body while retaining first-person camera protection and the
+matching worn-item guard. New relic sprites match between Java and Bedrock;
+their names, recipes, powers and cooldowns are unchanged. Ordinary Minecraft
+textures and the existing separate Convergence Wings/native flight remain.
+The existing winged item already supplies armor and flight in one chest slot.
+The reported floating held totem now uses normal Bedrock sprite placement with
+its original custom artwork and activation routing; both bad-pose attachables
+are excluded from preparation. Actual iPad grip still needs a device check.
+
+The owner installed explore.43 and supplied an iPad image showing sleeves only;
+the previous native packet/skin checks did not establish client rendering.
+Explore.44 is not installed by building or merging this source. See
+`server/ARMOR_VISIBILITY_REPAIR.md`, `server/RELIC_ART.md` and
+`server/VALIDATION.md` for evidence, delivery stages and the required device
+acceptance after a separately approved installation.
+
+## Historical explore.43 source candidate
 
 This candidate combines the explore.42 armor repair with three native Odyssey guardian variants, three original craftable tools, six advancement rewards, earnable Infini and reviewed cosmetic/staff applications. Real-money checkout is disabled; the owner cancelled the payment-provider integration. The live server remains explore.41. See `server/ASTRAL_WILDS.md`, `server/SUBSCRIPTIONS.md` and `server/ARMOR_REPAIR.md`.
 

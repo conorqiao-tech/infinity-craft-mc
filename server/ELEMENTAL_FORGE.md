@@ -1,5 +1,11 @@
 # Elemental Forge
 
+Explore.44 prepares new matching Java/Bedrock pixel art for all four relics;
+see [Relic artwork](RELIC_ART.md). Its armor controllers also include the
+[render-view repair](ARMOR_VISIBILITY_REPAIR.md). The playable server is still
+explore.43 until separately approved installation; the earlier notes below
+describe the original Forge release.
+
 Explore.41 was installed with owner approval on October 17, 2026 and subsequently merged into main. The owner's iPad check reported missing armor pieces in third-person and the inventory character. [ARMOR_REPAIR.md](ARMOR_REPAIR.md) describes the explore.42 source repair and fresh artwork; that candidate is not installed by merging or building source.
 
 Open **Infinity Menu → Elemental Forge**, **Armor sets → Elemental & Infinity Armor**, or **Creative Gear Picker → Elemental Forge**. Bedrock uses native touch buttons; Java uses a chest menu. No command is required. In the real Creative inventory, search **Elemental**, **Infinity**, or the exact item name. The new sets have four solid armor pieces each; Convergence wings remain separate and ordinary elytra artwork stays normal.

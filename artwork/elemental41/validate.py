@@ -108,7 +108,8 @@ def validate():
         assert (JAVA / f"items/{name}.json").is_file()
         assert (JAVA / f"models/item/{name}.json").is_file()
         entry = items["convergence_" + name]
-        folder = "armor42" if name.startswith(("elemental_", "infinity_")) and name not in manifest["blocks"] else "elemental41"
+        folder = ("armor42" if name.startswith(("elemental_", "infinity_")) and name not in manifest["blocks"]
+                  else "relic44" if name in ("windstep", "firebrand", "tidecaller", "terra_gauntlet") else "elemental41")
         assert f"/{folder}/" in entry["textures"]
         assert (BED / (entry["textures"] + ".png")).is_file()
         if name in manifest["blocks"]:
