@@ -121,11 +121,15 @@ def armor_geometry(path, collection, piece, uv):
             cube(uv, "arm", [3.4, 15, 2.9], [0.95, 5.3, 2.7])])]
     else:
         raise ValueError(piece)
-    # Molang string literals preserve case. Follow the lowercase limb targets
-    # used by Microsoft's custom wearable example; head/body already agree.
-    # Keep this separate from the inactive legacy flight-shell generator.
+    # These cubes use upright player model coordinates, not item-local space.
+    # Match the native armor's flat named joints: each name looks up the
+    # owner's animated transform once. Explicit item bindings instead select
+    # a new root frame. Do not also add the holder's hierarchy to that frame.
+    # Only joint names follow the engine contract; all cubes remain ours.
+    joints = {"head": "head", "body": "body", "rightarm": "rightArm",
+              "leftarm": "leftArm", "rightleg": "rightLeg", "leftleg": "leftLeg"}
     for target in bones:
-        target["binding"] = target["binding"].lower()
+        target["name"] = joints[target.pop("binding").strip("'").lower()]
     return {"format_version": "1.19.30", "minecraft:geometry": [{
         "description": {"identifier": "geometry.convergence." + path + "_original", "texture_width": 128,
                         "texture_height": 64, "visible_bounds_width": 2.5, "visible_bounds_height": 3,
@@ -165,11 +169,11 @@ def bedrock_models():
         write_json(BED / f"models/entity/original_armor/{path}.geo.json", geometry)
         controller = "controller.render.convergence." + path + "_original"
         # Limit rendering to an equipped instance, not the same item held in a
-        # hand. Explicit bindings then inherit head, arm and leg motion.
+        # hand. Same-name native armor joints inherit head, arm and leg motion.
         equipped = f"query.is_item_name_any('slot.armor.{slot}', 0, 'convergence:{path}', 'infinity_catalog:{path}')"
         visibility = []
         for b in geometry["minecraft:geometry"][0]["bones"]:
-            third_person = b["name"] not in ("infinity_right_arm", "infinity_left_arm")
+            third_person = b["name"] not in ("rightArm", "leftArm")
             # Use the current entity render pass, with an explicit inventory
             # allowance. A held attachable context is not our worn camera test.
             visibility.append({b["name"]: equipped + (" && (query.is_in_ui || !query.is_first_person)" if third_person else "")})

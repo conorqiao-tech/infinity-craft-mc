@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "infinity_head",
-          "binding": "'head'",
+          "name": "head",
           "pivot": [
             0,
             24,

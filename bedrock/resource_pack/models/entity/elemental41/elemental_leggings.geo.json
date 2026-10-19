@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "elemental_right_leg",
-          "binding": "'rightleg'",
+          "name": "rightLeg",
           "pivot": [
             -1.9,
             12,
@@ -101,8 +100,7 @@
           ]
         },
         {
-          "name": "elemental_left_leg",
-          "binding": "'leftleg'",
+          "name": "leftLeg",
           "pivot": [
             1.9,
             12,

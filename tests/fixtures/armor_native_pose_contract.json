@@ -1,0 +1,107 @@
+{
+  "description": "Independent numeric contracts from Mojang resources; no textures, UVs or cube artwork. Pose tests model same-name attachment to the owner's complete animated joint delta. They are source conformance checks, not Bedrock engine or iPad rendering proof.",
+  "mojang_commit": "46ba6ea985fb5a92d79a9419198f10dda14c199d",
+  "sources": {
+    "armor_and_skins": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/models/mobs.json",
+      "sha256": "0279492e5f6a7b5bbafb4fbaa80290146acb79332d06ac39619376a4831ff464",
+      "sections": "geometry.humanoid; geometry.humanoid.custom:geometry.humanoid; geometry.humanoid.customSlim; geometry.humanoid.armor1/armor2:geometry.zombie"
+    },
+    "armor_base": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/models/entity/zombie.v1.0.geo.json",
+      "sha256": "7d9eace3902c6e70ca3ac2cebd016012aecde6ea94757f4dcd68e815ad0a03b1",
+      "sections": "geometry.zombie:geometry.humanoid (no bone overrides); geometry.zombie.v1.8 is a different identifier"
+    },
+    "selected_attachables": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/attachables/",
+      "sha256_by_file": {
+        "diamond_helmet.json": "497917eb939f51590010fcc9cc764ad71f479487de03f9dc6b069107ae82cc02",
+        "diamond_chestplate.json": "c5f8710f9c272ca874bc6c44f902a138275e3ac2574fc1f263f11c3b6ead3e7a",
+        "diamond_leggings.json": "a2a9feb52ec1f06a423e7d15fd7bc4012b0c414e00325b71a61ed875e9924853",
+        "diamond_boots.json": "001a176e5216ba4673b69ad9d6f4bee0ae4cc328b40c4ba41fb286f8f494a432"
+      }
+    },
+    "selected_player": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/entity/player.entity.json",
+      "sha256": "7e520d872fc72be266223b3db2883c2818742a9a450330753a6de4d2ad813608",
+      "sections": "geometry.default = geometry.humanoid.custom"
+    },
+    "modern_player": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/models/entity/humanoid.custom.geo.json",
+      "sha256": "d3688f959a95f6b39c9bd8b15312a19361256ae161d2d055ba63d810e17a8ca8"
+    },
+    "poses": {
+      "url": "https://github.com/Mojang/bedrock-samples/blob/46ba6ea985fb5a92d79a9419198f10dda14c199d/resource_pack/animations/player.animation.json",
+      "sha256": "cd258200cf312d703ccc3c2c8d3c9b4bb191b44e0d2ae06a98db5ee5ee199e1a",
+      "sections": "move.arms and move.legs evaluated at tcos0=+/-25; sneaking numeric channels; look_at_target.ui evaluated at target_x=20,target_y=30. These isolated representative poses do not emulate all animation blending."
+    }
+  },
+  "native_armor": {
+    "parent_policy": "All six primary joints in the selected armor base are independent roots, with no binding or parent field. Optional unrelated native bones are not needed for these custom cubes.",
+    "pivots": {
+      "head": [0, 24, 0],
+      "body": [0, 24, 0],
+      "rightArm": [-5, 22, 0],
+      "leftArm": [5, 22, 0],
+      "rightLeg": [-1.9, 12, 0],
+      "leftLeg": [1.9, 12, 0]
+    },
+    "piece_joints": {
+      "helmet": ["head"],
+      "chestplate": ["body", "rightArm", "leftArm"],
+      "leggings": ["rightLeg", "leftLeg"],
+      "boots": ["rightLeg", "leftLeg"],
+      "backpack": ["body"]
+    }
+  },
+  "owner": {
+    "nodes": {
+      "root": {"pivot": [0, 0, 0]},
+      "waist": {"pivot": [0, 12, 0], "parent": "root"},
+      "body": {"pivot": [0, 24, 0], "parent": "waist"},
+      "head": {"pivot": [0, 24, 0], "parent": "body"},
+      "rightArm": {"pivot": [-5, 22, 0], "parent": "body"},
+      "leftArm": {"pivot": [5, 22, 0], "parent": "body"},
+      "rightLeg": {"pivot": [-1.9, 12, 0], "parent": "root"},
+      "leftLeg": {"pivot": [1.9, 12, 0], "parent": "root"}
+    },
+    "slim_pivot_overrides": {"rightArm": [-5, 21.5, 0], "leftArm": [5, 21.5, 0]},
+    "opaque_bounds_wide": {
+      "head": [[-4.5, 23.5, -4.5], [4.5, 32.5, 4.5]],
+      "body": [[-4.25, 11.75, -2.25], [4.25, 24.25, 2.25]],
+      "rightArm": [[-8.25, 11.75, -2.25], [-3.75, 24.25, 2.25]],
+      "leftArm": [[3.75, 11.75, -2.25], [8.25, 24.25, 2.25]],
+      "rightLeg": [[-4.15, -0.25, -2.25], [0.35, 12.25, 2.25]],
+      "leftLeg": [[-0.35, -0.25, -2.25], [4.15, 12.25, 2.25]]
+    },
+    "slim_bound_overrides": {
+      "rightArm": [[-7.25, 11.25, -2.25], [-3.75, 23.75, 2.25]],
+      "leftArm": [[3.75, 11.25, -2.25], [7.25, 23.75, 2.25]]
+    }
+  },
+  "poses": {
+    "rest": {},
+    "walk_forward": {
+      "leftArm": {"rotation": [25, 0, 0]},
+      "rightArm": {"rotation": [-25, 0, 0]},
+      "leftLeg": {"rotation": [-35, -0.1, -0.1]},
+      "rightLeg": {"rotation": [35, 0.1, 0.1]}
+    },
+    "walk_reverse": {
+      "leftArm": {"rotation": [-25, 0, 0]},
+      "rightArm": {"rotation": [25, 0, 0]},
+      "leftLeg": {"rotation": [35, -0.1, -0.1]},
+      "rightLeg": {"rotation": [-35, 0.1, 0.1]}
+    },
+    "crouch": {
+      "root": {"position": [0, 1.25, 9], "rotation": [28, 0, 0]},
+      "body": {"position": [0, -2, 0]},
+      "head": {"position": [0, -1, 0]},
+      "leftArm": {"rotation": [-5.7, 0, 0]},
+      "rightArm": {"rotation": [-5.7, 0, 0]},
+      "leftLeg": {"rotation": [-28, -0.1, -0.1]},
+      "rightLeg": {"rotation": [-28, 0.1, 0.1]}
+    },
+    "inventory_head_turn": {"head": {"rotation": [20, 30, 0]}}
+  }
+}

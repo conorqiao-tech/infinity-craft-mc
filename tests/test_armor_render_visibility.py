@@ -187,7 +187,7 @@ class ArmorRenderVisibilityTests(unittest.TestCase):
                         self.assertNotIn(bone_name, expressions)
                         expressions[bone_name] = VisibilityExpression(expression)
                     self.assertEqual(set(expressions), {bone["name"] for bone in geometry["bones"]})
-                    joints = {bone["binding"].strip("'") for bone in geometry["bones"]}
+                    joints = {bone["name"].lower() for bone in geometry["bones"]}
                     expected_joints = {"body"} if name == "backpack" else EXPECTED_JOINTS[slot.rsplit(".", 1)[1]]
                     self.assertEqual(joints, expected_joints)
                     # Both identities may appear on the wire, regardless of which
@@ -210,7 +210,7 @@ class ArmorRenderVisibilityTests(unittest.TestCase):
                         )
                         for state, equipment, equipped in states:
                             for bone in geometry["bones"]:
-                                arm = bone["binding"] in ("'rightarm'", "'leftarm'")
+                                arm = bone["name"] in ("rightArm", "leftArm")
                                 expected = equipped and (arm or ui or not first)
                                 actual = expressions[bone["name"]].evaluate(equipment, first, ui, legacy)
                                 with self.subTest(state=state, worn=matching, bone=bone["name"], first_person=first, ui=ui, legacy_first_person=legacy):

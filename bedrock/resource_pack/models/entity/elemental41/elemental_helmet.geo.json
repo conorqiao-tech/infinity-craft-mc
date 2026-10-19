@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "elemental_head",
-          "binding": "'head'",
+          "name": "head",
           "pivot": [
             0,
             24,

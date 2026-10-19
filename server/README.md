@@ -1,3 +1,13 @@
+# Explore.45 r1 resource candidate • armor attachment
+
+The installed explore.45 helper update is running. The owner's latest iPad
+photos still show an armor waist/thigh gap and motion flicker. The separate
+[armor attachment repair](ARMOR_ATTACHMENT_REPAIR.md) switches the original
+armor to Minecraft's native same-name joint contract while preserving every
+cuboid, texture, item identity and gameplay behavior. It needs separate live
+installation approval and an actual iPad comparison; source preparation does
+not install it. Current checks are recorded in [VALIDATION.md](VALIDATION.md).
+
 # Explore.45 source candidate • helper touch controls and combo status
 
 See [Helper controls](HELPER_CONTROLS.md) for native iPad helper creation,

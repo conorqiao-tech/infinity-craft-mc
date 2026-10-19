@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "elemental_body",
-          "binding": "'body'",
+          "name": "body",
           "pivot": [
             0,
             24,
@@ -101,8 +100,7 @@
           ]
         },
         {
-          "name": "elemental_right_arm",
-          "binding": "'rightarm'",
+          "name": "rightArm",
           "pivot": [
             -5,
             22,
@@ -186,8 +184,7 @@
           ]
         },
         {
-          "name": "elemental_left_arm",
-          "binding": "'leftarm'",
+          "name": "leftArm",
           "pivot": [
             5,
             22,

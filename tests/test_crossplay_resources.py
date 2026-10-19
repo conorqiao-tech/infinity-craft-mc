@@ -73,6 +73,8 @@ class ResourceRepairTests(unittest.TestCase):
         self.assertEqual(resources.resource_version("2.13.0-explore.43"), [2, 13, 43001])
         self.assertGreater(resources.resource_version("2.13.0-explore.43"), [2, 13, 43])
         self.assertEqual(resources.resource_version("2.13.0-explore.44"), [2, 13, 44001])
+        self.assertEqual(resources.resource_version("2.13.0-explore.45"), [2, 13, 45001])
+        self.assertLess(resources.resource_version("2.13.0-explore.45"), resources.resource_version("2.13.0-explore.46"))
         with patch.dict(resources.RESOURCE_REPAIRS, {}, clear=True):
             self.assertEqual(resources.resource_version("2.13.0-explore.43"), [2, 13, 43000])
         with patch.dict(resources.RESOURCE_REPAIRS, {(2, 13, 43): 999}):

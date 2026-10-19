@@ -212,7 +212,9 @@ class OriginalArtworkTests(unittest.TestCase):
             geo = json.loads((bed / f"models/entity/original_armor/{name}.geo.json").read_text())["minecraft:geometry"][0]
             self.assertEqual(geo["description"]["identifier"],"geometry.convergence."+name+"_original")
             self.assertNotIn("geometry.humanoid",json.dumps(geo)+json.dumps(desc))
-            self.assertEqual({b["binding"] for b in geo["bones"]},{"'"+joint+"'" for joint in joints},"Arms/legs inherit their own animated player joint")
+            self.assertEqual({b["name"].lower() for b in geo["bones"]},joints,"Each part selects its native animated armor joint")
+            self.assertTrue(all("binding" not in b and "parent" not in b for b in geo["bones"]),
+                            "Player-space armor follows the native flat same-name contract")
             self.assertEqual(len(geo["bones"]),len(joints),"No copied player skeleton or unused geometry bones")
             width,height,rows = rgba_png((bed / (desc["textures"]["default"]+".png")).read_bytes())
             controller = controllers[desc["render_controllers"][0]]
@@ -235,6 +237,27 @@ class OriginalArtworkTests(unittest.TestCase):
                         for py in range(y,y+h):
                             for px in range(x,x+w):
                                 self.assertEqual(rows[py][px*4+3],255,"No face samples the transparent unused UV cells")
+
+    def test_generators_reproduce_the_current_21_native_joint_models(self):
+        bed = ROOT / "bedrock/resource_pack/models/entity"
+        modules = {}
+        for name, relative in (("original", "artwork/refresh27/resource_models.py"),
+                               ("elemental", "artwork/elemental41/generate.py")):
+            spec = importlib.util.spec_from_file_location("armor_generator_" + name, ROOT / relative)
+            modules[name] = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(modules[name])
+        uv = json.loads((ART / "uv-manifest.json").read_text())["armor"]["convergence"]["uv_rectangles"]
+        checked = 0
+        for name, (collection, piece, slot, index) in modules["original"].WEARABLES.items():
+            generated = modules["original"].armor_geometry(name, collection, piece, uv)
+            self.assertEqual(generated, json.loads((bed / "original_armor" / (name + ".geo.json")).read_text()))
+            checked += 1
+        for suit in ("elemental", "infinity"):
+            for piece in modules["elemental"].PIECES:
+                generated = modules["elemental"].geometry(suit, piece)
+                self.assertEqual(generated, json.loads((bed / "elemental41" / (suit + "_" + piece + ".geo.json")).read_text()))
+                checked += 1
+        self.assertEqual(checked, 21, "Regenerating assets must not restore item bindings or offsets")
 
     def test_original_flight_shell_has_animated_joint_bindings_and_opaque_faces(self):
         bed = ROOT / "bedrock/resource_pack"

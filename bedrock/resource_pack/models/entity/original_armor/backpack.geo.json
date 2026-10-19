@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "infinity_pack",
-          "binding": "'body'",
+          "name": "body",
           "pivot": [
             0,
             24,

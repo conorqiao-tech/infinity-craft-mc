@@ -275,7 +275,10 @@ def geometry(suit, piece):
     def box(part, origin, size):
         return {"origin": origin, "size": size, "uv": face_uv(part)}
     def bone(name, joint, pivot, cubes):
-        return {"name": suit + "_" + name, "binding": "'" + joint.lower() + "'", "pivot": pivot, "cubes": cubes}
+        # Cubes are in upright player space. Named native joints, rather than
+        # item-local binding roots, inherit each owner's joint transform once.
+        # Native armor uses these flat joint names, without a copied hierarchy.
+        return {"name": joint, "pivot": pivot, "cubes": cubes}
     if piece == "helmet":
         head_plate = max(0.60, plate + 0.20)
         bones = [bone("head", "head", [0, 24, 0], [box("head", [-4 - head_plate, 24 - head_plate, -4 - head_plate], [8 + 2 * head_plate] * 3)])]
@@ -347,7 +350,7 @@ def geometry_view(suit, atlas, walking=False, geometries=None):
         for bone in actual["minecraft:geometry"][0]["bones"]:
             rotation = 0
             if walking:
-                rotation = {"'rightarm'": -28, "'leftarm'": 28, "'rightleg'": 25, "'leftleg'": -25}.get(bone["binding"], 0)
+                rotation = {"rightArm": -28, "leftArm": 28, "rightLeg": 25, "leftLeg": -25}.get(bone["name"], 0)
             sine, cosine = math.sin(math.radians(rotation)), math.cos(math.radians(rotation))
             pivot = bone["pivot"]
             def project(vertex):
@@ -408,7 +411,7 @@ def main():
             equipped = f"query.is_item_name_any('slot.armor.{slot}', 0, 'convergence:{name}', 'infinity_catalog:{name}')"
             # Inventory previews must show the complete suit even if their
             # render pass also reports first person; gameplay eyes stay clear.
-            visibility = [{bone["name"]: equipped + ("" if bone["binding"] in ("'rightarm'", "'leftarm'") else " && (query.is_in_ui || !query.is_first_person)")}
+            visibility = [{bone["name"]: equipped + ("" if bone["name"] in ("rightArm", "leftArm") else " && (query.is_in_ui || !query.is_first_person)")}
                           for bone in geo["minecraft:geometry"][0]["bones"]]
             controllers[controller] = {"geometry": "Geometry.default", "materials": [{"*": "variable.is_enchanted ? Material.enchanted : Material.default"}],
                                        "textures": ["Texture.default", "Texture.enchanted"], "part_visibility": visibility}

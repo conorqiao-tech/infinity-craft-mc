@@ -16,8 +16,7 @@
       },
       "bones": [
         {
-          "name": "infinity_body",
-          "binding": "'body'",
+          "name": "body",
           "pivot": [
             0,
             24,
@@ -175,8 +174,7 @@
           ]
         },
         {
-          "name": "infinity_right_arm",
-          "binding": "'rightarm'",
+          "name": "rightArm",
           "pivot": [
             -5,
             22,
@@ -334,8 +332,7 @@
           ]
         },
         {
-          "name": "infinity_left_arm",
-          "binding": "'leftarm'",
+          "name": "leftArm",
           "pivot": [
             5,
             22,

@@ -1,3 +1,63 @@
+# Native armor attachment — explore.45 resource repair r1
+The installed explore.45 mod is running. The owner's latest iPad photos show
+an unresolved waist/thigh gap, displaced sleeves and motion flicker. The earlier
+lowercase-binding candidate failed this device acceptance check. This new,
+separately packaged repair is **not installed** and does not claim a device pass.
+Older live-state statements below are historical; private installation receipts
+and this section distinguish installed artifacts from source candidates.
+
+The 21 active original armor/backpack models now use the exact flat same-name
+joint contract selected by Mojang's native armor. All 41 bones keep their original
+pivots and 70 cuboids; only names and explicit binding fields change. The two
+controllers change matching bone keys only. All 381 prior PNGs, attachables,
+item identities, materials, camera/UI expressions and inactive flight geometry
+remain unchanged. The prepared pack revision is `[2,13,45001]`, with stable UUIDs.
+See [ARMOR_ATTACHMENT_REPAIR.md](ARMOR_ATTACHMENT_REPAIR.md) for the diagnosis,
+pinned native references, reproduction and actual iPad acceptance steps.
+
+**381/381 Python tests pass**, ResourceWarning treated as an error, zero skips.
+The 24 new cases include six native-contract/pose regressions, seventeen scoped
+package refusal cases and generator reproduction of all 21 active models.
+The 400 posed skin-containment comparisons are conditional on documented
+same-name owner transform lookup; they do not execute the Bedrock renderer or
+prove the client's prior explicit-binding matrix formula. Exact CamelCase names,
+missing/doubled root assumptions, bad pivots/offsets and unwanted hierarchy are
+checked. Existing source/prepared camera/UI, held-only/wrong-slot, alias, seam,
+original pixel provenance and vanilla-equipment protections pass.
+
+Fresh native Geyser equipment checks pass all **303 codec round trips** for five
+suits/twenty pieces across three protocols. Fresh bridge startup passes 66
+catalogue identities, 255 hotbar selections, 510 cursor/drop requests, 594
+Survival refusals and 5,427 response/resync packets. Held equipment retains 57
+native cases/69 packets. The real supplemental wire check passes 255 framed
+inputs with 198 overflow/255 Survival refusals. Fresh saved-item checks pass 85
+item/count cases across three genuine same-UUID reconnects. Two isolated
+full-stack startup/save/backup/restart/shutdown cycles pass; regular Geyser and
+full-stack logs contain no ERROR/Exception records.
+
+The Java mod, test JAR and all 755 Java source/resource hashes match the accepted
+explore.45 baseline. Its **604/604 tests in 22 groups are retained evidence**,
+not a freshly rerun complete native suite for this resource-only repair. The
+baseline's documented embedded-player Polymer packet-context diagnostic remains;
+no unrelated dependency or gameplay change is included.
+
+The four-file repair ZIP is pinned to the immutable explore.45 server package.
+It verifies 24 changed pack entries and 236 byte-identical entries, plus unchanged
+mod/dependencies/runtime/mappings. ZIP SHA256:
+`f9265b948e9d64d7bbf85a32127b0ab81f20a6e2923b459b447f9d3fb624c689`.
+Prepared resource SHA256:
+`d4662b56611e5469ddfe69b43db2e91acb443572c49b75a2ac487462192e3143`.
+An initial Python run correctly rejected stale supplemental receipts; actual
+wire/persistence checks were regenerated and final release checks rerun rather
+than weakening their provenance requirements.
+
+No live files, worlds, terrain marker, helpers, private settings or approval
+queues change during this source work. Separate owner approval is required for
+the resource-only installation/restart, followed by real iPad front/back,
+paperdoll, inventory, walking/crouching, first-person and mixed-set comparisons.
+Actual rendering, authenticated public joining and multiplayer load remain
+unverified. No main merge, public release or website deployment is included.
+
 # Explore.45 helper-controls candidate
 
 The source adds native Bedrock helper/order forms, explicit creation/profile

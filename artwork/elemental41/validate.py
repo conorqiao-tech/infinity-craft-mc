@@ -44,8 +44,8 @@ def validate():
         png(path)
     controllers = json.loads((BED / "render_controllers/elemental41.json").read_text())["render_controllers"]
     assert len(controllers) == 8
-    expected_joints = {"helmet": {"'head'"}, "chestplate": {"'body'", "'rightarm'", "'leftarm'"},
-                       "leggings": {"'rightleg'", "'leftleg'"}, "boots": {"'rightleg'", "'leftleg'"}}
+    expected_joints = {"helmet": {"head"}, "chestplate": {"body", "rightArm", "leftArm"},
+                       "leggings": {"rightLeg", "leftLeg"}, "boots": {"rightLeg", "leftLeg"}}
     for suit in ("elemental", "infinity"):
         cubes = []
         equipment = json.loads((JAVA / f"equipment/{suit}_armor.json").read_text())
@@ -67,7 +67,8 @@ def validate():
             assert alias == dict(desc, identifier="infinity_catalog:" + name)
             geo = json.loads((BED / f"models/entity/elemental41/{name}.geo.json").read_text())["minecraft:geometry"][0]
             assert geo["description"]["identifier"] == desc["geometry"]["default"]
-            assert {bone["binding"] for bone in geo["bones"]} == joints
+            assert {bone["name"] for bone in geo["bones"]} == joints
+            assert all("binding" not in bone and "parent" not in bone for bone in geo["bones"])
             assert len(geo["bones"]) == len(joints)
             controller = controllers[desc["render_controllers"][0]]
             assert len(controller["part_visibility"]) == len(joints)

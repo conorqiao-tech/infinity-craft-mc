@@ -43,7 +43,7 @@ def shells():
             name = "cuirass" if suit == "convergence" and piece == "chestplate" else prefix + piece
             geo = json.loads((BED / folder / (name + ".geo.json")).read_text())["minecraft:geometry"][0]
             for bone in geo["bones"]:
-                joint = bone["binding"].strip("'")
+                joint = bone["name"].lower()
                 lo, hi = map(list, SKIN[joint])
                 if piece in ("leggings", "boots"):
                     seam = 3.4 if folder == "elemental41" else 4.0
@@ -88,7 +88,7 @@ class ArmorSkinClearanceTests(unittest.TestCase):
         # checks shell containment, not actual Bedrock pose inheritance.
         poses = ((0, 0, 0), (35, 25, 0), (-28, -40, 12))
         for suit, piece, bone, skin in shells():
-            outer = bounds(bone["cubes"][0]); joint = bone["binding"].strip("'")
+            outer = bounds(bone["cubes"][0]); joint = bone["name"].lower()
             self.assertEqual(tuple(bone["pivot"]), PIVOTS[joint])
             for pose in poses:
                 for corner in itertools.product(*zip(*skin)):
@@ -102,7 +102,7 @@ class ArmorSkinClearanceTests(unittest.TestCase):
         pairs = {}
         for suit, piece, bone, skin in shells():
             if piece in ("leggings", "boots"):
-                pairs.setdefault((suit, bone["binding"]), {})[piece] = bounds(bone["cubes"][0])
+                pairs.setdefault((suit, bone["name"]), {})[piece] = bounds(bone["cubes"][0])
         self.assertEqual(len(pairs), 10)
         for name, pieces in pairs.items():
             legs, boots = pieces["leggings"], pieces["boots"]
