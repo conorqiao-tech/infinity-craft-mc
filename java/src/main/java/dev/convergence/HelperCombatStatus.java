@@ -69,6 +69,7 @@ final class HelperCombatStatus {
             var held = golem.getMainHandItem();
             var target = golem.getTarget();
             var sequence = helpers.aerial.get(id);
+            var feedback = helpers.comboFeedback(id);
             boolean blockedPlayer = target instanceof ServerPlayer && order.target() != target
                 || sequence != null && sequence.target instanceof ServerPlayer && order.target() != sequence.target;
             text.append("Held: ").append(held.isEmpty() ? "empty" : plain(held.getHoverName().getString()))
@@ -76,6 +77,7 @@ final class HelperCombatStatus {
                 .append("; target: ").append(target == null ? "none" : plain(target.getName().getString())).append(".\n");
             if (pause != null) text.append("Combo paused.\n");
             else if (blockedPlayer) text.append("Player combo blocked: this player is not the current eligible reviewed target.\n");
+            else if (feedback != null) text.append(feedback.text()).append('\n');
             else if (sequence != null) text.append("Combo sequence in progress.\n");
             else if (target != null) text.append("Spear/glide/mace sequence runs when combat and terrain checks pass.\n");
             else if (order.target() == null) text.append("Waiting for an eligible hostile.\n");

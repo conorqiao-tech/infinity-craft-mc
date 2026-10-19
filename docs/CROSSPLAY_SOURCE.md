@@ -1,4 +1,17 @@
-> **Resource-only motion candidate (explore.44 r1):** The owner confirmed the
+# Explore.46 source candidate — helper combos
+
+This candidate improves Ultimate Finals' native spear/glide/mace flow: ready
+teammates receive aerial turns, moving targets get bounded checked landing
+updates, and close targets receive cadenced mace follow-ups. Java and Bedrock
+helper details show the same read-only phase and prerequisite feedback. See
+`server/HELPER_COMBOS.md` and `server/VALIDATION.md` for use and evidence.
+
+The live installation remains explore.45 plus its owner-accepted r1 armor repair.
+No live world, helper roster or player data changes when building this source.
+Installations require separate owner approval. Older candidate notes follow as
+historical records.
+
+> **Historical resource-only motion candidate (explore.44 r1):** The owner confirmed the
 > missing pieces and held totem were fixed, but walking/crouching flicker remains.
 > A separately tested lowercase limb-binding candidate is described in
 > [the motion repair guide](../server/ARMOR_MOTION_REPAIR.md). It is not installed and does not change

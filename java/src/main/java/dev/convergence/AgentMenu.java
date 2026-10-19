@@ -60,6 +60,26 @@ final class AgentMenu {
         view.getItem(slot).set(DataComponents.LORE, new ItemLore(lines));
     }
 
+    /** Shared, read-only facts for Java's status action and its tooltip. */
+    static String helperInfo(ServerPlayer owner, String id, AgentCompanions.Agent agent) {
+        String summary = HelperCombatStatus.summary(owner, id, agent);
+        if (owner == null || agent == null || id == null) return summary;
+        var helpers = AgentCompanions.get(owner.level().getServer());
+        if (helpers.data.agents.get(id) != agent || !agent.owner().equals(owner.getStringUUID())) return summary;
+        UUID helperId;
+        try { helperId = UUID.fromString(id); }
+        catch (IllegalArgumentException invalid) { return summary; }
+        var golem = helpers.loaded.get(helperId);
+        boolean live = golem != null && golem.isAlive() && !golem.isRemoved();
+        return summary + "\nLocation: " + AgentCompanions.location(golem, agent)
+            + "\nHP: " + (live ? Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()) : "unloaded");
+    }
+
+    private static void statusButton(SimpleContainer view, ServerPlayer owner, String id, AgentCompanions.Agent agent) {
+        icon(view, INFO, Items.SPYGLASS, "Live status • combat, location and health");
+        description(view, INFO, helperInfo(owner, id, agent));
+    }
+
     static Item profileIcon(AgentCompanions.Profile profile) {
         return switch (profile) {
             case PRIMITIVE -> Items.WOODEN_SWORD;
@@ -140,7 +160,7 @@ final class AgentMenu {
             } else {
                 profileChoices(view, selected);
                 movement(view, selected.name());
-                icon(view, INFO, Items.SPYGLASS, "Status • profile, location, and health");
+                statusButton(view, player, helperId, selected);
                 askButton(view, player);
                 recallButton(view);
                 icon(view, DISMISS, Items.DYE.red(), "Dismiss helper • confirmation required");
@@ -282,6 +302,7 @@ final class AgentMenu {
                 if (agent == null) { stale(); return; }
                 icon(view, 4, Items.IRON_INGOT, agent.name() + " • " + agent.profile().label());
                 profileChoices(view, agent);
+                statusButton(view, owner, helperId, agent);
                 hive(view, helpers, owner);
                 askButton(view, owner);
                 recallButton(view);
@@ -383,7 +404,9 @@ final class AgentMenu {
                     AgentCompanions.Mode movement = clicked == FOLLOW ? AgentCompanions.Mode.FOLLOW
                         : clicked == GUARD ? AgentCompanions.Mode.GUARD : clicked == STAY ? AgentCompanions.Mode.STAY : null;
                     if (movement != null) { helpers.mode(owner, agent.name(), movement); refresh(); return; }
-                    if (clicked == INFO) { owner.closeContainer(); helpers.status(owner, agent.name()); return; }
+                    if (clicked == INFO) {
+                        owner.closeContainer(); owner.sendSystemMessage(Component.literal(helperInfo(owner, helperId, agent))); return;
+                    }
                     if (clicked == RECALL) { owner.closeContainer(); helpers.recall(owner, agent.name()); return; }
                     if (clicked == ASK) {
                         owner.closeContainer();

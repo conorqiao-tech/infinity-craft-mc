@@ -1,4 +1,16 @@
-# Explore.45 r1 resource candidate • armor attachment
+# Explore.46 source candidate • helper combos
+
+Ultimate Finals helpers keep a mace at close range, share aerial turns among
+available teammates, and adjust landings only along checked safe routes. Both
+helper menus explain the current combo phase and blocked prerequisites. See
+[Helper combos](HELPER_COMBOS.md) for setup, practical combat checks and limits.
+
+The playable server remains on explore.45 with its separately installed r1
+armor repair, which the owner confirmed stable on iPad. Building this candidate
+does not install it. Final source checks and remaining device checks are recorded
+in [VALIDATION.md](VALIDATION.md). The candidate notes below are historical.
+
+# Historical explore.45 r1 resource candidate • armor attachment
 
 The installed explore.45 helper update is running. The owner's latest iPad
 photos still show an armor waist/thigh gap and motion flicker. The separate

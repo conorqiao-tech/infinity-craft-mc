@@ -1,8 +1,10 @@
-# Helper touch controls — explore.45 candidate
+# Helper controls — explore.46 source candidate
 
-This source candidate replaces the helper and order chests on iPad/Bedrock with
-native touch forms. Java keeps its existing chest controls. Opening the menu
-does not create a helper, approve an order, or ask an external AI.
+The explore.45 native helper/order forms remain on iPad/Bedrock; Java keeps its
+chest controls. This source candidate improves Ultimate Finals combo readiness,
+moving landings and combat feedback. Opening the menu does not create a helper,
+approve an order, ask an external AI or advance combat. Fresh explore.46 checks
+are in [VALIDATION.md](VALIDATION.md); preparing source does not install it.
 
 ## Create and control a helper
 
@@ -14,7 +16,9 @@ solid ground; a successful spawn closes the screen so the nearby named player
 avatar is visible. Helpers still use golem-based server movement and collision.
 
 Select an existing helper to see its current location, health, held weapon,
-movement and combo status. Follow, Guard and Stay use the existing owner-only
+movement and combo status. Java's **Live status • combat, location and health**
+closes the chest to show its answer; Bedrock's **Refresh live status** refreshes
+the native form. Both use the same phase/reason summary. Follow, Guard and Stay use the existing owner-only
 controls. **Bring here** moves the same loaded entity, preserving its health and
 edited stats. An unloaded helper must first be loaded by visiting its area; the
 menu never replaces one or force-loads its chunks. Dismissal asks for a second
@@ -28,15 +32,22 @@ server thread. Changes to a selected helper or order require a fresh review.
 
 ## Understand combos
 
-Only **Ultimate Finals** uses the existing spear → brief elytra glide → falling
-mace sequence. Regular is ordinary mob defense. Stay, passive profiles, missing
+Only **Ultimate Finals** uses spear → brief elytra glide → falling mace tactics.
+Regular is ordinary mob defense. Stay, passive profiles, missing
 helpers, unsuitable targets, owner/session checks and unloaded areas can prevent
 combat. The form shows the current state rather than claiming a combo succeeded.
 
-An aerial attempt also needs the existing distance, cooldown, loaded airspace
-and solid landing checks. Obstructed terrain keeps ordinary ground pursuit.
-Actual hits still need native reach, sight and target eligibility. The helper
-cannot guarantee a hit or bypass a totem. No external model runs per-tick combat.
+Only ready helpers with a checked route take squad aerial turns. A blocked or
+cooling-down teammate no longer holds the next turn. Landing adjustments follow
+the same moving target only after fresh terrain/leash checks. Close targets use
+a mace rather than repeated spear attacks inside its minimum reach; a farther
+spear keeps native charging contacts and cooldowns. Status reports phases such
+as **Charging spear**, **Waiting for squad**, **Gliding** and **Mace descent**,
+with the reason for a ground fallback or pause. A phase is an observed control
+decision, not proof of a hit. Actual hits still need native reach, sight and
+target eligibility. No damage-immunity reset or guaranteed totem bypass is
+added. No external model runs per-tick combat. See [Helper combos](HELPER_COMBOS.md)
+for the short setup and terrain limits.
 
 ## Review player targets and server actions
 
@@ -51,7 +62,7 @@ again. Target sessions are bound to the actual connected player and world. A
 stale touch reply cannot approve a replacement order or attack another player.
 Ceasefire remains immediately available for your own squad.
 
-## Reported failures and verification boundary
+## Explore.45 menu repair background
 
 The owner's reported failure was “menu or orders do nothing” and “can't combo.”
 Read-only inspection found an empty current roster and no saved helper entities
@@ -62,7 +73,7 @@ concrete discoverability/feedback problems. A broken iPad inventory transaction
 has not been independently reproduced, and no existing helper was deleted or
 recreated to test the fix.
 
-Native tests exercise encoded form replies and real helper lifecycle operations
+The explore.45 native tests exercise encoded form replies and real helper lifecycle operations
 in disposable worlds, including stale-session and approval refusals. The
 existing autonomous combat tests exercise native spear charging, glide and mace
 damage. A successful test does not establish iPad touch reception, public joining
@@ -79,11 +90,12 @@ The new native regression scenarios also cover issues found during code review:
 | Make the form sender throw, including a delayed delivery. | An active ticket could remain and an exception could escape the tick callback. | Retire only the failed ticket, preserve a replacement screen and report send failure. |
 | Expire a reviewed player order while its old current/aerial target is still present, then read status before the combat tick. | Status could say both “sequence in progress” and “order expired.” | Explain that player combos are blocked, without changing targets, weapons, health or orders during the read. |
 
-This candidate does not change weapon attack speed or combat balance. A
+This combo update does not change item attack-speed attributes. A
 displayed **−2.4 attack speed** is the existing additive modifier: an otherwise
 default base of 4 gives **1.6 attacks per second**, before effects/admin edits.
 
-The live installation is recorded separately in the private server folder. The
-explore.44 r1 resource-only repair was installed with its existing mod and terrain
-unchanged; its walking/crouching appearance still requires the owner's iPad
-comparison. Preparing this explore.45 source does not install it.
+The accepted explore.45 armor resource repair is separate from these helper
+changes. The owner reported its appearance stable. The live installation is
+recorded in the private server folder; this guide does not install explore.46.
+Final native results and remaining device checks belong in
+[VALIDATION.md](VALIDATION.md), with separate approval for any live update.

@@ -319,6 +319,7 @@ def main():
     entries["ARMOR_MOTION_REPAIR.md"] = (server / "ARMOR_MOTION_REPAIR.md").read_bytes()
     entries["ARMOR_ATTACHMENT_REPAIR.md"] = (server / "ARMOR_ATTACHMENT_REPAIR.md").read_bytes()
     entries["HELPER_CONTROLS.md"] = (server / "HELPER_CONTROLS.md").read_bytes()
+    entries["HELPER_COMBOS.md"] = (server / "HELPER_COMBOS.md").read_bytes()
     capacity_checks = ROOT / "research/capacity-performance" / VERSION
     if capacity_checks.exists():
         from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement

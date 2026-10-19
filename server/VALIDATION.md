@@ -1,4 +1,80 @@
-# Native armor attachment — explore.45 resource repair r1
+# Helper combo reliability — explore.46 source candidate
+
+The current source improves ready-only squad aerial turns, checked landing
+adjustments for a moving target, close-range mace selection and native spear
+charge continuity. Both helper menus expose the shared observed phase/reason;
+Java status also shows location and health without mutating combat state. See
+[HELPER_COMBOS.md](HELPER_COMBOS.md) for setup, fallbacks and limits.
+
+## Reproduced failures and corrections
+
+| Reproduction | Previous behavior and cause | Corrected behavior |
+| --- | --- | --- |
+| Put an Ultimate Finals helper at point-blank range to a hostile. | Each control pass equipped a spear before selecting a mace, resetting use state and creating an unstable follow-up. | Inspect native spear reach before equipping; retain the close mace with a small return margin and ordinary hit cadence. |
+| Give a squad teammate a cooldown, blocked route or unavailable launch position. | Clock rotation could reserve the aerial turn for that teammate. | Select the oldest ready, safely launchable teammate; keep one lane per owner/target. |
+| Move the same target sideways during an aerial attempt. | The landing remained fixed at launch. | Recheck a bounded replacement every five ticks; unsafe replacements retain the checked route. |
+| Move a hostile just outside a Guard anchor between control passes. | Native weapon contact checked the hostile type but omitted the anchor boundary. | Recheck both helper and victim leashes at native damage contact. |
+| Open Java helper status with an expired reviewed player order. | The old command-style status path could clear the order while displaying it. | Both menu paths read the shared status without changing the order or combat state. |
+
+## Fresh source verification
+
+The Java25 build and **615 native game tests in 24 isolated groups passed** with
+zero failures or skips. All 757 Java source/resource hashes, the release mod,
+original test JAR and aggregate report match the final provenance. Seven new
+recovery cases and four new status cases exercise the fixes below. The normal
+lifecycle test observes real spear use, glide, descending mace and health loss
+with Minecraft's actual `MACE_SMASH` damage source; it does not force a fall
+distance, call the combo stages or invent damage. Close-range damage retains
+the twenty-tick ordinary strike cadence.
+
+**381 Python launcher/resource tests passed**, treating ResourceWarning as an
+error, with no skipped tests. All **424 tracked PNGs** are byte-identical to main
+`015372b`; the accepted armor attachment models and native equipment protections
+remain. Fresh Geyser startup checks pass 66 catalogue identities across three
+protocols, and the offline armor transport check passes **303 codec round trips**.
+Actual supplemental wire checks pass 255 inbound hotbar cases, 198 overflow
+refusals and 255 Survival refusals. Genuine persistence checks pass 85 item/count
+disk and rejoin cases, all 66 identities and three same-UUID reconnects; renamed
+and damaged gear, backpacks and observer state survive.
+
+Two fresh isolated Fabric/Geyser launcher cycles pass catalogue readiness,
+responsive cold-lobby loading, local UDP responses, backup, restart and clean
+shutdown without ERROR entries. No authenticated player login is claimed.
+The embedded GameTest worlds retain the existing Polymer missing packet-context
+diagnostic for mock players; two first-use test folders also logged absent
+server.properties before generating defaults. These are not clean-log claims
+for the native harness. No such errors occurred in the separate full-stack or
+Geyser startup checks. A preliminary focused run caught a simultaneous test-file
+edit and was not used as release provenance; the final full suite verifies the
+stable completed source.
+
+The acceptance checks passed:
+
+- A cooling-down, out-of-range or route-blocked teammate cannot consume the next
+  aerial turn; only one helper per owner uses a given target's aerial lane.
+- A moving eligible target gets bounded landing updates only through checked
+  loaded terrain. Unsafe motion retains the last checked landing; obstruction,
+  water, target invalidation and leash changes must recover without teleporting.
+- Normal lifecycle combat preserves native spear use/charge, uses a mace inside
+  spear minimum reach and returns to native spear contact at suitable range.
+  Falling mace and follow-up retain reach, sight and native hit cadence.
+- Java and native Bedrock summaries show phase plus reason. Reading status must
+  not navigate, damage, switch a weapon or mutate orders/targets; pauses and an
+  expired player order must hide cached attacking phases.
+- Existing owner/live Codex approval gates, player/team/pet protections, saved
+  helpers and stats remain intact. No damage-immunity reset or totem bypass is
+  introduced.
+
+The owner's accepted explore.45 armor repair remains the visual baseline; these
+helper changes make no new armor/artwork claim. Source preparation does not
+install or restart the live server, refresh terrain or change approval queues.
+Actual iPad controls, rendered helper motion and multiplayer behavior remain
+separate checks after owner-approved installation. Earlier sections below are
+historical validation records, not the current live-installation receipt.
+
+---
+
+# Native armor attachment — explore.45 resource repair r1 (historical candidate record)
 The installed explore.45 mod is running. The owner's latest iPad photos show
 an unresolved waist/thigh gap, displaced sleeves and motion flicker. The earlier
 lowercase-binding candidate failed this device acceptance check. This new,

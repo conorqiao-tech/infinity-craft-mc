@@ -11,7 +11,7 @@ from generate_odyssey_assets import verify as verify_odyssey
 from crossplay_resources import NATIVE_SPRITE_ATTACHABLES, resource_version, vanilla_equipment_override
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.45"
+VERSION = "2.13.0-explore.46"
 
 
 def expected_native_tests():

@@ -68,7 +68,9 @@
       "dev.convergence.HelperFormsGameTests",
       "dev.convergence.BedrockAgentMenuGameTests",
       "dev.convergence.BedrockAgentOrdersGameTests",
-      "dev.convergence.HelperCombatStatusGameTests"
+      "dev.convergence.HelperCombatStatusGameTests",
+      "dev.convergence.AgentComboRecoveryGameTests",
+      "dev.convergence.HelperComboStatusGameTests"
     ]
   },
   "mixins": [
@@ -109,7 +111,9 @@
       "dev.convergence.HelperFormsGameTests",
       "dev.convergence.BedrockAgentMenuGameTests",
       "dev.convergence.BedrockAgentOrdersGameTests",
-      "dev.convergence.HelperCombatStatusGameTests"
+      "dev.convergence.HelperCombatStatusGameTests",
+      "dev.convergence.AgentComboRecoveryGameTests",
+      "dev.convergence.HelperComboStatusGameTests"
     ]
   },
   "depends": {

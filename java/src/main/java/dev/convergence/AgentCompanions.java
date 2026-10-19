@@ -65,11 +65,24 @@ public final class AgentCompanions {
     static final double AIR_SPEED = .42, LEAP_HEIGHT = 3;
     final Map<UUID, Integer> nextLeap = new HashMap<>();
     final Map<UUID, Aerial> aerial = new HashMap<>();
+    record ComboFeedback(String phase, String detail, int tick) {
+        String text() { return phase + (detail.isBlank() ? "." : ": " + detail); }
+    }
+    final Map<UUID, ComboFeedback> combatFeedback = new HashMap<>();
+    ComboFeedback comboFeedback(UUID id) { return combatFeedback.get(id); }
+    private void feedback(IronGolem helper, String phase, String detail, int tick) {
+        var before = combatFeedback.get(helper.getUUID());
+        if (before == null || !before.phase.equals(phase) || !before.detail.equals(detail))
+            combatFeedback.put(helper.getUUID(), new ComboFeedback(phase, detail, tick));
+    }
     static final class Aerial {
-        final Agent agent; final LivingEntity target; final Vec3 landing; final int started;
+        final Agent agent; final LivingEntity target; Vec3 landing; final int started;
+        int lastPlan;
+        String tracking = "Following the checked landing route.";
         int firstHit = -1;
         Aerial(Agent agent, LivingEntity target, Vec3 landing, int started) {
             this.agent = agent; this.target = target; this.landing = landing; this.started = started;
+            this.lastPlan = started;
         }
     }
 
@@ -231,7 +244,8 @@ public final class AgentCompanions {
             return order != null && order.target == player && companions.playerCombatReady(golem, agent, owner, player)
                 && golem.getSensing().hasLineOfSight(player);
         }
-        return hostile(victim);
+        return hostile(victim) && companions.insideLeash(agent, owner, golem.position())
+            && companions.insideLeash(agent, owner, victim.position());
     }
     static void prepare(IronGolem golem) {
         golem.removeFreeWill();
@@ -259,7 +273,7 @@ public final class AgentCompanions {
         APPROVED_TARGETS.remove(entity);
         if (loaded.remove(entity.getUUID(), entity)) {
             AgentAvatars.remove((IronGolem)entity);
-            aerial.remove(entity.getUUID()); lastAttack.remove(entity.getUUID()); nextLeap.remove(entity.getUUID());
+            aerial.remove(entity.getUUID()); lastAttack.remove(entity.getUUID()); nextLeap.remove(entity.getUUID()); combatFeedback.remove(entity.getUUID());
         }
     }
     Map.Entry<String, Agent> owned(ServerPlayer owner, String name) {
@@ -504,7 +518,7 @@ public final class AgentCompanions {
         // replaces its key with its successor. Capture identity before removal.
         String key=entry.getKey();UUID id=UUID.fromString(key);
         data.agents.remove(key); save();
-        IronGolem golem = loaded.remove(id); lastAttack.remove(id); nextLeap.remove(id); aerial.remove(id);
+        IronGolem golem = loaded.remove(id); lastAttack.remove(id); nextLeap.remove(id); aerial.remove(id); combatFeedback.remove(id);
         if (golem != null) {AgentAvatars.remove(golem);golem.discard();}
         validatePlayerTargets();
         return reply(owner, name + " dismissed." + (golem == null ? " Its saved entity will be removed when the area next loads." : ""));
@@ -527,7 +541,7 @@ public final class AgentCompanions {
             + "; equipment: " + (golem == null ? "unloaded" : golem.getMainHandItem().getHoverName().getString() + (golem.isFallFlying() ? " / gliding" : "")) + "; state: " + (pause == null ? "active" : pause) + "; combat: " + (playerCombatProfile(agent.profile) ? "hostile mobs or explicitly approved player" : agent.profile.combat ? "hostile mobs only" : "disabled")
             + "\nLocation: " + location(golem, agent) + "; target: " + target
             + "\nHP: " + (golem == null ? "unloaded" : Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()))
-            + "; anchor: " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z) + "\n" + playerTargetStatus(owner));
+            + "; anchor: " + Math.round(agent.x) + ", " + Math.round(agent.y) + ", " + Math.round(agent.z) + "\n" + HelperCombatStatus.summary(owner, entry.getKey(), agent));
     }
     static String location(IronGolem golem, Agent agent) {
         boolean live = golem != null && golem.isAlive() && !golem.isRemoved();
@@ -574,14 +588,14 @@ public final class AgentCompanions {
         validatePlayerTargets();
         for (var id : new ArrayList<>(aerial.keySet())) {
             var golem = loaded.get(id);
-            if (golem == null) aerial.remove(id);
+            if (golem == null) { aerial.remove(id); combatFeedback.remove(id); }
             else tickAerial(golem, server.getTickCount());
         }
         if (server.getTickCount() % 5 != 0) return;
         for (var entry : new ArrayList<>(loaded.entrySet())) {
             var golem = entry.getValue(); var agent = data.agents.get(entry.getKey().toString());
-            if (golem.isRemoved() || !golem.isAlive()) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); continue; }
-            if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); golem.discard(); continue; }
+            if (golem.isRemoved() || !golem.isAlive()) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); continue; }
+            if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); golem.discard(); continue; }
             control(golem, agent, server.getTickCount());
         }
     }
@@ -589,7 +603,8 @@ public final class AgentCompanions {
         var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner));
         var order = validPlayerTarget(owner);
         golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0);
-        if (pauseReason(owner, golem, agent) != null) { halt(golem); return; }
+        String pause = pauseReason(owner, golem, agent);
+        if (pause != null) { halt(golem); feedback(golem, "Paused", pause, ticks); return; }
         ServerLevel world = owner.level();
         // Anchored helpers never fight in a dimension they were moved into by another command.
         if (agent.mode == Mode.GUARD && !world.dimension().identifier().toString().equals(agent.dimension)) { halt(golem); return; }
@@ -622,18 +637,19 @@ public final class AgentCompanions {
         if (target != null) {
             golem.lookAt(target, 30, 30);
             if(agent.profile==Profile.ULTIMATE_FINALS) {
-                AgentWeapons.spear(golem,target);
                 // Spears have a real minimum reach. Use a mace once the target
                 // closes inside that reach instead of charging harmlessly at point blank.
-                double closeRange=golem.getAttackRangeWith(golem.getActiveItem()).effectiveMinRange(golem)+(golem.getBbWidth()+target.getBbWidth())*.5;
-                if(!golem.isWithinMeleeAttackRange(target) && golem.distanceToSqr(target)<closeRange*closeRange) {
+                if(AgentWeapons.spearTooClose(golem,target)) {
                     AgentWeapons.mace(golem,target);
+                    feedback(golem, "Ground mace", "Target is inside the spear's minimum reach.", ticks);
                     golem.getNavigation().moveTo(target,1.1);
                     strike(golem,target,ticks);return;
                 }
+                AgentWeapons.spear(golem,target);
                 var kinetic=golem.getMainHandItem().get(net.minecraft.core.component.DataComponents.KINETIC_WEAPON);
                 if(kinetic!=null && golem.getTicksUsingItem()<kinetic.delayTicks() && golem.distanceToSqr(target)>=16) {
                     // Wind up before rushing into the spear's short-range dead zone.
+                    feedback(golem, "Charging spear", "Winding up before the approach.", ticks);
                     golem.getNavigation().stop();return;
                 }
                 if(kinetic!=null && golem.getTicksUsingItem()>=kinetic.delayTicks() && startAerial(golem,agent,owner,target,ticks))return;
@@ -648,6 +664,7 @@ public final class AgentCompanions {
             var destination=agent.mode==Mode.FOLLOW?formationPoint(golem,agent,owner):center;
             double tolerance=agent.mode==Mode.FOLLOW&&formation(owner)!=Formation.ESCORT?1:agent.mode==Mode.FOLLOW?9:4;
             AgentWeapons.stop(golem);
+            feedback(golem, "Waiting for hostile", "No eligible target in the movement area.", ticks);
             if(golem.position().distanceToSqr(destination)>tolerance)golem.getNavigation().moveTo(destination.x,destination.y,destination.z,1);
             else {golem.getNavigation().stop();golem.stopInPlace();}
         }
@@ -730,26 +747,52 @@ public final class AgentCompanions {
         }
         return true;
     }
-    boolean startAerial(IronGolem golem, Agent agent, ServerPlayer owner, LivingEntity target, int ticks) {
-        if (!tacticTarget(golem, agent, owner, target) || !golem.onGround() || golem.isInWater()
-            || ticks < nextLeap.getOrDefault(golem.getUUID(), 0) || !golem.getSensing().hasLineOfSight(target)
-            || Math.abs(target.getY() - golem.getY()) > .25 || golem.distanceToSqr(target) < 16 || golem.distanceToSqr(target) > 49
-            || aerial.values().stream().anyMatch(a -> a.agent.owner.equals(agent.owner) && a.target == target)) return false;
-        var peers = loaded.values().stream().filter(peer -> {
-            var record = data.agents.get(peer.getStringUUID());
-            return record != null && record.owner.equals(agent.owner) && tacticTarget(peer, record, owner, target)
-                && (peer.getTarget() == null || peer.getTarget() == target);
-        }).sorted(Comparator.comparing(peer -> data.agents.get(peer.getStringUUID()).name)).toList();
-        if (peers.isEmpty() || peers.get(Math.floorMod(ticks / LEAP_COOLDOWN, peers.size())) != golem) return false;
+    private String leapProblem(IronGolem golem, Agent agent, ServerPlayer owner, LivingEntity target, int ticks) {
+        if (!tacticTarget(golem, agent, owner, target)) return "Target or owner is no longer eligible.";
+        if (!golem.onGround() || golem.isInWater()) return "A leap needs dry, solid ground.";
+        if (ticks < nextLeap.getOrDefault(golem.getUUID(), 0)) return "Aerial cooldown; continuing ground combat.";
+        if (!golem.getSensing().hasLineOfSight(target)) return "Target is out of sight.";
+        if (Math.abs(target.getY() - golem.getY()) > .25) return "Target is not on level ground; using ground pursuit.";
+        if (golem.distanceToSqr(target) < 16 || golem.distanceToSqr(target) > 49)
+            return "Approaching the 4–7 block launch range.";
+        return null;
+    }
+    private record LeapPlan(Vec3 direction, Vec3 landing) {}
+    private LeapPlan leapPlan(IronGolem golem, Agent agent, ServerPlayer owner, LivingEntity target) {
         Vec3 predicted = intercept(golem, agent, owner, target);
         if (predicted == null) predicted = target.position();
         Vec3 direction = predicted.subtract(golem.position()).multiply(1, 0, 1).normalize();
         Vec3 landing = new Vec3(predicted.x - direction.x * 1.6, golem.getY(), predicted.z - direction.z * 1.6);
-        if (!landingClear(golem, landing) || !airClear(golem, agent, owner, golem.position(), landing, LEAP_HEIGHT)) return false;
+        return landingClear(golem, landing) && airClear(golem, agent, owner, golem.position(), landing, LEAP_HEIGHT)
+            ? new LeapPlan(direction, landing) : null;
+    }
+    boolean startAerial(IronGolem golem, Agent agent, ServerPlayer owner, LivingEntity target, int ticks) {
+        String problem = leapProblem(golem, agent, owner, target, ticks);
+        if (problem != null) { feedback(golem, "Approaching target", problem, ticks); return false; }
+        if (aerial.values().stream().anyMatch(a -> a.agent.owner.equals(agent.owner) && a.target == target)) {
+            feedback(golem, "Waiting for squad", "A teammate is already using this target's aerial lane.", ticks); return false;
+        }
+        var peers = loaded.values().stream().filter(peer -> {
+            var record = data.agents.get(peer.getStringUUID());
+            return record != null && record.owner.equals(agent.owner) && leapProblem(peer, record, owner, target, ticks) == null
+                && (peer.getTarget() == null || peer.getTarget() == target);
+        }).sorted(Comparator.comparingInt((IronGolem peer) -> nextLeap.getOrDefault(peer.getUUID(), 0))
+            .thenComparing(peer -> data.agents.get(peer.getStringUUID()).name)).toList();
+        LeapPlan selected = null;
+        // At most six owned helpers are considered. Cheap readiness filters run
+        // before corridor scans, and a blocked teammate cannot consume the lane.
+        for (var peer : peers) {
+            var plan = leapPlan(peer, data.agents.get(peer.getStringUUID()), owner, target);
+            if (plan == null) continue;
+            if (peer != golem) { feedback(golem, "Waiting for squad", "A ready teammate has the next aerial turn.", ticks); return false; }
+            selected = plan; break;
+        }
+        if (selected == null) { feedback(golem, "Approaching target", "Aerial route or landing is blocked; using ground pursuit.", ticks); return false; }
         nextLeap.put(golem.getUUID(), ticks + LEAP_COOLDOWN);
         AgentWeapons.spear(golem,target);
-        aerial.put(golem.getUUID(), new Aerial(agent, target, landing, ticks));
-        golem.getNavigation().stop(); golem.setDeltaMovement(direction.x * AIR_SPEED, .62, direction.z * AIR_SPEED);
+        aerial.put(golem.getUUID(), new Aerial(agent, target, selected.landing, ticks));
+        feedback(golem, "Launching", "Charged spear approach; checked landing reserved.", ticks);
+        golem.getNavigation().stop(); golem.setDeltaMovement(selected.direction.x * AIR_SPEED, .62, selected.direction.z * AIR_SPEED);
         golem.setOnGround(false); golem.needsSync = true;
         return true;
     }
@@ -758,7 +801,25 @@ public final class AgentCompanions {
         if (aerial.remove(golem.getUUID()) != null) {
             golem.getNavigation().stop();
             golem.setDeltaMovement(0, Math.min(0, golem.getDeltaMovement().y), 0); golem.needsSync = true;
+            feedback(golem, "Recovering", "Aerial attempt ended; ground combat resumes after target checks.", server.getTickCount());
         }
+    }
+    private void trackLanding(IronGolem golem, Aerial move, ServerPlayer owner, int ticks) {
+        if (ticks - move.lastPlan < 5) return;
+        move.lastPlan = ticks;
+        Vec3 predicted = intercept(golem, move.agent, owner, move.target);
+        if (predicted == null) predicted = move.target.position();
+        Vec3 direction = predicted.subtract(golem.position()).multiply(1, 0, 1).normalize();
+        Vec3 desired = new Vec3(predicted.x - direction.x * 1.6, move.landing.y, predicted.z - direction.z * 1.6);
+        Vec3 shift = desired.subtract(move.landing).multiply(1, 0, 1);
+        if (shift.lengthSqr() > 4) shift = shift.normalize().scale(2);
+        Vec3 candidate = move.landing.add(shift);
+        double clearance = Math.max(0, move.landing.y + LEAP_HEIGHT - golem.getY());
+        if (insideLeash(move.agent, owner, candidate) && landingClear(golem, candidate)
+            && airClear(golem, move.agent, owner, golem.position(), candidate, clearance)) {
+            move.landing = candidate;
+            move.tracking = "Landing follows the same target within a checked route.";
+        } else move.tracking = "Target moved behind unsafe terrain; retaining the last checked landing.";
     }
     void tickAerial(IronGolem golem, int ticks) {
         var move = aerial.get(golem.getUUID()); if (move == null) return;
@@ -766,9 +827,18 @@ public final class AgentCompanions {
         if (data.agents.get(golem.getStringUUID()) != move.agent || !tacticTarget(golem, move.agent, owner, move.target)
             || ticks - move.started > LEAP_TIMEOUT || !golem.getSensing().hasLineOfSight(move.target)) { cancelAerial(golem); return; }
         if (move.firstHit >= 0) {
-            if(golem.onGround())AgentWeapons.spear(golem,move.target);
+            if(golem.onGround()) {
+                if (AgentWeapons.spearTooClose(golem, move.target)) AgentWeapons.mace(golem, move.target);
+                else AgentWeapons.spear(golem,move.target);
+            }
+            feedback(golem, "Follow-up", "Native weapon reach and the twenty-tick hit cadence still apply.", ticks);
             golem.getNavigation().moveTo(move.target, 1.1);
-            if (ticks - move.firstHit >= 20) { strike(golem, move.target, ticks); cancelAerial(golem); }
+            if (golem.onGround() && ticks - move.firstHit >= 20) {
+                if (golem.getMainHandItem().is(net.minecraft.world.item.Items.MACE)) strike(golem, move.target, ticks);
+                // A distant spear follow-up uses native charging contacts, not a
+                // forced ordinary melee hit through its minimum-range dead zone.
+                cancelAerial(golem);
+            }
             return;
         }
         if (golem.onGround() && ticks > move.started) {
@@ -778,9 +848,13 @@ public final class AgentCompanions {
             return;
         }
         AgentWeapons.aim(golem,move.target);
-        if(ticks-move.started>=4 && ticks-move.started<7)AgentWeapons.glide(golem);
+        trackLanding(golem, move, owner, ticks);
+        if(ticks-move.started>=4 && ticks-move.started<7) {
+            AgentWeapons.glide(golem); feedback(golem, "Gliding", move.tracking, ticks);
+        }
         if(ticks-move.started>=7) {
             AgentWeapons.mace(golem,move.target);
+            feedback(golem, "Mace descent", move.tracking, ticks);
             if(golem.fallDistance>1.5 && strike(golem,move.target,ticks)) {move.firstHit=ticks;return;}
         }
         Vec3 delta = move.landing.subtract(golem.position()).multiply(1, 0, 1);
@@ -870,7 +944,7 @@ public final class AgentCompanions {
             if (isAgent(entity) && entity.level() instanceof ServerLevel world) {
                 var helpers = get(world.getServer());
                 AgentAvatars.remove((IronGolem)entity);
-                helpers.loaded.remove(entity.getUUID()); helpers.lastAttack.remove(entity.getUUID()); helpers.nextLeap.remove(entity.getUUID()); helpers.aerial.remove(entity.getUUID());
+                helpers.loaded.remove(entity.getUUID()); helpers.lastAttack.remove(entity.getUUID()); helpers.nextLeap.remove(entity.getUUID()); helpers.aerial.remove(entity.getUUID()); helpers.combatFeedback.remove(entity.getUUID());
                 if (helpers.data.agents.remove(entity.getStringUUID()) != null) helpers.save();
             }
         });

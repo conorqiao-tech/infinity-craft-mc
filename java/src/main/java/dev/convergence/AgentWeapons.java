@@ -42,5 +42,14 @@ final class AgentWeapons {
     static void mace(IronGolem golem,LivingEntity target) {
         golem.stopFallFlying();golem.stopUsingItem();equip(golem,Items.MACE);aim(golem,target);
     }
+    /** Inspect native spear reach without equipping it or resetting an active charge. */
+    static boolean spearTooClose(IronGolem golem,LivingEntity target) {
+        double minimum=golem.getAttackRangeWith(new ItemStack(Items.NETHERITE_SPEAR)).effectiveMinRange(golem)
+            +(golem.getBbWidth()+target.getBbWidth())*.5;
+        // A small return threshold keeps a moving target from flipping weapons
+        // across the boundary on every five-tick control update.
+        if(golem.getMainHandItem().is(Items.MACE))minimum+=.5;
+        return golem.distanceToSqr(target)<minimum*minimum;
+    }
     static void stop(IronGolem golem) {golem.stopUsingItem();golem.stopFallFlying();}
 }

@@ -132,11 +132,13 @@ public class AgentTacticsGameTests {
         try (var f = new Arena(c, "tactic-roles")) {
             var beta = f.add("beta", f.start.add(0, 0, 2));
             f.golem.setTarget(f.target); beta.setTarget(f.target);
-            c.assertFalse(f.helpers.startAerial(f.golem, f.record(f.golem), f.owner, f.target, 80), "The rotating second role leaves alpha on the ground");
-            c.assertTrue(f.helpers.startAerial(beta, f.record(beta), f.owner, f.target, 80), "The selected beta role starts the same-target dive");
-            c.assertFalse(f.launch(160), "Only one peer can be in the same-target aerial sequence");
+            c.assertTrue(f.launch(80), "Equally ready peers use their stable name order");
+            c.assertFalse(f.helpers.startAerial(beta, f.record(beta), f.owner, f.target, 80), "Only one peer can dive at the same owner target");
+            f.helpers.cancelAerial(f.golem); f.golem.setOnGround(true);
+            c.assertFalse(f.launch(81), "Cancelling cannot skip the per-helper leap cooldown");
+            c.assertTrue(f.helpers.startAerial(beta, f.record(beta), f.owner, f.target, 81), "The ready peer gets the next turn while alpha cools down");
             f.helpers.cancelAerial(beta); beta.setOnGround(true);
-            c.assertFalse(f.helpers.startAerial(beta, f.record(beta), f.owner, f.target, 81), "Cancelling cannot skip the per-helper leap cooldown");
+            c.assertFalse(f.helpers.startAerial(beta, f.record(beta), f.owner, f.target, 82), "Each helper retains its own cooldown after cancellation");
             f.target.setDeltaMovement(100, 0, 0);
             var prediction = f.helpers.intercept(f.golem, f.record(f.golem), f.owner, f.target);
             c.assertTrue(prediction != null && prediction.distanceTo(f.target.position()) <= 2.001, "Very fast target motion has at most a two-block lead");
