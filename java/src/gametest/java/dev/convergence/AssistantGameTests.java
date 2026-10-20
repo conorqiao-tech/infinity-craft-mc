@@ -85,8 +85,9 @@ public class AssistantGameTests {
             "Public help explains the helper permission boundary and chat-only behavior");
         var allowed=answer(owner(c),"How do golem helpers work?");
         c.assertTrue(allowed.contains("Infinity Menu")&&allowed.contains("AI Helpers")&&allowed.contains("Create your first helper")
-            &&allowed.contains("named iron golem appears beside you"),"Owner can discover and create a visible helper without a slash command");
-        c.assertTrue(allowed.contains("Follow, Guard, Stay")&&allowed.contains("at most six"),"Owner receives the menu controls and real helper limits");
+            &&allowed.contains("named AI player avatar appears beside you"),"Owner can discover and create a visible helper without a slash command");
+        c.assertTrue(allowed.contains("Follow, Guard, Stay")&&allowed.contains("up to "+AgentCompanions.LIMIT+" helpers")
+            &&allowed.contains("whole server also has a cap of "+AgentCompanions.GLOBAL_LIMIT),"Owner receives the menu controls and real helper limits");
         c.assertTrue(allowed.contains("/agent approve <id>")&&allowed.contains("live Codex review"),"Menu guidance preserves both player-target approvals");
         c.assertTrue(allowed.contains("do not run these commands"),"Guide does not claim to execute an agent command");c.succeed();
     }

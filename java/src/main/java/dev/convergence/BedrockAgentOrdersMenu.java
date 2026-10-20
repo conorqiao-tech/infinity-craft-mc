@@ -18,6 +18,7 @@ final class BedrockAgentOrdersMenu {
 
     static int open(ServerPlayer owner) { return open(owner, HelperForms.sender(owner)); }
     static int open(ServerPlayer owner, Predicate<Form> sender) { return main(owner, "", sender); }
+    static int openPending(ServerPlayer owner, Predicate<Form> sender) { return pending(owner, "Player target proposed only. Both approvals are still required.", sender); }
 
     private static String content(String notice, String text) { return notice.isEmpty() ? text : notice + "\n\n" + text; }
     private static HelperForms.Choice choice(String label, Runnable action) { return new HelperForms.Choice(label, action); }
@@ -26,6 +27,7 @@ final class BedrockAgentOrdersMenu {
         var choices = new ArrayList<HelperForms.Choice>();
         choices.add(choice("Choose player target", () -> targets(owner, 0, "", sender)));
         choices.add(choice("Pending orders • approve or cancel", () -> pending(owner, "", sender)));
+        choices.add(choice("Choose any nearby living target", () -> AgentEntityTargetMenu.openBedrock(owner, sender)));
         for (String request : ACTIONS) choices.add(choice("Propose: " + request, () -> propose(owner, request, sender)));
         choices.add(choice("Back to AI Helpers", () -> BedrockAgentMenu.open(owner, sender)));
         return HelperForms.show(owner, "Helper Orders", content(notice,

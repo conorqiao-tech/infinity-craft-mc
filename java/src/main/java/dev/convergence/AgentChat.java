@@ -189,7 +189,7 @@ final class AgentChat {
             case REGULAR -> ServerAssistant.answer(source, question);
             case ULTIMATE_FINALS -> {
                 var lines = new ArrayList<String>();
-                lines.add("Ultimate Finals shares targets across your loaded combat helpers. /agent target <player> proposes an exact player target, requiring your approval and live Codex review. /agent ceasefire stops player targeting immediately. Helpers use ordinary golem stats; pets remain protected.");
+                lines.add("Ultimate Finals shares targets across your loaded combat helpers. /agent target <player> proposes an exact player target, requiring your approval and live Codex review. /agent ceasefire clears mob and player targets immediately. Helpers keep native stats with original Infinity weapon components. Pets and animals are never selected automatically; an exact confirmed choice in Orders is required.");
                 lines.addAll(ServerAssistant.answer(source, question).stream().limit(2).toList());
                 yield lines;
             }

@@ -219,8 +219,8 @@ public final class ServerAssistant {
     static List<String> agents(boolean op) {
         if(!op)return bounded("Golem helpers are managed by the server owner or an operator with level 4. Their bodies are server-controlled iron golems; the owner can connect their chat to real Codex.",
             "Infinity Menu has an AI Helpers button; only OP4 can create or manage a squad. Helpers can follow, guard or stay. /ai answers server questions without spawning entities.");
-        return bounded("OP4: select the Infinity Menu recovery compass, or tap a lobby INFINITY MENU sign. Choose AI Helpers, then Create your first helper: a named iron golem appears beside you.",
-            "Select its icon for profiles, Follow, Guard, Stay or Dismiss. Each owner has at most six helpers including unloaded ones; server cap 24. Stand on clear solid ground when creating one.",
+        return bounded("OP4: select the Infinity Menu recovery compass, or tap a lobby INFINITY MENU sign. Choose AI Helpers, then Create your first helper: a named AI player avatar appears beside you.",
+            "Select its icon for profiles, Follow, Guard, Stay or Dismiss. Each owner can have up to 50 helpers including unloaded ones; the whole server also has a cap of 50. Stand on clear solid ground when creating one.",
             "/agent ask <name> <question> talks to a helper. Codex, when enabled, answers in every profile using limited game facts. Otherwise local profiles guide and API uses optional OpenAI. /agent menu remains a fallback.",
             "Player targeting needs /agent target <player>, /agent approve <id> and live Codex review. /agent ceasefire stops it. I only give advice and do not run these commands.");
     }

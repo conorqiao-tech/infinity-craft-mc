@@ -8,11 +8,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Player-built golems refuse player targets; a helper's approved player order is the only exception. */
+/** Native target vetoes are bypassed only for this helper's exact eligible reviewed target. */
 @Mixin(IronGolem.class)
 abstract class AgentTargetMixin {
     @Inject(method="canAttack",at=@At("HEAD"),cancellable=true)
     private void approvedPlayer(LivingEntity target,CallbackInfoReturnable<Boolean> result) {
-        if(AgentCompanions.approvedPlayerTarget((IronGolem)(Object)this,target))result.setReturnValue(true);
+        var helper=(IronGolem)(Object)this;
+        if(AgentCompanions.approvedPlayerTarget(helper,target) || AgentCompanions.approvedEntityTarget(helper,target))result.setReturnValue(true);
     }
 }

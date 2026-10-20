@@ -84,6 +84,27 @@ public class AgentTacticsGameTests {
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=60) public void ultimateLeapActuallyMovesThenUsesVanillaMelee(GameTestHelper c) {
         var f = new Arena(c, "tactic-air");
         try {
+            float[] observedHealth = {f.target.getHealth()};
+            double[] nativeAttack = {f.golem.getAttributeValue(Attributes.ATTACK_DAMAGE)};
+            int[] contacts = {0};
+            // Original Infinity equipment now contributes its real attribute
+            // modifiers. Bound actual native contacts, not the old bare-golem
+            // damage budget, and refuse the separate player-combo damage path.
+            for (int tick = 1; tick < 30; tick++) c.runAfterDelay(tick, () -> {
+                try {
+                    nativeAttack[0] = Math.max(nativeAttack[0], f.golem.getAttributeValue(Attributes.ATTACK_DAMAGE));
+                    float health = f.target.getHealth();
+                    if (health < observedHealth[0]) {
+                        contacts[0]++;
+                        var source = f.target.getLastDamageSource();
+                        c.assertTrue(source != null && source.getEntity() == f.golem && !source.is(Convergence.COMBO),
+                            "Every observed contact is the native helper attack, never Infinity's player-only combo burst");
+                        c.assertTrue(observedHealth[0] - health <= nativeAttack[0] + 4 * AgentCompanions.LEAP_HEIGHT + .01,
+                            "A short checked arc cannot exceed its equipped native attack plus the native mace fall bonus");
+                    }
+                    observedHealth[0] = health;
+                } catch (Throwable failure) { f.close(); throw failure; }
+            });
             c.assertTrue(f.launch(f.helpers.server.getTickCount()), "Clear ground launches a physical golem leap");
             c.assertTrue(f.golem.getDeltaMovement().y > 0 && !f.golem.isNoGravity(), "Launch uses upward velocity with ordinary gravity");
             c.runAfterDelay(5, () -> {
@@ -96,7 +117,8 @@ public class AgentTacticsGameTests {
                         try {
                             c.assertTrue(f.target.getHealth() < 500, "Landing closes to native melee range and causes a real golem hit");
                             c.assertTrue(f.helpers.lastAttack.containsKey(f.golem.getUUID()), "Damage follows the helper's recorded native attack path");
-                            c.assertTrue(f.target.getHealth() > 350, "The sequence never uses Infinity player weapon burst damage");
+                            c.assertTrue(contacts[0] > 0 && contacts[0] <= 2,
+                                "Thirty native ticks contain bounded real contacts, not an instant player burst: " + contacts[0]);
                             c.assertTrue(f.golem.getY() < f.start.y + .3, "The helper descends and lands rather than hovering");
                             c.succeed();
                         } finally { f.close(); }
@@ -150,7 +172,7 @@ public class AgentTacticsGameTests {
 
     @GameTest(structure="convergence_tests:combat_arena") public void nativeComboKeepsAttackCadenceAndCancelsOnProfileRevocation(GameTestHelper c) {
         try (var f = new Arena(c, "tactic-cadence")) {
-            f.golem.setPos(f.target.position().add(-1.6, 0, 0));
+            f.golem.setPos(f.target.position().add(-1, 0, 0));
             float before = f.target.getHealth();
             c.assertTrue(f.helpers.strike(f.golem, f.target, 20), "First normal melee strike succeeds");
             float after = f.target.getHealth();
@@ -212,13 +234,15 @@ public class AgentTacticsGameTests {
     }
     @GameTest(structure="convergence_tests:combat_arena") public void ultimateMaceUsesNativeWeaponSmashBonus(GameTestHelper c) {
         try(var f=new Arena(c,"tactic-mace")) {
-            f.golem.setPos(f.target.position().add(-1.6,0,0));
+            f.golem.setPos(f.target.position().add(-1,0,0));
             AgentWeapons.mace(f.golem,f.target);
             f.golem.setOnGround(false);f.golem.fallDistance=4;f.golem.setDeltaMovement(0,-.5,0);
             c.assertTrue(net.minecraft.world.item.MaceItem.canSmashAttack(f.golem),"A real falling helper qualifies for native mace bonus");
             float before=f.target.getHealth();
             c.assertTrue(f.golem.doHurtTarget(c.getLevel(),f.target),"Registered Ultimate helper uses MobEntity's actual item attack");
             c.assertTrue(before-f.target.getHealth()>25,"Native mace fall bonus exceeds an ordinary golem punch");
+            c.assertTrue(f.target.getLastDamageSource().is(net.minecraft.world.damagesource.DamageTypes.MACE_SMASH),
+                "The falling contact uses Minecraft's actual mace-smash damage source");
             c.assertTrue(f.golem.getMainHandItem().is(net.minecraft.world.item.Items.MACE),"Attack uses a real mace stack");
         }
         c.succeed();
@@ -256,7 +280,10 @@ public class AgentTacticsGameTests {
     @GameTest(structure="convergence_tests:combat_arena") public void ultimateUsesMaceInsideNativeSpearMinimumReach(GameTestHelper c) {
         try(var f=new Arena(c,"tactic-close")) {
             f.owner.setPos(f.start.add(0,0,-4));
-            f.golem.setPos(f.target.position().add(-1.6,0,0));
+            f.golem.setPos(f.target.position().add(-1,0,0));
+            // Open close combat now starts a checked mace arc. A low ceiling
+            // deliberately isolates the native ground-mace fallback here.
+            c.getLevel().setBlockAndUpdate(f.golem.blockPosition().above(3), Blocks.STONE.defaultBlockState());
             f.helpers.control(f.golem,f.record(f.golem),80);
             c.assertTrue(f.golem.getMainHandItem().is(net.minecraft.world.item.Items.MACE),"Close combat switches from the spear's dead zone to a real mace: "+f.golem.getMainHandItem().getHoverName().getString());
             c.assertTrue(f.target.getHealth()<500,"Normal control performs a real close mace hit");
@@ -270,7 +297,7 @@ public class AgentTacticsGameTests {
         try(var f=new Arena(c,"tactic-pierce-guard")) {
             var player=new ModeGameTests().player(c,"tactic-unapproved");
             try {
-                player.setGameMode(GameType.SURVIVAL);player.setPos(f.start.add(1.6,0,0));
+                player.setGameMode(GameType.SURVIVAL);player.setPos(f.start.add(1,0,0));
                 var ride=EntityTypes.PIG.create(c.getLevel(),EntitySpawnReason.COMMAND);ride.setPos(player.position());c.getLevel().addFreshEntity(ride);player.startRiding(ride,true,false);
                 AgentWeapons.spear(f.golem,f.target);
                 var original=f.target.position();
@@ -291,7 +318,7 @@ public class AgentTacticsGameTests {
                 c.assertValueEqual(player.getHealth(),hp,"Rejected spear preserves health");c.assertValueEqual(player.getDeltaMovement(),velocity,"Rejected spear preserves velocity");
                 AgentWeapons.mace(f.golem,player);f.golem.fallDistance=4;
                 c.assertFalse(f.golem.doHurtTarget(c.getLevel(),player),"Native mace cannot bypass both approvals");
-                f.golem.setPos(f.target.position().add(-1.6,0,0));
+                f.golem.setPos(f.target.position().add(-1,0,0));
                 ride.setPos(f.target.position().add(2,0,0));player.setPos(ride.position());
                 var beforeSplash=player.getDeltaMovement();f.golem.fallDistance=4;
                 c.assertTrue(f.golem.doHurtTarget(c.getLevel(),f.target),"A valid native mace smash still hits the hostile");

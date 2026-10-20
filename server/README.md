@@ -1,14 +1,17 @@
-# Explore.46 source candidate • helper combos
+# Explore.47 source candidate • smarter helpers
 
-Ultimate Finals helpers keep a mace at close range, share aerial turns among
-available teammates, and adjust landings only along checked safe routes. Both
-helper menus explain the current combo phase and blocked prerequisites. See
-[Helper combos](HELPER_COMBOS.md) for setup, practical combat checks and limits.
+Helpers walk through player-sized passages and use original Infinity weapons.
+Ultimate Finals can open a close-range mace arc, retain an eligible moving enemy,
+and share checked aerial turns without blocking ready teammates. Select a helper
+and choose **Enable combos and follow me**. Both editions have paginated controls
+for up to fifty helpers and an exact nearby-target picker. Player attacks retain
+both approvals. See [Helper combos](HELPER_COMBOS.md) for setup and limits.
 
-The playable server remains on explore.45 with its separately installed r1
-armor repair, which the owner confirmed stable on iPad. Building this candidate
-does not install it. Final source checks and remaining device checks are recorded
-in [VALIDATION.md](VALIDATION.md). The candidate notes below are historical.
+The playable server remains the separately installed explore.46. Building this
+candidate does not install it. The owner's accepted armor artwork is retained;
+actual iPad helper controls and appearance need a separate device check after
+approved installation. Source checks are recorded in [VALIDATION.md](VALIDATION.md).
+The candidate notes below are historical.
 
 # Historical explore.45 r1 resource candidate • armor attachment
 
@@ -147,9 +150,9 @@ Six new building textures, two Creative building wands, two wearable cosmetic ar
 
 ## Helpers and operator controls
 
-Operators at level 4 can select **Infinity Menu → AI Helpers • open your squad → Create your first helper**. Stand on clear solid ground: the menu closes and a named AI player avatar appears nearby, with a visible success or failure message. Helpers do not appear until you create them. Reopen **AI Helpers** to manage up to six named helpers, select six profiles and control the squad. Choose a helper to see **Status • profile, location, and health**, **Ask Codex** when connected, and **Back to your squad**. The squad screen has **Back to Infinity Menu**. The Ask button explains the selected helper's state and suggests a next step; `/agent ask <name> <question>` accepts your own question.
+Operators at level 4 can select **Infinity Menu → AI Helpers • open your squad → Create your first helper**. Stand on clear solid ground: the menu closes and a named AI player avatar appears nearby, with a visible success or failure message. Helpers do not appear until you create them. Reopen **AI Helpers** to manage up to fifty named helpers across paginated menus, select six profiles and control the squad. The whole server also has a fifty-helper limit, including unloaded helpers. Choose a helper to see **Status • profile, location, and health**, **Ask Codex** when connected, and **Back to your squad**. The squad screen has **Back to Infinity Menu**. The Ask button explains the selected helper's state and suggests a next step; `/agent ask <name> <question>` accepts your own question.
 
-Ultimate Finals squads share targets, flank and predict short movements. On clear, loaded terrain they rotate a spear charge, a short native elytra glide and a mace switch before a falling smash. Low ceilings, walls or unsuitable landings use ordinary ground pursuit. Attacks retain reach, line of sight, target eligibility and cooldown checks. The gear uses vanilla weapon and gliding mechanics. Helpers now use native player avatars that show equipped weapons and elytra. Their server AI and physical collision remain golem-based; they are not authenticated Minecraft player accounts. Damage immunity remains; no totem bypass is promised.
+Ultimate Finals squads share targets, flank and predict short movements. On clear, loaded terrain they rotate a spear charge, a short native elytra glide and a mace switch before a falling smash. Low ceilings, walls or unsuitable landings use ordinary ground pursuit. Attacks retain reach, line of sight, target eligibility and cooldown checks. The gear uses vanilla weapon and gliding mechanics. Helpers now use native player avatars that show equipped weapons and elytra. Their server AI remains golem-based, with a player-sized default collision box for narrow passages; they are not authenticated Minecraft player accounts. Damage immunity remains; no totem bypass is promised.
 
 In the stopped-world panel's **Owner: AI chat**, choose **Codex CLI · signed-in account** and enter the absolute path to an installed Codex executable already signed in with ChatGPT on this host. Enable AI chat and save, then start the world. No API key is required for this provider, and it always requires OP4. Codex uses the host account's usage allowance; this does not promise unlimited or free requests. When enabled, an OP4 player's `/ai <question>` and questions to **all six helper profiles** use Codex. `/ai help` stays local, ordinary players retain built-in help for known server topics, and `/ai status` shows the provider and request count to an OP4 player. The OpenAI API provider remains available with a private API key; a fresh download contains no key or login.
 
@@ -182,7 +185,7 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
 - **Infinity Menu did not open:** close other inventory screens, put away any item on the cursor, and select the named recovery compass from your hotbar. A lobby's **INFINITY MENU** sign or the optional `/menu` shortcut also opens it. If the compass is missing, leave one inventory slot free for its replacement. Choose **Weapons, tools and blocks**, then tap an icon to equip an Infinity item. Gear requires Creative or OP2. After installing explore.37, Bedrock Creative players can also search the normal inventory for **Convergence** or **Aurora**; see [CREATIVE_INVENTORY.md](CREATIVE_INVENTORY.md) for Java client support.
-- **I cannot see an AI helper:** creating and controlling helpers requires OP level 4. Open **Infinity Menu → AI Helpers • open your squad**, then tap the green **Create your first helper** button. Stand in an open area with solid ground and room for an iron golem. The menu closes so you can see the named golem or read why spawning failed. Existing helpers marked **Unloaded** need you to return nearby.
+- **I cannot see an AI helper:** creating and controlling helpers requires OP level 4. Open **Infinity Menu → AI Helpers • open your squad**, then tap the green **Create your first helper** button. Stand in an open area with solid ground and room for a player-sized helper. The menu closes so you can see the named avatar or read why spawning failed. Existing helpers marked **Unloaded** need you to return nearby.
 
 ### Optional terminal controls
 

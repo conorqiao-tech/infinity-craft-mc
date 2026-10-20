@@ -1,69 +1,89 @@
-# Helper combos — explore.46 source candidate
+# Helper combat — explore.47 source candidate
 
-Explore.46 improves Ultimate Finals' ground/aerial handoff and explains why a
-helper waits or stays grounded. Fresh source checks are recorded in
-[VALIDATION.md](VALIDATION.md); this is not a completed live installation or
-iPad acceptance result.
+This source repairs repeated combat against moving enemies and adds a fifty-helper
+squad, explicit target selection and Infinity weapon loadouts. Preparing source
+is separate from installing it. Fresh checks belong in [VALIDATION.md](VALIDATION.md).
 
-## Try it in game
+## Start fighting
 
-1. As an OP4 owner, open **Infinity Menu → AI Helpers**. Create a helper on clear,
-   solid ground or select a saved helper. Choose **Ultimate Finals**; Regular
-   remains ordinary hostile-mob defense.
-2. Choose **Follow** or **Guard current area**. **Stay / pause** prevents combat.
-   Keep the owner and helper nearby in the same loaded world.
-3. Let an eligible hostile mob approach on open, level terrain. The helper
-   approaches with a charging spear, uses a mace at close range, and attempts a
-   short aerial attack when the route is suitable. No attack button or AI chat
-   request is needed for ordinary hostile defense.
-4. Select the helper to inspect its phase and reason. On Java use **Live status
-   • combat, location and health**; on iPad/Bedrock use **Refresh live status**.
-   Reopen or refresh after the action changes. Status reads do not command the
-   helper or change its target, weapon, health or approvals.
+1. Open **Infinity Menu → AI Helpers** on clear solid ground. Create a helper if
+   your roster is empty. Only a living, connected OP4 owner can manage helpers.
+2. Select the existing helper and choose **Enable combos and follow me**. This
+   explicitly sets Ultimate Finals and Follow on the same entity; it preserves
+   its name, health, edited stats and location. It does not create another helper,
+   teleport it or approve a player target.
+3. Let an eligible hostile approach. Ultimate Finals uses an Infinity Spear when
+   there is room for native charging. Close enemies can trigger a checked short
+   leap with an Infinity Mace instead of trapping the helper in ground attacks.
+4. Reopen the helper's status for its observed phase and reason. Unsafe jumps
+   fall back to ordinary native ground attacks. Standing still can also mean
+   Stay, an unloaded helper, a passive profile, an unavailable owner or no target.
 
-## What to expect
+Both Java and Bedrock roster menus show six helpers per page, with Previous and
+Next controls. Up to **50 helpers per owner and 50 across the whole server** are
+allowed, including unloaded helpers. Saved identities continue to occupy slots.
+Bring here explicitly moves the same loaded helper; it never replaces one or
+loads distant chunks. Passive Debug, CLI and API profiles remain passive.
 
-| Status | Meaning |
-| --- | --- |
-| Charging spear / Ground mace | Ground combat chooses a weapon for actual native reach. Spear charging is preserved; a small return margin prevents rapid boundary swapping. |
-| Approaching target | The reason identifies launch distance, terrain, sight or cooldown. Ground pursuit remains available when a safe aerial route is unavailable. |
-| Waiting for squad | A ready teammate has the next safe turn, or a teammate is already airborne against that target. |
-| Launching / Gliding / Mace descent | A checked aerial attempt is underway. Its landing may follow the same target only through freshly checked, bounded adjustments. |
-| Follow-up / Recovering | Close targets use the mace; farther targets use native spear contacts. The helper then returns to eligible ground combat. |
-| Waiting for hostile / Paused | No suitable target is present, or the displayed condition prevents combat. |
+## Choose a specific target
 
-Only ready helpers with a clear route take aerial turns. An unavailable or
-blocked teammate cannot hold the queue. Each owner has at most one helper
-airborne against the same target; other helpers continue eligible ground work.
-The selected teammate still finishes the native spear wind-up before launching.
-If a moving target leads behind unsafe terrain, the helper retains its last
-checked landing rather than chasing through a wall or into unloaded space.
+Open **AI Helpers → Orders → Choose any nearby target**, choose a living target,
+and review its name, type, UUID, world and selected position before confirming.
+The picker includes nearby animals, pets, hostile mobs and players, with pages
+for a crowded area. Registered helpers are excluded. It does not target items,
+blocks or every entity in an area.
 
-## Limits and protections
+A confirmed non-player order lets active Primitive and Ultimate Finals helpers
+pursue only that exact selected entity. Animals and pets are never acquired
+automatically; incidental spear/mace side effects remain gated. The target must
+stay loaded, alive, in the same world and within 48 blocks of the owner. Orders
+last at most five minutes and end on expiry, session/permission/world changes,
+target death/unload or restart. **Ceasefire** clears both mob and player orders;
+Stay pauses that helper and Bring here clears squad target orders.
 
-A launch needs a target 4–7 blocks away on roughly level ground, a dry loaded
-air corridor, a clear solid landing and the helper's movement leash. A successful
-launch starts an 80-game-tick cooldown; these are simulation ticks, not a promise
-of four wall-clock seconds under server lag. Low ceilings, water, obstacles and
-steep ground can keep the fight grounded. Follow pauses beyond 48 blocks from
-the owner; Guard stays within its 14-block area. Helpers do not automatically
-teleport or load distant chunks. **Bring here** moves only the same loaded helper.
+Choosing a **player** creates the existing proposal. The owner's approval and
+separate live Codex approval are both still required. PvP, team, session,
+expiry, range and line-of-sight checks remain. A status screen never approves
+an order, changes weapons, advances combat or mutates an expired order.
 
-Native weapon reach, sight, damage immunity and spear contact cooldowns still
-apply. Ordinary strikes retain their twenty-tick cadence. A phase does not
-guarantee damage, a combo finish or totem bypass. The avatar is visible to Java
-and Bedrock players, while server movement and collision remain golem-based.
+## Weapons and decisions
 
-Helpers never select a player automatically. An exact player-target order still
-needs the owner's review and separate live Codex approval, and remains subject
-to session expiry, PvP/team rules and target eligibility. An expired/ineligible
-player order hides stale attack phases in status without approving or revoking
-anything during that read. Pets and other ineligible targets stay protected.
-Stay, ceasefire and eligibility changes retain their existing cancellation
-behavior. No external AI runs per combat tick.
+Regular and Primitive combat helpers use Infinity Swords. Ultimate Finals uses
+Infinity Spears and Infinity Maces. Helpers copy the original Infinity gear's
+name, model, attributes and unbreakable components onto native weapon items so
+Minecraft's spear charge and falling mace behavior actually run. The catalogue,
+ordinary player items, accepted armor artwork and resource mappings are retained.
+Helper equipment does not drop as free loot.
 
-This update preserves saved helper identities, names, owners, stats and movement
-settings. Native regression results are recorded in
-[VALIDATION.md](VALIDATION.md). Rendered movement, touch reception
-and actual multiplayer behavior need their stated checks after a separately
-approved live installation.
+These are powerful weapons: a weak mob can die before a multi-hit sequence is
+possible. Damage is never delayed or faked just to display a combo. Native reach,
+sight, damage immunity and spear contact cooldowns still apply. Ordinary strikes
+retain the twenty-tick cadence; no guaranteed totem bypass is added.
+
+An existing eligible Ultimate Finals target is retained beyond the owner's small
+fresh-acquisition area while still inside the movement leash and 24-block combat
+range with clear sight. A newly detected direct threat to the owner can take
+priority. This prevents harmless idle resets during ordinary knockback/pursuit
+without acquiring every distant mob.
+
+Only a ready helper with a checked route reserves an aerial turn. A teammate
+recovering from a recent strike or still winding up its spear cannot starve a
+ready teammate. One helper per owner/target uses the aerial lane at a time.
+Successful launches have an 80-game-tick cooldown. Those are simulation ticks,
+not a guarantee of four wall-clock seconds under load.
+
+Aerial attempts need dry loaded ground, roughly level targets, clear full-height
+airspace and a solid landing within the helper's leash. Moving landings are
+rechecked every five ticks, with bounded adjustments; unsafe replacements keep
+the last validated landing. Water, walls, low ceilings and steep ground keep the
+fight grounded. Follow pauses beyond 48 blocks from the owner; Guard stays
+inside its 14-block anchor area. Helpers never teleport or load chunks by
+ordinary combat. Registered helpers have player-sized default collision and eye height, so native
+walking fits one-wide, two-high passages. Native scale edits still apply; ordinary
+golems keep their usual bodies. Helpers retain golem-based AI and native physics
+and are not authenticated player accounts. No external AI runs per combat tick.
+
+Native regression results and their limits are recorded in [VALIDATION.md](VALIDATION.md).
+Rendered motion, actual iPad controls and live multiplayer behavior still need
+their device checks after a separately approved installation. Fifty-entity
+functional tests do not establish a multiplayer performance guarantee.

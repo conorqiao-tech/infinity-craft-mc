@@ -34,7 +34,8 @@
     "RcPlaneTickMixin",
     "TntBudgetMixin",
     "BlastRadiusMixin",
-    "AdminOperatorProvenanceMixin"
+    "AdminOperatorProvenanceMixin",
+    "AgentDimensionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
