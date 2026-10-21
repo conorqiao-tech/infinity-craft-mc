@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "minecraft": "26.4-snapshot-5",
+  "experimental": true,
+  "sha256": {
+    "polymer-bundled-0.18.5-infinity-snapshot5+26.4-snapshot-5.jar": "316c24b710713596ffdeffef9dd5433147d385614ad20af62709c0a3afea5044",
+    "floodgate-fabric-2.2.7-infinity-snapshot5.jar": "847da7b329e55cac460f347d7327e7caeb9e7a13dfc6d49501d5f90a2a84fb6c",
+    "ViaFabric-0.4.22-infinity-snapshot5.1.jar": "4adaaf926a986ee2febdbb4f7518372d151971db2e537e0ced18bab8c1964359",
+    "ViaBackwards-5.13.0-infinity-snapshot5.2.jar": "588e523b25b4b7eecb25c8d912ad75fbdb392d1779461d352627eca947a51aeb"
+  }
+}

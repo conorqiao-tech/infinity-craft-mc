@@ -43,7 +43,7 @@ import net.minecraft.server.network.ServerStatusPacketListenerImpl;
 public class ConnectionProtocolGameTests {
     static ServerStatus sampleStatus() {
         return new ServerStatus(Component.literal("in-process status"), Optional.empty(),
-            Optional.of(ServerStatus.Version.current()), Optional.empty(), false);
+            Optional.of(ServerStatus.Version.current()), Optional.empty(), false, Optional.empty());
     }
 
     static final class Fixture implements AutoCloseable {
@@ -161,24 +161,28 @@ public class ConnectionProtocolGameTests {
     }
 
     @GameTest public void genuineStatusResponseAndPongUseTheirRegisteredCodecs(GameTestHelper c) {
-        try (var f = new Fixture()) {
-            var status = sampleStatus();
-            var listener = f.status(status);
-            listener.handleStatusRequest(ServerboundStatusRequestPacket.INSTANCE);
-            var response = f.decode(c);
-            c.assertValueEqual(response.size(), 1, "Exactly one native status response");
-            c.assertTrue(response.getFirst() instanceof ClientboundStatusResponsePacket packet && packet.status().equals(status),
-                "Real STATUS codec preserves the status response");
-            c.assertTrue(f.channel.isOpen(), "Status response waits for ping");
-            listener.handlePingRequest(new ServerboundPingRequestPacket(123456789L));
-            var pong = f.decode(c);
-            c.assertValueEqual(pong.size(), 1, "Exactly one native pong response");
-            c.assertTrue(pong.getFirst() instanceof ClientboundPongResponsePacket packet && packet.time() == 123456789L,
-                "Real STATUS codec preserves the ping value");
-            c.assertFalse(f.channel.isOpen(), "Native ping completion closes normally");
-            c.assertValueEqual(f.closes, 1, "Successful status exchange closes once");
-            c.assertValueEqual(f.attempted.size(), 2, "Only status response and pong are sent");
-            c.assertTrue(f.failedWrites.isEmpty(), "Both genuine packets encode successfully");
+        for (boolean secureChat : new boolean[]{false, true})
+        for (var contact : List.of(Optional.<String>empty(), Optional.of("https://example.invalid/contact"))) {
+            try (var f = new Fixture()) {
+                var base = sampleStatus();
+                var status = new ServerStatus(base.description(), base.players(), base.version(), base.favicon(), secureChat, contact);
+                var listener = f.status(status);
+                listener.handleStatusRequest(ServerboundStatusRequestPacket.INSTANCE);
+                var response = f.decode(c);
+                c.assertValueEqual(response.size(), 1, "Exactly one native status response");
+                c.assertTrue(response.getFirst() instanceof ClientboundStatusResponsePacket packet && packet.status().equals(status),
+                    "Real STATUS codec preserves secure-chat state and optional contact details");
+                c.assertTrue(f.channel.isOpen(), "Status response waits for ping");
+                listener.handlePingRequest(new ServerboundPingRequestPacket(123456789L));
+                var pong = f.decode(c);
+                c.assertValueEqual(pong.size(), 1, "Exactly one native pong response");
+                c.assertTrue(pong.getFirst() instanceof ClientboundPongResponsePacket packet && packet.time() == 123456789L,
+                    "Real STATUS codec preserves the ping value");
+                c.assertFalse(f.channel.isOpen(), "Native ping completion closes normally");
+                c.assertValueEqual(f.closes, 1, "Successful status exchange closes once");
+                c.assertValueEqual(f.attempted.size(), 2, "Only status response and pong are sent");
+                c.assertTrue(f.failedWrites.isEmpty(), "Both genuine packets encode successfully");
+            }
         }
         c.succeed();
     }

@@ -53,7 +53,7 @@ public class ClientVitalsRefreshGameTests {
         final Connection network;
         final EmbeddedChannel channel;
         ServerPlayer player;
-        Joined(GameTestHelper c,String name){this(c,new GameProfile(UUID.randomUUID(),name.length()<=16?name:name.substring(0,7)+"-"+Integer.toUnsignedString(name.hashCode(),16)),null,true);}
+        Joined(GameTestHelper c,String name){this(c,new GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName(name)),null,true);}
         Joined(GameTestHelper c,GameProfile profile,Integer entityId,boolean reset){
             wire=new NativePlayConnection(c.getLevel().registryAccess());network=wire.connection;channel=wire.channel;
             var server=c.getLevel().getServer();var cookie=CommonListenerCookie.createInitial(profile,false);

@@ -22,13 +22,17 @@ import zipfile
 
 from benchmark_helpers import copy_cached_runtime, runtime_inputs
 from prepare_crossplay import VERSION, expected_native_tests
+from snapshot5_dependencies import MINECRAFT, PROTOCOL, snapshot_inputs, verify_lock
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "tools/native_checks/CreativeBridgeWireGameTests.java"
 CLASS = "dev.convergence.CreativeBridgeWireGameTests"
-NESTED = "META-INF/jars/viaversion-5.12.1-SNAPSHOT.jar"
-VIAFABRIC = "ViaFabric-0.4.22+186-26.x.jar"
-VIABACKWARDS = "ViaBackwards-5.12.0.jar"
+VIA_SOURCE = ROOT / "tools/native_checks/Snapshot5ViaFixture.java"
+NESTED = "META-INF/jars/viaversion-common-5.13.0-infinity-snapshot5.2.jar"
+VIAFABRIC = "ViaFabric-0.4.22-infinity-snapshot5.1.jar"
+VIABACKWARDS = "ViaBackwards-5.13.0-infinity-snapshot5.2.jar"
+TRANSLATION_STAGES = ["com.viaversion.viabackwards.protocol.v26_3to26_2.Protocol26_3To26_2",
+                      "com.viaversion.viabackwards.protocol.v26_4to26_3.Protocol26_4To26_3"]
 
 
 def digest(path: Path) -> str:
@@ -38,6 +42,26 @@ def digest(path: Path) -> str:
 def java_sources() -> dict[str, str]:
     return {p.relative_to(ROOT).as_posix(): digest(p)
             for p in (ROOT / "java/src").rglob("*") if p.is_file()}
+
+
+
+def wire_sources(root=ROOT):
+    paths = ["tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java",
+             "tools/native_checks/Snapshot5ViaFixture.java", "tools/snapshot5_dependencies.py",
+             "tools/benchmark_helpers.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py"]
+    return {name: digest(root / name) for name in paths}
+
+
+def verify_native_snapshot(proof):
+    if (proof.get("native_minecraft") != MINECRAFT or proof.get("native_protocol") != PROTOCOL
+            or proof.get("translation_stages") != TRANSLATION_STAGES):
+        raise ValueError("Creative proof must execute the full exact native snapshot translation path")
+
+
+def via_properties():
+    return ["-Dinfinity.creative.viafabric=" + VIAFABRIC,
+            "-Dinfinity.creative.viabackwards=" + VIABACKWARDS,
+            "-Dinfinity.creative.viaversion=" + NESTED]
 
 
 def bounded_json(path: Path, limit: int = 8 * 1024 * 1024) -> dict:
@@ -93,11 +117,13 @@ def main() -> None:
         raise ValueError("Only an existing disposable research runtime can be used")
     if ROOT / "research" not in receipt_path.parents:
         raise ValueError("The supplemental receipt must stay in the research directory")
-    source_hashes = {p.relative_to(ROOT).as_posix(): digest(p) for p in [Path(__file__).resolve(), SOURCE]}
+    source_hashes = wire_sources()
+    frozen_snapshot = snapshot_inputs()
     frozen_sources = java_sources()
     provenance = bounded_json(runtime / "provenance.json")
     report = runtime / "results.xml"
-    if provenance["java_sources"] != frozen_sources or provenance["report_sha256"] != digest(report):
+    if (provenance["java_sources"] != frozen_sources or provenance["report_sha256"] != digest(report)
+            or provenance.get("snapshot5_inputs") != frozen_snapshot):
         raise ValueError("Native source/report provenance is stale; finish the normal native check first")
     native_cases = list(ET.parse(report).getroot().iter("testcase"))
     if (len(native_cases) != expected_native_tests() or any(case.find(kind) is not None
@@ -118,6 +144,7 @@ def main() -> None:
     if catalogue_hash != captured["catalogue_sha256"] or catalogue_hash != startup["catalogue_sha256"]:
         raise ValueError("Captured catalogue bytes differ from the actual Geyser ready/startup proofs")
     lock = bounded_json(ROOT / "server/dependencies.lock.json")
+    verify_lock(lock)
     pinned = {entry["path"]: entry["sha256"] for entry in lock["downloads"] + lock["bundled"]}
     for name in [VIAFABRIC, VIABACKWARDS]:
         for path in [ROOT / "server/fabric/mods" / name, runtime / "mods" / name]:
@@ -158,13 +185,13 @@ def main() -> None:
             raise RuntimeError("Cannot read the exact existing gametest compile classpath")
         classpath = values[0]
     classpath = os.pathsep.join([classpath, str(original_tests), str(via_version), str(target / "mods" / VIABACKWARDS)])
-    subprocess.run([str(javac), "--release", "25", "-encoding", "UTF-8", "-classpath", classpath, "-d", str(compiled), str(SOURCE)], check=True, timeout=120)
+    subprocess.run([str(javac), "--release", "25", "-encoding", "UTF-8", "-classpath", classpath, "-d", str(compiled), str(VIA_SOURCE), str(SOURCE)], check=True, timeout=120)
     selected = target / "mods" / original_tests.name
     augment_test_jar(original_tests, selected, compiled)
     selected_hash = digest(selected)
     native_report = target / "results.xml"; native_proof = target / "native-wire.json"; log_path = target / "wire.log"
     with log_path.open("w") as log:
-        result = subprocess.run([str(java), "-Xmx2G", "-Dinfinity.gametest.paced=true", "-Dfabric-api.gametest",
+        result = subprocess.run([str(java), "-Xmx2G", "-Dinfinity.gametest.paced=true", "-Dfabric-api.gametest", *via_properties(),
             "-Dinfinity.creative.capture=" + str(capture), "-Dinfinity.creative.wire.report=" + str(native_proof),
             "-Dinfinity.creative.catalogue=" + str(captured_catalogue),
             "-Dfabric-api.gametest.report-file=" + str(native_report), "-jar", "fabric-server-launch.jar", "nogui"],
@@ -174,6 +201,7 @@ def main() -> None:
             for case in cases for kind in ["failure", "error", "skipped"])):
         raise RuntimeError(f"Supplemental Via/Fabric wire proof failed ({len(cases)}/2 cases); see {log_path}")
     native = bounded_json(native_proof)
+    verify_native_snapshot(native)
     proof = captured["proof"]
     if (native["capture_sha256"] != digest(capture) or native["catalogue_sha256"] != captured["catalogue_sha256"]
             or native["catalogue_equivalent"] is not True
@@ -186,14 +214,14 @@ def main() -> None:
             or native["viafabric_sha256"] != pinned["fabric/mods/" + VIAFABRIC]
             or native["viaversion_nested_sha256"] != digest(via_version)):
         raise RuntimeError("Actual native proof does not match its required captures or pinned dependencies")
-    if (java_sources() != frozen_sources or {p.relative_to(ROOT).as_posix(): digest(p) for p in [Path(__file__).resolve(), SOURCE]} != source_hashes
+    if (java_sources() != frozen_sources or wire_sources() != source_hashes or snapshot_inputs() != frozen_snapshot
             or digest(mod) != provenance["mod_sha256"] or digest(original_tests) != provenance["test_mod_sha256"]
             or digest(selected_mod) != provenance["mod_sha256"]
             or digest(selected) != selected_hash or runtime_inputs(runtime) != runtime_hashes
             or digest(capture) != startup["ready_sha256"] or digest(catalogue) != catalogue_hash
             or digest(captured_catalogue) != catalogue_hash):
         raise RuntimeError("Inputs changed during supplemental proof; rerun the frozen source snapshot")
-    output = {"format_version": 1, "source_hashes": source_hashes, "java_sources": frozen_sources,
+    output = {"format_version": 1, "source_hashes": source_hashes, "java_sources": frozen_sources, "snapshot5_inputs": frozen_snapshot,
         "mod_sha256": digest(mod), "original_test_mod_sha256": digest(original_tests), "wire_test_mod_sha256": selected_hash,
         "capture_sha256": digest(capture), "geyser_startup_sha256": digest(capture.with_name("startup.json")),
         "captured_catalogue_sha256": catalogue_hash, "native_catalogue_sha256": native["native_catalogue_sha256"],

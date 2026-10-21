@@ -32,7 +32,7 @@ final class OdysseyCompass {
                 var chunk = world.getChunkSource().getChunkNow(x, z);
                 if (chunk == null) continue;
                 var start = chunk.getStartForStructure(ruin);
-                if (start == null || !start.isValid()) continue;
+                if (start == null) continue;
                 for (var piece : start.getPieces()) {
                     if (!(piece instanceof OdysseyStructure.Piece)) continue;
                     var at = piece.getBoundingBox().getCenter();

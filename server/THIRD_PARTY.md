@@ -1,16 +1,22 @@
 # Components and source links
 
-Infinity Armor Crossplay uses these third-party projects. Downloaded JARs remain unmodified. Exact download URLs and SHA-256 hashes are in `dependencies.lock.json`.
+Infinity Armor Crossplay uses these third-party projects. Official downloads remain
+unmodified. Snapshot 5 includes explicitly modified local source ports, with exact
+binary hashes in `dependencies.lock.json` and complete corresponding source
+patches, pinned public commits, original licenses and rebuild instructions under
+`compatibility/snapshot5/`. The local ports are experimental InfinityCraft builds,
+not official releases of those projects.
 
 | Component | Version | Source / license information |
 |---|---|---|
-| Fabric Loader | 0.19.5 | https://github.com/FabricMC/fabric-loader — Apache-2.0 |
+| Fabric Loader | 0.20.1 | https://github.com/FabricMC/fabric-loader — Apache-2.0 |
 | Fabric server launcher | installer 1.1.2 | https://github.com/FabricMC/fabric-installer — Apache-2.0 |
-| Fabric API | 0.161.0+26.3 | https://github.com/FabricMC/fabric — Apache-2.0; original supplied JAR and embedded notices retained |
-| Polymer bundled | 0.18.2+26.3 | https://github.com/Patbox/polymer — LGPL-3.0; https://maven.nucleoid.xyz/eu/pb4/ for published sources |
-| ViaFabric | 0.4.22+186-26.x | https://github.com/ViaVersion/ViaFabric — GPL-3.0; embedded ViaVersion 5.12.1-SNAPSHOT and notices retained |
-| ViaBackwards | 5.12.0 | https://github.com/ViaVersion/ViaBackwards — GPL-3.0 |
-| Floodgate Fabric | 2.2.7-b69 | https://github.com/GeyserMC/Floodgate-Modded — MIT |
+| Fabric API | 0.164.1+26.4 | https://github.com/FabricMC/fabric — Apache-2.0; original supplied JAR and embedded notices retained |
+| Polymer bundled | 0.18.5-infinity-snapshot5+26.4-snapshot-5 | https://github.com/Patbox/polymer — local LGPL-3.0 source port; original notices retained |
+| ViaFabric | 0.4.22-infinity-snapshot5.1 | https://github.com/ViaVersion/ViaFabric — local GPL-3.0 source port |
+| ViaVersion common (embedded) | 5.13.0-infinity-snapshot5.2 | https://github.com/ViaVersion/ViaVersion — local GPL-3.0 source port; embedded notices retained |
+| ViaBackwards | 5.13.0-infinity-snapshot5.2 | https://github.com/ViaVersion/ViaBackwards — local GPL-3.0 source port |
+| Floodgate Fabric | 2.2.7-infinity-snapshot5 | https://github.com/GeyserMC/Floodgate-Modded — local MIT source port |
 | Geyser Standalone | 2.11.3-b1248 | https://github.com/GeyserMC/Geyser — MIT |
 
 Minecraft itself is downloaded by Fabric on first launch and is not redistributed in this ZIP. Its EULA applies: https://www.minecraft.net/eula.

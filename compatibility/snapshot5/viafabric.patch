@@ -1,0 +1,489 @@
+diff --git a/build.gradle.kts b/build.gradle.kts
+index 30b258a8..1b6bec25 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -10,7 +10,7 @@ plugins {
+ private val env = System.getenv()
+ group = "com.viaversion.fabric"
+ description = "Client-side and server-side ViaVersion implementation for Fabric"
+-version = "0.4.22+" + getRunNumber() + "-" + getBranch()
++version = "0.4.22-infinity-snapshot5.1"
+ 
+ fun getRunNumber() = env["GITHUB_RUN_NUMBER"] ?: "unknown"
+ 
+@@ -43,6 +43,7 @@ allprojects {
+     group = rootProject.group
+ 
+     repositories {
++        maven(rootProject.layout.projectDirectory.dir("../upstream-bridge/m2-repository"))
+         mavenCentral()
+         maven("https://repo.viaversion.com/")
+         maven("https://maven.fabricmc.net/")
+@@ -52,7 +53,7 @@ allprojects {
+     }
+ 
+     dependencies {
+-        implementation("com.viaversion:viaversion:${rootProject.extra["viaver_version"]}") {
++        implementation("com.viaversion:viaversion-common:${rootProject.extra["viaver_version"]}") {
+             // transitive = false because Guava is conflicting on runClient
+             isTransitive = false
+         }
+@@ -106,10 +107,9 @@ publishing {
+ }
+ 
+ dependencies {
+-    // dummy version
+-    minecraft("com.mojang:minecraft:26.1-snapshot-5")
++    minecraft("com.mojang:minecraft:26.4-snapshot-5")
+ 
+-    include("com.viaversion:viaversion:${rootProject.extra["viaver_version"]}")
++    include("com.viaversion:viaversion-common:${rootProject.extra["viaver_version"]}")
+ 
+     testImplementation("org.testng:testng:7.12.0")
+ }
+diff --git a/gradle.properties b/gradle.properties
+index 30c40918..a870d113 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -1,7 +1,7 @@
+ # suppress inspection "UnusedProperty" for whole file
+ org.gradle.jvmargs=-Xms32M -Xmx4G -XX:+UseG1GC -XX:+UseStringDeduplication
+ 
+-loader_version=0.19.5
+-viaver_version=5.12.1-SNAPSHOT
++loader_version=0.20.1
++viaver_version=5.13.0-infinity-snapshot5.2
+ 
+-publish_mc_versions=26.4, 26.3, 26.2, 26.1.2, 26.1.1, 26.1
++publish_mc_versions=26.4-snapshot-5
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index f9077e89..70201631 100644
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -19,6 +19,4 @@ plugins {
+ 
+ rootProject.name = "ViaFabric"
+ 
+-include("viafabric-mc26-1")
+-include("viafabric-mc26-2")
+ include("viafabric-mc26-4")
+diff --git a/src/main/resources/fabric.mod.json b/src/main/resources/fabric.mod.json
+index f49343d4..d7021d60 100644
+--- a/src/main/resources/fabric.mod.json
++++ b/src/main/resources/fabric.mod.json
+@@ -13,14 +13,10 @@
+   },
+   "depends": {
+     "minecraft": [
+-      "26.1",
+-      "26.1.1",
+-      "26.1.2",
+-      "26.2",
+-      "26.3",
+-      "26.4-alpha.4"
++      "26.4-alpha.5"
+     ],
+-    "viaversion": ">=5.0.0"
++    "viaversion": ">=5.13.0-infinity-snapshot5.2",
++    "fabricloader": ">=0.20.1"
+   },
+   "breaks": {
+     "viafabricplus": "*"
+diff --git a/viafabric-mc26-4/build.gradle.kts b/viafabric-mc26-4/build.gradle.kts
+index a95e26cf..37c31fa2 100644
+--- a/viafabric-mc26-4/build.gradle.kts
++++ b/viafabric-mc26-4/build.gradle.kts
+@@ -1,11 +1,25 @@
+ dependencies {
+-    minecraft("com.mojang:minecraft:26.4-snapshot-4")
++    minecraft("com.mojang:minecraft:26.4-snapshot-5")
+ 
+-    implementation(fabricApi.module("fabric-api-base", "0.163.0+26.4"))
+-    implementation(fabricApi.module("fabric-resource-loader-v0", "0.163.0+26.4"))
+-    implementation(fabricApi.module("fabric-command-api-v2", "0.163.0+26.4"))
+-    implementation(fabricApi.module("fabric-lifecycle-events-v1", "0.163.0+26.4"))
+-    implementation(fabricApi.module("fabric-screen-api-v1", "0.163.0+26.4"))
+-    implementation(fabricApi.module("fabric-registry-sync-v0", "0.163.0+26.4"))
++    implementation(fabricApi.module("fabric-api-base", "0.164.1+26.4"))
++    implementation(fabricApi.module("fabric-resource-loader-v0", "0.164.1+26.4"))
++    implementation(fabricApi.module("fabric-command-api-v2", "0.164.1+26.4"))
++    implementation(fabricApi.module("fabric-lifecycle-events-v1", "0.164.1+26.4"))
++    implementation(fabricApi.module("fabric-screen-api-v1", "0.164.1+26.4"))
++    implementation(fabricApi.module("fabric-registry-sync-v0", "0.164.1+26.4"))
+     compileOnly("com.terraformersmc:modmenu:21.0.0-beta.1")
+ }
++
++// Private native integration proof; this jar is never included in the production mod.
++val gametest by sourceSets.creating {
++    compileClasspath += sourceSets.main.get().output + sourceSets.main.get().compileClasspath
++    runtimeClasspath += sourceSets.main.get().output + sourceSets.main.get().runtimeClasspath
++}
++dependencies {
++    add(gametest.implementationConfigurationName, fabricApi.module("fabric-gametest-api-v1", "0.164.1+26.4"))
++}
++tasks.register<Jar>("gametestJar") {
++    dependsOn(tasks.named(gametest.classesTaskName))
++    from(gametest.output)
++    archiveClassifier.set("gametest")
++}
+diff --git a/viafabric-mc26-4/src/gametest/java/com/viaversion/fabric/audit/LegacyLoginOptionsGameTests.java b/viafabric-mc26-4/src/gametest/java/com/viaversion/fabric/audit/LegacyLoginOptionsGameTests.java
+new file mode 100644
+index 00000000..3d4b7430
+--- /dev/null
++++ b/viafabric-mc26-4/src/gametest/java/com/viaversion/fabric/audit/LegacyLoginOptionsGameTests.java
+@@ -0,0 +1,183 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++package com.viaversion.fabric.audit;
++
++import com.mojang.authlib.GameProfile;
++import com.viaversion.fabric.common.handler.FabricDecodeHandler;
++import com.viaversion.viaversion.api.protocol.packet.State;
++import com.viaversion.viaversion.api.protocol.version.ProtocolVersion;
++import com.viaversion.viaversion.connection.UserConnectionImpl;
++import com.viaversion.viaversion.platform.ViaDecodeHandler;
++import com.viaversion.viaversion.platform.ViaEncodeHandler;
++import com.viaversion.viaversion.protocol.ProtocolPipelineImpl;
++import io.netty.buffer.Unpooled;
++import io.netty.channel.Channel;
++import io.netty.channel.ChannelHandlerContext;
++import io.netty.channel.ChannelInitializer;
++import io.netty.channel.ChannelOutboundHandlerAdapter;
++import io.netty.channel.ChannelPromise;
++import io.netty.channel.embedded.EmbeddedChannel;
++import java.net.InetSocketAddress;
++import java.net.SocketAddress;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.OptionalInt;
++import java.util.UUID;
++import net.fabricmc.fabric.api.gametest.v1.GameTest;
++import net.minecraft.SharedConstants;
++import net.minecraft.gametest.framework.GameTestHelper;
++import net.minecraft.network.Connection;
++import net.minecraft.network.ConnectionProtocol;
++import net.minecraft.network.UnconfiguredPipelineHandler;
++import net.minecraft.network.VarInt;
++import net.minecraft.network.protocol.Packet;
++import net.minecraft.network.protocol.PacketFlow;
++import net.minecraft.network.protocol.login.ClientboundKeyPacket;
++import net.minecraft.network.protocol.login.ClientboundLoginDisconnectPacket;
++import net.minecraft.network.protocol.login.ClientboundLoginFinishedPacket;
++import net.minecraft.network.protocol.login.ClientboundSetupCompressionPacket;
++import net.minecraft.network.protocol.login.ConnectionOptionsPacket;
++import net.minecraft.network.protocol.login.LoginProtocols;
++import net.minecraft.network.protocol.login.ServerboundHelloPacket;
++import net.minecraft.network.protocol.login.ServerboundLoginAcknowledgedPacket;
++import net.minecraft.network.protocol.configuration.ServerConfigurationPacketListener;
++import net.minecraft.server.network.ServerLoginPacketListenerImpl;
++
++/** Actual native constructor/mixins/codec/ACK boundary; not a claim of authenticated Bedrock login. */
++public class LegacyLoginOptionsGameTests {
++    private static final class Fixture implements AutoCloseable {
++        final Connection connection = new Connection(PacketFlow.SERVERBOUND) {
++            @Override public SocketAddress getRemoteAddress() {
++                return new InetSocketAddress("127.0.0.1", 0);
++            }
++        };
++        final List<Packet<?>> sent = new ArrayList<>();
++        final EmbeddedChannel channel;
++        final ServerLoginPacketListenerImpl listener;
++
++        Fixture(GameTestHelper test, boolean legacy) {
++            channel = new EmbeddedChannel(new ChannelInitializer<Channel>() {
++                @Override protected void initChannel(Channel ch) {
++                    Connection.configureSerialization(ch.pipeline(), PacketFlow.SERVERBOUND, false, null);
++                    ch.pipeline().replace("decoder", "inbound_config", new UnconfiguredPipelineHandler.Inbound());
++                    connection.configurePacketHandler(ch.pipeline());
++                    var user = new UserConnectionImpl(ch, false);
++                    new ProtocolPipelineImpl(user);
++                    var nativeVersion = ProtocolVersion.getProtocol(SharedConstants.getCurrentVersion().protocolVersion());
++                    user.getProtocolInfo().setServerProtocolVersion(nativeVersion);
++                    user.getProtocolInfo().setProtocolVersion(legacy ? ProtocolVersion.v26_3 : nativeVersion);
++                    user.getProtocolInfo().setClientState(State.LOGIN);
++                    user.getProtocolInfo().setServerState(State.LOGIN);
++                    // Exercise native wire codecs. The actual cross-version packet remapper is tested separately.
++                    user.setActive(false);
++                    ch.pipeline().addBefore("outbound_config", ViaEncodeHandler.NAME, new ViaEncodeHandler(user));
++                    ch.pipeline().addBefore("inbound_config", ViaDecodeHandler.NAME, new FabricDecodeHandler(user));
++                    ch.pipeline().addBefore("packet_handler", "audit_native_packets", new ChannelOutboundHandlerAdapter() {
++                        @Override public void write(ChannelHandlerContext context, Object value, ChannelPromise promise) throws Exception {
++                            if (value instanceof Packet<?> packet) sent.add(packet);
++                            context.write(value, promise);
++                        }
++                    });
++                }
++            });
++            listener = new ServerLoginPacketListenerImpl(test.getLevel().getServer(), connection, false);
++            connection.setupOutboundProtocol(LoginProtocols.CLIENTBOUND);
++            connection.setupInboundProtocol(LoginProtocols.SERVERBOUND, listener);
++        }
++
++        OptionalInt requestedCompression() throws Exception {
++            var field = ServerLoginPacketListenerImpl.class.getDeclaredField("requestedCompressionThreshold");
++            field.setAccessible(true);
++            return (OptionalInt) field.get(listener);
++        }
++
++        void modelVerifiedFloodgateHandoff() throws Exception {
++            var method = ServerLoginPacketListenerImpl.class.getDeclaredMethod("startOfflineClientVerification", GameProfile.class);
++            method.setAccessible(true);
++            method.invoke(listener, new GameProfile(UUID.randomUUID(), "SnapshotProbe"));
++            // Still executes native canPlayerLogin and normal login-finished negotiation.
++            listener.tick();
++            channel.runPendingTasks();
++            channel.checkException();
++        }
++
++        void nativeAckFromWire() {
++            var packet = Unpooled.buffer();
++            var frame = Unpooled.buffer();
++            try {
++                LoginProtocols.SERVERBOUND.codec().encode(packet, ServerboundLoginAcknowledgedPacket.INSTANCE);
++                VarInt.write(frame, packet.readableBytes());
++                frame.writeBytes(packet);
++            } finally { packet.release(); }
++            channel.writeInbound(frame);
++            channel.runPendingTasks();
++            channel.checkException();
++        }
++
++        ClientboundLoginFinishedPacket loginFinished() {
++            return sent.stream().filter(ClientboundLoginFinishedPacket.class::isInstance)
++                    .map(ClientboundLoginFinishedPacket.class::cast).findFirst().orElseThrow();
++        }
++
++        @Override public void close() { channel.finishAndReleaseAll(); }
++    }
++
++    @GameTest public void translatedLegacyNativeAckSwitchesToConfigurationWithoutCompression(GameTestHelper test) throws Exception {
++        try (var fixture = new Fixture(test, true)) {
++            test.assertTrue(fixture.requestedCompression().isEmpty(), "Only this translated connection negotiates no compression");
++            fixture.modelVerifiedFloodgateHandoff();
++            test.assertTrue(fixture.sent.stream().noneMatch(ClientboundSetupCompressionPacket.class::isInstance), "No legacy compression setup is emitted");
++            test.assertValueEqual(fixture.loginFinished().options(), (byte)0, "Native login-finished flags agree with no compression");
++            test.assertTrue(fixture.connection.getPacketListener() == fixture.listener, "The server still waits for the real client ACK");
++            fixture.nativeAckFromWire();
++            // Polymer may install its early configuration listener before the final native implementation.
++            test.assertTrue(fixture.connection.getPacketListener() instanceof ServerConfigurationPacketListener,
++                    "Actual decoded ACK installs a native configuration protocol listener");
++            test.assertValueEqual(fixture.connection.getPacketListener().protocol(), ConnectionProtocol.CONFIGURATION,
++                    "The real native protocol phase is configuration after ACK");
++            test.assertTrue(fixture.channel.pipeline().get("compress") == null && fixture.channel.pipeline().get("decompress") == null, "Both native directions remain uncompressed as negotiated");
++        }
++        test.succeed();
++    }
++
++    @GameTest public void exactSnapshotClientKeepsNativeCompressionAndAppliesItOnlyAfterAck(GameTestHelper test) throws Exception {
++        int threshold = test.getLevel().getServer().getCompressionThreshold();
++        test.assertTrue(threshold >= 0, "This native fixture has a configured compression threshold");
++        try (var fixture = new Fixture(test, false)) {
++            test.assertValueEqual(fixture.requestedCompression().orElseThrow(), threshold, "Exact snapshot clients retain the normal configured threshold");
++            fixture.modelVerifiedFloodgateHandoff();
++            test.assertTrue(fixture.sent.stream().anyMatch(ClientboundSetupCompressionPacket.class::isInstance), "Native setup advertises its real compression threshold");
++            test.assertTrue(ConnectionOptionsPacket.isCompression(fixture.loginFinished().options()), "Native login-finished requests compression");
++            test.assertTrue(fixture.channel.pipeline().get("compress") == null && fixture.channel.pipeline().get("decompress") == null, "Native compression is not applied before ACK");
++            fixture.nativeAckFromWire();
++            // Polymer may install its early configuration listener before the final native implementation.
++            test.assertTrue(fixture.connection.getPacketListener() instanceof ServerConfigurationPacketListener,
++                    "Actual decoded ACK installs a native configuration protocol listener");
++            test.assertValueEqual(fixture.connection.getPacketListener().protocol(), ConnectionProtocol.CONFIGURATION,
++                    "The real native protocol phase is configuration after ACK");
++            test.assertTrue(fixture.channel.pipeline().get("compress") != null && fixture.channel.pipeline().get("decompress") != null, "Native compression is activated in both directions only after ACK");
++        }
++        test.succeed();
++    }
++
++    @GameTest public void unsupportedLegacyJavaRejectsBeforeEncryptionOrVerification(GameTestHelper test) {
++        try (var fixture = new Fixture(test, true)) {
++            fixture.listener.handleHello(new ServerboundHelloPacket("LegacyProbe", UUID.randomUUID()));
++            fixture.channel.runPendingTasks();
++            test.assertTrue(fixture.sent.stream().anyMatch(ClientboundLoginDisconnectPacket.class::isInstance), "Unsupported legacy Java receives an explicit native disconnect");
++            test.assertTrue(fixture.sent.stream().noneMatch(packet -> packet instanceof ClientboundKeyPacket || packet instanceof ClientboundLoginFinishedPacket), "No encryption challenge or verified profile is invented");
++            test.assertFalse(fixture.channel.isOpen(), "The unsupported Java path closes");
++        }
++        test.succeed();
++    }
++
++    @GameTest public void prematureLegacyAckCannotSkipNativeVerification(GameTestHelper test) {
++        try (var fixture = new Fixture(test, true)) {
++            boolean refused = false;
++            try { fixture.listener.handleLoginAcknowledgement(ServerboundLoginAcknowledgedPacket.INSTANCE); }
++            catch (IllegalStateException expected) { refused = true; }
++            test.assertTrue(refused, "Native login-state validation still refuses an ACK before login-finished");
++            test.assertTrue(fixture.connection.getPacketListener() == fixture.listener, "Premature ACK cannot install a configuration listener");
++        }
++        test.succeed();
++    }
++}
+diff --git a/viafabric-mc26-4/src/gametest/resources/fabric.mod.json b/viafabric-mc26-4/src/gametest/resources/fabric.mod.json
+new file mode 100644
+index 00000000..60131e06
+--- /dev/null
++++ b/viafabric-mc26-4/src/gametest/resources/fabric.mod.json
+@@ -0,0 +1,14 @@
++{
++  "schemaVersion": 1,
++  "id": "viafabric_snapshot5_tests",
++  "version": "0.4.22-infinity-snapshot5.1",
++  "name": "ViaFabric Snapshot 5 Native Login Tests",
++  "environment": "server",
++  "entrypoints": {
++    "fabric-gametest": ["com.viaversion.fabric.audit.LegacyLoginOptionsGameTests"]
++  },
++  "depends": {
++    "viafabric-mc26-4": "0.4.22-infinity-snapshot5.1",
++    "fabric-gametest-api-v1": "*"
++  }
++}
+diff --git a/viafabric-mc26-4/src/main/java/com/viaversion/fabric/gui/ViaConfigScreen.java b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/gui/ViaConfigScreen.java
+index d7f7bc82..a3e1770d 100644
+--- a/viafabric-mc26-4/src/main/java/com/viaversion/fabric/gui/ViaConfigScreen.java
++++ b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/gui/ViaConfigScreen.java
+@@ -158,8 +158,8 @@ public class ViaConfigScreen extends Screen implements AbstractViaConfigScreen {
+     }
+ 
+     @Override
+-    public void extractRenderState(final GuiGraphicsExtractor graphics, final int mouseX, final int mouseY, final float delta) {
+-        super.extractRenderState(graphics, mouseX, mouseY, delta);
++    public void extractRenderState(final GuiGraphicsExtractor graphics) {
++        super.extractRenderState(graphics);
+         graphics.centeredText(this.font, this.title, this.width / 2, 20, 0xFFFFFFFF);
+     }
+ 
+diff --git a/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/ConnectionChannelAccessor.java b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/ConnectionChannelAccessor.java
+new file mode 100644
+index 00000000..f60fd63a
+--- /dev/null
++++ b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/ConnectionChannelAccessor.java
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++package com.viaversion.fabric.mixin.pipeline;
++
++import io.netty.channel.Channel;
++import net.minecraft.network.Connection;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.gen.Accessor;
++
++@Mixin(Connection.class)
++public interface ConnectionChannelAccessor {
++    @Accessor("channel")
++    Channel viaFabric$channel();
++}
+diff --git a/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/LegacyLoginOptionsMixin.java b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/LegacyLoginOptionsMixin.java
+new file mode 100644
+index 00000000..8f548152
+--- /dev/null
++++ b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/mixin/pipeline/LegacyLoginOptionsMixin.java
+@@ -0,0 +1,39 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++package com.viaversion.fabric.mixin.pipeline;
++
++import com.viaversion.fabric.platform.LegacyLoginOptions;
++import net.minecraft.network.Connection;
++import net.minecraft.network.chat.Component;
++import net.minecraft.network.protocol.login.ServerboundHelloPacket;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.network.ServerLoginPacketListenerImpl;
++import org.spongepowered.asm.mixin.Final;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.Shadow;
++import org.spongepowered.asm.mixin.injection.At;
++import org.spongepowered.asm.mixin.injection.Inject;
++import org.spongepowered.asm.mixin.injection.Redirect;
++import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
++
++@Mixin(ServerLoginPacketListenerImpl.class)
++public abstract class LegacyLoginOptionsMixin {
++    @Shadow @Final private Connection connection;
++
++    @Shadow public abstract void disconnect(Component message);
++
++    /** Older clients apply compression before their ACK; negotiate none for this translated route. */
++    @Redirect(method = "<init>", at = @At(value = "INVOKE",
++            target = "Lnet/minecraft/server/MinecraftServer;getCompressionThreshold()I"))
++    private int viaFabric$legacyCompressionThreshold(MinecraftServer server) {
++        return LegacyLoginOptions.isTranslatedLegacy(connection) ? -1 : server.getCompressionThreshold();
++    }
++
++    /** Verified Floodgate identities enter native verification before this ordinary Java hello. */
++    @Inject(method = "handleHello", at = @At("HEAD"), cancellable = true)
++    private void viaFabric$rejectUnverifiedLegacyJava(ServerboundHelloPacket packet, CallbackInfo callback) {
++        if (!LegacyLoginOptions.isTranslatedLegacy(connection)) return;
++        disconnect(Component.literal("This experimental server requires Minecraft Java 26.4 Snapshot 5. "
++                + "iPad players should use the normal Bedrock server connection."));
++        callback.cancel();
++    }
++}
+diff --git a/viafabric-mc26-4/src/main/java/com/viaversion/fabric/platform/LegacyLoginOptions.java b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/platform/LegacyLoginOptions.java
+new file mode 100644
+index 00000000..75864f8a
+--- /dev/null
++++ b/viafabric-mc26-4/src/main/java/com/viaversion/fabric/platform/LegacyLoginOptions.java
+@@ -0,0 +1,30 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++package com.viaversion.fabric.platform;
++
++import com.viaversion.fabric.mixin.pipeline.ConnectionChannelAccessor;
++import com.viaversion.viaversion.api.connection.UserConnection;
++import com.viaversion.viaversion.platform.ViaDecodeHandler;
++import net.minecraft.SharedConstants;
++import net.minecraft.network.Connection;
++
++/** Per-connection negotiation; native snapshot clients keep all native options. */
++public final class LegacyLoginOptions {
++    private LegacyLoginOptions() {
++    }
++
++    public static boolean isTranslatedLegacy(Connection connection) {
++        if (connection.isMemoryConnection()) return false;
++        var channel = ((ConnectionChannelAccessor) connection).viaFabric$channel();
++        if (channel == null) return false;
++        var decoder = channel.pipeline().get(ViaDecodeHandler.class);
++        return decoder != null && isTranslatedLegacy(decoder.connection(),
++                SharedConstants.getCurrentVersion().protocolVersion());
++    }
++
++    static boolean isTranslatedLegacy(UserConnection user, int nativeProtocol) {
++        if (user.isClientSide()) return false;
++        var info = user.getProtocolInfo();
++        return info.serverProtocolVersion().getOriginalVersion() == nativeProtocol
++                && info.protocolVersion().getOriginalVersion() != nativeProtocol;
++    }
++}
+diff --git a/viafabric-mc26-4/src/main/resources/fabric.mod.json b/viafabric-mc26-4/src/main/resources/fabric.mod.json
+index 6cb99d05..95f36387 100644
+--- a/viafabric-mc26-4/src/main/resources/fabric.mod.json
++++ b/viafabric-mc26-4/src/main/resources/fabric.mod.json
+@@ -1,7 +1,7 @@
+ {
+   "schemaVersion": 1,
+   "id": "viafabric-mc26-4",
+-  "name": "ViaFabric for 26.4",
++  "name": "ViaFabric for 26.4 Snapshot 5 (experimental)",
+   "version": "${version}",
+   "description": "${description}",
+   "license": "GPL-3.0",
+@@ -60,7 +60,7 @@
+   "depends": {
+     "fabric-resource-loader-v0": "*",
+     "minecraft": [
+-      "26.4-alpha.4"
++      "26.4-alpha.5"
+     ],
+     "viafabric": "*"
+   },
+diff --git a/viafabric-mc26-4/src/main/resources/mixins.viafabric.pipeline.json b/viafabric-mc26-4/src/main/resources/mixins.viafabric.pipeline.json
+index b71156ce..a144c1c5 100644
+--- a/viafabric-mc26-4/src/main/resources/mixins.viafabric.pipeline.json
++++ b/viafabric-mc26-4/src/main/resources/mixins.viafabric.pipeline.json
+@@ -3,7 +3,9 @@
+   "compatibilityLevel": "JAVA_25",
+   "package": "com.viaversion.fabric.mixin.pipeline",
+   "mixins": [
+-    "MixinConnection"
++    "MixinConnection",
++    "ConnectionChannelAccessor",
++    "LegacyLoginOptionsMixin"
+   ],
+   "client": [
+     "client.MixinConnection"

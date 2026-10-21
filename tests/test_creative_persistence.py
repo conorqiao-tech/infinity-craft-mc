@@ -54,11 +54,14 @@ class CreativePersistencePackagingTests(unittest.TestCase):
         provenance = json.loads(self.copy_file(PROVENANCE).read_text(encoding="utf-8"))
         for relative in receipt["source_hashes"]:
             self.copy_file(relative)
+        for relative in receipt["snapshot5_inputs"]:
+            self.copy_file(relative)
         self.assertEqual(receipt["source_hashes"],
                          {name:digest(self.isolated / name) for name in receipt["source_hashes"]},
                          "Negative fixtures must begin with the actually validated source bytes")
         self.assertEqual(receipt["version"],package_crossplay.VERSION)
         self.assertEqual(receipt["java_sources"],provenance["java_sources"])
+        self.assertEqual(receipt["snapshot5_inputs"],provenance["snapshot5_inputs"])
         self.assertEqual(receipt["mod_sha256"],provenance["mod_sha256"])
         self.assertEqual(receipt["original_test_mod_sha256"],provenance["test_mod_sha256"])
         self.assertEqual(receipt["native_provenance_sha256"],digest(self.isolated / PROVENANCE))
@@ -69,6 +72,8 @@ class CreativePersistencePackagingTests(unittest.TestCase):
         wire = json.loads(wire_path.read_text(encoding="utf-8"))
         self.assertEqual(digest(wire_path),receipt["wire_receipt_sha256"])
         for relative in wire["source_hashes"]:
+            self.copy_file(relative)
+        for relative in wire["snapshot5_inputs"]:
             self.copy_file(relative)
         self.assertEqual(wire["source_hashes"],
                          {name:digest(self.isolated / name) for name in wire["source_hashes"]},

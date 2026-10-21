@@ -2,6 +2,7 @@
 """Refresh playable files and checksums after building the Java crossplay mod."""
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 import shutil
@@ -9,9 +10,21 @@ import uuid
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 from crossplay_resources import NATIVE_SPRITE_ATTACHABLES, resource_version, vanilla_equipment_override
+from snapshot5_dependencies import (MINECRAFT, PROTOCOL, FABRIC_API, FABRIC_API_SHA256,
+                                   digest as bounded_digest, snapshot_inputs, staged_forks)
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.47"
+VERSION = "2.13.0-explore.48"
+
+
+def fabric_api_input():
+    gradle = Path(os.environ.get("GRADLE_USER_HOME", Path.home() / ".gradle"))
+    candidates = [ROOT / "vendor" / FABRIC_API, *sorted((gradle / "caches/modules-2/files-2.1" /
+        "net.fabricmc.fabric-api/fabric-api/0.164.1+26.4").glob("*/" + FABRIC_API))]
+    for path in candidates:
+        if path.is_file() and bounded_digest(path) == FABRIC_API_SHA256:
+            return path
+    raise RuntimeError("Build against the pinned snapshot Fabric API before preparing the server")
 
 
 def expected_native_tests():
@@ -38,6 +51,9 @@ def prepare():
     server = ROOT / "server"
     if (server / "launcher.lock").exists():
         raise RuntimeError("Stop the live server before installing a new mod build.")
+    forks = staged_forks()
+    fork_sources = snapshot_inputs()
+    api = fabric_api_input()
     mods = server / "fabric/mods"
     mods.mkdir(parents=True, exist_ok=True)
     # Only replace older builds of this same mod, not third-party mods.
@@ -45,11 +61,11 @@ def prepare():
         if old.name != f"Infinity-Armor-{VERSION}.jar":
             old.unlink()
     mod = ROOT / f"java/build/libs/Infinity-Armor-{VERSION}.jar"
-    api = ROOT / "vendor/fabric-api-0.161.0+26.3.jar"
     with zipfile.ZipFile(mod) as jar:
         assert json.loads(jar.read("fabric.mod.json"))["version"] == VERSION
         assert not any("GameTests" in name or name.startswith("net/minecraft/") for name in jar.namelist())
-    for file in [mod, api]:
+    # Local ports are reviewed build outputs, never fabricated upstream downloads.
+    for file in [mod, api, *(ROOT / "vendor/snapshot5" / name for name in forks)]:
         shutil.copy2(file, mods / file.name)
 
     resources = ROOT / "bedrock/resource_pack"
@@ -106,16 +122,19 @@ def prepare():
     bridge = server / "geyser/extensions/InfinityCreativeBridge.jar"
     from build_creative_bridge import PIN, digest
     receipt = json.loads((ROOT / "research/integration/creative-bridge/build.json").read_text())
-    expected_inputs = [ROOT / "geyser-extension/extension.yml", ROOT / "tools/build_creative_bridge.py",
+    expected_inputs = [ROOT / "geyser-extension/extension.yml", ROOT / "tools/build_creative_bridge.py", ROOT / "tools/snapshot5_dependencies.py",
                        *sorted((ROOT / "geyser-extension/src/main/java").rglob("*.java"))]
     assert receipt["geyser_sha256"] == PIN == digest(server / "geyser/Geyser-Standalone.jar")
     assert receipt["source_hashes"] == {p.relative_to(ROOT).as_posix(): digest(p) for p in expected_inputs}, \
         "Creative bridge source changed; rebuild it before preparing"
     assert receipt["extension_sha256"] == digest(bridge), "Creative bridge jar differs from its build receipt"
     lock["version"] = VERSION
+    lock["minecraft"] = MINECRAFT
+    lock["snapshot5"] = {"experimental": True, "protocol": PROTOCOL, "source_inputs": fork_sources}
     lock["creative_bridge"] = {key: receipt[key] for key in ("format_version", "geyser_sha256", "source_hashes", "extension_sha256")}
     lock["bundled"] = [{"path": str(p.relative_to(server)), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
-        for p in [mods / mod.name, mods / api.name, pack, bridge]]
+        for p in [mods / mod.name, mods / api.name, pack, bridge, *(mods / name for name in forks)]]
+    assert snapshot_inputs() == fork_sources, "Local port provenance changed while preparing"
     lock_path.write_text(json.dumps(lock, indent=2) + "\n")
     print("Prepared crossplay server artifacts and bundled file checksums.")
 

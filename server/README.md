@@ -1,4 +1,23 @@
-# Explore.47 source candidate • smarter helpers
+# Explore.48 source candidate • Java 26.4 Snapshot 5 and iPad crossplay
+
+This candidate ports InfinityCraft to the exact Java **26.4 Snapshot 5** server
+while retaining the existing Geyser iPad client support. It includes local
+public-source Polymer, Floodgate and Via compatibility ports. Their source,
+licenses, rebuild instructions and known limits are documented in
+[Snapshot 5 compatibility](../compatibility/snapshot5/README.md).
+
+The playable server is still the separately installed explore.47 while this
+candidate is being tested. Java players will need the exact Snapshot 5 client;
+older ordinary Java clients are refused. The iPad route keeps Floodgate identity
+verification and native access checks. New snapshot content uses older-client
+visual fallbacks where necessary. Accepted armor art, native armor attachments,
+menus, progression, helpers and separate AI-action approvals are retained.
+
+Source preparation does not install this candidate. The final dependency set,
+Creative inventory/persistence, world-copy conversion and real iPad joining must
+be checked separately. See [VALIDATION.md](VALIDATION.md) for evidence and limits.
+
+# Historical explore.47 candidate • smarter helpers
 
 Helpers walk through player-sized passages and use original Infinity weapons.
 Ultimate Finals can open a close-range mace arc, retain an eligible moving enemy,

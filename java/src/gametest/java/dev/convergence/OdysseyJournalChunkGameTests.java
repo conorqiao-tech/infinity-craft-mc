@@ -71,8 +71,8 @@ public class OdysseyJournalChunkGameTests {
             for(int attempt=0;attempt<16&&crossing==null;attempt++){
                 var candidate=placement.getPotentialStructureChunk(world.getSeed(),20_000+40*attempt,20_000);
                 var generated=ruin.generate(holder,world.dimension(),registry,generator,generator.getBiomeSource(),sampler,random,
-                    world.getStructureTemplateManager(),world.getSeed(),candidate,0,world,biome->ruin.biomes().contains(biome));
-                if(!generated.isValid())continue;
+                    world.getStructureTemplateManager(),world.getSeed(),candidate,world,biome->ruin.biomes().contains(biome));
+                if(generated==null)continue;
                 var generatedPiece=generated.getPieces().stream().filter(OdysseyStructure.Piece.class::isInstance).map(OdysseyStructure.Piece.class::cast).findFirst().orElseThrow();
                 var bounds=generatedPiece.getBoundingBox();
                 for(int x=bounds.minX();x<=bounds.maxX()&&crossing==null;x++)for(int z=bounds.minZ();z<=bounds.maxZ();z++)
@@ -86,12 +86,13 @@ public class OdysseyJournalChunkGameTests {
             oldOrigin=origin.getStartForStructure(ruin);oldLocal=local.getStartForStructure(ruin);
             oldReferences=new it.unimi.dsi.fastutil.longs.LongOpenHashSet(local.getReferencesForStructure(ruin));
             // Install only metadata produced by native generation, restoring it after the test.
-            origin.setStartForStructure(ruin,start);local.setStartForStructure(ruin,StructureStart.INVALID_START);
+            origin.setStartForStructure(ruin,start);NativeStructureFixture.replaceStart(local,ruin,null);
+            c.assertFalse(local.getAllStarts().containsKey(ruin),"A reference-only chunk has no null-valued native structure start");
             local.getReferencesForStructure(ruin).clear();local.addReferenceForStructure(ruin,origin.getPos().pack());
         }
         @Override public void close(){
-            origin.setStartForStructure(ruin,oldOrigin==null?StructureStart.INVALID_START:oldOrigin);
-            local.setStartForStructure(ruin,oldLocal==null?StructureStart.INVALID_START:oldLocal);
+            NativeStructureFixture.replaceStart(origin,ruin,oldOrigin);
+            NativeStructureFixture.replaceStart(local,ruin,oldLocal);
             local.getReferencesForStructure(ruin).clear();local.getReferencesForStructure(ruin).addAll(oldReferences);
         }
     }

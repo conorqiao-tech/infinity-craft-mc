@@ -12,6 +12,7 @@ import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
 from verify_owned_equipment import creative_capture_counts, verify_owned_equipment
+from snapshot5_dependencies import MINECRAFT, snapshot_inputs, verify_lock
 
 
 def verified_test_hash(provenance, test_mod):
@@ -24,7 +25,7 @@ def verified_test_hash(provenance, test_mod):
 def verified_creative_bridge(root, lock):
     from build_creative_bridge import PIN, digest
     metadata = lock["creative_bridge"]
-    sources = [root / "geyser-extension/extension.yml", root / "tools/build_creative_bridge.py",
+    sources = [root / "geyser-extension/extension.yml", root / "tools/build_creative_bridge.py", root / "tools/snapshot5_dependencies.py",
                *sorted((root / "geyser-extension/src/main/java").rglob("*.java"))]
     expected = {p.relative_to(root).as_posix(): digest(p) for p in sources}
     if metadata["source_hashes"] != expected:
@@ -38,14 +39,12 @@ def verified_creative_bridge(root, lock):
 
 def verified_creative_wire(root, lock, provenance):
     """Require actual captured Geyser bytes, Via conversion and native refusal evidence."""
-    from smoke_creative_wire import bounded_json, digest, NESTED, VIAFABRIC, VIABACKWARDS
+    from smoke_creative_wire import bounded_json, digest, NESTED, VIAFABRIC, VIABACKWARDS, wire_sources, verify_native_snapshot
     checks = root / "research/integration/creative-bridge"
     receipt = bounded_json(checks / "wire-proof.json")
-    sources = [root / "tools/smoke_creative_wire.py",
-               root / "tools/native_checks/CreativeBridgeWireGameTests.java"]
-    if receipt["source_hashes"] != {p.relative_to(root).as_posix(): digest(p) for p in sources}:
+    if receipt["source_hashes"] != wire_sources(root):
         raise RuntimeError("Creative wire source differs from its proof; rerun the supplemental native check")
-    if (receipt["java_sources"] != provenance["java_sources"]
+    if (receipt.get("snapshot5_inputs") != snapshot_inputs(root) or receipt["java_sources"] != provenance["java_sources"]
             or receipt["mod_sha256"] != provenance["mod_sha256"]
             or receipt["original_test_mod_sha256"] != provenance["test_mod_sha256"]):
         raise RuntimeError("Creative wire proof differs from the current native-tested source/jars")
@@ -56,6 +55,7 @@ def verified_creative_wire(root, lock, provenance):
     report = runtime / "results.xml"
     native_file = runtime / "native-wire.json"
     native = bounded_json(native_file)
+    verify_native_snapshot(native)
     ready_file = checks / "ready.json"
     ready = bounded_json(ready_file)
     verify_owned_equipment(ready)
@@ -106,7 +106,7 @@ def verified_creative_wire(root, lock, provenance):
 
 def verified_creative_persistence(root, lock, provenance):
     """Bind real receive hooks, disk writes and saved reconnects to this package."""
-    from smoke_creative_wire import bounded_json, digest, VIAFABRIC, VIABACKWARDS, NESTED
+    from smoke_creative_wire import bounded_json, digest, VIAFABRIC, VIABACKWARDS, NESTED, verify_native_snapshot
     from benchmark_helpers import runtime_inputs
     checks = root / "research/integration/creative-bridge"
     receipt_file = checks / "persistence-proof.json"
@@ -117,10 +117,11 @@ def verified_creative_persistence(root, lock, provenance):
         raise RuntimeError("Creative persistence must record both executed Via dependencies")
     sources = ["tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java",
                "tools/benchmark_helpers.py", "tools/prepare_crossplay.py", "tools/package_crossplay.py",
-               "tools/smoke_creative_wire.py", "tools/verify_owned_equipment.py", "tools/crossplay_resources.py"]
+               "tools/smoke_creative_wire.py", "tools/verify_owned_equipment.py", "tools/crossplay_resources.py",
+               "tools/native_checks/Snapshot5ViaFixture.java", "tools/snapshot5_dependencies.py"]
     if receipt["source_hashes"] != {name: digest(root / name) for name in sources}:
         raise RuntimeError("Creative persistence source differs from its proof; rerun the isolated check")
-    if (receipt["version"] != VERSION or receipt["java_sources"] != provenance["java_sources"]
+    if (receipt.get("snapshot5_inputs") != snapshot_inputs(root) or receipt["version"] != VERSION or receipt["java_sources"] != provenance["java_sources"]
             or receipt["mod_sha256"] != provenance["mod_sha256"]
             or receipt["original_test_mod_sha256"] != provenance["test_mod_sha256"]
             or receipt["native_provenance_sha256"] != digest(root / "research/integration/provenance.json")):
@@ -135,6 +136,7 @@ def verified_creative_persistence(root, lock, provenance):
     runtime = root / relative
     report = runtime / "results.xml"; native_file = runtime / "native-persistence.json"
     native = bounded_json(native_file)
+    verify_native_snapshot(native)
     actual = {
         "report_sha256": digest(report), "native_proof_sha256": digest(native_file),
         "log_sha256": digest(runtime / "persistence.log"), "capture_sha256": digest(checks / "ready.json"),
@@ -243,6 +245,7 @@ def main():
     mod = ROOT / f"server/fabric/mods/Infinity-Armor-{VERSION}.jar"
     # Bind every package to the exact tested source, mod and report, including ordinary releases.
     provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
+    assert provenance.get("snapshot5_inputs") == snapshot_inputs(), "Native proof uses different experimental port sources"
     assert provenance["java_sources"] == {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                                            for p in (ROOT / "java/src").rglob("*") if p.is_file()}
     assert provenance["mod_sha256"] == hashlib.sha256(mod.read_bytes()).hexdigest()
@@ -262,7 +265,14 @@ def main():
             assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == expected
     server = ROOT / "server"
     lock = json.loads((server / "dependencies.lock.json").read_text())
+    verify_lock(lock)
+    from verify_snapshot5_integration import verified as verified_snapshot_integration
+    snapshot_integration = verified_snapshot_integration(ROOT)
+    assert provenance.get("dependency_lock_sha256") == hashlib.sha256((server / "dependencies.lock.json").read_bytes()).hexdigest(), "Native dependency lock differs from the package"
+    assert provenance.get("release_dependencies") == {p.relative_to(server / "fabric").as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in [server / "fabric/fabric-server-launch.jar", *sorted((server / "fabric/mods").glob("*.jar"))]}, "Native release dependencies differ from the package"
     assert lock["version"] == VERSION
+    assert lock["minecraft"] == MINECRAFT
     bridge = verified_creative_bridge(ROOT, lock)
     creative_checks = ROOT / "research/integration/creative-bridge"
     startup = json.loads((creative_checks / "startup.json").read_text())
@@ -305,6 +315,15 @@ def main():
         data = (server / file["path"]).read_bytes()
         assert hashlib.sha256(data).hexdigest() == file["sha256"]
         entries[file["path"]] = data
+    # Ship the exact public-source pins, complete local changes, licenses and
+    # rebuild recipe alongside these experimental LGPL/GPL port binaries.
+    for file in (ROOT / "compatibility/snapshot5").rglob("*"):
+        if file.is_file():
+            entries[file.relative_to(ROOT).as_posix()] = file.read_bytes()
+    for name in ("tools/build_snapshot5_dependencies.py", "tools/snapshot5_dependencies.py"):
+        entries[name] = (ROOT / name).read_bytes()
+    entries["checks/snapshot5-source-inputs.json"] = (json.dumps(snapshot_inputs(), indent=2) + "\n").encode()
+    entries["checks/snapshot5-integration.json"] = (json.dumps(snapshot_integration, indent=2) + "\n").encode()
     entries["checks/java-gametest-results.xml"] = report.read_bytes()
     entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
     entries["checks/launcher-tests.txt"] = testlog.encode()
@@ -364,7 +383,11 @@ def main():
         for file in (ROOT / directory).rglob("*"):
             if file.is_file():
                 source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
-    for name in ["java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
+    for file in (ROOT / "compatibility/snapshot5").rglob("*"):
+        if file.is_file():
+            source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
+    for name in ["tools/verify_snapshot5_integration.py", "tools/build_snapshot5_dependencies.py", "tools/snapshot5_dependencies.py", "tools/native_checks/Snapshot5ViaFixture.java",
+        "java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
         "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/package_armor_attachment_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py", "tests/fixtures/armor_native_pose_contract.json",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:

@@ -48,7 +48,7 @@ public class SpawnSafetyGameTests {
 
     @GameTest public void survivalPreflightLeavesSpawnResolutionToNativeRespawn(GameTestHelper c) {
         var server=c.getLevel().getServer();
-        var profile=new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(),"survival-preflight");
+        var profile=new com.mojang.authlib.GameProfile(java.util.UUID.randomUUID(),NativeSessionFixture.nativeProfileName("survival-preflight"));
         var data=CommonListenerCookie.createInitial(profile,false);var lookups=new int[1];
         // This native player is not registered or connected; the preflight must
         // not need a connection, a saved destination, or a native spawn lookup.

@@ -2,7 +2,6 @@ package dev.convergence;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.viaversion.viabackwards.protocol.v26_3to26_2.Protocol26_3To26_2;
 import com.viaversion.viaversion.api.Via;
 import com.viaversion.viaversion.api.protocol.packet.Direction;
 import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
@@ -58,16 +57,10 @@ public class CreativeBridgeWireGameTests {
             c.assertValueEqual(actualCatalogue.get(field.getKey()),field.getValue(),"Native catalogue header matches the captured document exactly");
         c.assertValueEqual(byPath(c,actualCatalogue),byPath(c,expectedCatalogue),"Native catalogue has the exact captured entries/fields, independent of map iteration order");
         c.assertValueEqual(receipt.get("items").getAsInt(),Convergence.ITEMS.size(),"Capture covers the current canonical item set");
-        var manager=Via.getManager().getProtocolManager();
-        manager.completeMappingDataLoading(Protocol26_3To26_2.class);
-        var protocol=manager.getProtocol(Protocol26_3To26_2.class);
-        c.assertTrue(protocol!=null,"Pinned ViaBackwards registered the real 26.3 to 26.2 protocol");
         var channel=new EmbeddedChannel();
         var user=new UserConnectionImpl(channel,false);
         var info=user.getProtocolInfo();
-        info.setProtocolVersion(ProtocolVersion.v26_2);info.setServerProtocolVersion(ProtocolVersion.v26_3);
-        info.setClientState(State.PLAY);info.setServerState(State.PLAY);
-        var pipeline=new ProtocolPipelineImpl(user);pipeline.add(protocol);
+        var protocol=new Snapshot5ViaFixture(c,user);
         var player=new ModeGameTests().player(c,"wire-proof");
         OperatorGameTests.deop(player);player.setGameMode(GameType.CREATIVE);
         info.setUuid(player.getUUID());
@@ -137,13 +130,7 @@ public class CreativeBridgeWireGameTests {
             report.addProperty("hotbar_cases",valid);
             report.addProperty("overflow_cases",overflow);report.addProperty("survival_cases",survival);
             report.addProperty("via_survival_cases",viaSurvival);
-            report.addProperty("viabackwards_sha256",sha(Files.readAllBytes(Path.of("mods/ViaBackwards-5.12.0.jar"))));
-            report.addProperty("viafabric_sha256",sha(Files.readAllBytes(Path.of("mods/ViaFabric-0.4.22+186-26.x.jar"))));
-            try(var jar=new java.util.zip.ZipFile("mods/ViaFabric-0.4.22+186-26.x.jar")) {
-                try(var input=jar.getInputStream(jar.getEntry("META-INF/jars/viaversion-5.12.1-SNAPSHOT.jar"))) {
-                    report.addProperty("viaversion_nested_sha256",sha(input.readAllBytes()));
-                }
-            }
+            Snapshot5ViaFixture.dependencies(report);
             String reportProperty=System.getProperty("infinity.creative.wire.report");
             if(reportProperty==null)throw new IllegalStateException("Pass -Dinfinity.creative.wire.report=<output JSON> to bind proof to actual input/dependency bytes");
             var target=Path.of(reportProperty);Files.createDirectories(target.toAbsolutePath().getParent());Files.writeString(target,report.toString()+"\n");
@@ -154,7 +141,7 @@ public class CreativeBridgeWireGameTests {
     }
 
     private ServerboundSetCreativeModeSlotPacket translate(GameTestHelper c,ServerPlayer player,UserConnectionImpl user,
-        Protocol26_3To26_2 protocol,JsonObject sample) throws Exception {
+        Snapshot5ViaFixture protocol,JsonObject sample) throws Exception {
         var input=Unpooled.wrappedBuffer(Base64.getDecoder().decode(sample.get("payload_base64").getAsString()));
         var output=Unpooled.buffer();
         try {
@@ -163,9 +150,9 @@ public class CreativeBridgeWireGameTests {
             c.assertFalse(wrapper.isCancelled(),"Actual ViaBackwards translator preserves the Creative packet");
             wrapper.writeToBuffer(output);
             var nativeBuffer=new RegistryFriendlyByteBuf(output,player.registryAccess());
-            c.assertValueEqual(nativeBuffer.readVarInt(),ServerboundPackets26_3.SET_CREATIVE_MODE_SLOT.getId(),"Via emits the native 26.3 Creative packet ID");
+            c.assertValueEqual(nativeBuffer.readVarInt(),Snapshot5ViaFixture.nativeCreativePacketId(player),"Via emits the actual native Snapshot 5 Creative packet ID");
             var packet=ServerboundSetCreativeModeSlotPacket.STREAM_CODEC.decode(nativeBuffer);
-            c.assertFalse(nativeBuffer.isReadable(),"Native 26.3 codec consumes the exact translated component payload");
+            c.assertFalse(nativeBuffer.isReadable(),"Native Snapshot 5 codec consumes the exact translated component payload");
             c.assertValueEqual(packet.slotNum(),(short)36,"Actual capture addresses the correct hotbar slot");
             String path=sample.get("path").getAsString();var wire=packet.itemStack();
             c.assertTrue(wire.is(CrossplaySupport.BASES.get(path)),"Via's actual item ID decodes to the expected vanilla base");
@@ -185,21 +172,19 @@ public class CreativeBridgeWireGameTests {
     }
 
     private static void abilities(GameTestHelper c,ServerPlayer player,UserConnectionImpl user,
-        Protocol26_3To26_2 protocol) throws Exception {
+        Snapshot5ViaFixture protocol) throws Exception {
         var bytes=Unpooled.buffer();
         try {
-            ClientboundPlayerAbilitiesPacket.STREAM_CODEC.encode(new RegistryFriendlyByteBuf(bytes,player.registryAccess()),
-                new ClientboundPlayerAbilitiesPacket(player.getAbilities()));
-            var wrapper=PacketWrapper.create(ClientboundPackets26_3.PLAYER_ABILITIES,bytes,user);
+            var wrapper=Snapshot5ViaFixture.nativeAbilities(player,user,bytes);
             protocol.transform(Direction.CLIENTBOUND,State.PLAY,wrapper);
             c.assertFalse(wrapper.isCancelled(),"Via accepts the real native player's abilities update");
-            c.assertValueEqual(protocol.getEntityRewriter().tracker(user).canInstaBuild(),player.getAbilities().instabuild,
+            c.assertValueEqual(protocol.canInstaBuild(),player.getAbilities().instabuild,
                 "Via session tracks Creative authority from the actual native abilities packet");
         } finally {bytes.release();}
     }
 
     private static void assertViaRefusesCreative(GameTestHelper c,UserConnectionImpl user,
-        Protocol26_3To26_2 protocol,JsonObject sample) throws Exception {
+        Snapshot5ViaFixture protocol,JsonObject sample) throws Exception {
         var input=Unpooled.wrappedBuffer(Base64.getDecoder().decode(sample.get("payload_base64").getAsString()));
         try {
             var wrapper=PacketWrapper.create(ServerboundPackets26_1.SET_CREATIVE_MODE_SLOT,input,user);

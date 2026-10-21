@@ -23,7 +23,9 @@ import zipfile
 from benchmark_helpers import copy_cached_runtime, runtime_inputs
 from package_crossplay import verified_creative_wire
 from prepare_crossplay import VERSION, expected_native_tests
-from smoke_creative_wire import bounded_json, digest, java_sources, NESTED, VIAFABRIC, VIABACKWARDS
+from smoke_creative_wire import (bounded_json, digest, java_sources, NESTED, VIAFABRIC, VIABACKWARDS,
+                                 VIA_SOURCE, via_properties, verify_native_snapshot)
+from snapshot5_dependencies import snapshot_inputs, verify_lock
 from verify_owned_equipment import creative_capture_counts
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +38,8 @@ def supplementary_sources() -> dict[str, str]:
     paths = [Path(__file__).resolve(), SOURCE,
              ROOT / "tools/benchmark_helpers.py", ROOT / "tools/prepare_crossplay.py",
              ROOT / "tools/package_crossplay.py", ROOT / "tools/smoke_creative_wire.py",
-             ROOT / "tools/verify_owned_equipment.py", ROOT / "tools/crossplay_resources.py"]
+             ROOT / "tools/verify_owned_equipment.py", ROOT / "tools/crossplay_resources.py",
+             VIA_SOURCE, ROOT / "tools/snapshot5_dependencies.py"]
     return {path.relative_to(ROOT).as_posix(): digest(path) for path in paths}
 
 
@@ -94,6 +97,7 @@ def main() -> None:
     if receipt_path in {capture, catalogue, capture.with_name("startup.json"), runtime / "provenance.json", runtime / "results.xml"}:
         raise ValueError("The new receipt must not replace any existing input evidence")
     frozen_sources = java_sources(); source_hashes = supplementary_sources()
+    frozen_snapshot = snapshot_inputs()
     provenance_file = runtime / "provenance.json"; provenance = bounded_json(provenance_file)
     native_report = runtime / "results.xml"
     if provenance["java_sources"] != frozen_sources or provenance["report_sha256"] != digest(native_report):
@@ -105,6 +109,9 @@ def main() -> None:
             or digest(runtime / "mods" / mod.name) != provenance["mod_sha256"]):
         raise ValueError("Current release, original native jar and cached executed release must match successful provenance")
     lock_file = ROOT / "server/dependencies.lock.json"; lock = bounded_json(lock_file)
+    verify_lock(lock)
+    if provenance.get("snapshot5_inputs") != frozen_snapshot:
+        raise ValueError("Native dependency source provenance is stale")
     # Reuse the fully verified current wire proof rather than trusting its success label.
     wire_evidence = verified_creative_wire(ROOT, lock, provenance)
     wire_hashes = {name: hashlib.sha256(data).hexdigest() for name, data in wire_evidence.items()}
@@ -159,12 +166,12 @@ def main() -> None:
             raise RuntimeError("Cannot read exact existing gametest compile metadata")
         classpath = values[0]
     classpath = os.pathsep.join([classpath, str(original_tests), str(via_version), str(target / "mods" / VIABACKWARDS)])
-    subprocess.run([str(javac), "--release", "25", "-encoding", "UTF-8", "-classpath", classpath, "-d", str(compiled), str(SOURCE)], check=True, timeout=120)
+    subprocess.run([str(javac), "--release", "25", "-encoding", "UTF-8", "-classpath", classpath, "-d", str(compiled), str(VIA_SOURCE), str(SOURCE)], check=True, timeout=120)
     selected_tests = target / "mods" / original_tests.name
     augment_test_jar(original_tests, selected_tests, compiled); selected_hash = digest(selected_tests)
     report = target / "results.xml"; native_proof = target / "native-persistence.json"; log_path = target / "persistence.log"
     with log_path.open("w") as log:
-        result = subprocess.run([str(java), "-Xmx2G", "-Dinfinity.gametest.paced=true", "-Dfabric-api.gametest",
+        result = subprocess.run([str(java), "-Xmx2G", "-Dinfinity.gametest.paced=true", "-Dfabric-api.gametest", *via_properties(),
                                  "-Dinfinity.creative.capture=" + str(captured_packets),
                                  "-Dinfinity.creative.catalogue=" + str(captured_catalogue),
                                  "-Dinfinity.creative.persistence.report=" + str(native_proof),
@@ -177,6 +184,7 @@ def main() -> None:
     except ValueError as error:
         raise RuntimeError(f"Supplementary real ingress/disk/rejoin proof failed; see {log_path}") from error
     native = bounded_json(native_proof)
+    verify_native_snapshot(native)
     expected_true = ("catalogue_equivalent", "receive_hook_canonical_before_listener",
                      "renamed_damaged_weapon_preserved", "personal_backpack_preserved", "observer_file_unchanged")
     if (any(type(native.get(field)) is not int or native[field] != value for field, value in expected_counts.items())
@@ -193,7 +201,7 @@ def main() -> None:
     if any(value != pinned["fabric/mods/" + name] for name, value in executed_dependencies.items()):
         raise RuntimeError("Executed Via bytes differ from the exact pinned inputs")
     current_wire_evidence = verified_creative_wire(ROOT, bounded_json(lock_file), provenance)
-    if (java_sources() != frozen_sources or supplementary_sources() != source_hashes
+    if (java_sources() != frozen_sources or supplementary_sources() != source_hashes or snapshot_inputs() != frozen_snapshot
             or {str(path): digest(path) for path in input_paths} != frozen_inputs
             or runtime_inputs(runtime) != runtime_hashes or digest(selected_mod) != provenance["mod_sha256"]
             or digest(selected_tests) != selected_hash or digest(captured_packets) != capture_hash
@@ -201,7 +209,7 @@ def main() -> None:
             or {name: hashlib.sha256(data).hexdigest() for name, data in current_wire_evidence.items()} != wire_hashes):
         raise RuntimeError("Required sources/artifacts/proofs changed during the supplementary check; preserve this failed attempt and rerun")
     output = {"format_version": 1, "version": VERSION, "source_hashes": source_hashes,
-              "java_sources": frozen_sources, "native_provenance_sha256": digest(provenance_file),
+              "java_sources": frozen_sources, "snapshot5_inputs": frozen_snapshot, "native_provenance_sha256": digest(provenance_file),
               "mod_sha256": digest(mod), "original_test_mod_sha256": digest(original_tests),
               "persistence_test_mod_sha256": selected_hash, "wire_receipt_sha256": wire_receipt_hash,
               "wire_evidence_sha256": wire_hashes, "capture_sha256": capture_hash,

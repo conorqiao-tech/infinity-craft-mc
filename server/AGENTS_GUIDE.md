@@ -1,12 +1,18 @@
 # Helper squads, AI modes, and full operator controls
 
-**Explore.47 source candidate:** helpers support a fifty-slot paginated squad,
-explicit reviewed living targets, native-backed Infinity weapons, retained pursuit
-and checked close-range mace leaps. Select an existing helper and choose
+**Explore.48 source candidate for Minecraft Java 26.4 Snapshot 5:** helpers retain
+the fifty-slot paginated squad, explicit reviewed living targets, native-backed
+Infinity weapons, retained pursuit and checked close-range mace leaps.
+Select an existing helper and choose
 **Enable combos and follow me** to resume it without replacing or healing it.
 Player orders and server actions retain owner and separate live Codex approval.
 See [Helper controls](HELPER_CONTROLS.md), [Helper combos](HELPER_COMBOS.md) and
-[VALIDATION.md](VALIDATION.md). Preparing source does not install it.
+[VALIDATION.md](VALIDATION.md). Java clients need this exact snapshot; Bedrock
+crossplay uses experimental public-source compatibility ports. Private tests
+retain normal native Java authentication and verified Floodgate identities, but
+actual Xbox-authenticated iPad joining and device visuals remain unconfirmed.
+The live server remains explore.47 until installation; preparing source does not
+install it.
 
 Admins can edit a loaded helper through **Infinity Menu → Admin editor • players and AI**. Select its golem icon, change health, damage, speed, armor, size or another supported base attribute, then confirm. On iPad/Bedrock this opens native buttons and a number input field; Java uses Review and Confirm. Manual stat edits do not require Codex approval. Original attribute values can be restored. Exact saved stats stay unchanged by the compact health display sent to observers. Physical knockback stays bounded to keep the world responsive. The edits and reset values save with the entity; helper behavior/profile changes invalidate an open stat review. Follow, guard and profile controls remain in **AI Helpers**, and player-target orders still require both approvals.
 

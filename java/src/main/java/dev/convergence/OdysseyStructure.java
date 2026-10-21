@@ -18,7 +18,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.NoiseColumn;
+import net.minecraft.world.level.levelgen.NoiseColumn;
 import net.minecraft.world.level.BaseCommandBlock;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.WorldGenLevel;
@@ -100,10 +100,10 @@ public final class OdysseyStructure extends Structure {
     /** Search inside the Nether rather than placing a surface structure above its bedrock roof. */
     static int netherFloor(NoiseColumn column,int min,int max) {
         for(int y=max-HEIGHT;y>=min;y--) {
-            var floor=column.getBlock(y-1);
-            if(floor.isAir()||!floor.getFluidState().isEmpty()||floor.is(Blocks.BEDROCK))continue;
+            // Terrain columns use a solid sentinel, not a dereferenceable block state.
+            if(!column.isSolid(y-1))continue;
             boolean clear=true;
-            for(int dy=0;dy<HEIGHT;dy++) if(!column.getBlock(y+dy).isAir()){clear=false;break;}
+            for(int dy=0;dy<HEIGHT;dy++) if(!column.isEmpty(y+dy)){clear=false;break;}
             if(clear)return y;
         }
         return Integer.MIN_VALUE;
@@ -111,27 +111,27 @@ public final class OdysseyStructure extends Structure {
 
     @Override protected Optional<GenerationStub> findGenerationPoint(GenerationContext c) {
         int x=c.chunkPos().getMinBlockX()+8,z=c.chunkPos().getMinBlockZ()+8;
-        var sample=c.biomeResolver().getNoiseBiome(x>>2,16,z>>2);
+        var sample=c.noiseBiomeResolver().getNoiseBiome(x>>2,16,z>>2);
         String biome=sample.unwrapKey().orElseThrow().identifier().toString();
         String theme=theme(biome);
         boolean nether=theme.equals("crimson")||theme.equals("warped")||theme.equals("soul")||theme.equals("basalt")||theme.equals("nether_wastes");
         int y=nether?netherFloor(c.chunkGenerator().getBaseColumn(x,z,c.heightAccessor(),c.randomState()),32,112):
-            c.chunkGenerator().getBaseHeight(x,z,Heightmap.Types.OCEAN_FLOOR_WG,c.heightAccessor(),c.randomState());
+            c.chunkGenerator().getFirstFreeHeight(x,z,Heightmap.Types.OCEAN_FLOOR_WG,c.heightAccessor(),c.randomState());
         if(!nether&&!theme.equals("end")&&c.random().nextBoolean()) {
             var column=c.chunkGenerator().getBaseColumn(x,z,c.heightAccessor(),c.randomState());
             for(int ceiling=Math.min(48,y-8);ceiling>c.heightAccessor().getMinY()+HEIGHT+2;) {
                 int cave=netherFloor(column,c.heightAccessor().getMinY()+2,ceiling);
                 if(cave==Integer.MIN_VALUE)break;
-                var caveBiome=c.biomeResolver().getNoiseBiome(x>>2,cave>>2,z>>2);
+                var caveBiome=c.noiseBiomeResolver().getNoiseBiome(x>>2,cave>>2,z>>2);
                 if(theme(caveBiome.unwrapKey().orElseThrow().identifier().toString()).equals("caves")){y=cave;break;}
                 ceiling=cave-1;
             }
         }
         if(y==Integer.MIN_VALUE||y<=c.heightAccessor().getMinY()+1||y+HEIGHT>=c.heightAccessor().getMaxY())return Optional.empty();
         // End void columns have no solid island beneath the candidate.
-        if(c.chunkGenerator().getBaseColumn(x,z,c.heightAccessor(),c.randomState()).getBlock(y-1).isAir())return Optional.empty();
+        if(!c.chunkGenerator().getBaseColumn(x,z,c.heightAccessor(),c.randomState()).isSolid(y-1))return Optional.empty();
         var at=new BlockPos(x,y,z);
-        var actual=c.biomeResolver().getNoiseBiome(x>>2,y>>2,z>>2);
+        var actual=c.noiseBiomeResolver().getNoiseBiome(x>>2,y>>2,z>>2);
         String actualTheme=theme(actual.unwrapKey().orElseThrow().identifier().toString());
         Rotation rotation=Rotation.getRandom(c.random());
         return Optional.of(new GenerationStub(at,builder->builder.addPiece(new Piece(c.structureTemplateManager(),at,actualTheme,rotation))));
@@ -147,7 +147,7 @@ public final class OdysseyStructure extends Structure {
             ||!(level.getBlockEntity(pos) instanceof CommandBlockEntity block)||block.getCommandBlock()!=command)return source;
         var ruin=level.registryAccess().lookupOrThrow(Registries.STRUCTURE).getOrThrow(KEY).value();
         var start=level.structureManager().getStructureAt(pos,ruin);
-        if(start.isValid()&&start.getPieces().stream().anyMatch(piece->piece instanceof Piece p&&p.repeaterPosition().equals(pos)))
+        if(start!=null&&start.getPieces().stream().anyMatch(piece->piece instanceof Piece p&&p.repeaterPosition().equals(pos)))
             return source.withPermission(LevelBasedPermissionSet.ADMIN);
         return source;
     }

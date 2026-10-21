@@ -82,7 +82,7 @@ public class CommunityTeleportGameTests {
         boolean closed;
         Joined(GameTestHelper c,String name,int x) {
             server=c.getLevel().getServer();wire=new NativePlayConnection(c.getLevel().registryAccess());
-            var profile=new GameProfile(UUID.randomUUID(),name);var cookie=CommonListenerCookie.createInitial(profile,false);
+            var profile=new GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName(name));var cookie=CommonListenerCookie.createInitial(profile,false);
             try {
                 player=new ServerPlayer(server,c.getLevel(),profile,cookie.clientInformation());clientPosition=PositionMoveRotation.of(player);
                 server.getPlayerList().placeNewPlayer(wire.connection,player,cookie);configure();

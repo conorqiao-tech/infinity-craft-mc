@@ -159,8 +159,10 @@ public final class ElementalArmor {
                 ResourceKey<EquipmentAsset> asset = ResourceKey.create(
                     ResourceKey.createRegistryKey(Identifier.withDefaultNamespace("equipment_asset")),
                     Identifier.fromNamespaceAndPath("convergence", suit.prefix + "_armor"));
-                builder.set(DataComponents.EQUIPPABLE, Equippable.builder(slot).setEquipSound(defaults.get(DataComponents.EQUIPPABLE).equipSound()).setAsset(asset)
-                    .setDamageOnHurt(suit == Suit.ELEMENTAL).build());
+                var equippable = Equippable.builder(slot).setAsset(asset).setDamageOnHurt(suit == Suit.ELEMENTAL);
+                defaults.get(DataComponents.EQUIPPABLE).equipSound()
+                    .ifPresentOrElse(equippable::setEquipSound, equippable::noEquidSound);
+                builder.set(DataComponents.EQUIPPABLE, equippable.build());
                 if (suit == Suit.INFINITY) builder.set(DataComponents.UNBREAKABLE, Unit.INSTANCE);
             });
             Item item = Registry.register(BuiltInRegistries.ITEM, id, new Item(properties));

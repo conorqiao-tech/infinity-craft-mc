@@ -179,7 +179,7 @@
     "java/src/main/java/dev/convergence/ElementalRelics.java": "e9c9bb027d44c3217b6750948f53e8465705c9ae57d646afb05ac0d3874a3969",
     "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "9d37b10a34fc344e9a9a128f8771de1c4749077097a182c389c5ac37040bfc7b",
     "java/src/main/java/dev/convergence/GearNames.java": "45c473150255494b16b8bf22ae2e0d0d5068af7cc3ad89881678006c7fbbfd63",
-    "java/src/main/java/dev/convergence/CrossplaySupport.java": "ccbb21fcfdec9d6d0cf3a25d7559f30b731cd2736acfaf2c109417627143a666",
+    "java/src/main/java/dev/convergence/CrossplaySupport.java": "aa519bb429e9fdc2b1e3b36bec7fd6761667f5e382a7c78df2ab5adc9d0f08e7",
     "java/src/main/resources/assets/convergence/lang/en_us.json": "ff35b727a3176472b2afcbd117bc29d93262b80bdee4d2ad9ca8492b0786abef",
     "java/src/main/resources/assets/convergence/items/windstep.json": "3a0872ef05f8b7a8bb3c47110abf9692db947511ffdb4005f463b98b8ab0ccca",
     "java/src/main/resources/data/convergence/recipe/windstep.json": "fb7da1a5784e8d6c55a3d8c6cb5e4f8a019abc55a1e162b897a05bb20b152f5c",
@@ -227,5 +227,18 @@
     16
   ],
   "preview_is_client_capture": false,
-  "gameplay_or_native_equipment_changed": false
+  "gameplay_or_native_equipment_changed": false,
+  "compatibility_rebaselines": [
+    {
+      "release": "2.13.0-explore.48",
+      "path": "java/src/main/java/dev/convergence/CrossplaySupport.java",
+      "previous_sha256": "ccbb21fcfdec9d6d0cf3a25d7559f30b731cd2736acfaf2c109417627143a666",
+      "current_sha256": "aa519bb429e9fdc2b1e3b36bec7fd6761667f5e382a7c78df2ab5adc9d0f08e7",
+      "exact_change": {
+        "before": "catalogue.addProperty(\"minecraft\", \"26.3\");",
+        "after": "catalogue.addProperty(\"minecraft\", net.minecraft.SharedConstants.getCurrentVersion().id());"
+      },
+      "reason": "Snapshot 5 catalogue metadata uses the actual native Minecraft version. This is the only source difference against explore.47; names, item mappings, artwork, geometry and all other preservation hashes are unchanged."
+    }
+  ]
 }

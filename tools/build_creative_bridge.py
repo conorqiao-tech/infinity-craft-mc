@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+from snapshot5_dependencies import MINECRAFT
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = "17a9e00f3be106c797066664679ca73ebf25af693a750f378a9669ca93b4c07e"
@@ -45,7 +46,7 @@ def validate_catalogue(path: Path) -> dict:
     if len(raw) > 131_072:
         raise ValueError("Catalogue exceeded bounded read")
     data = json.loads(raw.decode("utf-8"), object_pairs_hook=unique)
-    if not isinstance(data, dict) or set(data) != {"format_version", "minecraft", "items"} or type(data["format_version"]) is not int or data["format_version"] != 1 or data["minecraft"] != "26.3":
+    if not isinstance(data, dict) or set(data) != {"format_version", "minecraft", "items"} or type(data["format_version"]) is not int or data["format_version"] != 1 or data["minecraft"] != MINECRAFT:
         raise ValueError("Unsupported catalogue header")
     items = data["items"]
     if not isinstance(items, list) or not 1 <= len(items) <= 128:
@@ -99,7 +100,7 @@ def main() -> None:
     if not sources or len(sources) > 32 or any(p.stat().st_size > 262_144 for p in sources):
         raise SystemExit("Missing or oversized bridge sources")
     manifest = extension / "extension.yml"
-    input_paths = [Path(__file__).resolve(), manifest, *sources]
+    input_paths = [Path(__file__).resolve(), ROOT / "tools/snapshot5_dependencies.py", manifest, *sources]
     inputs = {str(p.relative_to(ROOT)): digest(p) for p in input_paths}
     catalogue = validate_catalogue(args.catalogue.resolve()) if args.catalogue else None
     if args.validate_only:

@@ -15,6 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from snapshot5_dependencies import MINECRAFT, LOADER, FRAMEWORK, FRAMEWORK_SHA256
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,14 +34,14 @@ def runtime_inputs(runtime):
     runtime = runtime.resolve()
     cache = runtime/'.fabric/server'
     launch = runtime/'fabric-server-launch.jar'
-    server = cache/'26.3-server.jar'
-    loader = cache/'fabric-loader-server-0.19.5-minecraft-26.3.jar'
+    server = cache/(MINECRAFT+'-server.jar')
+    loader = cache/('fabric-loader-server-'+LOADER+'-minecraft-'+MINECRAFT+'.jar')
     for path in [launch, server, loader]:
         if not path.is_file():
             raise RuntimeError('Missing pinned cached runtime input: '+str(path))
     with zipfile.ZipFile(launch) as archive:
         properties = dict(line.split('=', 1) for line in archive.read('install.properties').decode().splitlines() if '=' in line)
-    if properties.get('game-version')!='26.3' or properties.get('fabric-loader-version')!='0.19.5':
+    if properties.get('game-version')!=MINECRAFT or properties.get('fabric-loader-version')!=LOADER:
         raise RuntimeError('Unexpected FabricInstaller pinned runtime')
     with zipfile.ZipFile(loader) as archive:
         manifest = archive.read('META-INF/MANIFEST.MF').decode().replace('\r\n', '\n').replace('\n ', '')
@@ -51,9 +52,9 @@ def runtime_inputs(runtime):
         dependency = (cache/entry).resolve()
         if runtime not in dependency.parents or not dependency.is_file():
             raise RuntimeError('Missing or external cached loader dependency: '+entry)
-    framework = runtime/'mods/fabric-gametest-api-v1-4.0.32+3434d6d95d.jar'
+    framework = runtime/'mods'/FRAMEWORK
     expected = (ROOT/'tools/gametest-framework.sha256').read_text().split()[0]
-    if not framework.is_file() or sha256(framework)!=expected:
+    if expected!=FRAMEWORK_SHA256 or not framework.is_file() or sha256(framework)!=expected:
         raise RuntimeError('Missing or unvalidated native GameTest framework')
     paths = [launch]
     for folder in ['libraries', 'versions', '.fabric/server', 'mods']:
@@ -68,7 +69,7 @@ def copy_cached_runtime(source, destination):
     for folder in ['libraries', 'versions']:
         shutil.copytree(source/folder, destination/folder)
     cache = destination/'.fabric/server'; cache.mkdir(parents=True)
-    for name in ['26.3-server.jar', 'fabric-loader-server-0.19.5-minecraft-26.3.jar']:
+    for name in [MINECRAFT+'-server.jar', 'fabric-loader-server-'+LOADER+'-minecraft-'+MINECRAFT+'.jar']:
         shutil.copy2(source/'.fabric/server'/name, cache/name)
 
 

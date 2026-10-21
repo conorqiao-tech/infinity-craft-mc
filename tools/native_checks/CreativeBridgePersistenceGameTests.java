@@ -2,7 +2,6 @@ package dev.convergence;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.viaversion.viabackwards.protocol.v26_3to26_2.Protocol26_3To26_2;
 import com.viaversion.viaversion.api.Via;
 import com.viaversion.viaversion.api.protocol.packet.Direction;
 import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
@@ -70,7 +69,7 @@ public class CreativeBridgePersistenceGameTests {
         final HashSet<String> canonicalPaths=new HashSet<>();
         final HashSet<String> persistedPaths=new HashSet<>();
         final int expectedDistinct,expectedHotbar,expectedBatches;
-        final Protocol26_3To26_2 protocol;
+        Snapshot5ViaFixture protocol;
         Joined owner,observer;
         EmbeddedChannel viaChannel;
         UserConnectionImpl via;
@@ -124,9 +123,6 @@ public class CreativeBridgePersistenceGameTests {
             for(int slot=1;slot<36;slot++)if(slot!=6&&slot!=7&&slot!=8&&slot!=34&&slot!=35)collectionSlots.add(slot);
             c.assertValueEqual(collectionSlots.size(),30,"Native collection capacity fits around every unchanged fixture control");
             expectedBatches=(expectedDistinct+collectionSlots.size()-1)/collectionSlots.size();
-            var manager=Via.getManager().getProtocolManager();manager.completeMappingDataLoading(Protocol26_3To26_2.class);
-            protocol=manager.getProtocol(Protocol26_3To26_2.class);
-            c.assertTrue(protocol!=null,"The real pinned ViaBackwards protocol is registered");
         }
 
         @Override void start() {
@@ -195,9 +191,8 @@ public class CreativeBridgePersistenceGameTests {
         void attachActualIngress() {
             if(viaChannel!=null)viaChannel.finishAndReleaseAll();
             viaChannel=new EmbeddedChannel();via=new UserConnectionImpl(viaChannel,false);
-            var info=via.getProtocolInfo();info.setProtocolVersion(ProtocolVersion.v26_2);info.setServerProtocolVersion(ProtocolVersion.v26_3);
-            info.setClientState(State.PLAY);info.setServerState(State.PLAY);info.setUuid(owner.player.getUUID());
-            var pipeline=new ProtocolPipelineImpl(via);pipeline.add(protocol);abilities();
+            var info=via.getProtocolInfo();info.setUuid(owner.player.getUUID());
+            protocol=new Snapshot5ViaFixture(c,via);abilities();
             owner.wire.channel.pipeline().addBefore("packet_handler","observe_canonical_creative",new ChannelInboundHandlerAdapter() {
                 @Override public void channelRead(ChannelHandlerContext context,Object value) throws Exception {
                     if(value instanceof ServerboundSetCreativeModeSlotPacket packet) {
@@ -214,11 +209,10 @@ public class CreativeBridgePersistenceGameTests {
         void abilities() {
             var bytes=Unpooled.buffer();
             try {
-                ClientboundPlayerAbilitiesPacket.STREAM_CODEC.encode(new RegistryFriendlyByteBuf(bytes,owner.player.registryAccess()),new ClientboundPlayerAbilitiesPacket(owner.player.getAbilities()));
-                var wrapper=PacketWrapper.create(ClientboundPackets26_3.PLAYER_ABILITIES,bytes,via);
+                var wrapper=Snapshot5ViaFixture.nativeAbilities(owner.player,via,bytes);
                 protocol.transform(Direction.CLIENTBOUND,State.PLAY,wrapper);
                 c.assertFalse(wrapper.isCancelled(),"Pinned Via accepts actual native abilities");
-                c.assertTrue(protocol.getEntityRewriter().tracker(via).canInstaBuild(),"Actual native abilities authorize the Via Creative session");
+                c.assertTrue(protocol.canInstaBuild(),"Actual native abilities authorize the Via Creative session");
             }catch(Exception error){throw new IllegalStateException("Actual native abilities translation failed",error);}
             finally{bytes.release();}
         }
@@ -237,7 +231,7 @@ public class CreativeBridgePersistenceGameTests {
                 // This unscoped decode proves the wire still contains its vanilla base.
                 // The native pipeline below must independently restore it using the actual receiving connection context.
                 var verify=new RegistryFriendlyByteBuf(translated.duplicate(),owner.player.registryAccess());
-                c.assertValueEqual(verify.readVarInt(),ServerboundPackets26_3.SET_CREATIVE_MODE_SLOT.getId(),"Via emits the actual native Creative packet ID");
+                c.assertValueEqual(verify.readVarInt(),Snapshot5ViaFixture.nativeCreativePacketId(owner.player),"Via emits the actual native Creative packet ID");
                 var wire=ServerboundSetCreativeModeSlotPacket.STREAM_CODEC.decode(verify).itemStack();
                 c.assertFalse(verify.isReadable(),"Actual native codec consumes every translated component byte");
                 c.assertTrue(wire.is(CrossplaySupport.BASES.get(path)),"Pre-context native decode still contains the actual vanilla wire base");
@@ -317,11 +311,8 @@ public class CreativeBridgePersistenceGameTests {
             report.addProperty("personal_backpack_preserved",true);report.addProperty("observer_file_unchanged",true);
             report.addProperty("observer_check_scope","before fixture cleanup and ordinary server shutdown saves");
             report.addProperty("observer_file_sha256",sha(observerBefore));
-            report.addProperty("viabackwards_sha256",sha(read(Path.of("mods/ViaBackwards-5.12.0.jar"))));
-            report.addProperty("viafabric_sha256",sha(read(Path.of("mods/ViaFabric-0.4.22+186-26.x.jar"))));
-            try(var jar=new java.util.zip.ZipFile("mods/ViaFabric-0.4.22+186-26.x.jar");var input=jar.getInputStream(jar.getEntry("META-INF/jars/viaversion-5.12.1-SNAPSHOT.jar"))) {
-                report.addProperty("viaversion_nested_sha256",sha(input.readAllBytes()));
-            }catch(Exception error){throw new IllegalStateException("Cannot bind executed ViaVersion bytes",error);}
+            try{Snapshot5ViaFixture.dependencies(report);}
+            catch(Exception error){throw new IllegalStateException("Cannot bind executed snapshot Via bytes",error);}
             write(required("infinity.creative.persistence.report"),report.toString()+"\n");succeed();
         }
 

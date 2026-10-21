@@ -31,7 +31,7 @@ public class ModeGameTests {
     }
     ServerPlayer player(GameTestHelper c,String name,net.minecraft.network.Connection connection) {
         warmLegacyDestinations(c);
-        var server=c.getLevel().getServer();var profile=new com.mojang.authlib.GameProfile(UUID.randomUUID(),name);
+        var server=c.getLevel().getServer();var profile=new com.mojang.authlib.GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName(name));
         var data=net.minecraft.server.network.CommonListenerCookie.createInitial(profile,false);
         var p=new ServerPlayer(server,c.getLevel(),profile,data.clientInformation());
         server.getPlayerList().placeNewPlayer(connection,p,data);

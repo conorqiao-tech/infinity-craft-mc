@@ -1,6 +1,7 @@
 """Require complete catalogue coverage and native held-equipment evidence."""
 
 import re
+from snapshot5_dependencies import MINECRAFT
 
 PROTOCOLS = [1001, 2168, 2193]
 # These slots exclude the scratch slot, navigator, picker and component controls.
@@ -17,7 +18,7 @@ def catalogue_item_count_pairs(catalogue):
     """
     if (not isinstance(catalogue, dict)
             or type(catalogue.get("format_version")) is not int
-            or catalogue["format_version"] != 1 or catalogue.get("minecraft") != "26.3"
+            or catalogue["format_version"] != 1 or catalogue.get("minecraft") != MINECRAFT
             or not isinstance(catalogue.get("items"), list)
             or not 1 <= len(catalogue["items"]) <= 128):
         raise ValueError("Require a complete supported canonical catalogue")

@@ -44,7 +44,7 @@ import net.minecraft.world.item.equipment.EquipmentAsset;
 import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.sounds.BlockSoundSets;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.phys.Vec3;
 
@@ -104,7 +104,7 @@ final class ExpandedGear {
       BlockBehaviour.Properties settings = BlockBehaviour.Properties.of()
          .setId(ResourceKey.create(Registries.BLOCK, key))
          .strength(hardness(path), NEW_BLOCKS.contains(path)?6.0F:1200.0F)
-         .sound(NEW_BLOCKS.contains(path)?SoundType.STONE:SoundType.METAL)
+         .sound(NEW_BLOCKS.contains(path)?BlockSoundSets.STONE:BlockSoundSets.METAL)
          .requiresCorrectToolForDrops()
          .overrideLootTable(Optional.of(ResourceKey.create(Registries.LOOT_TABLE, id("blocks/" + path))));
       if (light(path)>0) settings.lightLevel(state -> light(path));
