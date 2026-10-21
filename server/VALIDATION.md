@@ -1,4 +1,61 @@
-# Following, Infinity loadouts and squad combat — explore.47 source candidate
+# Snapshot 5 migration — explore.48 validated source candidate
+
+The final pinned application and dependency stack passes **648 native tests in
+30 isolated groups**, with zero failed or skipped cases, against Minecraft Java
+26.4 Snapshot 5, Loader 0.20.1, Fabric API 0.164.1 and the public-source compatibility
+ports. The final provenance binds **767 Java source/resource hashes**, the release
+mod, original test JAR, aggregate report, dependency lock and fork source inputs.
+All **385 Python launcher/resource tests pass**, with ResourceWarning treated as
+an error and zero errors or skipped cases.
+
+The custom translator passes **21 codec tests**. The combined native login stack
+passes **four targeted acknowledgment tests plus one framework baseline**.
+An isolated connection using the actual Geyser-bundled Java 26.2 codec sustained
+full-application Play for **90.0804 seconds**, decoding **49 chunks**, acknowledging
+two teleports and completing a native respawn. Inventory, equipment, advancements
+and registry packets were decoded through the exact Snapshot 5 protocol 1073742167
+with the tested Infinity gear and no probe errors. The advancement and dense
+biome-palette repairs were included in this final run.
+
+All **four strict negative probes pass**: invalid and tampered Floodgate keys,
+an identity outside the native whitelist and an unsupported ordinary older Java
+login are refused. Exact-snapshot Java retains normal online authentication;
+the translated path retains encrypted Floodgate identity verification and native
+whitelist enforcement. Fresh-key actual Geyser startup and its local UDP response
+also pass. The sustained Play client uses a synthetic fresh-key identity, so
+these checks do **not** prove an Xbox-authenticated iPad login or device rendering.
+
+Fresh Geyser catalogue checks cover **66 identities over three protocols**.
+The final supplementary wire checks pass **255 inbound hotbar packets**,
+**198 overflow refusals** and **255 Survival refusals**. Persistence checks pass
+**85 saved-item count cases**, all **66 identities** and **three genuine same-UUID
+reconnects**, retaining renamed/damaged gear, backpacks and observer state.
+These checks execute the complete Java 26.2→26.3→Snapshot 5 translation chain with
+the final Via artifacts; their receipts bind to the final application and sources.
+
+Armor transport passes **303 native codec round trips**. All **424 tracked PNGs**
+remain byte-identical to the explore.47 baseline `b6aec0c`; accepted armor geometry
+and artwork have not been redesigned. **Two isolated full-stack launcher cycles**
+pass startup, local response, backup, restart and clean shutdown. A local response
+does not establish a public authenticated connection.
+
+A separate private world copy converted from **DataVersion 5023 to 5125**, without
+player logins or terrain refresh. Its 92 input files included four offline player
+files, nine mod-state files and one saved helper. Offline player and mod-state
+bytes, helper stable identity/equipment/stats and saved difficulty were preserved;
+the original copy remained unchanged. This is a bounded conversion test, not a
+claim that every save is safe. After native conversion, recovery requires the
+complete preupgrade world and matching old executable stack; replacing JARs or
+restoring only terrain is insufficient. See [World refresh](WORLD_REFRESH.md).
+
+Complete corresponding source and connection limits are documented in
+[Snapshot 5 compatibility](../compatibility/snapshot5/README.md). Packaging and
+live installation are separate steps. **The live server remains explore.47 until
+installation. Actual Xbox/iPad authenticated joining, menus, armor motion and
+flight visuals still require a real device check.** The explore.47 evidence below
+is historical and must not be reused as explore.48 release evidence.
+
+# Historical following, Infinity loadouts and squad combat — explore.47 candidate
 
 This candidate repairs player-sized following and repeated native combat, adds
 original Infinity weapon loadouts, exact nearby-target selection and paginated

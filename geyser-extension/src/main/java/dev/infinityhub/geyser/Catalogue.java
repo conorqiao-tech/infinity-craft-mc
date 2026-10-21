@@ -46,7 +46,7 @@ final class Catalogue {
         JsonElement parsed = JsonParser.parseString(json);
         if (!parsed.isJsonObject()) throw new IllegalArgumentException("Catalogue must be an object");
         JsonObject root = parsed.getAsJsonObject(); keys(root, ROOT_KEYS);
-        if (integer(root, "format_version", 1, 1) != 1 || !text(root, "minecraft", 16).equals("26.3"))
+        if (integer(root, "format_version", 1, 1) != 1 || !text(root, "minecraft", 16).equals("26.4-snapshot-5"))
             throw new IllegalArgumentException("Unsupported catalogue format or Minecraft version");
         if (!root.has("items") || !root.get("items").isJsonArray()) throw new IllegalArgumentException("Missing item list");
         JsonArray array = root.getAsJsonArray("items");

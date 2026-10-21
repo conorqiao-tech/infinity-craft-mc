@@ -1,0 +1,1063 @@
+diff --git a/build-logic/src/main/kotlin/extensions.kt b/build-logic/src/main/kotlin/extensions.kt
+index 885516a..f1c6056 100644
+--- a/build-logic/src/main/kotlin/extensions.kt
++++ b/build-logic/src/main/kotlin/extensions.kt
+@@ -52,5 +52,5 @@ abstract class GitCommand : ValueSource<String, GitCommand.GitCommandParameters>
+ 
+ 
+ fun JavaPluginExtension.javaTarget(version: Int) {
+-    toolchain.languageVersion.set(JavaLanguageVersion.of(version))
++    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+ }
+diff --git a/build-logic/src/main/kotlin/vb.base-conventions.gradle.kts b/build-logic/src/main/kotlin/vb.base-conventions.gradle.kts
+index 2640900..f5188ef 100644
+--- a/build-logic/src/main/kotlin/vb.base-conventions.gradle.kts
++++ b/build-logic/src/main/kotlin/vb.base-conventions.gradle.kts
+@@ -7,6 +7,8 @@ tasks {
+     processResources {
+         val ver = project.version.toString()
+         val desc = project.description
++        inputs.property("expandedVersion", ver)
++        inputs.property("expandedDescription", desc ?: "")
+         filesMatching(listOf("plugin.yml", "META-INF/sponge_plugins.json", "fabric.mod.json")) {
+             expand(mapOf("version" to ver, "description" to desc))
+         }
+diff --git a/common/build.gradle.kts b/common/build.gradle.kts
+index 8edfa73..b308708 100644
+--- a/common/build.gradle.kts
++++ b/common/build.gradle.kts
+@@ -64,3 +64,14 @@ tasks.register<JavaExec>("runViaProxy") {
+         jvmArgs("-Dviaproxy.enableViaBedrock=false", "-Dviaproxy.enableViaLegacy=false", "-Dviaproxy.enableViaAprilFools=false")
+     }
+ }
++
++// Private experimental Snapshot5 bridge validation only.
++dependencies {
++    testImplementation(libs.viaver)
++    testImplementation(libs.netty)
++    testImplementation(libs.guava)
++    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
++    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
++}
++
++tasks.test { useJUnitPlatform() }
+diff --git a/common/src/main/java/com/viaversion/viabackwards/api/ViaBackwardsPlatform.java b/common/src/main/java/com/viaversion/viabackwards/api/ViaBackwardsPlatform.java
+index d13e2bb..87aaf8e 100644
+--- a/common/src/main/java/com/viaversion/viabackwards/api/ViaBackwardsPlatform.java
++++ b/common/src/main/java/com/viaversion/viabackwards/api/ViaBackwardsPlatform.java
+@@ -171,6 +171,7 @@ public interface ViaBackwardsPlatform {
+         protocolManager.registerProtocol(new Protocol26_1To1_21_11(), ProtocolVersion.v1_21_11, ProtocolVersion.v26_1);
+         protocolManager.registerProtocol(new Protocol26_2To26_1(), ProtocolVersion.v26_1, ProtocolVersion.v26_2);
+         protocolManager.registerProtocol(new Protocol26_3To26_2(), ProtocolVersion.v26_2, ProtocolVersion.v26_3);
++        protocolManager.registerProtocol(new com.viaversion.viabackwards.protocol.v26_4to26_3.Protocol26_4To26_3(), ProtocolVersion.v26_3, ProtocolVersion.v26_4);
+     }
+ 
+     default void enable() {
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/EntityTypes26_4.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/EntityTypes26_4.java
+new file mode 100644
+index 0000000..a693d7e
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/EntityTypes26_4.java
+@@ -0,0 +1,347 @@
++/*
++ * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
++ * Copyright (C) 2016-2026 ViaVersion and contributors
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in all
++ * copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++package com.viaversion.viabackwards.protocol.v26_4to26_3;
++
++import com.viaversion.viaversion.api.minecraft.entities.EntityType;
++
++import com.google.common.base.Preconditions;
++import com.viaversion.viaversion.api.protocol.Protocol;
++import com.viaversion.viaversion.util.EntityTypeUtil;
++import com.viaversion.viaversion.util.Key;
++import java.util.Locale;
++import org.checkerframework.checker.nullness.qual.Nullable;
++
++public enum EntityTypes26_4 implements EntityType {
++
++    ENTITY(null, null),
++
++    AREA_EFFECT_CLOUD(ENTITY),
++    END_CRYSTAL(ENTITY),
++    EVOKER_FANGS(ENTITY),
++    EXPERIENCE_ORB(ENTITY),
++    EYE_OF_ENDER(ENTITY),
++    FALLING_BLOCK(ENTITY),
++    ITEM(ENTITY),
++    TNT(ENTITY),
++    OMINOUS_ITEM_SPAWNER(ENTITY),
++    MARKER(ENTITY),
++    LIGHTNING_BOLT(ENTITY),
++    INTERACTION(ENTITY),
++
++    DISPLAY(ENTITY, null),
++    BLOCK_DISPLAY(DISPLAY),
++    ITEM_DISPLAY(DISPLAY),
++    TEXT_DISPLAY(DISPLAY),
++
++    // Hanging entities
++    HANGING_ENTITY(ENTITY, null),
++    LEASH_KNOT(HANGING_ENTITY),
++    PAINTING(HANGING_ENTITY),
++    ITEM_FRAME(HANGING_ENTITY),
++    GLOW_ITEM_FRAME(ITEM_FRAME),
++
++    CUSHION(ENTITY),
++
++    // Projectiles
++    PROJECTILE(ENTITY, null),
++    ITEM_PROJECTILE(PROJECTILE, null),
++    SNOWBALL(ITEM_PROJECTILE),
++    ICE_BALL(ITEM_PROJECTILE),
++    ENDER_PEARL(ITEM_PROJECTILE),
++    EGG(ITEM_PROJECTILE),
++    EXPERIENCE_BOTTLE(ITEM_PROJECTILE),
++    FIREWORK_ROCKET(PROJECTILE),
++    LLAMA_SPIT(PROJECTILE),
++    SHULKER_BULLET(PROJECTILE),
++    FISHING_BOBBER(PROJECTILE),
++    WITHER_SKULL(PROJECTILE),
++    DRAGON_FIREBALL(PROJECTILE), // Doesn't actually inherit fireball
++
++    ABSTRACT_THROWN_POTION(ITEM_PROJECTILE, null),
++    SPLASH_POTION(ABSTRACT_THROWN_POTION),
++    LINGERING_POTION(ABSTRACT_THROWN_POTION),
++
++    ABSTRACT_ARROW(PROJECTILE, null),
++    ARROW(ABSTRACT_ARROW),
++    SPECTRAL_ARROW(ABSTRACT_ARROW),
++    TRIDENT(ABSTRACT_ARROW),
++
++    ABSTRACT_FIREBALL(ENTITY, null),
++    FIREBALL(ABSTRACT_FIREBALL),
++    SMALL_FIREBALL(ABSTRACT_FIREBALL),
++
++    ABSTRACT_WIND_CHARGE(PROJECTILE, null),
++    WIND_CHARGE(ABSTRACT_WIND_CHARGE),
++    BREEZE_WIND_CHARGE(ABSTRACT_WIND_CHARGE),
++
++    // Vehicles
++    VEHICLE(ENTITY, null),
++
++    ABSTRACT_MINECART(VEHICLE, null),
++    MINECART(ABSTRACT_MINECART),
++    FURNACE_MINECART(ABSTRACT_MINECART),
++    COMMAND_BLOCK_MINECART(ABSTRACT_MINECART),
++    TNT_MINECART(ABSTRACT_MINECART),
++    SPAWNER_MINECART(ABSTRACT_MINECART),
++
++    ABSTRACT_MINECART_CONTAINER(ABSTRACT_MINECART, null),
++    CHEST_MINECART(ABSTRACT_MINECART_CONTAINER),
++    HOPPER_MINECART(ABSTRACT_MINECART_CONTAINER),
++
++    ABSTRACT_BOAT(VEHICLE, null),
++    ABSTRACT_CHEST_BOAT(ABSTRACT_BOAT, null),
++    ACACIA_BOAT(ABSTRACT_BOAT),
++    ACACIA_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    BAMBOO_CHEST_RAFT(ABSTRACT_CHEST_BOAT),
++    BAMBOO_RAFT(ABSTRACT_BOAT),
++    BIRCH_BOAT(ABSTRACT_BOAT),
++    BIRCH_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    CHERRY_BOAT(ABSTRACT_BOAT),
++    CHERRY_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    DARK_OAK_BOAT(ABSTRACT_BOAT),
++    DARK_OAK_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    JUNGLE_BOAT(ABSTRACT_BOAT),
++    JUNGLE_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    MANGROVE_BOAT(ABSTRACT_BOAT),
++    MANGROVE_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    OAK_BOAT(ABSTRACT_BOAT),
++    OAK_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    PALE_OAK_BOAT(ABSTRACT_BOAT),
++    PALE_OAK_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    SPRUCE_BOAT(ABSTRACT_BOAT),
++    SPRUCE_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++    POPLAR_BOAT(ABSTRACT_BOAT),
++    POPLAR_CHEST_BOAT(ABSTRACT_CHEST_BOAT),
++
++    // Living entities as a larger subclass
++    LIVING_ENTITY(ENTITY, null),
++    ARMOR_STAND(LIVING_ENTITY),
++
++    // Players
++    AVATAR(LIVING_ENTITY, null),
++    MANNEQUIN(AVATAR),
++    PLAYER(AVATAR),
++
++    // Mobs as a larger subclass
++    MOB(LIVING_ENTITY, null),
++    ENDER_DRAGON(MOB),
++
++    // Ambient mobs
++    AMBIENT_CREATURE(MOB, null),
++    BAT(AMBIENT_CREATURE),
++
++    // Flying mobs
++    FLYING_MOB(MOB, null),
++    GHAST(FLYING_MOB),
++    PHANTOM(FLYING_MOB),
++
++    // Pathfinder mobs and its subclasses
++    PATHFINDER_MOB(MOB, null),
++    ALLAY(PATHFINDER_MOB),
++
++    ABSTRACT_GOLEM(PATHFINDER_MOB, null),
++    SNOW_GOLEM(ABSTRACT_GOLEM),
++    IRON_GOLEM(ABSTRACT_GOLEM),
++    SHULKER(ABSTRACT_GOLEM),
++    COPPER_GOLEM(ABSTRACT_GOLEM),
++
++    // Ageable mobs and (tamable) animals
++    ABSTRACT_AGEABLE(PATHFINDER_MOB, null),
++
++    ABSTRACT_VILLAGER(ABSTRACT_AGEABLE, null),
++    VILLAGER(ABSTRACT_VILLAGER),
++    WANDERING_TRADER(ABSTRACT_VILLAGER),
++
++    ABSTRACT_CUBE_MOB(ABSTRACT_AGEABLE, null),
++    SLIME(ABSTRACT_CUBE_MOB),
++    MAGMA_CUBE(ABSTRACT_CUBE_MOB),
++    SULFUR_CUBE(ABSTRACT_CUBE_MOB),
++
++    ABSTRACT_ANIMAL(ABSTRACT_AGEABLE, null),
++    AXOLOTL(ABSTRACT_ANIMAL),
++    CHICKEN(ABSTRACT_ANIMAL),
++    PANDA(ABSTRACT_ANIMAL),
++    PIG(ABSTRACT_ANIMAL),
++    POLAR_BEAR(ABSTRACT_ANIMAL),
++    RABBIT(ABSTRACT_ANIMAL),
++    SHEEP(ABSTRACT_ANIMAL),
++    BEE(ABSTRACT_ANIMAL),
++    TURTLE(ABSTRACT_ANIMAL),
++    FOX(ABSTRACT_ANIMAL),
++    FROG(ABSTRACT_ANIMAL),
++    GOAT(ABSTRACT_ANIMAL),
++    HOGLIN(ABSTRACT_ANIMAL),
++    STRIDER(ABSTRACT_ANIMAL),
++    SNIFFER(ABSTRACT_ANIMAL),
++    ARMADILLO(ABSTRACT_ANIMAL),
++    HAPPY_GHAST(ABSTRACT_ANIMAL),
++    OCELOT(ABSTRACT_ANIMAL),
++
++    ABSTRACT_COW(ABSTRACT_ANIMAL, null),
++    COW(ABSTRACT_COW),
++    MOOSHROOM(ABSTRACT_COW),
++
++    TAMABLE_ANIMAL(ABSTRACT_ANIMAL, null),
++    CAT(TAMABLE_ANIMAL),
++    WOLF(TAMABLE_ANIMAL),
++    PARROT(TAMABLE_ANIMAL),
++
++    ABSTRACT_NAUTILUS(TAMABLE_ANIMAL, null),
++    NAUTILUS(ABSTRACT_NAUTILUS),
++    ZOMBIE_NAUTILUS(ABSTRACT_NAUTILUS),
++
++    ABSTRACT_HORSE(ABSTRACT_ANIMAL, null),
++    HORSE(ABSTRACT_HORSE),
++    SKELETON_HORSE(ABSTRACT_HORSE),
++    ZOMBIE_HORSE(ABSTRACT_HORSE),
++    CAMEL(ABSTRACT_HORSE),
++    CAMEL_HUSK(CAMEL),
++
++    ABSTRACT_CHESTED_HORSE(ABSTRACT_HORSE, null),
++    DONKEY(ABSTRACT_CHESTED_HORSE),
++    MULE(ABSTRACT_CHESTED_HORSE),
++    LLAMA(ABSTRACT_CHESTED_HORSE),
++    TRADER_LLAMA(LLAMA),
++
++    // Monsters
++    ABSTRACT_MONSTER(PATHFINDER_MOB, null),
++    BLAZE(ABSTRACT_MONSTER),
++    CREEPER(ABSTRACT_MONSTER),
++    ENDERMITE(ABSTRACT_MONSTER),
++    ENDERMAN(ABSTRACT_MONSTER),
++    GIANT(ABSTRACT_MONSTER),
++    SILVERFISH(ABSTRACT_MONSTER),
++    VEX(ABSTRACT_MONSTER),
++    WITHER(ABSTRACT_MONSTER),
++    BREEZE(ABSTRACT_MONSTER),
++    ZOGLIN(ABSTRACT_MONSTER),
++    WARDEN(ABSTRACT_MONSTER),
++    CREAKING(ABSTRACT_MONSTER),
++
++    ABSTRACT_SKELETON(ABSTRACT_MONSTER, null),
++    SKELETON(ABSTRACT_SKELETON),
++    STRAY(ABSTRACT_SKELETON),
++    WITHER_SKELETON(ABSTRACT_SKELETON),
++    BOGGED(ABSTRACT_SKELETON),
++    PARCHED(ABSTRACT_SKELETON),
++
++    ZOMBIE(ABSTRACT_MONSTER),
++    FROSTBITE(ZOMBIE),
++    DROWNED(ZOMBIE),
++    HUSK(ZOMBIE),
++    ZOMBIFIED_PIGLIN(ZOMBIE),
++    ZOMBIE_VILLAGER(ZOMBIE),
++
++    GUARDIAN(ABSTRACT_MONSTER),
++    ELDER_GUARDIAN(GUARDIAN),
++
++    SPIDER(ABSTRACT_MONSTER),
++    CAVE_SPIDER(SPIDER),
++
++    ABSTRACT_PIGLIN(ABSTRACT_MONSTER, null),
++    PIGLIN(ABSTRACT_PIGLIN),
++    PIGLIN_BRUTE(ABSTRACT_PIGLIN),
++
++    // Water mobs
++    AGEABLE_WATER_CREATURE(ABSTRACT_AGEABLE, null),
++    DOLPHIN(AGEABLE_WATER_CREATURE),
++
++    SQUID(AGEABLE_WATER_CREATURE),
++    GLOW_SQUID(SQUID),
++
++    WATER_ANIMAL(PATHFINDER_MOB, null),
++    ABSTRACT_FISH(WATER_ANIMAL, null),
++    PUFFERFISH(ABSTRACT_FISH),
++    TADPOLE(ABSTRACT_FISH),
++
++    ABSTRACT_SCHOOLING_FISH(ABSTRACT_FISH, null),
++    COD(ABSTRACT_SCHOOLING_FISH),
++    SALMON(ABSTRACT_SCHOOLING_FISH),
++    TROPICAL_FISH(ABSTRACT_SCHOOLING_FISH),
++
++    // Raiders
++    ABSTRACT_RAIDER(ABSTRACT_MONSTER, null),
++    WITCH(ABSTRACT_RAIDER),
++    RAVAGER(ABSTRACT_RAIDER),
++
++    ABSTRACT_ILLAGER(ABSTRACT_RAIDER, null),
++    SPELLCASTER_ILLAGER(ABSTRACT_ILLAGER, null),
++    VINDICATOR(ABSTRACT_ILLAGER),
++    PILLAGER(ABSTRACT_ILLAGER),
++    EVOKER(SPELLCASTER_ILLAGER),
++    ILLUSIONER(SPELLCASTER_ILLAGER);
++
++    private static final EntityType[] TYPES = EntityTypeUtil.createSizedArray(values());
++    private final EntityType parent;
++    private final String identifier;
++    private int id = -1;
++
++    EntityTypes26_4(final EntityType parent) {
++        this.parent = parent;
++        this.identifier = Key.namespaced(name().toLowerCase(Locale.ROOT));
++    }
++
++    EntityTypes26_4(final EntityType parent, @Nullable final String identifier) {
++        this.parent = parent;
++        this.identifier = identifier;
++    }
++
++    @Override
++    public int getId() {
++        if (id == -1) {
++            throw new IllegalStateException("Ids have not been initialized yet (type " + name() + ")");
++        }
++        return id;
++    }
++
++    @Override
++    public String identifier() {
++        Preconditions.checkArgument(identifier != null, "Called identifier method on abstract type");
++        return identifier;
++    }
++
++    @Override
++    public @Nullable EntityType getParent() {
++        return parent;
++    }
++
++    @Override
++    public boolean isAbstractType() {
++        return identifier == null;
++    }
++
++    public static EntityType getTypeFromId(final int typeId) {
++        return EntityTypeUtil.getTypeFromId(TYPES, typeId, PIG);
++    }
++
++    public static void initialize(final Protocol<?, ?, ?, ?> protocol) {
++        for (final EntityTypes26_4 type : values()) {
++            if (!type.isAbstractType()) {
++                final int id = protocol.getMappingData().getEntityMappings().id(type.identifier());
++                Preconditions.checkArgument(id >= 0 && id < TYPES.length, "Missing snapshot entity %s", type.identifier());
++                type.id = id;
++                TYPES[id] = type;
++            }
++        }
++    }
++}
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/Protocol26_4To26_3.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/Protocol26_4To26_3.java
+new file mode 100644
+index 0000000..965aa30
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/Protocol26_4To26_3.java
+@@ -0,0 +1,118 @@
++package com.viaversion.viabackwards.protocol.v26_4to26_3;
++
++import com.viaversion.viabackwards.api.BackwardsProtocol;
++import com.viaversion.viabackwards.api.data.BackwardsMappingData;
++import com.viaversion.viabackwards.api.rewriters.BackwardsRegistryRewriter;
++import com.viaversion.viabackwards.api.rewriters.text.NBTComponentRewriter;
++import com.viaversion.viabackwards.protocol.v26_4to26_3.rewriter.*;
++import com.viaversion.viaversion.api.Via;
++import com.viaversion.viaversion.api.connection.UserConnection;
++import com.viaversion.viaversion.api.connection.StorableObject;
++import com.viaversion.viaversion.api.data.MappingData;
++import com.viaversion.viaversion.api.data.MappingDataBase;
++import com.viaversion.viaversion.api.minecraft.data.StructuredDataKey;
++import com.viaversion.viaversion.api.protocol.AbstractProtocol;
++import com.viaversion.viaversion.api.protocol.Protocol;
++import com.viaversion.viaversion.api.protocol.packet.*;
++import com.viaversion.viaversion.api.protocol.packet.provider.*;
++import com.viaversion.viaversion.api.type.Types;
++import com.viaversion.viaversion.api.type.types.misc.ParticleType;
++import com.viaversion.viaversion.api.type.types.chunk.ChunkType26_1;
++import com.viaversion.viaversion.api.type.types.version.*;
++import com.viaversion.viaversion.protocols.v26_2to26_3.Protocol26_2To26_3;
++import com.viaversion.viaversion.protocols.v26_2to26_3.packet.*;
++import com.viaversion.viaversion.protocols.v1_21_7to1_21_9.packet.ServerboundConfigurationPackets1_21_9;
++import com.viaversion.viaversion.protocols.v26_2to26_3.rewriter.RecipeDisplayRewriter26_3;
++import com.viaversion.viaversion.rewriter.*;
++import com.viaversion.viaversion.rewriter.block.BlockRewriter1_21_5;
++import java.util.HashSet;
++import com.viaversion.viabackwards.protocol.v26_4to26_3.types.*;
++import com.viaversion.viaversion.api.minecraft.chunks.*;
++import com.viaversion.viaversion.util.MathUtil;
++import io.netty.buffer.Unpooled;
++import static com.viaversion.viaversion.util.ProtocolUtil.packetTypeMap;
++
++/** Experimental exact 1073742167 -> 777 protocol translation, not a version-name override. */
++public final class Protocol26_4To26_3 extends BackwardsProtocol<ClientboundPacket26_3,ClientboundPacket26_3,ServerboundPacket26_3,ServerboundPacket26_3> {
++    public static final MappingDataBase FORWARD = new MappingDataBase("26.3","26.4");
++    public static final BackwardsMappingData MAPPINGS = new BackwardsMappingData("26.4","26.3") {
++        @Override public int getOldItemId(final int id) { return FORWARD.getNewItemId(id); }
++    };
++    private final EntityPacketRewriter26_4 entities = new EntityPacketRewriter26_4(this);
++    private final BlockItemPacketRewriter26_4 items = new BlockItemPacketRewriter26_4(this);
++    private final BlockRewriter<ClientboundPacket26_3> blocks = new BlockRewriter1_21_5<>(this,ChunkTypeSnapshot5::new,ChunkType26_1::new){
++        @Override public Chunk handleChunk1_18(PacketWrapper w){final Chunk c=super.handleChunk1_18(w);for(var s:c.getSections())s.addPalette(PaletteType.BIOMES,FullBiomePaletteType.coarse(s.palette(PaletteType.BIOMES)));return c;}
++    };
++    private final ParticleRewriter<ClientboundPacket26_3> particles = new ParticleRewriter<>(this);
++    private final TagRewriter<ClientboundPacket26_3> tags = new TagRewriter<>(this);
++    private final NBTComponentRewriter<ClientboundPacket26_3> text = new NBTComponentRewriter<>(this,"26.3");
++    private final RecipeDisplayRewriter<ClientboundPacket26_3> recipes = new RecipeDisplayRewriter26_3<>(this);
++    private final BackwardsRegistryRewriter registries = new BackwardsRegistryRewriter(this);
++    public Protocol26_4To26_3() { super(ClientboundPacket26_3.class,ClientboundPacket26_3.class,ServerboundPacket26_3.class,ServerboundPacket26_3.class); }
++    @Override public Class<? extends Protocol<?,?,?,?>> dependsOn() { return Protocol26_2To26_3.class; }
++    @Override protected void registerPackets() {
++        EntityTypes26_4.initialize(this);
++        super.registerPackets();
++        registerClientbound(ClientboundPackets26_3.CHUNKS_BIOMES,w->{
++            final var tracker=entities.tracker(w.user());final int height=tracker.currentWorldSectionHeight();if(height<1)throw new IllegalStateException("Native biome update before world height");
++            final int biomeBits=MathUtil.ceilLog2(tracker.biomesSent());final var nativeType=new FullBiomePaletteType(biomeBits);final var oldType=new com.viaversion.viaversion.api.type.types.chunk.PaletteType1_21_5(PaletteType.BIOMES,biomeBits);
++            final int chunks=w.passthrough(Types.VAR_INT);for(int i=0;i<chunks;i++){w.passthrough(Types.LONG);final var input=Unpooled.wrappedBuffer(w.read(Types.BYTE_ARRAY_PRIMITIVE));final var output=Unpooled.buffer();try{for(int j=0;j<height;j++)oldType.write(output,FullBiomePaletteType.coarse(nativeType.read(input)));if(input.isReadable())throw new IllegalArgumentException("Unexpected trailing native biome data");final byte[] bytes=new byte[output.readableBytes()];output.readBytes(bytes);w.write(Types.BYTE_ARRAY_PRIMITIVE,bytes);}finally{input.release();output.release();}}
++        });
++        // Native platform must disable compression for translated legacy connections only.
++        // Snapshot5 only enables compression after LOGIN_ACKNOWLEDGED; legacy clients enable it before.
++        registerClientbound(State.LOGIN,3,3,w -> { w.user().get(LoginStorage.class).threshold=w.read(Types.VAR_INT); w.cancel(); });
++        registerClientbound(State.LOGIN,6,6,w -> {
++            final byte flags=w.read(Types.BYTE);
++            throw new IllegalStateException("Encrypted legacy Java login to Snapshot5 is not implemented; use the matching Snapshot5 Java client.");
++        });
++        registerClientbound(State.LOGIN,2,2,w -> {
++            w.passthrough(Types.UUID); w.passthrough(Types.STRING);
++            final int count=w.passthrough(Types.VAR_INT);
++            for(int i=0;i<count;i++){ w.passthrough(Types.STRING); w.passthrough(Types.STRING); w.passthrough(Types.OPTIONAL_STRING); }
++            w.passthrough(Types.UUID); // 26.3 session id, retained for the next genuine backwards protocol
++            final byte flags=w.read(Types.BYTE);
++            if(flags!=0 || w.user().get(LoginStorage.class).threshold>=0) {
++                throw new IllegalStateException("Snapshot5 legacy bridge requires native per-connection compression disabled; refusing inconsistent login options.");
++            }
++        });
++        registerClientbound(ClientboundPackets26_3.TRANSFER,w -> { w.passthrough(Types.STRING);w.passthrough(Types.VAR_INT); final int n=w.read(Types.VAR_INT);if(n!=0)throw new IllegalStateException("Snapshot5 transfer properties cannot be represented for the legacy client; refusing to discard authentication metadata."); });
++        registerClientbound(ClientboundConfigurationPackets26_3.TRANSFER,w -> { w.passthrough(Types.STRING);w.passthrough(Types.VAR_INT); final int n=w.read(Types.VAR_INT);if(n!=0)throw new IllegalStateException("Snapshot5 transfer properties cannot be represented for the legacy client; refusing to discard authentication metadata."); });
++    }
++    @Override protected void onMappingDataLoaded() {
++        FORWARD.load();
++        EntityTypes26_4.initialize(this);
++        // Initialize a genuinely separate item/particle/entity codec holder for Snapshot5.
++        final AbstractProtocol<ClientboundPacket26_3,ClientboundPacket26_3,ServerboundPacket26_3,ServerboundPacket26_3> helper = new AbstractProtocol<>() {
++            @Override public MappingData getMappingData(){return FORWARD;}
++            @Override public VersionedTypesHolder types(){return VersionedTypes.V26_3;}
++            @Override public VersionedTypesHolder mappedTypes(){return VersionedTypes.V26_4;}
++            @Override public com.viaversion.viaversion.api.rewriter.ItemRewriter<?> getItemRewriter(){return new StructuredItemRewriter<>(this);}
++        };
++        ParticleType.Fillers.fill26_2(helper);
++        final var filler=VersionedTypes.V26_4.structuredData.filler(helper);
++        final var dynamic=new HashSet<String>();
++        for(final var k:VersionedTypes.V26_4.structuredDataKeys().keys())dynamic.add(k.identifier());
++        for(int i=0;i<122;i++){
++            final var k=VersionedTypes.V26_3.structuredData.key(i);
++            if(k==null)throw new IllegalStateException("Missing prior data component codec "+i);
++            if(!dynamic.contains(k.identifier()))filler.add(k==StructuredDataKey.CONSUMABLE26_3?StructuredDataKey.CONSUMABLE26_4:k);
++        }
++        super.onMappingDataLoaded();
++    }
++    @Override public void init(UserConnection c){addEntityTracker(c);addItemHasher(c);c.put(new LoginStorage());}
++    public static final class LoginStorage implements StorableObject { public int threshold=-1; }
++    @Override public BackwardsMappingData getMappingData(){return MAPPINGS;}
++    @Override public EntityPacketRewriter26_4 getEntityRewriter(){return entities;}
++    @Override public BlockItemPacketRewriter26_4 getItemRewriter(){return items;}
++    @Override public BlockRewriter<ClientboundPacket26_3> getBlockRewriter(){return blocks;}
++    @Override public ParticleRewriter<ClientboundPacket26_3> getParticleRewriter(){return particles;}
++    @Override public TagRewriter<ClientboundPacket26_3> getTagRewriter(){return tags;}
++    @Override public NBTComponentRewriter<ClientboundPacket26_3> getComponentRewriter(){return text;}
++    @Override public RecipeDisplayRewriter<ClientboundPacket26_3> getRecipeRewriter(){return recipes;}
++    @Override public BackwardsRegistryRewriter getRegistryDataRewriter(){return registries;}
++    @Override public VersionedTypesHolder types(){return VersionedTypes.V26_4;}
++    @Override public VersionedTypesHolder mappedTypes(){return VersionedTypes.V26_3;}
++    @Override protected PacketTypesProvider<ClientboundPacket26_3,ClientboundPacket26_3,ServerboundPacket26_3,ServerboundPacket26_3> createPacketTypesProvider(){
++        return new SimplePacketTypesProvider<>(packetTypeMap(unmappedClientboundPacketType,ClientboundPackets26_3.class,ClientboundConfigurationPackets26_3.class),packetTypeMap(mappedClientboundPacketType,ClientboundPackets26_3.class,ClientboundConfigurationPackets26_3.class),packetTypeMap(mappedServerboundPacketType,ServerboundPackets26_3.class,ServerboundConfigurationPackets1_21_9.class),packetTypeMap(unmappedServerboundPacketType,ServerboundPackets26_3.class,ServerboundConfigurationPackets1_21_9.class));
++    }
++}
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/BlockItemPacketRewriter26_4.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/BlockItemPacketRewriter26_4.java
+new file mode 100644
+index 0000000..4e16fdd
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/BlockItemPacketRewriter26_4.java
+@@ -0,0 +1,110 @@
++package com.viaversion.viabackwards.protocol.v26_4to26_3.rewriter;
++import com.viaversion.nbt.tag.CompoundTag;
++import com.viaversion.nbt.tag.ByteTag;
++import com.viaversion.nbt.tag.ByteArrayTag;
++import com.viaversion.viaversion.api.type.Type;
++import com.viaversion.viaversion.api.minecraft.item.data.*;
++import com.viaversion.viaversion.api.minecraft.HolderSet;
++import io.netty.buffer.Unpooled;
++import java.util.Arrays;
++import com.viaversion.viabackwards.api.rewriters.BackwardsStructuredItemRewriter;
++import com.viaversion.viabackwards.protocol.v26_4to26_3.Protocol26_4To26_3;
++import com.viaversion.viaversion.api.connection.UserConnection;
++import com.viaversion.viaversion.api.minecraft.Holder;
++import com.viaversion.viaversion.api.minecraft.SoundEvent;
++import com.viaversion.viaversion.api.minecraft.Particle;
++import com.viaversion.viaversion.api.minecraft.data.*;
++import com.viaversion.viaversion.api.minecraft.item.Item;
++import com.viaversion.viaversion.api.minecraft.item.data.consumable.*;
++import com.viaversion.viaversion.api.type.Types;
++import com.viaversion.viaversion.protocols.v26_2to26_3.packet.*;
++public final class BlockItemPacketRewriter26_4 extends BackwardsStructuredItemRewriter<ClientboundPacket26_3,ServerboundPacket26_3,Protocol26_4To26_3> {
++    private static final Holder<SoundEvent> SILENT=Holder.of(new SoundEvent("intentionally_empty",null));
++    public BlockItemPacketRewriter26_4(Protocol26_4To26_3 p){super(p);}
++    @Override public void registerAdvancements26_3(ClientboundPacket26_3 packetType){
++        // PositionedAdvancement is holder+X+Y PER ENTRY in both official26.3 and exactSnapshot5.
++        // Upstream generic helper incorrectly places its X/Y reads outside this loop.
++        protocol.registerClientbound(packetType,w->{
++            w.passthrough(Types.BOOLEAN);final int count=w.passthrough(Types.VAR_INT);
++            for(int i=0;i<count;i++){
++                w.passthrough(Types.STRING);w.passthrough(Types.OPTIONAL_STRING);
++                if(w.passthrough(Types.BOOLEAN)){
++                    protocol.getComponentRewriter().processTag(w.user(),w.passthrough(Types.TRUSTED_TAG));
++                    protocol.getComponentRewriter().processTag(w.user(),w.passthrough(Types.TRUSTED_TAG));
++                    passthroughClientboundItemTemplate(w);w.passthrough(Types.VAR_INT);final int flags=w.passthrough(Types.INT);if((flags&1)!=0)w.passthrough(Types.STRING);
++                }
++                final int requirements=w.passthrough(Types.VAR_INT);for(int j=0;j<requirements;j++)w.passthrough(Types.STRING_ARRAY);
++                w.passthrough(Types.BOOLEAN);w.passthrough(Types.FLOAT);w.passthrough(Types.FLOAT);
++            }
++        });
++    }
++    @Override public void registerPackets(){
++        protocol.replaceClientbound(ClientboundPackets26_3.EXPLODE,w->{
++            for(int i=0;i<3;i++)w.passthrough(Types.DOUBLE);w.passthrough(Types.FLOAT);w.passthrough(Types.INT);
++            if(w.passthrough(Types.BOOLEAN))for(int i=0;i<3;i++)w.passthrough(Types.DOUBLE);
++            final boolean particlePresent=w.read(Types.BOOLEAN);
++            final Particle particle;
++            if(particlePresent)particle=w.read(protocol.types().particle());
++            else { particle=new Particle(protocol.getMappingData().getParticleMappings().id("block"));particle.add(Types.VAR_INT,0); } // Air-block particles are invisible on the legacy client.
++            protocol.getParticleRewriter().rewriteParticle(w.user(),particle);w.write(protocol.mappedTypes().particle(),particle);
++            final boolean soundPresent=w.read(Types.BOOLEAN);
++            final Holder<SoundEvent> sound=soundPresent?w.read(Types.SOUND_EVENT):SILENT;
++            w.write(Types.SOUND_EVENT,SoundEvent.rewriteHolder(sound,id->protocol.getMappingData().getSoundMappings().getNewId(id)));
++            final int count=w.passthrough(Types.VAR_INT);
++            for(int i=0;i<count;i++){protocol.getParticleRewriter().passthroughParticle(w);w.passthrough(Types.FLOAT);w.passthrough(Types.FLOAT);w.passthrough(Types.VAR_INT);}
++            w.write(Types.BOOLEAN,soundPresent);
++        });
++    }
++    @Override protected void backupInconvertibleData(UserConnection c,Item i,StructuredDataContainer data,CompoundTag backup){
++        super.backupInconvertibleData(c,i,data,backup);
++        backupChangedComponent(i,data,StructuredDataKey.POTION_CONTENTS1_21_2);
++        backupChangedComponent(i,data,StructuredDataKey.SUSPICIOUS_STEW_EFFECTS);
++        backupChangedComponent(i,data,StructuredDataKey.CONSUMABLE26_4);
++        backupChangedComponent(i,data,StructuredDataKey.DEATH_PROTECTION26_3);
++        final Consumable26_4 v=data.get(StructuredDataKey.CONSUMABLE26_4);
++        if(v!=null&&v.sound()==null)saveTag(createCustomTag(i),new ByteTag((byte)1),"absent_consume_sound");
++    }
++    @Override protected void handleItemDataComponentsToClient(UserConnection c,Item i,StructuredDataContainer data){
++        rewriteEffectComponent(data,StructuredDataKey.POTION_CONTENTS1_21_2);
++        rewriteEffectComponent(data,StructuredDataKey.SUSPICIOUS_STEW_EFFECTS);
++        rewriteEffectComponent(data,StructuredDataKey.CONSUMABLE26_4);
++        rewriteEffectComponent(data,StructuredDataKey.DEATH_PROTECTION26_3);
++        data.replace(StructuredDataKey.CONSUMABLE26_4,StructuredDataKey.CONSUMABLE26_3,v->new Consumable1_21_2(v.consumeSeconds(),v.animationType(),v.sound()==null?SILENT:v.sound(),v.hasConsumeParticles(),v.consumeEffects()));
++        super.handleItemDataComponentsToClient(c,i,data);
++    }
++    @Override protected void handleItemDataComponentsToServer(UserConnection c,Item i,StructuredDataContainer data){
++        final CompoundTag custom=data.get(StructuredDataKey.CUSTOM_DATA);final boolean absent=custom!=null&&removeBackupTag(custom,"absent_consume_sound")!=null;
++        data.replace(StructuredDataKey.CONSUMABLE26_3,StructuredDataKey.CONSUMABLE26_4,v->new Consumable26_4(v.consumeSeconds(),v.animationType(),absent?null:v.sound(),v.hasConsumeParticles(),v.consumeEffects()));
++        super.handleItemDataComponentsToServer(c,i,data);
++        restoreEffectComponent(data,StructuredDataKey.POTION_CONTENTS1_21_2);
++        restoreEffectComponent(data,StructuredDataKey.SUSPICIOUS_STEW_EFFECTS);
++        restoreEffectComponent(data,StructuredDataKey.CONSUMABLE26_4);
++        restoreEffectComponent(data,StructuredDataKey.DEATH_PROTECTION26_3);
++    }
++
++    private <T> void backupChangedComponent(Item item,StructuredDataContainer data,StructuredDataKey<T> key){
++        final T value=data.get(key);if(value==null||safeEffectComponent(value)==value)return;
++        final var buf=Unpooled.buffer();try{key.type().write(buf,value);final byte[] bytes=new byte[buf.readableBytes()];buf.readBytes(bytes);saveTag(createCustomTag(item),new ByteArrayTag(bytes),"native_effects_"+key.identifier());}finally{buf.release();}
++    }
++    private <T> void rewriteEffectComponent(StructuredDataContainer data,StructuredDataKey<T> key){final T old=data.get(key);if(old!=null)data.set(key,(T)safeEffectComponent(old));}
++    private <T> void restoreEffectComponent(StructuredDataContainer data,StructuredDataKey<T> key){
++        final CompoundTag custom=data.get(StructuredDataKey.CUSTOM_DATA);if(custom==null)return;final var tag=removeBackupTag(custom,"native_effects_"+key.identifier());if(!(tag instanceof ByteArrayTag bytes))return;
++        final var buf=Unpooled.wrappedBuffer(bytes.getValue());try{data.set(key,key.type().read(buf));if(buf.isReadable())throw new IllegalArgumentException("Unexpected trailing native effect data");}finally{buf.release();}
++    }
++    private Object safeEffectComponent(Object value){
++        if(value instanceof PotionContents p){final PotionEffect[] effects=safeEffects(p.customEffects());final boolean badPotion=p.potion()!=null&&p.potion()>=46;return !badPotion&&effects==p.customEffects()?p:new PotionContents(badPotion?null:p.potion(),p.customColor(),effects,p.customName());}
++        if(value instanceof SuspiciousStewEffect[] all){final var filtered=Arrays.stream(all).filter(e->e.mobEffect()<40).toArray(SuspiciousStewEffect[]::new);return filtered.length==all.length?all:filtered;}
++        if(value instanceof Consumable26_4 v){final var effects=safeConsumeEffects(v.consumeEffects());return effects==v.consumeEffects()?v:new Consumable26_4(v.consumeSeconds(),v.animationType(),v.sound(),v.hasConsumeParticles(),effects);}
++        if(value instanceof DeathProtection v){final var effects=safeConsumeEffects(v.deathEffects());return effects==v.deathEffects()?v:new DeathProtection(effects);}
++        return value;
++    }
++    private PotionEffect[] safeEffects(PotionEffect[] all){final var filtered=Arrays.stream(all).filter(e->e.effect()<40).toArray(PotionEffect[]::new);return filtered.length==all.length?all:filtered;}
++    private ConsumeEffect<?>[] safeConsumeEffects(ConsumeEffect<?>[] all){
++        ConsumeEffect<?>[] result=all;
++        for(int n=0;n<all.length;n++){final var effect=all[n];ConsumeEffect<?> rewritten=effect;
++            if(effect.id()==0&&effect.value() instanceof ApplyStatusEffects apply){final var effects=safeEffects(apply.effects());if(effects!=apply.effects())rewritten=new ConsumeEffect<>(0,ApplyStatusEffects.TYPE,new ApplyStatusEffects(effects,apply.probability()));}
++            else if(effect.id()==1&&effect.value() instanceof HolderSet set&&set.hasIds()){final int[] ids=Arrays.stream(set.ids()).filter(id->id<40).toArray();if(ids.length!=set.ids().length)rewritten=new ConsumeEffect<>(1,(Type<HolderSet>)effect.type(),HolderSet.of(ids));}
++            if(rewritten!=effect){if(result==all)result=all.clone();result[n]=rewritten;}
++        }return result;
++    }
++}
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/EntityPacketRewriter26_4.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/EntityPacketRewriter26_4.java
+new file mode 100644
+index 0000000..42d8921
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/rewriter/EntityPacketRewriter26_4.java
+@@ -0,0 +1,39 @@
++package com.viaversion.viabackwards.protocol.v26_4to26_3.rewriter;
++import com.viaversion.viabackwards.api.rewriters.EntityRewriter;
++import com.viaversion.viabackwards.protocol.v26_4to26_3.*;
++import com.viaversion.viaversion.api.minecraft.entities.EntityType;
++import com.viaversion.viaversion.api.type.Types;
++import com.viaversion.viaversion.api.type.types.version.VersionedTypes;
++import com.viaversion.viaversion.protocols.v26_2to26_3.packet.*;
++public final class EntityPacketRewriter26_4 extends EntityRewriter<ClientboundPacket26_3,Protocol26_4To26_3> {
++    public EntityPacketRewriter26_4(Protocol26_4To26_3 p){super(p,VersionedTypes.V26_3.entityDataTypes.optionalComponentType,VersionedTypes.V26_3.entityDataTypes.booleanType);}
++    @Override public void registerPackets(){
++        // Freezing is native static effect ID40; it has no client representation in26.3.
++        protocol.registerClientbound(ClientboundPackets26_3.UPDATE_MOB_EFFECT,w->{w.passthrough(Types.VAR_INT);if(w.passthrough(Types.VAR_INT)>=40)w.cancel();});
++        protocol.registerClientbound(ClientboundPackets26_3.REMOVE_MOB_EFFECT,w->{w.passthrough(Types.VAR_INT);if(w.passthrough(Types.VAR_INT)>=40)w.cancel();});
++        protocol.replaceClientbound(ClientboundPackets26_3.LOGIN,w->{
++            final int id=w.passthrough(Types.INT);w.passthrough(Types.BOOLEAN);w.passthrough(Types.STRING_ARRAY);
++            for(int i=0;i<3;i++)w.passthrough(Types.VAR_INT);for(int i=0;i<3;i++)w.passthrough(Types.BOOLEAN);
++            final int dim=w.passthrough(Types.VAR_INT);final String world=w.passthrough(Types.STRING);
++            trackWorldDataByKey1_20_5(w.user(),dim,world);w.write(Types.LONG,0L); // Removed seed: supply client biome-color salt only.
++            tracker(w.user()).setInstaBuild(w.passthrough(Types.VAR_INT)==1);trackPlayer(w.user(),id);
++        });
++        protocol.replaceClientbound(ClientboundPackets26_3.RESPAWN,w->{
++            final int dim=w.passthrough(Types.VAR_INT);final String world=w.passthrough(Types.STRING);
++            trackWorldDataByKey1_20_5(w.user(),dim,world);w.write(Types.LONG,0L);tracker(w.user()).setInstaBuild(w.passthrough(Types.VAR_INT)==1);
++        });
++    }
++    @Override protected void registerRewrites(){
++        final var t=VersionedTypes.V26_3.entityDataTypes;dataTypeMapper().register();
++        registerEntityDataTypeHandler(t.itemType,t.blockStateType,t.optionalBlockStateType,t.particleType,t.particlesType,t.componentType,t.optionalComponentType);
++        // Zombie gained its frostbite-conversion accessor after old indices16-18.
++        filter().type(EntityTypes26_4.ZOMBIE).removeIndex(19);
++
++    }
++    @Override public void onMappingDataLoaded(){
++        super.onMappingDataLoaded();
++        mapEntityTypeWithData(EntityTypes26_4.FROSTBITE,EntityTypes26_4.ZOMBIE).tagName();
++        mapEntityTypeWithData(EntityTypes26_4.ICE_BALL,EntityTypes26_4.SNOWBALL).tagName();
++    }
++    @Override public EntityType typeFromId(int id){return EntityTypes26_4.getTypeFromId(id);}
++}
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/ChunkTypeSnapshot5.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/ChunkTypeSnapshot5.java
+new file mode 100644
+index 0000000..12193e6
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/ChunkTypeSnapshot5.java
+@@ -0,0 +1,14 @@
++package com.viaversion.viabackwards.protocol.v26_4to26_3.types;
++import com.viaversion.viaversion.api.minecraft.chunks.*;
++import com.viaversion.viaversion.api.type.types.chunk.*;
++import io.netty.buffer.ByteBuf;
++/** Genuine native Snapshot5 full-resolution biome section codec. */
++public final class ChunkTypeSnapshot5 extends ChunkType1_21_5 {
++    public ChunkTypeSnapshot5(int sections,int blockBits,int biomeBits){super(new Section(blockBits,biomeBits),sections);}
++    private static final class Section extends ChunkSectionType1_18 {
++        Section(int blocks,int biomes){super(new PaletteType1_21_5(PaletteType.BLOCKS,blocks),new FullBiomePaletteType(biomes));}
++        @Override public ChunkSection read(ByteBuf b){final var s=new ChunkSectionImpl();s.setNonAirBlocksCount(b.readShort());s.setFluidCount(b.readShort());s.addPalette(PaletteType.BLOCKS,blockPaletteType.read(b));s.addPalette(PaletteType.BIOMES,biomePaletteType.read(b));return s;}
++        @Override public void write(ByteBuf b,ChunkSection s){b.writeShort(s.getNonAirBlocksCount());b.writeShort(s.getFluidCount());blockPaletteType.write(b,s.palette(PaletteType.BLOCKS));biomePaletteType.write(b,s.palette(PaletteType.BIOMES));}
++        @Override public int serializedSize(Chunk c){int n=0;for(var s:c.getSections())n+=4+blockPaletteType.serializedSize(s.palette(PaletteType.BLOCKS))+biomePaletteType.serializedSize(s.palette(PaletteType.BIOMES));return n;}
++    }
++}
+diff --git a/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/FullBiomePaletteType.java b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/FullBiomePaletteType.java
+new file mode 100644
+index 0000000..f960c0c
+--- /dev/null
++++ b/common/src/main/java/com/viaversion/viabackwards/protocol/v26_4to26_3/types/FullBiomePaletteType.java
+@@ -0,0 +1,32 @@
++package com.viaversion.viabackwards.protocol.v26_4to26_3.types;
++import com.viaversion.viaversion.api.minecraft.chunks.*;
++import com.viaversion.viaversion.api.type.Types;
++import com.viaversion.viaversion.api.type.types.VarIntType;
++import com.viaversion.viaversion.api.type.types.chunk.PaletteTypeBase;
++import com.viaversion.viaversion.util.MathUtil;
++import com.viaversion.viaversion.util.CompactArrayUtil;
++import io.netty.buffer.ByteBuf;
++/** Snapshot5 biomes use16^3 values and local palette bits1..8, unlike26.3's4^3/max3. */
++public final class FullBiomePaletteType extends PaletteTypeBase {
++    private final int globalBits;
++    public FullBiomePaletteType(int globalBits){this.globalBits=globalBits;}
++    @Override public DataPalette read(ByteBuf b){
++        final int bits=b.readUnsignedByte();if(bits>31)throw new IllegalArgumentException("Invalid native biome palette bits"+bits);
++        final var p=new DataPaletteImpl(4096);
++        if(bits==0){p.addId(Types.VAR_INT.readPrimitive(b));return p;}
++        final boolean global=bits>8;
++        if(!global){final int length=Types.VAR_INT.readPrimitive(b);if(length<1||length>(1<<bits))throw new IllegalArgumentException("Invalid native biome palette length"+length);for(int i=0;i<length;i++)p.addId(Types.VAR_INT.readPrimitive(b));}
++        final int perLong=64/bits;final long[] values=new long[(4096+perLong-1)/perLong];for(int i=0;i<values.length;i++)values[i]=b.readLong();
++        if(global)CompactArrayUtil.iterateCompactArrayWithPadding(bits,4096,values,p::setIdAt);else p.setPaletteIndexes(values,bits,perLong);
++        return p;
++    }
++    private int bits(DataPalette p){return p.size()==1?0:p.size()<=256?Math.max(1,MathUtil.ceilLog2(p.size())):globalBits;}
++    @Override public void write(ByteBuf b,DataPalette p){
++        final int bits=bits(p);b.writeByte(bits);if(bits==0){Types.VAR_INT.writePrimitive(b,p.idByIndex(0));return;}
++        if(bits<=8){Types.VAR_INT.writePrimitive(b,p.size());for(int i=0;i<p.size();i++)Types.VAR_INT.writePrimitive(b,p.idByIndex(i));}
++        for(long value:p.createPackedValues(bits,4096,bits>8))b.writeLong(value);
++    }
++    @Override public int serializedSize(DataPalette p){final int bits=bits(p);if(bits==0)return 1+VarIntType.varIntLength(p.idByIndex(0));int n=1;if(bits<=8){n+=VarIntType.varIntLength(p.size());for(int i=0;i<p.size();i++)n+=VarIntType.varIntLength(p.idByIndex(i));}return n+8*((4096+64/bits-1)/(64/bits));}
++    /** Sample the center of each4x4x4 cell; legacy clients cannot represent block-resolution biome edits. */
++    public static DataPalette coarse(DataPalette full){final var p=new DataPaletteImpl(64);for(int y=0;y<4;y++)for(int z=0;z<4;z++)for(int x=0;x<4;x++)p.setIdAt((y<<4)|(z<<2)|x,full.idAt(((y*4+2)<<8)|((z*4+2)<<4)|(x*4+2)));return p;}
++}
+diff --git a/common/src/main/resources/assets/viabackwards/data/mappings-26.4to26.3.nbt b/common/src/main/resources/assets/viabackwards/data/mappings-26.4to26.3.nbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..04835dab2329f55e76082cd503d98792e01a5ce4
+GIT binary patch
+literal 2106
+zcmZ`)U1%It6h3F>&g}f{WU`xVOhVF-s#GayeoUK`AfkN`sa4d6K8VY9cWl;dc0+bI
+zXhCSxU@M`x?Ss~;6s<J2^`V-8AXX?+lOi_OXh4lkN&TsfqE^u&)p%wnxmTu`aM^Fp
+zob%o9o^$4013-q*kUN-9=du7G8DMV9<dS{)LZaa2Wia{^0|RdA;q(p{V008gN~cf;
+zmM<IjB|;z%B{CFw`@8pCeFjnbdEJFL9MqIw?|b0G6ZnC&*jsWAHJ!iz=u2qgvCcQ2
+zhyoa(`kMs!6*a)G*qp!l5<}X?|C`c_lR8Y8Gt#&TbIyzSl>?<H@ha(p+aHvz?g-GT
+zBb@e@S$159&t=#v!B!YLg}+Jgi}Ho^wsIN|$PoS=FUu%-iu1W*HWj1}O$Mk#*H);N
+z+ZuX6gE~+_U7OX`n$6Yg&E~dVuxi@DKn)m#Pz4rkhdZoBDuYT(lMxJQT7fwQRa7M>
+zd@I^F^`MP*bvvlh7K&?%wy-L&w0RA#YFpkwV<V`cy6U?c9@N*!tu<Z1+6SDCl2h4Y
+zwW1o@eDBMMwm#sVLtv=TwrbA^N>0_CP$fs?2v}&-ih-><q=9+6t}cM3#2W8rjuKNH
+zG*Bf!wPs7KRkkFfe$(nlz=*7oY^)%~HV|>!lZ`Jlz-&WhmmInIA+TthU8`2g75E)#
+zpuAxDf3%WAlcQ1?98k*d=XIj;;SyzMIch;fy%OTqSqUO#2NR}+?~KYFJ`NKZQkD_s
+zV%$1zP<1^U!uvM2&Qx*uoWfyASg$c|J!5hBysS5}C6x_Z>`%rP6#boQcCmt0v8UN)
+z_N7pDCc;BX6>Pkcy=JrB2DiQEaJXMs|5iz<pSMMsj^c|J?@P6cp8%xjm0azKv5SmZ
+zY+Pbtwv~mwHlwy%@_c-*Ls1S-iL^`!iV2YbVSE<Z0l~2+%sKuLIr>RBoYlF*S)uqd
+z;Y*#gtVd9_{KvLZqj6Cq(J>;M3!)as#6Diyyd}ewDBGi)y_zF&zE6er!(IdW>gqW1
+zo_*W2*ynX|iZLNXkP76f@x!~k;Q}T-Uw6uV@0E4T(m$f9L!T?ckBl7@WLLal<QMKO
+zgc!jPtzF*m^ILmZRBKXY|A<fJu*8pfKE$q9=wCDT7h{i=tuh+G<lX=G$p*e)I4*L3
+z!VJEo=iz!7t)&@&aIyyH5szr-;@%J))RVq1ES-!k<0c%dC+(V>Eu;(S8?GF9H85b|
+z$jX2PvwK2<(`b$$^bv(VkQgkalbIVib_O|iat>|PCkXqoX%i7B{cg4xobXT^46ftB
+zOhXzu22>`C`9iKg-k(dknRqHuNYD-0*4EKYx9frjJ32ZDUh-h)2G9CU8FsZ2{8k2e
+zLw7r&?+A5vcM<x&j6BE7gx0ruem|5^8=)&@<V7q}-`L6CM0UHIiu+e8C0_@?&2*P1
+zX{Bh<%`H7nYdftA0F1P-b2>Dx1iIOw^k6Par!T}4g~DKZTaoU5jhGN>hSK?BBD1bH
+Sk&oy5o{Hy^$xJcj4#K|=@FFh&
+
+literal 0
+HcmV?d00001
+
+diff --git a/common/src/test/java/com/viaversion/viaversion/common/dummy/TestPlatform.java b/common/src/test/java/com/viaversion/viaversion/common/dummy/TestPlatform.java
+new file mode 100644
+index 0000000..0f505da
+--- /dev/null
++++ b/common/src/test/java/com/viaversion/viaversion/common/dummy/TestPlatform.java
+@@ -0,0 +1,53 @@
++/*
++ * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
++ * Copyright (C) 2016-2026 ViaVersion and contributors
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++package com.viaversion.viaversion.common.dummy;
++
++import com.viaversion.viaversion.configuration.AbstractViaConfig;
++import com.viaversion.viaversion.platform.UserConnectionViaVersionPlatform;
++import java.util.logging.Logger;
++
++public final class TestPlatform extends UserConnectionViaVersionPlatform {
++
++    public TestPlatform() {
++        super(null);
++    }
++
++    @Override
++    public String getPlatformName() {
++        return "Test";
++    }
++
++    @Override
++    public String getPlatformVersion() {
++        return "test";
++    }
++
++    @Override
++    public Logger createLogger(final String name) {
++        return Logger.getGlobal();
++    }
++
++    @Override
++    protected AbstractViaConfig createConfig() {
++        return new AbstractViaConfig(null, null) {
++            @Override
++            public void reload() {
++            }
++        };
++    }
++}
+diff --git a/common/src/test/java/dev/infinity/bridge/Snapshot5BridgeTest.java b/common/src/test/java/dev/infinity/bridge/Snapshot5BridgeTest.java
+new file mode 100644
+index 0000000..a0ae6ae
+--- /dev/null
++++ b/common/src/test/java/dev/infinity/bridge/Snapshot5BridgeTest.java
+@@ -0,0 +1,170 @@
++package dev.infinity.bridge;
++import com.viaversion.viabackwards.api.ViaBackwardsPlatform;
++import com.viaversion.viabackwards.ViaBackwardsConfig;
++import com.viaversion.viabackwards.protocol.v26_4to26_3.*;
++import com.viaversion.viaversion.ViaManagerImpl;
++import com.viaversion.viaversion.api.Via;
++import com.viaversion.viaversion.api.platform.ViaPlatformLoader;
++import com.viaversion.viaversion.commands.ViaCommandHandler;
++import com.viaversion.viaversion.common.dummy.TestPlatform;
++import com.viaversion.viaversion.platform.NoopInjector;
++import com.viaversion.viaversion.connection.UserConnectionImpl;
++import com.viaversion.viaversion.api.protocol.version.ProtocolVersion;
++import com.viaversion.viaversion.api.protocol.packet.*;
++import com.viaversion.viaversion.api.minecraft.item.*;
++import com.viaversion.viaversion.api.minecraft.item.data.consumable.*;
++import com.viaversion.viaversion.api.minecraft.*;
++import com.viaversion.viaversion.api.minecraft.data.*;
++import com.viaversion.viaversion.api.type.*;
++import com.viaversion.viaversion.api.type.types.version.VersionedTypes;
++import com.viaversion.nbt.tag.*;
++import io.netty.buffer.*;
++import java.io.File;
++import java.util.*;
++import java.util.logging.Logger;
++import org.junit.jupiter.api.*;
++import static org.junit.jupiter.api.Assertions.*;
++@TestInstance(TestInstance.Lifecycle.PER_CLASS)
++public class Snapshot5BridgeTest {
++    Protocol26_4To26_3 protocol;
++    @BeforeAll void bootstrap() throws Exception {
++        ViaManagerImpl.initAndLoad(new TestPlatform(),new NoopInjector(),new ViaCommandHandler(false),ViaPlatformLoader.NOOP);
++        while(!Via.getManager().getProtocolManager().checkForMappingCompletion(true))Thread.sleep(20);
++        new ViaBackwardsPlatform(){
++            public Logger getLogger(){return Logger.getGlobal();}
++            public File getDataFolder(){return new File("build/snapshot5-test-data");}
++            public void disable(){throw new IllegalStateException("VB disabled");}
++        }.init(new ViaBackwardsConfig(null,Logger.getGlobal()){@Override public void reload(){}});
++        // Via mappings were already completed above; subsequent VB registration loads synchronously.
++        protocol=Via.getManager().getProtocolManager().getProtocol(Protocol26_4To26_3.class);
++        assertNotNull(protocol);
++    }
++    UserConnectionImpl user(){final var c=new UserConnectionImpl(null);c.getProtocolInfo().setProtocolVersion(ProtocolVersion.v26_3);c.getProtocolInfo().setServerProtocolVersion(ProtocolVersion.v26_4);protocol.init(c);return c;}
++    @Test void exactSnapshotAndRealProtocolPath(){
++        assertEquals(1073742167,ProtocolVersion.v26_4.getOriginalVersion());assertNotEquals(1073742166,ProtocolVersion.v26_4.getOriginalVersion());
++        final var path=Via.getManager().getProtocolManager().getProtocolPath(ProtocolVersion.v26_2,ProtocolVersion.v26_4);
++        assertNotNull(path);assertTrue(path.stream().anyMatch(p->p.protocol() instanceof Protocol26_4To26_3));
++    }
++    @Test void all122ComponentCodecsAnd36193BlockStates(){
++        for(int i=0;i<122;i++)assertNotNull(VersionedTypes.V26_4.structuredData.key(i),"component "+i);
++        assertSame(StructuredDataKey.CONSUMABLE26_4,VersionedTypes.V26_4.structuredData.key(protocol.getMappingData().getDataComponentSerializerMappings().id("consumable")));
++        final var m=protocol.getMappingData().getBlockStateMappings();assertEquals(36193,m.size());
++        for(int i=0;i<m.size();i++)assertTrue(m.getNewId(i)>=0&&m.getNewId(i)<35723,"blockstate "+i);
++    }
++    @Test void everyLegacyItemReturnsExactOriginalId(){
++        final var f=Protocol26_4To26_3.FORWARD.getFullItemMappings();
++        for(int i=0;i<f.size();i++){
++            final String name=f.identifier(i);final int newId=protocol.getMappingData().getOldItemId(i);
++            assertEquals(name,protocol.getMappingData().getFullItemMappings().identifier(newId),"legacy item "+i);
++        }
++    }
++    @Test void newFrostbiteAndIceBallMapToExistingEntities(){
++        final var m=protocol.getMappingData().getEntityMappings();assertEquals(163,m.size());
++        assertEquals(m.mappedId("zombie"),protocol.getEntityRewriter().newEntityId(m.id("frostbite")));
++        assertEquals(m.mappedId("snowball"),protocol.getEntityRewriter().newEntityId(m.id("ice_ball")));
++    }
++    @Test void absentConsumableSoundExactWireRoundtrip(){
++        final var value=new Consumable26_4(1.6F,1,null,true,new ConsumeEffect<?>[0]);final ByteBuf b=Unpooled.buffer();
++        Consumable26_4.TYPE.write(b,value);final byte[] actual=new byte[b.readableBytes()];b.getBytes(0,actual);
++        assertArrayEquals(new byte[]{0x3f,(byte)0xcc,(byte)0xcc,(byte)0xcd,1,0,1,0},actual);
++        final var read=Consumable26_4.TYPE.read(b);assertNull(read.sound());assertEquals(value.consumeSeconds(),read.consumeSeconds());assertEquals(0,b.readableBytes());b.release();
++    }
++    @Test void presentConsumableSoundExactRoundtrip(){
++        final var value=new Consumable26_4(2F,2,Holder.of(new SoundEvent("entity.generic.eat",null)),false,new ConsumeEffect<?>[0]);final ByteBuf b=Unpooled.buffer();Consumable26_4.TYPE.write(b,value);final byte[] before=new byte[b.readableBytes()];b.getBytes(0,before);final var read=Consumable26_4.TYPE.read(b);assertNotNull(read.sound());assertEquals(value.sound(),read.sound());assertFalse(read.hasConsumeParticles());assertEquals(0,b.readableBytes());final ByteBuf c=Unpooled.buffer();Consumable26_4.TYPE.write(c,read);final byte[] after=new byte[c.readableBytes()];c.readBytes(after);assertArrayEquals(before,after);b.release();c.release();
++    }
++    @Test void newItemIdentityDamageNameAndAbsentSoundSurviveRoundtrip(){
++        final var c=user();final var mappings=protocol.getMappingData().getFullItemMappings();final int id=mappings.id("ice_ball");
++        final StructuredItem item=new StructuredItem(id,7);item.dataContainer().setIdLookup(protocol,false);
++        item.dataContainer().set(StructuredDataKey.DAMAGE,3);item.dataContainer().set(StructuredDataKey.CUSTOM_NAME,new StringTag("Owner item"));
++        item.dataContainer().set(StructuredDataKey.CONSUMABLE26_4,new Consumable26_4(2F,1,null,true,new ConsumeEffect<?>[0]));
++        final var client=protocol.getItemRewriter().handleItemToClient(c,item);assertEquals(mappings.mappedId("snowball"),client.identifier());assertNotNull(client.dataContainer().get(StructuredDataKey.CONSUMABLE26_3));
++        final var server=protocol.getItemRewriter().handleItemToServer(c,client);assertEquals(id,server.identifier());assertEquals(7,server.amount());assertEquals(3,server.dataContainer().get(StructuredDataKey.DAMAGE));assertEquals(new StringTag("Owner item"),server.dataContainer().get(StructuredDataKey.CUSTOM_NAME));assertNull(server.dataContainer().get(StructuredDataKey.CONSUMABLE26_4).sound());
++    }
++    ByteBuf profile(byte flags){final ByteBuf b=Unpooled.buffer();Types.UUID.write(b,new UUID(1,2));Types.STRING.write(b,"NativeProof");Types.VAR_INT.writePrimitive(b,0);Types.UUID.write(b,new UUID(3,4));b.writeByte(flags);return b;}
++    @Test void zeroOptionLoginRemovesOnlySnapshotFlag() throws Exception {
++        final var c=user();final ByteBuf b=profile((byte)0);final var w=PacketWrapper.create(2,b,c);protocol.transform(Direction.CLIENTBOUND,State.LOGIN,w);final ByteBuf out=Unpooled.buffer();w.writeToBuffer(out);assertEquals(2,Types.VAR_INT.readPrimitive(out));assertEquals(new UUID(1,2),Types.UUID.read(out));assertEquals("NativeProof",Types.STRING.read(out));assertEquals(0,Types.VAR_INT.readPrimitive(out));assertEquals(new UUID(3,4),Types.UUID.read(out));assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++    @Test void unexpectedCompressionAndEncryptionFailClosed(){
++        final var c=user();for(byte flags:new byte[]{1,2,3,4}){final ByteBuf b=profile(flags);assertThrows(Exception.class,()->protocol.transform(Direction.CLIENTBOUND,State.LOGIN,PacketWrapper.create(2,b,c)));b.release();}
++        final ByteBuf b=Unpooled.buffer().writeByte(1);assertThrows(Exception.class,()->protocol.transform(Direction.CLIENTBOUND,State.LOGIN,PacketWrapper.create(6,b,c)));b.release();
++    }
++
++    ByteBuf transformPlay(UserConnectionImpl c,com.viaversion.viaversion.api.protocol.packet.ClientboundPacketType type,ByteBuf b) throws Exception {
++        final var w=PacketWrapper.create(type,b,c);protocol.transform(Direction.CLIENTBOUND,State.PLAY,w);final ByteBuf out=Unpooled.buffer();w.writeToBuffer(out);assertEquals(type.getId(),Types.VAR_INT.readPrimitive(out));return out;
++    }
++    @Test void explosionOptionalFieldsTranslateWithoutVisibleParticleOrSound() throws Exception {
++        final var c=user();final ByteBuf b=Unpooled.buffer();b.writeDouble(1).writeDouble(2).writeDouble(3).writeFloat(4).writeInt(5).writeBoolean(false).writeBoolean(false).writeBoolean(false);Types.VAR_INT.writePrimitive(b,0);
++        final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.EXPLODE,b);
++        assertEquals(1,out.readDouble());assertEquals(2,out.readDouble());assertEquals(3,out.readDouble());assertEquals(4,out.readFloat());assertEquals(5,out.readInt());assertFalse(out.readBoolean());
++        final var particle=protocol.mappedTypes().particle().read(out);assertEquals(protocol.getMappingData().getParticleMappings().mappedId("block"),particle.id());assertEquals(0,(int)particle.<Integer>getArgument(0).getValue());
++        final var sound=Types.SOUND_EVENT.read(out);assertFalse(sound.hasId());assertEquals("intentionally_empty",sound.value().identifier());assertEquals(0,Types.VAR_INT.readPrimitive(out));assertFalse(out.readBoolean());assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++    @Test void loginPlayInsertsSeedAndRetainsRemainingExactPayload() throws Exception {
++        final var c=user();final var tracker=protocol.getEntityRewriter().tracker(c);tracker.setDimensions(Map.of("overworld",new com.viaversion.viaversion.data.entity.DimensionDataImpl(0,-64,384)));
++        final ByteBuf b=Unpooled.buffer();b.writeInt(42).writeBoolean(false);Types.STRING_ARRAY.write(b,new String[]{"minecraft:overworld"});for(int n:new int[]{20,8,6})Types.VAR_INT.writePrimitive(b,n);b.writeBoolean(false).writeBoolean(true).writeBoolean(false);Types.VAR_INT.writePrimitive(b,0);Types.STRING.write(b,"minecraft:overworld");Types.VAR_INT.writePrimitive(b,1);b.writeBytes(new byte[]{0x31,0x32,0x33});
++        final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.LOGIN,b);
++        assertEquals(42,out.readInt());assertFalse(out.readBoolean());assertArrayEquals(new String[]{"minecraft:overworld"},Types.STRING_ARRAY.read(out));for(int n:new int[]{20,8,6})assertEquals(n,Types.VAR_INT.readPrimitive(out));assertFalse(out.readBoolean());assertTrue(out.readBoolean());assertFalse(out.readBoolean());assertEquals(0,Types.VAR_INT.readPrimitive(out));assertEquals("minecraft:overworld",Types.STRING.read(out));assertEquals(0L,out.readLong());assertEquals(1,Types.VAR_INT.readPrimitive(out));final byte[] tail=new byte[out.readableBytes()];out.readBytes(tail);assertArrayEquals(new byte[]{0x31,0x32,0x33},tail);assertEquals(24,tracker.currentWorldSectionHeight());assertTrue(tracker.canInstaBuild());b.release();out.release();
++    }
++    @Test void chunkWirePaletteRewritesNewStatesAndPreservesLightTail() throws Exception {
++        final var c=user();final var tracker=protocol.getEntityRewriter().tracker(c);tracker.setCurrentWorldSectionHeight(1);tracker.setBiomesSent(8);
++        final var section=new com.viaversion.viaversion.api.minecraft.chunks.ChunkSectionImpl(false);section.palette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BLOCKS).addId(36192);section.setNonAirBlocksCount(4096);final var biomes=new com.viaversion.viaversion.api.minecraft.chunks.DataPaletteImpl(64);biomes.addId(0);section.addPalette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BIOMES,biomes);
++        final var chunk=new com.viaversion.viaversion.api.minecraft.chunks.Chunk1_21_5(7,-11,new com.viaversion.viaversion.api.minecraft.chunks.ChunkSection[]{section},new com.viaversion.viaversion.api.minecraft.chunks.Heightmap[0],new ArrayList<>());final var type=new com.viaversion.viaversion.api.type.types.chunk.ChunkType26_1(1,16,3);final ByteBuf b=Unpooled.buffer();type.write(b,chunk);b.writeBytes(new byte[]{0x12,0x34});
++        final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.LEVEL_CHUNK_WITH_LIGHT,b);final var mapped=type.read(out);assertEquals(7,mapped.getX());assertEquals(-11,mapped.getZ());assertEquals(protocol.getMappingData().getNewBlockStateId(36192),mapped.getSections()[0].palette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BLOCKS).idByIndex(0));assertEquals(4096,mapped.getSections()[0].getNonAirBlocksCount());assertEquals(0x12,out.readUnsignedByte());assertEquals(0x34,out.readUnsignedByte());assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++    @Test void equipmentWireRewritesOwnerItemAndPreservesSlot() throws Exception {
++        final var c=user();final int ice=protocol.getMappingData().getFullItemMappings().id("ice_ball");final var item=new StructuredItem(ice,3);item.dataContainer().setIdLookup(protocol,false);item.dataContainer().set(StructuredDataKey.CUSTOM_NAME,new StringTag("Equipment proof"));item.dataContainer().set(StructuredDataKey.CONSUMABLE26_4,new Consumable26_4(2F,1,null,true,new ConsumeEffect<?>[0]));
++        final ByteBuf b=Unpooled.buffer();Types.VAR_INT.writePrimitive(b,44);b.writeByte(5);protocol.types().item().write(b,item);final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.SET_EQUIPMENT,b);assertEquals(44,Types.VAR_INT.readPrimitive(out));assertEquals(5,out.readUnsignedByte());final var mapped=protocol.mappedTypes().item().read(out);assertEquals(protocol.getMappingData().getFullItemMappings().mappedId("snowball"),mapped.identifier());assertEquals(3,mapped.amount());assertEquals(new StringTag("Equipment proof"),mapped.dataContainer().get(StructuredDataKey.CUSTOM_NAME));assertNotNull(mapped.dataContainer().get(StructuredDataKey.CONSUMABLE26_3));assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++    @Test void frostbiteMetadataDropsNewZombieFlagOnly() throws Exception {
++        final var c=user();protocol.getEntityRewriter().tracker(c).addEntity(55,EntityTypes26_4.FROSTBITE);final var data=new ArrayList<com.viaversion.viaversion.api.minecraft.entitydata.EntityData>();data.add(new com.viaversion.viaversion.api.minecraft.entitydata.EntityData(18,VersionedTypes.V26_4.entityDataTypes.booleanType,false));data.add(new com.viaversion.viaversion.api.minecraft.entitydata.EntityData(19,VersionedTypes.V26_4.entityDataTypes.booleanType,true));
++        final ByteBuf b=Unpooled.buffer();Types.VAR_INT.writePrimitive(b,55);protocol.types().entityDataList().write(b,data);final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.SET_ENTITY_DATA,b);assertEquals(55,Types.VAR_INT.readPrimitive(out));final var mapped=protocol.mappedTypes().entityDataList().read(out);assertTrue(mapped.stream().anyMatch(e->e.id()==18));assertTrue(mapped.stream().noneMatch(e->e.id()==19));assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++
++    @Test void newEffectsAndPotionsHashFilterAndRestoreExactNativeBytes(){
++        final var c=user();final var mappings=protocol.getMappingData().getFullItemMappings();final var item=new StructuredItem(mappings.id("potion"),1);item.dataContainer().setIdLookup(protocol,false);
++        final var effect=new com.viaversion.viaversion.api.minecraft.item.data.PotionEffect(40,new com.viaversion.viaversion.api.minecraft.item.data.PotionEffectData(2,700,false,true,true,null));
++        final var contents=new com.viaversion.viaversion.api.minecraft.item.data.PotionContents(47,12345,new com.viaversion.viaversion.api.minecraft.item.data.PotionEffect[]{effect},"freezing");
++        item.dataContainer().set(StructuredDataKey.POTION_CONTENTS1_21_2,contents);
++        item.dataContainer().set(StructuredDataKey.SUSPICIOUS_STEW_EFFECTS,new com.viaversion.viaversion.api.minecraft.item.data.SuspiciousStewEffect[]{new com.viaversion.viaversion.api.minecraft.item.data.SuspiciousStewEffect(40,600)});
++        final ConsumeEffect<?>[] effects={new ConsumeEffect<>(0,ApplyStatusEffects.TYPE,new ApplyStatusEffects(new com.viaversion.viaversion.api.minecraft.item.data.PotionEffect[]{effect},1F)),new ConsumeEffect<>(1,(Type<HolderSet>)ConsumeEffect.EFFECT_TYPES26_3[1],HolderSet.of(new int[]{1,40}))};
++        item.dataContainer().set(StructuredDataKey.CONSUMABLE26_4,new Consumable26_4(2F,1,null,true,effects));item.dataContainer().set(StructuredDataKey.DEATH_PROTECTION26_3,new com.viaversion.viaversion.api.minecraft.item.data.DeathProtection(effects));
++        final var original=new HashMap<StructuredDataKey<?>,byte[]>();for(var key:List.of(StructuredDataKey.POTION_CONTENTS1_21_2,StructuredDataKey.SUSPICIOUS_STEW_EFFECTS,StructuredDataKey.CONSUMABLE26_4,StructuredDataKey.DEATH_PROTECTION26_3))original.put(key,encodeComponent(item,key));
++        final var hasher=(com.viaversion.viaversion.data.item.ItemHasherBase)c.getItemHasher(protocol);final var nativeHashes=hasher.toHashedItem(item,false);assertEquals(4,nativeHashes.dataHashesById().size());assertTrue(nativeHashes.dataHashesById().values().intStream().noneMatch(v->v==com.viaversion.viaversion.data.item.ItemHasherBase.UNKNOWN_HASH));
++        final var client=protocol.getItemRewriter().handleItemToClient(c,item);final var clientPotion=client.dataContainer().get(StructuredDataKey.POTION_CONTENTS1_21_2);assertNull(clientPotion.potion());assertEquals(0,clientPotion.customEffects().length);assertEquals(0,client.dataContainer().get(StructuredDataKey.SUSPICIOUS_STEW_EFFECTS).length);
++        final var consumable=client.dataContainer().get(StructuredDataKey.CONSUMABLE26_3);assertEquals(0,((ApplyStatusEffects)consumable.consumeEffects()[0].value()).effects().length);assertArrayEquals(new int[]{1},((HolderSet)consumable.consumeEffects()[1].value()).ids());
++        final var server=protocol.getItemRewriter().handleItemToServer(c,client);for(var entry:original.entrySet())assertArrayEquals(entry.getValue(),encodeComponent(server,entry.getKey()),entry.getKey().identifier());
++    }
++    <T> byte[] encodeComponent(Item item,StructuredDataKey<T> key){final ByteBuf b=Unpooled.buffer();try{key.type().write(b,item.dataContainer().get(key));final byte[] bytes=new byte[b.readableBytes()];b.readBytes(bytes);return bytes;}finally{b.release();}}
++    @Test void freezingEffectPacketsAreCancelledButLegacyEffectsPass() throws Exception {
++        final var c=user();for(var type:List.of(com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.UPDATE_MOB_EFFECT,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.REMOVE_MOB_EFFECT))for(int id:new int[]{1,39,40}){final ByteBuf b=Unpooled.buffer();Types.VAR_INT.writePrimitive(b,42);Types.VAR_INT.writePrimitive(b,id);final var w=PacketWrapper.create(type,b,c);try{protocol.transform(Direction.CLIENTBOUND,State.PLAY,w);}catch(com.viaversion.viaversion.exception.CancelException e){}assertEquals(id==40,w.isCancelled());b.release();}
++    }
++
++    @Test void zeroAndMultipleHiddenAdvancementsPreserveExactPositionsAndTail() throws Exception {
++        for(int count:new int[]{0,2}){final var c=user();final ByteBuf b=Unpooled.buffer();b.writeBoolean(true);Types.VAR_INT.writePrimitive(b,count);
++            for(int i=0;i<count;i++){Types.STRING.write(b,"proof:hidden_"+i);Types.OPTIONAL_STRING.write(b,i==0?null:"proof:hidden_0");b.writeBoolean(false);Types.VAR_INT.writePrimitive(b,1);Types.STRING_ARRAY.write(b,new String[]{"proof"});b.writeBoolean(false).writeFloat(i+0.25F).writeFloat(i+0.75F);}
++            b.writeBytes(new byte[]{0,0,1});final byte[] expected=new byte[b.readableBytes()];b.getBytes(0,expected);final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.UPDATE_ADVANCEMENTS,b);final byte[] actual=new byte[out.readableBytes()];out.readBytes(actual);assertArrayEquals(expected,actual,"hidden advancement count"+count);b.release();out.release();
++        }
++    }
++    @Test void visibleAdvancementIconMappingPreservesRealCoordinates() throws Exception {
++        final var c=user();final ByteBuf b=Unpooled.buffer();b.writeBoolean(false);Types.VAR_INT.writePrimitive(b,2);final int ice=protocol.getMappingData().getFullItemMappings().id("ice_ball");
++        for(int i=0;i<2;i++){Types.STRING.write(b,"proof:visible_"+i);Types.OPTIONAL_STRING.write(b,null);b.writeBoolean(true);Types.TRUSTED_TAG.write(b,new StringTag("Title"));Types.TRUSTED_TAG.write(b,new StringTag("Description"));final var item=new StructuredItem(ice,1);item.dataContainer().setIdLookup(protocol,false);protocol.types().itemTemplate().write(b,item);Types.VAR_INT.writePrimitive(b,0);b.writeInt(0);Types.VAR_INT.writePrimitive(b,0);b.writeBoolean(false).writeFloat(i+1.25F).writeFloat(i+2.75F);}
++        b.writeBytes(new byte[]{0,0,1});final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.UPDATE_ADVANCEMENTS,b);assertFalse(out.readBoolean());assertEquals(2,Types.VAR_INT.readPrimitive(out));
++        for(int i=0;i<2;i++){assertEquals("proof:visible_"+i,Types.STRING.read(out));assertNull(Types.OPTIONAL_STRING.read(out));assertTrue(out.readBoolean());assertEquals(new StringTag("Title"),Types.TRUSTED_TAG.read(out));assertEquals(new StringTag("Description"),Types.TRUSTED_TAG.read(out));final var mapped=protocol.mappedTypes().itemTemplate().read(out);assertEquals(protocol.getMappingData().getFullItemMappings().mappedId("snowball"),mapped.identifier());assertEquals(0,Types.VAR_INT.readPrimitive(out));assertEquals(0,out.readInt());assertEquals(0,Types.VAR_INT.readPrimitive(out));assertFalse(out.readBoolean());assertEquals(i+1.25F,out.readFloat());assertEquals(i+2.75F,out.readFloat());}
++        assertEquals(0,out.readByte());assertEquals(0,out.readByte());assertEquals(1,out.readByte());assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++
++    @Test void nativeFullBiomePaletteAllLocalWidthsAndGlobalRoundtrip(){
++        for(int count:new int[]{1,2,16,68,256,512}){final var palette=new com.viaversion.viaversion.api.minecraft.chunks.DataPaletteImpl(4096);for(int i=0;i<4096;i++)palette.setIdAt(i,i%count);final var codec=new com.viaversion.viabackwards.protocol.v26_4to26_3.types.FullBiomePaletteType(9);final ByteBuf b=Unpooled.buffer();codec.write(b,palette);assertEquals(codec.serializedSize(palette),b.readableBytes());final var read=codec.read(b);for(int i=0;i<4096;i++)assertEquals(i%count,read.idAt(i),"biome"+count+"/"+i);assertEquals(0,b.readableBytes());b.release();}
++    }
++    @Test void realMultiSectionChunkDownsamples4096BiomesAndMapsGlobalBlocks() throws Exception {
++        final var c=user();final var tracker=protocol.getEntityRewriter().tracker(c);tracker.setCurrentWorldSectionHeight(2);tracker.setBiomesSent(68);
++        final var sections=new com.viaversion.viaversion.api.minecraft.chunks.ChunkSection[2];for(int n=0;n<2;n++){final var section=new com.viaversion.viaversion.api.minecraft.chunks.ChunkSectionImpl(false);final var biomes=new com.viaversion.viaversion.api.minecraft.chunks.DataPaletteImpl(4096);for(int i=0;i<4096;i++){section.palette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BLOCKS).setIdAt(i,1000+i%300);biomes.setIdAt(i,(i*17+(i>>8)+n)%68);}section.addPalette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BIOMES,biomes);section.setNonAirBlocksCount(4096);section.setFluidCount(7+n);sections[n]=section;}
++        final var chunk=new com.viaversion.viaversion.api.minecraft.chunks.Chunk1_21_5(3,-4,sections,new com.viaversion.viaversion.api.minecraft.chunks.Heightmap[0],new ArrayList<>());final ByteBuf b=Unpooled.buffer();new com.viaversion.viabackwards.protocol.v26_4to26_3.types.ChunkTypeSnapshot5(2,16,7).write(b,chunk);b.writeBytes(new byte[]{0x12,0x34});final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.LEVEL_CHUNK_WITH_LIGHT,b);final var mapped=new com.viaversion.viaversion.api.type.types.chunk.ChunkType26_1(2,16,7).read(out);
++        for(int n=0;n<2;n++){final var section=mapped.getSections()[n];assertEquals(7+n,section.getFluidCount());for(int i=0;i<4096;i++)assertEquals(protocol.getMappingData().getNewBlockStateId(1000+i%300),section.palette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BLOCKS).idAt(i));for(int y=0;y<4;y++)for(int z=0;z<4;z++)for(int x=0;x<4;x++){final int index=((y*4+2)<<8)|((z*4+2)<<4)|(x*4+2);assertEquals((index*17+(index>>8)+n)%68,section.palette(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BIOMES).idAt((y<<4)|(z<<2)|x));}}
++        assertEquals(0x12,out.readUnsignedByte());assertEquals(0x34,out.readUnsignedByte());assertEquals(0,out.readableBytes());b.release();out.release();
++    }
++    @Test void standaloneBiomeUpdateConvertsEverySectionAndRetainsChunkCoordinates() throws Exception {
++        final var c=user();final var tracker=protocol.getEntityRewriter().tracker(c);tracker.setCurrentWorldSectionHeight(2);tracker.setBiomesSent(68);final var codec=new com.viaversion.viabackwards.protocol.v26_4to26_3.types.FullBiomePaletteType(7);final ByteBuf payload=Unpooled.buffer();for(int n=0;n<2;n++){final var palette=new com.viaversion.viaversion.api.minecraft.chunks.DataPaletteImpl(4096);for(int i=0;i<4096;i++)palette.setIdAt(i,(i+n)%68);codec.write(payload,palette);}final byte[] bytes=new byte[payload.readableBytes()];payload.readBytes(bytes);payload.release();
++        final ByteBuf b=Unpooled.buffer();Types.VAR_INT.writePrimitive(b,1);b.writeLong(123456L);Types.BYTE_ARRAY_PRIMITIVE.write(b,bytes);final ByteBuf out=transformPlay(c,com.viaversion.viaversion.protocols.v26_2to26_3.packet.ClientboundPackets26_3.CHUNKS_BIOMES,b);assertEquals(1,Types.VAR_INT.readPrimitive(out));assertEquals(123456L,out.readLong());final ByteBuf body=Unpooled.wrappedBuffer(Types.BYTE_ARRAY_PRIMITIVE.read(out));final var old=new com.viaversion.viaversion.api.type.types.chunk.PaletteType1_21_5(com.viaversion.viaversion.api.minecraft.chunks.PaletteType.BIOMES,7);for(int n=0;n<2;n++){final var palette=old.read(body);for(int y=0;y<4;y++)for(int z=0;z<4;z++)for(int x=0;x<4;x++){final int i=((y*4+2)<<8)|((z*4+2)<<4)|(x*4+2);assertEquals((i+n)%68,palette.idAt((y<<4)|(z<<2)|x));}}assertEquals(0,body.readableBytes());assertEquals(0,out.readableBytes());b.release();out.release();body.release();
++    }
++}
+diff --git a/gradle.properties b/gradle.properties
+index 484f7d0..b459688 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -1,4 +1,4 @@
+-projectVersion=5.12.2-SNAPSHOT
++projectVersion=5.13.0-infinity-snapshot5.2
+ 
+ # Smile emoji (note that modrinth may not have added the version on release yet)
+ mcVersions=26.3, 26.2, 26.1.2, 26.1.1, 26.1, 1.21.11, 1.21.10, 1.21.9, 1.21.8, 1.21.7, 1.21.6, 1.21.5, 1.21.4, 1.21.3, 1.21.2, 1.21.1, 1.21, 1.20.6, 1.20.5, 1.20.4, 1.20.3, 1.20.2, 1.20.1, 1.20, 1.19.4, 1.19.3, 1.19.2, 1.19.1, 1.19, 1.18.2, 1.18.1, 1.18, 1.17.1, 1.17, 1.16.5, 1.16.4, 1.16.3, 1.16.2, 1.16.1, 1.16, 1.15.2, 1.15.1, 1.15, 1.14.4, 1.14.3, 1.14.2, 1.14.1, 1.14, 1.13.2, 1.13.1, 1.13, 1.12.2, 1.12.1, 1.12, 1.11.2, 1.11.1, 1.11, 1.10.2, 1.10.1, 1.10
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index 4bd53d8..b643a9d 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -3,7 +3,7 @@ metadata.format.version = "1.1"
+ [versions]
+ 
+ # ViaVersion
+-viaver = "5.12.2-SNAPSHOT"
++viaver = "5.13.0-infinity-snapshot5.2"
+ 
+ # Common provided
+ netty = "4.0.20.Final"
+@@ -20,7 +20,7 @@ viaProxy = "[3.0.0,4.0.0)"
+ 
+ [libraries]
+ 
+-viaver = { group = "com.viaversion", name = "viaversion", version.ref = "viaver" }
++viaver = { group = "com.viaversion", name = "viaversion-common", version.ref = "viaver" }
+ 
+ netty = { group = "io.netty", name = "netty-all", version.ref = "netty" }
+ guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
+diff --git a/universal/build.gradle.kts b/universal/build.gradle.kts
+index 8345098..4520bc0 100644
+--- a/universal/build.gradle.kts
++++ b/universal/build.gradle.kts
+@@ -9,8 +9,6 @@ plugins {
+ 
+ dependencies {
+     api(projects.viabackwardsCommon)
+-    api(projects.viabackwardsBukkit)
+-    api(projects.viabackwardsVelocity)
+     api(projects.viabackwardsFabric)
+ }
+ 

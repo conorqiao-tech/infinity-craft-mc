@@ -2,21 +2,26 @@ plugins { id 'net.fabricmc.fabric-loom' version '1.18.2' }
 version = project.mod_version
 group = 'dev.convergence'
 base { archivesName = 'Infinity-Armor' }
-repositories { mavenCentral(); maven { url 'https://maven.nucleoid.xyz' }; maven { url 'https://api.modrinth.com/maven' } }
+repositories {
+ maven { url = uri('../vendor/snapshot5/maven'); content { includeGroup 'eu.pb4' } }
+ mavenCentral()
+ maven { url 'https://maven.nucleoid.xyz' }
+ maven { url 'https://api.modrinth.com/maven' }
+}
+def snapshotFloodgate = file('../vendor/snapshot5/floodgate-fabric-2.2.7-infinity-snapshot5.jar')
 dependencies {
- minecraft 'com.mojang:minecraft:26.3'
- implementation 'net.fabricmc:fabric-loader:0.19.5'
- implementation 'net.fabricmc.fabric-api:fabric-api:0.161.0+26.3'
- implementation 'eu.pb4:polymer-core:0.18.2+26.3'
- implementation 'eu.pb4:polymer-blocks:0.18.2+26.3'
- implementation 'eu.pb4:polymer-resource-pack:0.18.2+26.3'
- implementation 'maven.modrinth:floodgate:m9eO07Zi'
+ minecraft 'com.mojang:minecraft:26.4-snapshot-5'
+ implementation 'net.fabricmc:fabric-loader:0.20.1'
+ implementation 'net.fabricmc.fabric-api:fabric-api:0.164.1+26.4'
+ implementation 'eu.pb4:polymer-core:0.18.5-infinity-snapshot5+26.4-snapshot-5'
+ implementation 'eu.pb4:polymer-blocks:0.18.5-infinity-snapshot5+26.4-snapshot-5'
+ implementation 'eu.pb4:polymer-resource-pack:0.18.5-infinity-snapshot5+26.4-snapshot-5'
+ implementation files(snapshotFloodgate)
  // Compile against the exact Cumulus library bundled by our pinned Floodgate.
  // Fabric loads that same nested library at runtime; do not bundle a second copy.
  compileOnly files(provider {
-  def floodgate = configurations.detachedConfiguration(dependencies.create('maven.modrinth:floodgate:m9eO07Zi')).resolve().find { it.name.startsWith('floodgate-') }
-  assert floodgate != null
-  zipTree(floodgate).matching { include 'META-INF/jars/cumulus-1.1.2.jar' }.singleFile
+  assert snapshotFloodgate.isFile(): 'Build the pinned Snapshot 5 dependencies first.'
+  zipTree(snapshotFloodgate).matching { include 'META-INF/jars/cumulus-1.1.2.jar' }.singleFile
  })
 }
 

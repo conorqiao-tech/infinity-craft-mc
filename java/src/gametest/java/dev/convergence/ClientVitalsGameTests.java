@@ -33,7 +33,7 @@ public class ClientVitalsGameTests {
         final EmbeddedChannel channel;
         Fixture(GameTestHelper c, String name) {
             var server = c.getLevel().getServer();
-            var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
+            var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), NativeSessionFixture.nativeProfileName(name));
             var data = CommonListenerCookie.createInitial(profile, false);
             player = new ServerPlayer(server, c.getLevel(), profile, data.clientInformation());
             var connection = new Connection(PacketFlow.SERVERBOUND);

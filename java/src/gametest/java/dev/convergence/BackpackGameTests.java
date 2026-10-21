@@ -77,7 +77,7 @@ public class BackpackGameTests {
             c.assertValueEqual(sample.completed,1,"The bag is serialized immediately during the native transfer");
             c.assertTrue(p.getInventory().getItem(0).isEmpty(),"Vanilla quick transfer debits player inventory");
             c.assertValueEqual(handler.getContainer().getItem(0).getCount(),10,"Vanilla quick transfer credits backpack");
-            var disk=RewardTrades.serialize(p);var fresh=new ServerPlayer(p.level().getServer(),p.level(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"pack-transfer-read"),p.clientInformation());
+            var disk=RewardTrades.serialize(p);var fresh=new ServerPlayer(p.level().getServer(),p.level(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName("pack-transfer-read")),p.clientInformation());
             fresh.load(TagValueInput.create(ProblemReporter.DISCARDING,fresh.registryAccess(),disk));
             c.assertTrue(fresh.getInventory().getItem(0).isEmpty(),"Inventory debit persisted");
             c.assertValueEqual(storage(fresh).getItem(0).getCount(),10,"Backpack credit persisted in the same player save before close or another tick");
@@ -103,7 +103,7 @@ public class BackpackGameTests {
             c.assertValueEqual(sample.completed,3,"The comparison snapshot never aliases a live stack's component changes");
             bag.setChanged();bag.setChanged();
             c.assertValueEqual(sample.attempts,3,"Identical contents skip subsequent native notifications");
-            var fresh=new ServerPlayer(p.level().getServer(),p.level(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),"pack-components-read"),p.clientInformation());
+            var fresh=new ServerPlayer(p.level().getServer(),p.level(),new com.mojang.authlib.GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName("pack-components-read")),p.clientInformation());
             fresh.load(TagValueInput.create(ProblemReporter.DISCARDING,p.registryAccess(),RewardTrades.serialize(p)));
             var restored=BackpackStorage.read(fresh,"SURVIVAL").get(8);
             c.assertTrue(ItemStack.matches(restored,item),"Native player serialization preserves the final components and count");

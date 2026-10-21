@@ -185,7 +185,8 @@ public class PlaygroundGameTests {
             signal = piece.getBoundingBox().getCenter(); chunk = world.getChunkAt(signal);
             ruin = world.registryAccess().lookupOrThrow(Registries.STRUCTURE).getOrThrow(OdysseyStructure.KEY).value();
             previous = chunk.getStartForStructure(ruin);
-            chunk.setStartForStructure(ruin, net.minecraft.world.level.levelgen.structure.StructureStart.INVALID_START);
+            NativeStructureFixture.replaceStart(chunk, ruin, null);
+            c.assertFalse(chunk.getAllStarts().containsKey(ruin), "A missing start leaves no null-valued native metadata entry");
             player.setGameMode(GameType.SURVIVAL); player.setPos(Vec3.atBottomCenterOf(signal.offset(24, 0, 0)));
         }
         void install() {
@@ -193,7 +194,7 @@ public class PlaygroundGameTests {
                 new net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer(List.of(piece))));
         }
         public void close() {
-            chunk.setStartForStructure(ruin, previous == null ? net.minecraft.world.level.levelgen.structure.StructureStart.INVALID_START : previous);
+            NativeStructureFixture.replaceStart(chunk, ruin, previous);
             player.inventoryMenu.setCarried(ItemStack.EMPTY); player.closeContainer(); world.getServer().getPlayerList().remove(player);
         }
     }
@@ -370,7 +371,7 @@ public class PlaygroundGameTests {
             GameModes.state(p).remove(OdysseyJournal.KEY);
             p.load(net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING,p.registryAccess(),output.buildResult()));
             c.assertValueEqual(OdysseyJournal.count(p),1,"Native save/load keeps realm progress");
-        }finally{chunk.setStartForStructure(ruin,old==null?net.minecraft.world.level.levelgen.structure.StructureStart.INVALID_START:old);chunk.getReferencesForStructure(ruin).clear();chunk.getReferencesForStructure(ruin).addAll(refs);p.level().getServer().getPlayerList().remove(p);}c.succeed();
+        }finally{NativeStructureFixture.replaceStart(chunk,ruin,old);chunk.getReferencesForStructure(ruin).clear();chunk.getReferencesForStructure(ruin).addAll(refs);p.level().getServer().getPlayerList().remove(p);}c.succeed();
     }
     @GameTest public void journalRewardRetriesFullInventoryWithoutDuplicatingGifts(GameTestHelper c){
         var p=new ModeGameTests().player(c,"playground-gifts");

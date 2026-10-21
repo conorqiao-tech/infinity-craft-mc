@@ -49,6 +49,7 @@ public class ElementalArmorGameTests {
             c.assertValueEqual(equipment.slot(), SLOTS.get(i), "The piece equips in its actual armor slot");
             c.assertValueEqual(equipment.assetId().orElseThrow().identifier(), id(suit.prefix() + "_armor"), "Each suit owns an independent equipped model");
             c.assertValueEqual(equipment.damageOnHurt(), suit == ElementalArmor.Suit.ELEMENTAL, "Only the normal-durability Elemental suit takes armor wear");
+            c.assertValueEqual(equipment.equipSound(), ElementalArmor.baseItem(path).getDefaultInstance().get(DataComponents.EQUIPPABLE).equipSound(), "Native optional equip sound is preserved for every piece");
             c.assertFalse(stack.has(DataComponents.GLIDER), "These are four solid pieces; existing separate wings stay independent");
             c.assertValueEqual(stack.has(DataComponents.UNBREAKABLE), suit == ElementalArmor.Suit.INFINITY, "Only ultimate Infinity armor is unbreakable");
             c.assertValueEqual(stack.getMaxDamage(), ElementalArmor.baseItem(path).getDefaultInstance().getMaxDamage(), "Native base durability is preserved");

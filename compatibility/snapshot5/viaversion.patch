@@ -1,0 +1,273 @@
+diff --git a/api/src/main/java/com/viaversion/viaversion/api/minecraft/data/StructuredDataKey.java b/api/src/main/java/com/viaversion/viaversion/api/minecraft/data/StructuredDataKey.java
+index 249926e..ffe33b5 100644
+--- a/api/src/main/java/com/viaversion/viaversion/api/minecraft/data/StructuredDataKey.java
++++ b/api/src/main/java/com/viaversion/viaversion/api/minecraft/data/StructuredDataKey.java
+@@ -155,6 +155,7 @@ public record StructuredDataKey<T>(String identifier, Type<T> type) {
+     // 1.21.5-1.21.9 only, animation id 5 was still named spear
+     public static final StructuredDataKey<Consumable1_21_2> CONSUMABLE1_21_5 = new StructuredDataKey<>("consumable", Consumable1_21_2.TYPE1_21_5);
+     public static final StructuredDataKey<Consumable1_21_2> CONSUMABLE26_3 = new StructuredDataKey<>("consumable", Consumable1_21_2.TYPE26_3);
++    public static final StructuredDataKey<com.viaversion.viaversion.api.minecraft.item.data.consumable.Consumable26_4> CONSUMABLE26_4 = new StructuredDataKey<>("consumable", com.viaversion.viaversion.api.minecraft.item.data.consumable.Consumable26_4.TYPE);
+     public static final StructuredDataKey<UseCooldown> USE_COOLDOWN = new StructuredDataKey<>("use_cooldown", UseCooldown.TYPE);
+     public static final StructuredDataKey<Unit> FIRE_RESISTANT = new StructuredDataKey<>("fire_resistant", Types.EMPTY);
+     public static final StructuredDataKey<DamageResistant1_21_2> DAMAGE_RESISTANT1_21_2 = new StructuredDataKey<>("damage_resistant", DamageResistant1_21_2.TYPE);
+diff --git a/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/EnumTypes.java b/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/EnumTypes.java
+index 85b8dc8..1ac192b 100644
+--- a/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/EnumTypes.java
++++ b/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/EnumTypes.java
+@@ -53,7 +53,7 @@ public final class EnumTypes {
+     public static final FakeEnumType RABBIT_VARIANT = new FakeEnumType(List.of("brown", "white", "black", "white_splotched", "gold", "salt"), of(99, "evil"));
+     // Hardcoded registries
+     public static final RegistryValueType VILLAGER_TYPE = new RegistryValueType(Key.of("villager_type"), "desert", "jungle", "plains", "savanna", "snow", "swamp", "taiga");
+-    public static final RegistryValueType POTION = new RegistryValueType(Key.of("potion"), "water", "mundane", "thick", "awkward", "night_vision", "long_night_vision", "invisibility", "long_invisibility", "leaping", "long_leaping", "strong_leaping", "fire_resistance", "long_fire_resistance", "swiftness", "long_swiftness", "strong_swiftness", "slowness", "long_slowness", "strong_slowness", "turtle_master", "long_turtle_master", "strong_turtle_master", "water_breathing", "long_water_breathing", "healing", "strong_healing", "harming", "strong_harming", "poison", "long_poison", "strong_poison", "regeneration", "long_regeneration", "strong_regeneration", "strength", "long_strength", "strong_strength", "weakness", "long_weakness", "luck", "slow_falling", "long_slow_falling", "wind_charged", "weaving", "oozing", "infested");
+-    public static final RegistryValueType MOB_EFFECT = new RegistryValueType(Key.of("mob_effect"), "speed", "slowness", "haste", "mining_fatigue", "strength", "instant_health", "instant_damage", "jump_boost", "nausea", "regeneration", "resistance", "fire_resistance", "water_breathing", "invisibility", "blindness", "night_vision", "hunger", "weakness", "poison", "wither", "health_boost", "absorption", "saturation", "glowing", "levitation", "luck", "unluck", "slow_falling", "conduit_power", "dolphins_grace", "bad_omen", "hero_of_the_village", "darkness", "trial_omen", "raid_omen", "wind_charged", "weaving", "oozing", "infested", "breath_of_the_nautilus");
++    public static final RegistryValueType POTION = new RegistryValueType(Key.of("potion"), "water", "mundane", "thick", "awkward", "night_vision", "long_night_vision", "invisibility", "long_invisibility", "leaping", "long_leaping", "strong_leaping", "fire_resistance", "long_fire_resistance", "swiftness", "long_swiftness", "strong_swiftness", "slowness", "long_slowness", "strong_slowness", "turtle_master", "long_turtle_master", "strong_turtle_master", "water_breathing", "long_water_breathing", "healing", "strong_healing", "harming", "strong_harming", "poison", "long_poison", "strong_poison", "regeneration", "long_regeneration", "strong_regeneration", "strength", "long_strength", "strong_strength", "weakness", "long_weakness", "luck", "slow_falling", "long_slow_falling", "wind_charged", "weaving", "oozing", "infested", "freezing", "long_freezing");
++    public static final RegistryValueType MOB_EFFECT = new RegistryValueType(Key.of("mob_effect"), "speed", "slowness", "haste", "mining_fatigue", "strength", "instant_health", "instant_damage", "jump_boost", "nausea", "regeneration", "resistance", "fire_resistance", "water_breathing", "invisibility", "blindness", "night_vision", "hunger", "weakness", "poison", "wither", "health_boost", "absorption", "saturation", "glowing", "levitation", "luck", "unluck", "slow_falling", "conduit_power", "dolphins_grace", "bad_omen", "hero_of_the_village", "darkness", "trial_omen", "raid_omen", "wind_charged", "weaving", "oozing", "infested", "breath_of_the_nautilus", "freezing");
+     public static final RegistryValueType CONSUME_EFFECT = new RegistryValueType(Key.of("consume_effect_type"), "apply_effects", "remove_effects", "clear_all_effects", "teleport_randomly", "play_sound");
+ }
+diff --git a/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/consumable/Consumable26_4.java b/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/consumable/Consumable26_4.java
+new file mode 100644
+index 0000000..7ae208e
+--- /dev/null
++++ b/api/src/main/java/com/viaversion/viaversion/api/minecraft/item/data/consumable/Consumable26_4.java
+@@ -0,0 +1,46 @@
++package com.viaversion.viaversion.api.minecraft.item.data.consumable;
++
++import com.viaversion.viaversion.api.connection.UserConnection;
++import com.viaversion.viaversion.api.minecraft.Holder;
++import com.viaversion.viaversion.api.minecraft.SoundEvent;
++import com.viaversion.viaversion.api.minecraft.codec.Ops;
++import com.viaversion.viaversion.api.minecraft.item.data.EnumTypes;
++import com.viaversion.viaversion.api.protocol.Protocol;
++import com.viaversion.viaversion.api.type.Type;
++import com.viaversion.viaversion.api.type.Types;
++import com.viaversion.viaversion.util.Copyable;
++import com.viaversion.viaversion.util.Rewritable;
++import io.netty.buffer.ByteBuf;
++import org.checkerframework.checker.nullness.qual.Nullable;
++
++/** Exact 26.4-snapshot-5 consumable codec: the sound holder is optional. */
++public record Consumable26_4(float consumeSeconds, int animationType, @Nullable Holder<SoundEvent> sound,
++    boolean hasConsumeParticles, ConsumeEffect<?>[] consumeEffects) implements Copyable, Rewritable {
++    public static final Type<Consumable26_4> TYPE = new Type<>(Consumable26_4.class) {
++        @Override public Consumable26_4 read(final ByteBuf b) {
++            final float seconds = b.readFloat();
++            final int animation = Types.VAR_INT.readPrimitive(b);
++            final Holder<SoundEvent> sound = b.readBoolean() ? Types.SOUND_EVENT.read(b) : null;
++            return new Consumable26_4(seconds, animation, sound, b.readBoolean(), ConsumeEffect.ARRAY_TYPE26_3.read(b));
++        }
++        @Override public void write(final ByteBuf b, final Consumable26_4 v) {
++            b.writeFloat(v.consumeSeconds); Types.VAR_INT.writePrimitive(b, v.animationType);
++            b.writeBoolean(v.sound != null); if (v.sound != null) Types.SOUND_EVENT.write(b, v.sound);
++            b.writeBoolean(v.hasConsumeParticles); ConsumeEffect.ARRAY_TYPE26_3.write(b, v.consumeEffects);
++        }
++        @Override public void write(final Ops ops, final Consumable26_4 v) {
++            ops.writeMap(m -> m.writeOptional("consume_seconds", Types.FLOAT, v.consumeSeconds, 1.6F)
++                .writeOptional("animation", EnumTypes.ITEM_USE_ANIMATION, v.animationType, 1)
++                .writeOptional("sound", Types.SOUND_EVENT, v.sound)
++                .writeOptional("has_consume_particles", Types.BOOLEAN, v.hasConsumeParticles, true)
++                .writeOptional("on_consume_effects", ConsumeEffect.ARRAY_TYPE26_3, v.consumeEffects, new ConsumeEffect<?>[0]));
++        }
++    };
++    @Override public Consumable26_4 rewrite(final UserConnection c, final Protocol<?,?,?,?> p, final boolean clientbound) {
++        final Holder<SoundEvent> s = sound == null ? null : SoundEvent.rewriteHolder(sound, Rewritable.soundRewriteFunction(p, clientbound));
++        return new Consumable26_4(consumeSeconds, animationType, s, hasConsumeParticles, ConsumeEffect.rewrite(consumeEffects,c,p,clientbound));
++    }
++    @Override public Consumable26_4 copy() {
++        return new Consumable26_4(consumeSeconds,animationType,sound,hasConsumeParticles,Copyable.copy(consumeEffects));
++    }
++}
+diff --git a/api/src/main/java/com/viaversion/viaversion/api/protocol/version/ProtocolVersion.java b/api/src/main/java/com/viaversion/viaversion/api/protocol/version/ProtocolVersion.java
+index 262f152..2f6428f 100644
+--- a/api/src/main/java/com/viaversion/viaversion/api/protocol/version/ProtocolVersion.java
++++ b/api/src/main/java/com/viaversion/viaversion/api/protocol/version/ProtocolVersion.java
+@@ -96,6 +96,8 @@ public class ProtocolVersion implements Comparable<ProtocolVersion> {
+     public static final ProtocolVersion v26_1 = register(775, "26.1-26.1.2", new SubVersionRange("26.1", 0, 2));
+     public static final ProtocolVersion v26_2 = register(776, "26.2");
+     public static final ProtocolVersion v26_3 = register(777, "26.3");
++    // Exact Mojang snapshot protocol: (1 << 30) | 343 = 1073742167.
++    public static final ProtocolVersion v26_4 = register(778, 343, "26.4-snapshot-5");
+     public static final ProtocolVersion unknown = new ProtocolVersion(VersionType.SPECIAL, -1, -1, "UNKNOWN", null);
+ 
+     static {
+diff --git a/api/src/main/java/com/viaversion/viaversion/api/type/types/version/VersionedTypes.java b/api/src/main/java/com/viaversion/viaversion/api/type/types/version/VersionedTypes.java
+index 2f185da..68a64f4 100644
+--- a/api/src/main/java/com/viaversion/viaversion/api/type/types/version/VersionedTypes.java
++++ b/api/src/main/java/com/viaversion/viaversion/api/type/types/version/VersionedTypes.java
+@@ -56,4 +56,5 @@ public final class VersionedTypes {
+     public static final Types26_1<StructuredDataKeys1_21_11, EntityDataTypes26_1> V26_1 = new Types26_1<>(StructuredDataKeys1_21_11::new, EntityDataTypes26_1::new);
+     public static final Types26_1<StructuredDataKeys26_2, EntityDataTypes26_1> V26_2 = new Types26_1<>(StructuredDataKeys26_2::new, EntityDataTypes26_1::new);
+     public static final Types26_1<StructuredDataKeys26_3, EntityDataTypes26_3> V26_3 = new Types26_1<>(StructuredDataKeys26_3::new, EntityDataTypes26_3::new);
++    public static final Types26_1<StructuredDataKeys26_3, EntityDataTypes26_3> V26_4 = new Types26_1<>(StructuredDataKeys26_3::new, EntityDataTypes26_3::new);
+ }
+diff --git a/build-logic/src/main/kotlin/extensions.kt b/build-logic/src/main/kotlin/extensions.kt
+index dc770f8..783a92d 100644
+--- a/build-logic/src/main/kotlin/extensions.kt
++++ b/build-logic/src/main/kotlin/extensions.kt
+@@ -51,5 +51,5 @@ abstract class GitCommand : ValueSource<String, GitCommand.GitCommandParameters>
+ }
+ 
+ fun JavaPluginExtension.javaTarget(version: Int) {
+-    toolchain.languageVersion.set(JavaLanguageVersion.of(version))
++    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+ }
+diff --git a/build-logic/src/main/kotlin/via.base-conventions.gradle.kts b/build-logic/src/main/kotlin/via.base-conventions.gradle.kts
+index 9a4eee6..48fae46 100644
+--- a/build-logic/src/main/kotlin/via.base-conventions.gradle.kts
++++ b/build-logic/src/main/kotlin/via.base-conventions.gradle.kts
+@@ -7,6 +7,8 @@ tasks {
+     processResources {
+         val ver = project.version.toString()
+         val desc = project.description
++        inputs.property("expandedVersion", ver)
++        inputs.property("expandedDescription", desc ?: "")
+         filesMatching(listOf("plugin.yml", "META-INF/sponge_plugins.json", "fabric.mod.json")) {
+             expand(mapOf("version" to ver, "description" to desc))
+         }
+diff --git a/common/src/main/resources/assets/viaversion/data/identifier-table.nbt b/common/src/main/resources/assets/viaversion/data/identifier-table.nbt
+index fa5e80b212ab6ab964c455243780967b92627464..4b3260a851517a80fba7adbdd403c441ffb5d11a 100644
+GIT binary patch
+delta 1516
+zcmcIkJ&)5s5S>N3#JLE_k@E$F09|yoB_tX|fy9rXfWoZpO}z5PiR?W^ca14%phFaH
+zKtN3cazP2#P+o<Q=#cmi)a<S|_S&&TMVGw!cyHd$_)XD&{-r<K1sK2%<z$gs0KMYV
+z=w_OMMSbFWm@yd7l4Z(0k>I8)ypCNmpTkgw{p2L&m_d*F)Mo^SUP3u%#1%o<TVX#U
+zf&A?X+>cVQ+mM?w?7?IkzRxjDx(e1xkss2OFwwlO96--wOTi*$*qOc@Jt<zN>{0f=
+zh5ke5v`eT(Voo_FQYw6Yh3_2}chB!wHVi7KYx|4EkM9@Ii{io0xW5b5EFt8S#`EIi
+zuctP8R^0x>exn=tyK^+j5*mmITvk3f!gt3@2#(-l4TO}#rTXtox@qLE7#1&QB&3|I
+z;HuJl;#BG!yzr<1;lPY!az&hgU><^P1{5A1C%gkz1d~e9W~H=pdpjT}IM{~8BpHK_
+zM&(Ey6^i-Frjy)XO*(2|l5ekpDASsSisWG{PZ2ar8IFU>1a%nV0XDO0%PN?M$#M-x
+z`G>dY`nAe?IBHs(--?ipNPhMnjjQd*&%U9_z7jCi>49h#lOR8g&^RL-r;LMj{6riq
+z?3c58>{y+#7B_C8s&zZHv|2k;HIN3j$}>lKs9(#}P%f-~Ei<49I|@opy(eaYu_q?1
+zh%?<tnOc6L^qiX644BL&-e5KZ2D1q(=Cc3LslQwK*T=}l@>ms-7Es5Xl1F=O;F3nq
+NZJ>&!S~^l)>R+I~8tni8
+
+delta 100
+zcmeC&&pvlEy8ssh11AG(W=U#pF$V(!+scgsa>aa{3~Wg``N`QJAy%o00tuUaN^+tE
+zI2kxn^GY&HGE+ek3|l8BS}Sg@I&Z?U`SA5COpKkIXWYtT-z@N`L6k9Q^Th8tj{$vu
+BAs+w$
+
+diff --git a/common/src/main/resources/assets/viaversion/data/identifiers-26.4.nbt b/common/src/main/resources/assets/viaversion/data/identifiers-26.4.nbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..d4a12f6db4d00e65ab59737685a4d678659c9c3b
+GIT binary patch
+literal 2908
+zcmZ`*eQXrR75}~6*}eU|+ugg}GsZsKaRUyGkRhoRQJ@vd2Z|zERYl4lZHWP^y4GOJ
+zJ`hQTN)nO~z8au4E)YUWVj_YYaH>*aLF}T?q9llq1P5$ET%bv4p(G6j0@!`)vu`V-
+zYBe)&X5akgea)L^05W2W>zbOg4GRHC2DG|`xoj?5*G!PI^GSwi&OTMg|F*{<FRra;
+z>b}%z340{7OTrE**eT&AnFE9ilsrjjr`T@7E2Op&ZKR?W!aRR2z6AqHHdnV`G_1OO
+z1eV?|ZY?T4m-c>Fgqvw=AdPeBibth!@;4<*u9C~5W}OVs8Q2E`yc!s<1y~c9F9o>f
+z8(;g<Ip4nM;{!i^)GvF*$IcXXq`Wge_WGs!eB4e|Ec4Ns8h;>#OUWm$B+>58{5UDz
+z^?r8TExVbRblJg+&iBs8anMd2vhliYy<uaGoqEZ}1uOZPg?FsUf3~RCZ2rW=HQoGL
+zN53AsV&JTy_G$P)D><YmR_WEdbR5>CUApiUhi#}q!OMElOsJRw53}JQ0}J2A3_OgD
+z1eGSRfh=g`K;Xwn@eYrfFDmF(cua8<^fX~6CSZk%ewD|`;Ra^s<yIAg3Rr;s8qO=&
+zt56(8WY9_l&nZ|#n2#*h5|;9Y07d+%$WSdN^1O;eU@0b$!4fz$4kbMPLYjf8_bgZN
+zmZ<Cy>gTd{K;TW0`nxPT<?k<7sbAoXgkFhx)#ipp3+IpaYwY@nUzG!;Q~8);K2jYs
+zP)>)-og?Mi?K1N&zs9`l8(kH+TCQ9#$3MzN932_s^^8@5Z5awxi&3ce_Wzx1%4n-H
+zxZld){Zi&2ZXcC0w#@BlsnjatY&of<N{&5_;zd&_PARs2$f;s$iM+YQDu){H$jBQq
+zY;O(a$%!HbOS@c(-qKlbkTC^ntl0nV*tJE}oz|=5>huE;Mn{0n0k(#{#Qnwqo1&hW
+z{!Kuw0X78G5@21Boa{`I9Csovrle0(S{13W$E?5lX!q~k?c<{qmL<)9dlc6j^|hXS
+z!!3Qrlizh?M_lZ8?JgJFUAN7pr`=dUUvf-PsKJdeI0yrdcGan_mz>mek&-=F>}-ny
+z#8rn?6rt*sIqb8Qb#`WkaFjrGI22TQwT(e5Ju9e|Ey)=BVC4^Cq(9V!#gOg#q$Tz~
+z4KHih7WUFM%{WfzB)p}?J2aX_8r>%wG%-D1c^n26p%Js?63Kxs9pjwA5aBnND3E4>
+z+G=sMD?|UE)j4GI<c083<aZr+3gnBi0@)|=4G0-b9E^BxD+PwXSPVw&cf#fHzU09=
+zbq>jJjnHKmR=bl0@}MY?fAR|Cm(glZB>Gp9o)L#t@w_Sa2(d-c&nCr@xJZem;xW+{
+zNi`U0Fkp*Sj@V+0V|oGn50P1RM5~=DOFAsH%&O#tj*Ph_t>g_r3^bx%drGVj!V=ph
+zVT;Fw9R@z%kuO4?Jl6A(Ql}!boQ@2;DKcS%`z(po5yrYOvE<>lMwYu2F&v9__Cy+8
+zjE;^pj+_uCn>?sp@X_ArcVzYm=6baFPIOLawy??gedM+u70~?x6-oKWNcKzN9m-2m
+zT%f{ve(hh;IqTyEq!W=K5okn((&V>?d0gd~C0t1i#eL}3H%<LLPL+I#37-kk7J+dR
+z9SMRx#HpDO<95v*){pR?NW-^P!KomB3^Dcy^;=zB5A^Bc9<d@Xg&gKiIWN3SHOa9<
+ztTN?~m8soAdwM999QWxIQFn~y&{2)$4&Boomv)B<HKePkry^8nZhgbNpN~%QN_-^6
+z(|6L#k~roWA9~pDrMo=*$}`t{xZ!HITzu|o|8#N6)%slNuv@a*!&Nud;^H~iU*VSZ
+zI<(rs3r?n$d7P3y2d_HzYvGEy(!m!A{i_7dCgOif;9#QWPy#*iM^49a*iOH1W3w#{
+z@H1={x7z5p9z1X1lv%mU66egxzc$fsNSaZEF(@(C8vIym{8)dgYZrC&=wcdXnk@!y
+z>oxoIviG!Gv|7hH#cPv`2PNy_A>#;4;zuzbu{FbE#qby(HI5seyTjwiT;t2hPt=|L
+z_#dD}#zq;R5PHLK)*EY^a@l$HcNSjDM$C*daf>8PzDdcI68g#PBk3U7yNNassnc3R
+z7`wLVr;8SF4VQbe@lL4e1*o{Q1hen{35TSKI7bG*{<XPWQ+Dp6+@0I13fqdoX<`+L
+z^@JCQmJ@!dK0|2MmY|Lyyr#N&*~Yp#&2>%L+IlV<n?}bBf&!E$Ra2UCd?m*!KTm2g
+zOTzLu*Ei(m%+EGA*4I9n-z`TqXvmSAUz@9)Gp}JmW5Yt$b55w}=vwuu!YPj^X9y<<
+zCy7o_>f^9JRoP(o(%pQtz<$C`!VY#(8CR_h(qagy*?IyGaiztL9#S5~G%kkXp=d+5
+S;Qy7!lL|+QG4}@#0RIJQaLAYd
+
+literal 0
+HcmV?d00001
+
+diff --git a/common/src/main/resources/assets/viaversion/data/mappings-26.3to26.4.nbt b/common/src/main/resources/assets/viaversion/data/mappings-26.3to26.4.nbt
+new file mode 100644
+index 0000000000000000000000000000000000000000..bfadc94984637eb112804f8af3323e515f4f248e
+GIT binary patch
+literal 1831
+zcmZWqU2GIp6h3F>-uc;?*=~1traPsrBpBm^iI&6%4JIT$=!5v;i*IIWS6ykh4Z9_V
+z_)us;6l(!n1!=_}f=w~yr=?g^5E{_LP$7_tjY_GCsoHk2-Bw!a&z%l?FIjSTXU@6j
+ze&6}-xjz#CkU`y)*qBb%r2s$*fU&-&u4+R%6VD{lG6ZVl_4SGB=aQQf04;F@DOrs&
+zko0oL&YddAo8mPL85?*qw;h3GAKv?7Yp84G@VdVJ*#79!D-Zz1rz~Kj!2&j_aJHgf
+z$R)jD8m~y*bRYIhjD#jLiP}O%N^=2+vYB&4za#znATCLxQa?R|&2kQ>nFLVMbq%TN
+zLMHWA0h9W5o{6q5?{Q%^21_wO*5+c6i-E?P=OH{r77zv;7;>0%%7H=eebRa8mdl5%
+z=T=jx_O`>lT^bNJ_^QNv238n3hy38!M+JJDYfK8vh*SA<IsQ`yGY-i*C4CMwIq;U3
+z(`!u*YHWctprA$O1?r*$JvPrW<BjkEVjjW@u$Uh|>zZXuB4vLQR5>7Z__Fr7_^u1P
+zU2Joq)s+@qGV5BCHo0iyS2j6o$FAEz5J7<xHXgLe0ULY5Jm=xCz1`;-i@`Oos-v;U
+zA+M%v0x@ii;q4M=6XFey6davSWJjqq=8~Hcaw7ulITg{O&vr-o*p^7(Ut90ZPX*c9
+zd-nM#oQpE+%c%Nch_r_6FN!&2Of1B)VELXP4+sUrmVQB~=<|x`mns{PyG4ar+I+wZ
+z`$IA$8!hR|v);B~(SpCN)q8DnEE<|IdA8@d)vVzWTRImar$WWw2T5<x{8p$vF5`Rp
+zouO9@yllX*p-vQWuvkzbcrdTUd;6*ogzUq`Pk&>PlO|4tc=Sd{Z!zIa8Sj`P`m3ah
+zRFDVB8d6Ex&BSH&_8U;t)@;pB58(|<%BdWcRip0*xc3CNPUvtv#5Rgoup>fUQ;|F&
+zsy=SWhXmCD6}AfXTQuAuYPZdVMS)u|a9Vf|+)3JQLYoPq|8-NDwBRQTezTZ}aSN_{
+z9{y;-RZBXkkxp&ZUD<~;JWsg%SxNt0g?Wp2%vtnJG0*?>iY|r4{-We2U7q7OrN0Wf
+zqo(pPg?A`+_)%u<q0mC*qZawpf)9eYKUmVC(eN_%?nT?8IUOcU8S=crVt*RaAKrW1
+zSn-*+6#n5}R3U4wx**hEQeY$i*SwS9wUI#h5zr-5rWj%_sr+0VfX6w@ZmD8z@sO@}
+z>hhpYdiDEHvs-i-Kc_=Z1BD%Qgjo%iG+6MS@@wp@X^B)OnMvOB6@gC*Zd&*#f71ea
+zEMt^1tX?1Am`PUE+zW0j1UGW9df(cWyAakfJgrTn8Vav?C@sXg94l#IwjY93FUM0a
+RC8}TWKUnOuhV1tY{15yNGLQfO
+
+literal 0
+HcmV?d00001
+
+diff --git a/common/src/main/resources/fabric.mod.json b/common/src/main/resources/fabric.mod.json
+new file mode 100644
+index 0000000..3f78e5a
+--- /dev/null
++++ b/common/src/main/resources/fabric.mod.json
+@@ -0,0 +1,34 @@
++{
++  "schemaVersion": 1,
++  "id": "viaversion",
++  "name": "ViaVersion",
++  "version": "${version}",
++  "description": "${description}",
++  "license": "GPL-3.0",
++  "contact": {
++    "homepage": "https://viaversion.com/",
++    "issues": "https://github.com/ViaVersion/ViaVersion/issues",
++    "sources": "https://github.com/ViaVersion/ViaVersion"
++  },
++  "icon": "assets/viaversion/textures/squarelogo.png",
++  "environment": "*",
++  "authors": [
++    "_MylesC",
++    "creeper123123321",
++    "Gerrygames",
++    "kennytv",
++    "Matsv",
++    "EnZaXD",
++    "RK_01"
++  ],
++  "depends": {
++    "viafabric": ">=0.4.14"
++  },
++  "custom": {
++    "modmenu:api": true,
++    "modmenu": {
++      "badges": [ "library" ],
++      "parent": "viafabric"
++    }
++  }
++}
+diff --git a/gradle.properties b/gradle.properties
+index 5846573..3f89ae5 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -1,5 +1,5 @@
+ # Project properties - we put these here so they can be modified without causing a recompile of the build scripts
+-projectVersion=5.12.2-SNAPSHOT
++projectVersion=5.13.0-infinity-snapshot5.2
+ 
+ # Smile emoji (note that modrinth may not have added the version on release yet)
+ mcVersions=26.3, 26.2, 26.1.2, 26.1.1, 26.1, 1.21.11, 1.21.10, 1.21.9, 1.21.8, 1.21.7, 1.21.6, 1.21.5, 1.21.4, 1.21.3, 1.21.2, 1.21.1, 1.21, 1.20.6, 1.20.5, 1.20.4, 1.20.3, 1.20.2, 1.20.1, 1.20, 1.19.4, 1.19.3, 1.19.2, 1.19.1, 1.19, 1.18.2, 1.18.1, 1.18, 1.17.1, 1.17, 1.16.5, 1.16.4, 1.16.3, 1.16.2, 1.16.1, 1.16, 1.15.2, 1.15.1, 1.15, 1.14.4, 1.14.3, 1.14.2, 1.14.1, 1.14, 1.13.2, 1.13.1, 1.13, 1.12.2, 1.12.1, 1.12, 1.11.2, 1.11.1, 1.11, 1.10.2, 1.10.1, 1.10, 1.9.4, 1.9.3, 1.9.2, 1.9.1, 1.9, 1.8.9

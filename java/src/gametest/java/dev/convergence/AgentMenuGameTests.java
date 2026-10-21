@@ -20,7 +20,7 @@ import net.minecraft.world.phys.Vec3;
 /** Exercise actual handled screens and packets, rather than just their icon layout. */
 public class AgentMenuGameTests {
     private ServerPlayer player(GameTestHelper c, String name) {
-        var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
+        var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), NativeSessionFixture.nativeProfileName(name));
         var data = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
         var player = new ServerPlayer(c.getLevel().getServer(), c.getLevel(), profile, data.clientInformation());
         var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
@@ -514,7 +514,16 @@ public class AgentMenuGameTests {
             helpers.spawn(owner,"attacker");helpers.profile(owner,"attacker",AgentCompanions.Profile.PRIMITIVE);
             AgentOrdersMenu.open(owner);click(owner,AgentOrdersMenu.TARGET);
             var menu=(AgentOrdersMenu.Handler)owner.containerMenu;
-            int slot=menu.targets.entrySet().stream().filter(e->e.getValue().player()==target).mapToInt(java.util.Map.Entry::getKey).findFirst().orElseThrow();
+            var choice=menu.targets.entrySet().stream().filter(e->e.getValue().player()==target).mapToInt(java.util.Map.Entry::getKey).findFirst();
+            // Other native tests can have connected players on earlier pages.
+            // Select this exact session through the real pagination controls.
+            int remainingPages=c.getLevel().getServer().getPlayerList().getPlayers().size()/45+1;
+            while(choice.isEmpty()&&remainingPages-->0&&!menu.getSlot(AgentOrdersMenu.NEXT).getItem().isEmpty()) {
+                click(owner,AgentOrdersMenu.NEXT);menu=(AgentOrdersMenu.Handler)owner.containerMenu;
+                choice=menu.targets.entrySet().stream().filter(e->e.getValue().player()==target).mapToInt(java.util.Map.Entry::getKey).findFirst();
+            }
+            c.assertTrue(choice.isPresent(),"The paginated target picker includes the exact connected target session");
+            int slot=choice.orElseThrow();
             click(owner,slot);
             var pending=(AgentOrdersMenu.Handler)owner.containerMenu;
             String id=pending.proposals.values().iterator().next();

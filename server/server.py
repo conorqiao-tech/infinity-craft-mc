@@ -64,7 +64,7 @@ def fetch(entry, root=ROOT):
 
 # Mod jar families this launcher pins. An upgrade replaces their versions, so an
 # older copy left beside the new one would load twice; other mods are left alone.
-MANAGED_MODS = ("Infinity-Armor-", "fabric-api-", "polymer-bundled-", "Floodgate-Fabric-",
+MANAGED_MODS = ("Infinity-Armor-", "fabric-api-", "polymer-bundled-", "Floodgate-Fabric-", "floodgate-fabric-",
                 "ViaFabric-", "ViaVersion-", "ViaBackwards-")
 
 

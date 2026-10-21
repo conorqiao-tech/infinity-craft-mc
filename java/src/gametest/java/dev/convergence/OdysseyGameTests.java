@@ -1,6 +1,5 @@
 package dev.convergence;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -16,10 +15,9 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.NoiseColumn;
+import net.minecraft.world.level.levelgen.NoiseColumn;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 
 public class OdysseyGameTests {
@@ -109,14 +107,14 @@ public class OdysseyGameTests {
     }
 
     @GameTest public void netherFloorRejectsRoofLavaAndShortCavities(GameTestHelper c) {
-        BlockState[] blocks=new BlockState[128];Arrays.fill(blocks,Blocks.NETHERRACK.defaultBlockState());
-        for(int y=64;y<74;y++)blocks[y]=Blocks.AIR.defaultBlockState();
-        for(int y=90;y<94;y++)blocks[y]=Blocks.AIR.defaultBlockState();
-        for(int y=100;y<112;y++)blocks[y]=Blocks.LAVA.defaultBlockState();
-        for(int y=120;y<128;y++)blocks[y]=Blocks.BEDROCK.defaultBlockState();
-        c.assertValueEqual(OdysseyStructure.netherFloor(new NoiseColumn(0,blocks),32,112),64,"Uses full-height dry cavern below roof");
-        Arrays.fill(blocks,Blocks.AIR.defaultBlockState());
-        c.assertValueEqual(OdysseyStructure.netherFloor(new NoiseColumn(0,blocks),32,112),Integer.MIN_VALUE,"Never floats in empty void");c.succeed();
+        var column=new NoiseColumn(0,128);
+        for(int y=0;y<128;y++) {
+            if(y>=64&&y<74||y>=90&&y<94)continue;
+            if(y>=100&&y<112)column.setFluid(y,Blocks.LAVA.defaultBlockState());
+            else column.setSolid(y);
+        }
+        c.assertValueEqual(OdysseyStructure.netherFloor(column,32,112),64,"Uses full-height dry cavern below roof with native solid sentinels");
+        c.assertValueEqual(OdysseyStructure.netherFloor(new NoiseColumn(0,128),32,112),Integer.MIN_VALUE,"Never floats in empty void");c.succeed();
     }
 
     @GameTest public void onlyOriginalGeneratedRepeaterCanRunExactOwnerBan(GameTestHelper c) {
@@ -152,7 +150,7 @@ public class OdysseyGameTests {
             world.removeBlock(moved,false);
         } finally {
             OdysseyStructure.trust("");
-            chunk.setStartForStructure(ruin,oldStart==null?net.minecraft.world.level.levelgen.structure.StructureStart.INVALID_START:oldStart);
+            NativeStructureFixture.replaceStart(chunk,ruin,oldStart);
             chunk.getReferencesForStructure(ruin).clear();chunk.getReferencesForStructure(ruin).addAll(oldReferences);
             world.removeBlock(pos,false);
         }

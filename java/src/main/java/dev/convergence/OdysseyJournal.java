@@ -70,7 +70,7 @@ final class OdysseyJournal {
         for(long reference:references){
             var chunk=new net.minecraft.world.level.ChunkPos((int)reference,(int)(reference>>>32));
             var ready=readyChunks.get(reference);if(ready==null)ready=source.getChunkNow(chunk.x(),chunk.z());if(ready==null)continue;readyChunks.put(reference,ready);
-            var start=ready.getStartForStructure(ruin);if(start==null||!start.isValid())continue;
+            var start=ready.getStartForStructure(ruin);if(start==null)continue;
             for(var piece:start.getPieces())if(piece instanceof OdysseyStructure.Piece){
                 var box=piece.getBoundingBox();
                 long dx=Math.max(0,Math.max((long)box.minX()-pos.getX(),(long)pos.getX()-box.maxX()));

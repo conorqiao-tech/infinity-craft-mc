@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 from prepare_crossplay import VERSION, expected_native_tests
+from snapshot5_dependencies import FRAMEWORK, FRAMEWORK_VERSION, FRAMEWORK_SHA256, snapshot_inputs
 import shutil
 import subprocess
 import urllib.request
@@ -14,8 +15,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAMEWORK = "fabric-gametest-api-v1-4.0.32+3434d6d95d.jar"
-FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gametest-api-v1/4.0.32+3434d6d95d/" + FRAMEWORK
+FRAMEWORK_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-gametest-api-v1/" + FRAMEWORK_VERSION + "/" + FRAMEWORK
 
 
 def test_groups(manifest):
@@ -53,6 +53,7 @@ def main():
         return {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in (ROOT / "java/src").rglob("*") if p.is_file()}
     checked_sources = source_hashes()
+    checked_snapshot = snapshot_inputs()
     # Vanilla's headless TestServer uses only the flat_all_dimensions preset and drops data-pack dimensions.
     # The test-only preset includes the exact production dimension JSON definitions.
     fixture = json.loads((ROOT / "java/src/gametest/resources/data/minecraft/worldgen/world_preset/flat_all_dimensions.json").read_text())["dimensions"]
@@ -63,6 +64,9 @@ def main():
         env={**__import__("os").environ, "JAVA_HOME": str(Path(args.java).resolve().parents[1])}, check=True)
     subprocess.run([__import__("sys").executable, str(ROOT / "tools/prepare_crossplay.py")], check=True)
     subprocess.run([__import__("sys").executable, str(ROOT / "server/server.py"), "--setup"], check=True)
+    lock_hash = hashlib.sha256((ROOT / "server/dependencies.lock.json").read_bytes()).hexdigest()
+    release_dependencies = {p.relative_to(ROOT / "server/fabric").as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                            for p in [ROOT / "server/fabric/fabric-server-launch.jar", *sorted((ROOT / "server/fabric/mods").glob("*.jar"))]}
     runtime = ROOT / "research/integration"
     # Native tests must not inherit a generated lobby marker from an earlier build.
     # This is the disposable GameTest world, never the playable server/fabric/world.
@@ -80,6 +84,7 @@ def main():
     tested_test_sha = hashlib.sha256(test_mod.read_bytes()).hexdigest()
     shutil.copy2(test_mod, mods / test_mod.name)
     expected = (ROOT / "tools/gametest-framework.sha256").read_text().split()[0]
+    assert expected == FRAMEWORK_SHA256, "GameTest framework pin differs from the snapshot runtime"
     # Reuse Gradle's cached copy when it matches the pinned checksum; download only otherwise.
     gradle_home = Path(__import__("os").environ.get("GRADLE_USER_HOME", Path.home() / ".gradle"))
     cached = [p.read_bytes() for p in (gradle_home / "caches/modules-2/files-2.1").glob("net.fabricmc.fabric-api/fabric-gametest-api-v1/*/*/" + FRAMEWORK)]
@@ -129,6 +134,8 @@ def main():
                     *(["-Dinfinity.gametest.paced=true"] if paced else []), "-Dfabric-api.gametest",
                     "-Dfabric-api.gametest.report-file=" + str(group_report), "-jar", "fabric-server-launch.jar", "nogui"],
                     cwd=target, stdout=log, stderr=subprocess.STDOUT, timeout=300)
+            assert all(hashlib.sha256((target / name).read_bytes()).hexdigest() == value
+                       for name, value in release_dependencies.items()), "Executed release dependencies changed during native group"
             combined_log.write(group_log.read_text()); combined_log.flush()
             tree = ET.parse(group_report) if group_report.exists() else None
             cases = list(tree.getroot().iter("testcase")) if tree is not None else []
@@ -155,12 +162,16 @@ def main():
     failures = [t.get("name") for t in tests if t.find("failure") is not None or t.find("error") is not None]
     if len(tests) != expected_count or len({t.get("name") for t in tests}) != len(tests) or failures or any(t.find('skipped') is not None for t in tests):
         raise RuntimeError(f"Native test failure: {len(tests)} tests, {failures}; see {runtime / 'integration.log'}")
-    if (source_hashes() != checked_sources or hashlib.sha256(release_mod.read_bytes()).hexdigest() != tested_mod_sha
+    if (source_hashes() != checked_sources or snapshot_inputs() != checked_snapshot
+        or hashlib.sha256((ROOT / "server/dependencies.lock.json").read_bytes()).hexdigest() != lock_hash
+        or any(hashlib.sha256((ROOT / "server/fabric" / name).read_bytes()).hexdigest() != value for name, value in release_dependencies.items())
+        or hashlib.sha256(release_mod.read_bytes()).hexdigest() != tested_mod_sha
         or hashlib.sha256(test_mod.read_bytes()).hexdigest() != tested_test_sha):
         raise RuntimeError("Source or mod changed during native checks; rerun validation")
     (runtime / "provenance.json").write_text(json.dumps({"format": 1, "java_sources": checked_sources,
         "mod_sha256": tested_mod_sha, "report_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
-        "native_tests": len(tests), "test_groups": group_records,
+        "native_tests": len(tests), "test_groups": group_records, "snapshot5_inputs": checked_snapshot,
+        "dependency_lock_sha256": lock_hash, "release_dependencies": release_dependencies,
         "test_mod_sha256": tested_test_sha}, indent=2) + "\n")
     print(f"All {len(tests)} native tests passed with release dependencies.")
 

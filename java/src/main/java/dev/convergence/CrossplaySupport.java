@@ -218,7 +218,7 @@ final class CrossplaySupport {
     static JsonObject creativeCatalogue() {
         var catalogue = new JsonObject();
         catalogue.addProperty("format_version", 1);
-        catalogue.addProperty("minecraft", "26.3");
+        catalogue.addProperty("minecraft", net.minecraft.SharedConstants.getCurrentVersion().id());
         var entries = new JsonArray();
         for (var entry : BASES.entrySet()) {
             String path = entry.getKey();

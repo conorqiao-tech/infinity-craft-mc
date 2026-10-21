@@ -74,7 +74,7 @@ public class LobbyArrivalGameTests {
         Joined(GameTestHelper c,String name) {
             server=c.getLevel().getServer();wire=new NativePlayConnection(c.getLevel().registryAccess());
             connection=wire.connection;channel=wire.channel;
-            var profile=new GameProfile(UUID.randomUUID(),name);var cookie=CommonListenerCookie.createInitial(profile,false);
+            var profile=new GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName(name));var cookie=CommonListenerCookie.createInitial(profile,false);
             player=new ServerPlayer(server,c.getLevel(),profile,cookie.clientInformation());clientPosition=PositionMoveRotation.of(player);
             try {server.getPlayerList().placeNewPlayer(connection,player,cookie);configure();
                 var feet=c.absolutePos(new BlockPos(2,2,2));

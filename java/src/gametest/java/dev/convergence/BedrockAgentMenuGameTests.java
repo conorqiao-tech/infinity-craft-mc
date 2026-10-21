@@ -19,7 +19,7 @@ import org.geysermc.cumulus.form.SimpleForm;
 /** Encoded native touch callbacks drive real helper entities and existing gated mutations. */
 public class BedrockAgentMenuGameTests {
     private ServerPlayer player(GameTestHelper c, String name) {
-        var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), name);
+        var profile = new com.mojang.authlib.GameProfile(UUID.randomUUID(), NativeSessionFixture.nativeProfileName(name));
         var data = net.minecraft.server.network.CommonListenerCookie.createInitial(profile, false);
         var player = new ServerPlayer(c.getLevel().getServer(), c.getLevel(), profile, data.clientInformation());
         var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);

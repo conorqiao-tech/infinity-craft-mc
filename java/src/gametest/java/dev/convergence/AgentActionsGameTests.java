@@ -83,7 +83,7 @@ public class AgentActionsGameTests {
         }
 
         ServerPlayer add(String name) {
-            return add(new GameProfile(UUID.randomUUID(), name));
+            return add(new GameProfile(UUID.randomUUID(), NativeSessionFixture.nativeProfileName(name)));
         }
 
         ServerPlayer add(GameProfile profile) {

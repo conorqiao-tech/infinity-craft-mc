@@ -16,7 +16,7 @@ SPEC.loader.exec_module(GATE)
 
 
 def catalogue(unstackable=32, stackable=14):
-    return {"format_version": 1, "minecraft": "26.3", "items": [
+    return {"format_version": 1, "minecraft": "26.4-snapshot-5", "items": [
         *({"path": "armor_" + str(i), "max_stack_size": 1} for i in range(unstackable)),
         *({"path": "material_" + str(i), "max_stack_size": 64} for i in range(stackable)),
     ]}

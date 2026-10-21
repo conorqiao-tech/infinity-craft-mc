@@ -41,6 +41,24 @@ abstract class NativeSessionFixture implements AutoCloseable {
     abstract void start();
     void cleanup() {}
 
+    /** Scenario labels are diagnostics, not real account names. Native player-info
+     * packets accept at most sixteen characters; retain already legal names and
+     * derive a stable ASCII name for long or descriptive labels. UUID generation
+     * and the complete saved GameProfile used by reconnect remain unchanged.
+     */
+    static String nativeProfileName(String label) {
+        java.util.Objects.requireNonNull(label,"Native fixture label");
+        if(label.isBlank())throw new IllegalArgumentException("Native fixture label must not be blank");
+        if(label.matches("[A-Za-z0-9_]{1,16}"))return label;
+        try {
+            var digest=java.security.MessageDigest.getInstance("SHA-256")
+                .digest(label.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "T"+java.util.HexFormat.of().formatHex(digest).substring(0,15);
+        } catch(java.security.NoSuchAlgorithmException impossible) {
+            throw new AssertionError("Java must provide SHA-256 for native fixture names",impossible);
+        }
+    }
+
     static final class Joined implements AutoCloseable {
         final MinecraftServer server;
         final NativePlayConnection wire;
@@ -50,7 +68,7 @@ abstract class NativeSessionFixture implements AutoCloseable {
         Joined(GameTestHelper c,String name,int x) {
             server=c.getLevel().getServer();wire=new NativePlayConnection(c.getLevel().registryAccess());
             try {
-                var profile=new GameProfile(UUID.randomUUID(),name);var cookie=CommonListenerCookie.createInitial(profile,false);
+                var profile=new GameProfile(UUID.randomUUID(),nativeProfileName(name));var cookie=CommonListenerCookie.createInitial(profile,false);
                 player=new ServerPlayer(server,c.getLevel(),profile,cookie.clientInformation());clientPosition=PositionMoveRotation.of(player);
                 server.getPlayerList().placeNewPlayer(wire.connection,player,cookie);configure();
                 var feet=c.absolutePos(new BlockPos(x,2,2));

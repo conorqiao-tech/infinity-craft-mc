@@ -73,7 +73,8 @@ class LauncherTests(unittest.TestCase):
         (self.root / "dependencies.lock.json").write_text(json.dumps({
             "downloads": [dict(entries[0], url="https://example.invalid/polymer.jar")], "bundled": entries[1:]}))
         stale = ["polymer-bundled-0.15.2+1.21.11.jar", "Infinity-Armor-2.12.0-explore.16.jar",
-                 "fabric-api-0.141.6+1.21.11.jar", "ViaVersion-5.12.0.jar"]
+                 "fabric-api-0.141.6+1.21.11.jar", "ViaVersion-5.12.0.jar",
+                 "Floodgate-Fabric-2.2.7-b69.jar", "floodgate-fabric-2.2.7-old.jar"]
         for name in stale + ["owner-extra-mod.jar"]:
             (mods / name).write_bytes(b"old")
         with patch.object(launcher, "emit"):

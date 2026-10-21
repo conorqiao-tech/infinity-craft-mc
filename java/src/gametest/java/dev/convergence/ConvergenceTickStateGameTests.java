@@ -32,7 +32,7 @@ public class ConvergenceTickStateGameTests {
         final Connection connection=new Connection(PacketFlow.SERVERBOUND);
         final EmbeddedChannel channel=new EmbeddedChannel(connection);
         final ServerPlayer player;
-        Joined(GameTestHelper c,String name) { this(c,new GameProfile(UUID.randomUUID(),name)); }
+        Joined(GameTestHelper c,String name) { this(c,new GameProfile(UUID.randomUUID(),NativeSessionFixture.nativeProfileName(name))); }
         Joined(GameTestHelper c,GameProfile profile) {
             var server=c.getLevel().getServer();var cookie=CommonListenerCookie.createInitial(profile,false);
             player=new ServerPlayer(server,c.getLevel(),profile,cookie.clientInformation());

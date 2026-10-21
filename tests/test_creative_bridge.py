@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import package_crossplay
 from verify_owned_equipment import creative_capture_counts, PROTOCOLS
+from smoke_creative_wire import VIAFABRIC, VIABACKWARDS
 
 PINNED_GEYSER_SHA256 = "17a9e00f3be106c797066664679ca73ebf25af693a750f378a9669ca93b4c07e"
 SPEC = importlib.util.spec_from_file_location(
@@ -38,7 +39,7 @@ def sha256(path):
 def catalogue():
     return {
         "format_version": 1,
-        "minecraft": "26.3",
+        "minecraft": "26.4-snapshot-5",
         "items": [{
             "path": "aurora_chestplate",
             "base": "minecraft:netherite_chestplate",
@@ -142,7 +143,7 @@ class CreativeCatalogueTests(unittest.TestCase):
 class PreparedCreativeBridgeTests(unittest.TestCase):
     def test_packaging_refuses_source_changed_after_build_before_opening_jars(self):
         lock = json.loads((ROOT / "server/dependencies.lock.json").read_text(encoding="utf-8"))
-        inputs = [ROOT / "tools/build_creative_bridge.py", ROOT / "geyser-extension/extension.yml",
+        inputs = [ROOT / "tools/build_creative_bridge.py", ROOT / "tools/snapshot5_dependencies.py", ROOT / "geyser-extension/extension.yml",
                   *sorted((ROOT / "geyser-extension/src/main/java").rglob("*.java"))]
         with tempfile.TemporaryDirectory(prefix="infinity-stale-bridge-test-") as temporary:
             isolated = Path(temporary)
@@ -181,7 +182,7 @@ class PreparedCreativeBridgeTests(unittest.TestCase):
                          "A newer or altered Geyser jar needs an adapter compatibility review")
 
         source_root = ROOT / "geyser-extension"
-        inputs = [ROOT / "tools/build_creative_bridge.py", source_root / "extension.yml",
+        inputs = [ROOT / "tools/build_creative_bridge.py", ROOT / "tools/snapshot5_dependencies.py", source_root / "extension.yml",
                   *sorted((source_root / "src/main/java").rglob("*.java"))]
         self.assertTrue(any(path.suffix == ".java" for path in inputs))
         expected = {path.relative_to(ROOT).as_posix(): sha256(path) for path in inputs}
@@ -211,6 +212,9 @@ class CreativeWirePackagingTests(unittest.TestCase):
         self.checks = Path("research/integration/creative-bridge")
 
     def copy_file(self, relative):
+        relative = Path(relative)
+        self.assertFalse(relative.is_absolute())
+        self.assertNotIn("..", relative.parts)
         target = self.isolated / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / relative, target)
@@ -223,14 +227,16 @@ class CreativeWirePackagingTests(unittest.TestCase):
         receipt_path = self.copy_file(required[0])
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         provenance = json.loads((ROOT / required[1]).read_text(encoding="utf-8"))
-        for relative in ("tools/smoke_creative_wire.py",
-                         "tools/native_checks/CreativeBridgeWireGameTests.java"):
+        for relative in receipt["source_hashes"]:
+            self.copy_file(relative)
+        for relative in receipt["snapshot5_inputs"]:
             self.copy_file(relative)
         self.assertEqual(receipt["source_hashes"],
                          {relative: sha256(self.isolated / relative)
                           for relative in receipt["source_hashes"]},
                          "The rejection fixture must start from the genuinely validated supplementary source")
         self.assertEqual(receipt["java_sources"], provenance["java_sources"])
+        self.assertEqual(receipt["snapshot5_inputs"], provenance["snapshot5_inputs"])
         self.assertEqual(receipt["mod_sha256"], provenance["mod_sha256"])
         self.assertEqual(receipt["original_test_mod_sha256"], provenance["test_mod_sha256"])
         return receipt, provenance
@@ -280,12 +286,12 @@ class CreativeWirePackagingTests(unittest.TestCase):
             runtime / "crossplay-export/infinity-catalogue.json",
             runtime / "mods" / f"Infinity-Armor-{package_crossplay.VERSION}.jar",
             runtime / "mods" / f"Infinity-Armor-{package_crossplay.VERSION}-gametest.jar",
-            runtime / "mods/ViaFabric-0.4.22+186-26.x.jar",
-            runtime / "mods/ViaBackwards-5.12.0.jar",
+            runtime / "mods" / VIAFABRIC,
+            runtime / "mods" / VIABACKWARDS,
             Path("server/fabric/mods") / f"Infinity-Armor-{package_crossplay.VERSION}.jar",
             Path("server/geyser/extensions/InfinityCreativeBridge.jar"),
-            Path("server/fabric/mods/ViaFabric-0.4.22+186-26.x.jar"),
-            Path("server/fabric/mods/ViaBackwards-5.12.0.jar"),
+            Path("server/fabric/mods") / VIAFABRIC,
+            Path("server/fabric/mods") / VIABACKWARDS,
         ]
         for relative in relative_files:
             self.copy_file(relative)

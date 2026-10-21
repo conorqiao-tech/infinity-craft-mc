@@ -68,7 +68,7 @@ public class ModeTransferGameTests {
             server = c.getLevel().getServer();
             wire = new NativePlayConnection(c.getLevel().registryAccess());
             connection = wire.connection; channel = wire.channel;
-            var profile = new GameProfile(UUID.randomUUID(), name);
+            var profile = new GameProfile(UUID.randomUUID(), NativeSessionFixture.nativeProfileName(name));
             var cookie = CommonListenerCookie.createInitial(profile, false);
             player = new ServerPlayer(server, c.getLevel(), profile, cookie.clientInformation());
             clientPosition = PositionMoveRotation.of(player);
