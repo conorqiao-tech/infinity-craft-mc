@@ -1,4 +1,86 @@
-# Helper combo reliability — explore.46 source candidate
+# Following, Infinity loadouts and squad combat — explore.47 source candidate
+
+This candidate repairs player-sized following and repeated native combat, adds
+original Infinity weapon loadouts, exact nearby-target selection and paginated
+controls for fifty saved helpers. Select **AI Helpers → helper → Enable combos
+and follow me** to set Ultimate Finals and Follow on that same entity. See
+[HELPER_COMBOS.md](HELPER_COMBOS.md) for controls and practical limits.
+
+## Reproduced behavior and repairs
+
+| Reproduction | Previous behavior and cause | Corrected behavior |
+| --- | --- | --- |
+| Follow an owner into a one-wide, two-high passage. | A player-shaped avatar retained the much larger native golem body; navigation could not enter. | Only tagged helpers use player-sized default collision and eye height. Native scale applies once; ordinary golems remain unchanged. |
+| Let a real-AI enemy pursue an Ultimate Finals helper into close range. | The close-mace branch returned before aerial planning, so an enemy that kept closing could prevent another combo. | A ready close target can trigger a checked short mace arc; the normal spear windup remains at suitable range. |
+| Land or flank after shrinking the collision body. | The old fixed separation exceeded the smaller body's real melee reach. | Body-based separation stays outside collision and within native reach; no expanded hitbox or fake contact is added. |
+| Move an acquired enemy outside the owner's small fresh-acquisition sphere. | Repeated sensing discarded an otherwise eligible moving fight. | Ultimate Finals retains the same eligible target within leash, sight and combat bounds; a fresh direct owner threat can take priority. |
+| Give a teammate an incomplete spear windup or recent strike. | It could reserve the aerial turn before being ready to launch. | Only a ready teammate with a checked route receives a turn; one aerial lane per owner and target remains. |
+| Open status after a mob or player order expires. | Native target getters and a Java menu icon could retire orders while displaying them. | Permission views and both menu status paths are pure reads. Combat still rejects expired permission; normal lifecycle controls retire invalid orders. |
+
+## Verified native and crossplay behavior
+
+The Java25 build and **648 native tests in 30 isolated groups pass**, with zero
+failed or skipped cases. All **766 Java source/resource hashes**, release mod,
+original test JAR and aggregate report match the final provenance.
+
+Normal lifecycle tests use real-AI enemies, ordinary gravity and knockback, and
+actual charge, glide and falling `MACE_SMASH` contacts. They do not manually call
+combo stages, clear damage immunity or manufacture fall distance. The repeated
+chase arena has supported terrain and perimeter walls; only initial finite
+health is enlarged so the victim survives multiple Infinity hits. Small direct
+mechanic fixtures remain separate from these lifecycle proofs.
+
+Seven follow cases cover actual tunnel movement, narrow creation, safe floor and
+overlap checks, owner movement packets, hovering owners, the follow leash and
+native scale/stat/UUID preservation. Seven readiness cases include a real
+fifty-helper lifecycle: native enemy AI acquisition, movement and damage,
+at most one aerial lane, Stay, a reviewed player order and exact expiry. This
+is functional capacity coverage, **not a multiplayer performance benchmark**.
+
+Encoded Java/Bedrock menu tests select all fifty saved helpers, check page
+navigation and stale/replayed forms, and preserve saved identities and edited
+stats. Exact mob orders cannot spill damage into another animal, pet or helper.
+Selecting a player still creates only a pending proposal; the owner's approval
+and separate live Codex approval remain required.
+
+Eight weapon cases verify full original Infinity components on native weapon
+classes, continuous real spear use, real sword/mace damage and unchanged ordinary
+golems. All three weapons pass the actual native codec for Java without the pack,
+Java with the pack and Bedrock. Client stacks match the original catalogue item's
+normal Polymer projection; server held/active objects, components and charge
+remain unchanged. Client tooltip projection is distinct from server components.
+
+Fresh Geyser startup covers **66 catalogue identities over three protocols** and
+the offline armor transport proof covers **303 codec round trips**. Two isolated
+Fabric/Geyser launcher cycles pass startup, local UDP response, backup, restart
+and clean shutdown. No authenticated player login or real device rendering is
+claimed. Native embedded-player tests retain the known Polymer packet-context
+diagnostic, and fresh harness folders can log missing initial server.properties
+before generating defaults. This is not a clean-log claim for the native harness;
+the separate Geyser and full-stack startup logs contain no ERROR records.
+
+All **424 tracked PNGs** match merged main `f75de4d` byte-for-byte. The prepared
+Bedrock pack's **260 entries** match installed explore.46 except the manifest
+revision `[2,13,46000]` → `[2,13,47000]`; UUIDs, armor models and artwork payloads
+remain unchanged. The owner's accepted armor repair stays the visual baseline.
+Actual iPad helper menus, equipment appearance and live multiplayer behavior
+still need their device checks after separately approved installation.
+
+Fresh supplementary checks pass **255 actual inbound hotbar packets**, **198
+overflow refusals** and **255 Survival refusals**. Saved-item checks pass **85
+disk/rejoin item-count cases**, all **66 identities** and **three genuine
+same-UUID reconnects**, retaining renamed/damaged gear, backpack and observer
+state. **381 Python launcher/resource tests pass**, with ResourceWarning treated
+as an error and no skipped cases. All required receipts bind to the final source
+and artifacts; the package verifier checks those bindings before writing archives.
+
+Source preparation does not install or restart the playable
+explore.46 server, refresh terrain or change its private settings or approvals.
+Earlier sections below are historical records, not current installation receipts.
+
+---
+
+# Helper combo reliability — explore.46 historical source candidate
 
 The current source improves ready-only squad aerial turns, checked landing
 adjustments for a moving target, close-range mace selection and native spear

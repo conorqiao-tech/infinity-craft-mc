@@ -62,26 +62,43 @@ final class BedrockAgentMenu {
     }
 
     private static int roster(ServerPlayer owner, String feedback, Predicate<Form> sender) {
+        return roster(owner, feedback, sender, 0);
+    }
+
+    private static int pageFor(ServerPlayer owner, String id) {
+        int index = new ArrayList<>(snapshot(owner).keySet()).indexOf(id);
+        return Math.max(0, index) / AgentMenu.ROSTER_PAGE_SIZE;
+    }
+
+    private static int roster(ServerPlayer owner, String feedback, Predicate<Form> sender, int requestedPage) {
         var helpers = helpers(owner);
         var saved = snapshot(owner);
+        var entries = List.copyOf(saved.entrySet());
+        int pages = AgentMenu.rosterPages(saved.size());
+        int page = Math.max(0, Math.min(requestedPage, pages - 1));
         var choices = new ArrayList<HelperForms.Choice>();
         if (saved.size() < AgentCompanions.LIMIT)
             choices.add(new HelperForms.Choice(saved.isEmpty() ? "Create your first helper" : "Create another helper",
                 () -> create(owner, "", sender)));
-        for (var entry : saved.entrySet()) {
+        int first = page * AgentMenu.ROSTER_PAGE_SIZE;
+        for (var entry : entries.subList(Math.min(first, entries.size()), Math.min(first + AgentMenu.ROSTER_PAGE_SIZE, entries.size()))) {
             String id = entry.getKey(); var agent = entry.getValue();
             choices.add(new HelperForms.Choice(agent.name() + " • " + agent.profile().label()
                 + (live(helpers, id) == null ? " • unloaded" : " • " + agent.mode().name().toLowerCase(java.util.Locale.ROOT)),
                 () -> detail(owner, id, "", sender)));
         }
+        if (page > 0) choices.add(new HelperForms.Choice("Previous page • " + page + "/" + pages,
+            () -> roster(owner, "", sender, page - 1)));
+        if (page + 1 < pages) choices.add(new HelperForms.Choice("Next page • " + (page + 2) + "/" + pages,
+            () -> roster(owner, "", sender, page + 1)));
         if (!saved.isEmpty()) choices.add(new HelperForms.Choice("Squad controls • movement, profiles and recall", () -> squad(owner, "", sender)));
         choices.add(new HelperForms.Choice("Orders • targets and both approvals", () -> BedrockAgentOrdersMenu.open(owner, sender)));
         choices.add(new HelperForms.Choice("Back to Infinity Menu", () -> ServerMenu.open(owner)));
-        String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ".\n"
+        String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ". Page " + (page + 1) + " of " + pages + ".\n"
             + (saved.isEmpty() ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
                 : "Choose a named helper for its live status and controls. Unloaded helpers stay saved; these menus never load distant chunks.")
             + "\n\nRegular follows and guards. Ultimate Finals uses a real spear charge, elytra flight and a falling mace strike when the target and terrain allow it."
-            + "\nPlayer targets and server-changing AI orders still require your approval and separate live Codex review.\n" + HelperCombatStatus.squadSummary(owner);
+            + "\nChoose nearby mob targets through Orders. Player targets and server-changing AI orders still require your approval and separate live Codex review.\n" + HelperCombatStatus.squadSummary(owner);
         return HelperForms.show(owner, "Your Helper Squad", withFeedback(feedback, content), choices, () -> current(owner, saved), sender);
     }
 
@@ -136,6 +153,12 @@ final class BedrockAgentMenu {
         var golem = live(helpers, id);
         var choices = new ArrayList<HelperForms.Choice>();
         if (golem != null && golem.level() == owner.level()) {
+            choices.add(new HelperForms.Choice("Enable combos and follow me", () -> {
+                boolean enabled = helpers.enableCombos(owner, agent.name());
+                detail(owner, id, enabled
+                    ? "Combos enabled: Ultimate Finals and Follow. This same helper kept its position, health and edited stats."
+                    : "Could not enable combos: this existing helper must be loaded in your current world. Its saved identity and stats were kept.", sender);
+            }));
             for (var mode : AgentCompanions.Mode.values()) choices.add(new HelperForms.Choice(
                 switch (mode) { case FOLLOW -> "Follow me"; case GUARD -> "Guard this helper's current area"; case STAY -> "Stay / pause"; },
                 () -> { helpers.mode(owner, agent.name(), mode); detail(owner, id, "Movement updated: " + mode.name().toLowerCase(java.util.Locale.ROOT) + ".", sender); }));
@@ -152,14 +175,15 @@ final class BedrockAgentMenu {
             AgentChat.ask(owner.createCommandSourceStack(), agent.name(), AgentMenu.ASK_QUESTION);
         }));
         choices.add(new HelperForms.Choice("Orders • targets and both approvals", () -> BedrockAgentOrdersMenu.open(owner, sender)));
-        choices.add(new HelperForms.Choice("Ceasefire • clear player-target orders", () -> {
-            AgentActions.get(helpers.server).ceasefire(owner); detail(owner, id, "Player target and pending player-target orders cleared.", sender);
+        choices.add(new HelperForms.Choice("Ceasefire • clear mob and player targets", () -> {
+            AgentActions.get(helpers.server).ceasefire(owner); detail(owner, id, "Mob and player targets and pending player-target orders cleared.", sender);
         }));
         choices.add(new HelperForms.Choice("Dismiss helper • review first", () -> dismiss(owner, id, sender)));
-        choices.add(new HelperForms.Choice("Back to your squad", () -> roster(owner, "", sender)));
+        choices.add(new HelperForms.Choice("Back to your squad", () -> roster(owner, "", sender, pageFor(owner, id))));
         String content = HelperCombatStatus.summary(owner, id, agent) + "\n\n" + agent.profile().description()
             + "\n" + (golem == null ? "Unloaded: return near its saved location to load it. Movement and recall are unavailable."
                 : golem.level() != owner.level() ? "In another world: use Bring here before giving movement orders." : "Movement applies to this helper only.")
+            + "\nEnable combos and follow me changes this helper to Ultimate Finals and Follow, without creating or teleporting a helper. Choose nearby mob targets in Orders; player targets still need both approvals."
             + "\nAsk sends limited Minecraft facts to the configured service only when tapped. Answers cannot execute commands.\n" + HelperCombatStatus.squadSummary(owner);
         return HelperForms.show(owner, agent.name() + " • Helper", withFeedback(feedback, content), choices,
             () -> current(owner, id, agent, captured) && (golem == null || live(helpers, id) == golem), sender);
@@ -185,10 +209,11 @@ final class BedrockAgentMenu {
         var helpers = helpers(owner); var agent = helpers.data.agents.get(id);
         if (agent == null || !agent.owner().equals(owner.getStringUUID())) return roster(owner, "Choose your helper again.", sender);
         var captured = helpers.loaded.get(UUID.fromString(id));
+        int returnPage = pageFor(owner, id);
         return HelperForms.show(owner, "Dismiss " + agent.name() + "?",
             "This removes this exact helper, including its saved identity and edited stats. It does not merely pause it. Unloaded entities are removed when their area next loads. Choose Keep to cancel.",
             List.of(new HelperForms.Choice("Confirm dismiss " + agent.name(), () -> {
-                helpers.dismiss(owner, agent.name()); roster(owner, agent.name() + " was dismissed.", sender);
+                helpers.dismiss(owner, agent.name()); roster(owner, agent.name() + " was dismissed.", sender, returnPage);
             }), new HelperForms.Choice("Keep this helper", () -> detail(owner, id, "Kept this helper. Nothing was removed.", sender))),
             () -> current(owner, id, agent, captured), sender);
     }
@@ -216,13 +241,13 @@ final class BedrockAgentMenu {
         choices.add(new HelperForms.Choice("Cycle follow formation • " + AgentCompanions.formation(owner), () -> {
             AgentCompanions.cycleFormation(owner); squad(owner, "Follow formation: " + AgentCompanions.formation(owner) + ". Combat approvals are separate.", sender);
         }));
-        choices.add(new HelperForms.Choice("Ceasefire • clear player-target orders", () -> {
-            AgentActions.get(helpers.server).ceasefire(owner); squad(owner, "Player target and pending player-target orders cleared.", sender);
+        choices.add(new HelperForms.Choice("Ceasefire • clear mob and player targets", () -> {
+            AgentActions.get(helpers.server).ceasefire(owner); squad(owner, "Mob and player targets and pending player-target orders cleared.", sender);
         }));
         choices.add(new HelperForms.Choice("Orders • targets and both approvals", () -> BedrockAgentOrdersMenu.open(owner, sender)));
         choices.add(new HelperForms.Choice("Back to your squad", () -> roster(owner, "", sender)));
         String content = saved.size() + " saved helpers; " + loaded + " loaded; " + sameWorld + " loaded in this world.\n"
-            + "Movement affects loaded helpers here. Profiles also save for unloaded helpers. Bring here never loads distant chunks and clears player-target orders.\n"
+            + "Movement affects loaded helpers here. Profiles also save for unloaded helpers. Bring here never loads distant chunks and clears mob and player-target orders.\n"
             + "Ultimate Finals shares focus and uses native spear, elytra and mace tactics when conditions allow. STAY must be changed to Follow/Guard to resume.\n" + HelperCombatStatus.squadSummary(owner);
         return HelperForms.show(owner, "Squad controls", withFeedback(feedback, content), choices, () -> current(owner, saved), sender);
     }

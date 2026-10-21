@@ -26,6 +26,8 @@ final class AgentMenu {
     static final int ORDERS = 19;
     static final int FORMATION = 46;
     static final int SQUAD_PRIMITIVE = 48, SQUAD_REGULAR = 50, SQUAD_ULTIMATE = 52;
+    static final int ROSTER_PAGE_SIZE = 6, PREVIOUS_PAGE = 45, NEXT_PAGE = 53;
+    static final int ENABLE_COMBOS = 22;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -102,6 +104,29 @@ final class AgentMenu {
     static int open(ServerPlayer player) { return open(player, Page.ROSTER, null); }
 
     private static int open(ServerPlayer player, Page page, String helperId) {
+        return open(player, page, helperId, 0);
+    }
+
+    private static Map<String, AgentCompanions.Agent> roster(AgentCompanions helpers, ServerPlayer owner) {
+        var result = new LinkedHashMap<String, AgentCompanions.Agent>();
+        helpers.data.agents.entrySet().stream()
+            .filter(entry -> entry.getValue().owner().equals(owner.getStringUUID()))
+            .sorted(java.util.Comparator.comparing(entry -> entry.getValue().name()))
+            .forEach(entry -> result.put(entry.getKey(), entry.getValue()));
+        return result;
+    }
+
+    static int rosterPages(int count) {
+        int slots = Math.max(1, Math.min(AgentCompanions.LIMIT, count + 1));
+        return (slots + ROSTER_PAGE_SIZE - 1) / ROSTER_PAGE_SIZE;
+    }
+
+    private static void pageButtons(SimpleContainer view, int page, int pages) {
+        if (page > 0) icon(view, PREVIOUS_PAGE, Items.ARROW, "Previous page • " + page + "/" + pages);
+        if (page + 1 < pages) icon(view, NEXT_PAGE, Items.ARROW, "Next page • " + (page + 2) + "/" + pages);
+    }
+
+    private static int open(ServerPlayer player, Page page, String helperId, int requestedRosterPage) {
         if (!allowed(player)) {
             player.sendSystemMessage(Component.literal("Helper controls require a living, non-spectator OP4 owner."));
             return 0;
@@ -121,36 +146,41 @@ final class AgentMenu {
         }
         var view = new SimpleContainer(54);
         var choices = new LinkedHashMap<Integer, String>();
+        var savedRoster = roster(helpers, player);
+        int pages = rosterPages(savedRoster.size());
+        int rosterPage = Math.max(0, Math.min(requestedRosterPage, pages - 1));
         String title;
         if (page == Page.ROSTER) {
-            title = "Your Helper Squad";
+            title = "Your Helper Squad • " + (rosterPage + 1) + "/" + pages;
             icon(view, 4, Items.IRON_GOLEM_SPAWN_EGG,
                 "Helpers: " + helpers.count(player) + "/" + AgentCompanions.LIMIT);
-            var roster = helpers.data.agents.entrySet().stream()
-                .filter(entry -> entry.getValue().owner().equals(player.getStringUUID()))
-                .sorted(java.util.Comparator.comparing(entry -> entry.getValue().name())).toList();
-            if (roster.isEmpty()) description(view, 4, "No helpers yet. Tap the green Create your first helper button.");
-            for (int index = 0; index < AgentCompanions.LIMIT; index++) {
-                int slot = helperSlot(index);
-                if (index < roster.size()) {
-                    var entry = roster.get(index);
+            var entries = java.util.List.copyOf(savedRoster.entrySet());
+            if (entries.isEmpty()) description(view, 4, "No helpers yet. Tap the green Create your first helper button.");
+            else description(view, 4, "Page " + (rosterPage + 1) + " of " + pages + ". Use Next page and Previous page to find every saved helper.");
+            for (int local = 0; local < ROSTER_PAGE_SIZE; local++) {
+                int index = rosterPage * ROSTER_PAGE_SIZE + local;
+                int slot = helperSlot(local);
+                if (index >= AgentCompanions.LIMIT) break;
+                if (index < entries.size()) {
+                    var entry = entries.get(index);
                     var agent = entry.getValue();
                     choices.put(slot, entry.getKey());
                     rosterIcon(view, slot, helpers, entry.getKey(), agent);
                 } else {
-                    icon(view, slot, Items.DYE.lime(), roster.isEmpty() && index == 0
+                    icon(view, slot, Items.DYE.lime(), entries.isEmpty() && index == 0
                         ? "Create your first helper" : "Create a helper • slot " + (index + 1));
                     description(view, slot, "Tap to summon a named AI player avatar beside you. Stand on clear solid ground.");
                 }
             }
             movement(view, "Squad");
             icon(view,RECALL,Items.ENDER_PEARL,"Bring your loaded squad here");
-            description(view,RECALL,"Moves existing loaded helpers to clear ground beside you. Keeps health, stats and profiles. Clears player-target orders. Unloaded helpers stay saved.");
+            description(view,RECALL,"Moves existing loaded helpers to clear ground beside you. Keeps health, stats and profiles. Clears chosen mob and player orders. Unloaded helpers stay saved.");
             icon(view, INFO, Items.BOOK, "Help • chat and approval commands");
             hive(view, helpers, player);
             squadProfiles(view, helpers, player);
             emptySquadControls(view, helpers, player);
             icon(view, BACK, Items.ARROW, "Back to Infinity Menu");
+            pageButtons(view, rosterPage, pages);
         } else {
             title = selected.name() + (page == Page.DISMISS ? " • Dismiss?" : " • Helper");
             icon(view, 4, Items.IRON_INGOT, selected.name() + " • " + selected.profile().label());
@@ -165,13 +195,14 @@ final class AgentMenu {
                 recallButton(view);
                 icon(view, DISMISS, Items.DYE.red(), "Dismiss helper • confirmation required");
                 hive(view, helpers, player);
+                comboButton(view, helpers, player, helperId);
             }
             icon(view, BACK, Items.ARROW, "Back to your squad");
         }
         Page openedPage = page;
         String openedId = helperId;
         player.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new Handler(sync, inventory, view, player, openedPage, openedId, choices), Component.literal(title)));
+            new Handler(sync, inventory, view, player, openedPage, openedId, choices, rosterPage, savedRoster), Component.literal(title)));
         return 1;
     }
 
@@ -199,7 +230,17 @@ final class AgentMenu {
 
     private static void recallButton(SimpleContainer view) {
         icon(view, RECALL, Items.ENDER_PEARL, "Bring here • then follow");
-        description(view, RECALL, "Moves this existing loaded helper beside you, even from another mode. Keeps health, stats and profile. Clears your squad's player-target orders and pending target approvals. Unloaded helpers must first be loaded by visiting their area.");
+        description(view, RECALL, "Moves this existing loaded helper beside you, even from another mode. Keeps health, stats and profile. Clears your squad's chosen mob and player orders and pending target approvals. Unloaded helpers must first be loaded by visiting their area.");
+    }
+
+    private static void comboButton(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner, String id) {
+        var golem = helpers.loaded.get(UUID.fromString(id));
+        boolean ready = golem != null && golem.isAlive() && !golem.isRemoved() && golem.level() == owner.level();
+        icon(view, ENABLE_COMBOS, ready ? Items.FEATHER : Items.BARRIER,
+            ready ? "Enable combos and follow me" : "Load this helper here to enable combos");
+        description(view, ENABLE_COMBOS, ready
+            ? "Sets this same helper to Ultimate Finals and Follow. Keeps its UUID, health, edited stats and current position. No helper is created or teleported. Hostile defense and chosen mob targets use normal combat checks; player targets still need both approvals."
+            : "Return near this helper to load it, or use Bring here for an existing loaded helper in another world. Its saved identity and stats stay intact.");
     }
 
     private static void rosterIcon(SimpleContainer view, int slot, AgentCompanions helpers, String id, AgentCompanions.Agent agent) {
@@ -236,10 +277,10 @@ final class AgentMenu {
         icon(view,FORMATION,Items.COMPASS,"Follow formation: "+AgentCompanions.formation(owner));
         description(view,FORMATION,"Cycle Escort, Wedge and Ring. Spreads idle followers onto safe loaded ground. Combat and target approvals stay separate.");
         icon(view,ORDERS,Items.WRITABLE_BOOK,"Orders • targets and approvals");
-        description(view,ORDERS,"Choose a player, propose an action, review, approve or cancel without typing a command. Live Codex review is still required.");
-        icon(view, 22, Items.COMPASS, helpers.playerTargetStatus(owner));
-        description(view, 22, "Use Orders to choose a target. Owner and live Codex approval are required.");
-        icon(view, CEASEFIRE, Items.BANNER.white(), "Ceasefire • clear your player target and queued orders");
+        description(view,ORDERS,"Choose a nearby mob target or review a player target and server action without typing. Player attacks and server-changing AI orders still need owner and live Codex approvals.");
+        icon(view, 22, Items.COMPASS, HelperCombatStatus.playerOrderSummary(owner));
+        description(view, 22, "Use Orders to choose a nearby mob target. Player targets still require owner and live Codex approval.");
+        icon(view, CEASEFIRE, Items.BANNER.white(), "Ceasefire • clear mob/player targets and queued orders");
     }
 
     static final class Handler extends ChestMenu {
@@ -251,9 +292,14 @@ final class AgentMenu {
         final String helperId;
         final Map<Integer, String> choices;
         final net.minecraft.world.level.Level world;
+        final int rosterPage;
+        Map<String, AgentCompanions.Agent> rosterSnapshot;
+        AgentCompanions.Agent selectedSnapshot;
+        net.minecraft.world.entity.animal.golem.IronGolem selectedEntity;
 
         Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer owner,
-                Page page, String helperId, Map<Integer, String> choices) {
+                Page page, String helperId, Map<Integer, String> choices, int rosterPage,
+                Map<String, AgentCompanions.Agent> savedRoster) {
             super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
             this.view = view;
             this.owner = owner;
@@ -263,6 +309,9 @@ final class AgentMenu {
             this.helperId = helperId;
             this.choices = Map.copyOf(choices);
             this.world = owner.level();
+            this.rosterPage = rosterPage;
+            this.rosterSnapshot = Map.copyOf(savedRoster);
+            captureSelection(AgentCompanions.get(owner.level().getServer()));
         }
 
         @Override public boolean stillValid(Player player) {
@@ -274,7 +323,23 @@ final class AgentMenu {
 
         private void reopen(Page next, String id) {
             owner.closeContainer();
-            open(owner, next, id);
+            open(owner, next, id, rosterPage);
+        }
+
+        private void captureSelection(AgentCompanions helpers) {
+            selectedSnapshot = helperId == null ? null : helpers.data.agents.get(helperId);
+            selectedEntity = helperId == null ? null : helpers.loaded.get(UUID.fromString(helperId));
+        }
+
+        private boolean sameRoster(AgentCompanions helpers) {
+            var current = roster(helpers, owner);
+            return current.size() == rosterSnapshot.size() && rosterSnapshot.entrySet().stream()
+                .allMatch(entry -> current.get(entry.getKey()) == entry.getValue());
+        }
+
+        private boolean sameSelection(AgentCompanions helpers) {
+            return selectedSnapshot != null && helpers.data.agents.get(helperId) == selectedSnapshot
+                && helpers.loaded.get(UUID.fromString(helperId)) == selectedEntity;
         }
 
         /** Stable buttons update slots without sending a close/open pair to Geyser.
@@ -284,10 +349,9 @@ final class AgentMenu {
             if (!stillValid(owner)) { owner.closeContainer(); return; }
             var helpers = AgentCompanions.get(owner.level().getServer());
             if (page == Page.ROSTER) {
-                var currentIds = helpers.data.agents.entrySet().stream()
-                    .filter(entry -> entry.getValue().owner().equals(ownerId.toString()))
-                    .map(Map.Entry::getKey).collect(java.util.stream.Collectors.toSet());
-                if (!currentIds.equals(java.util.Set.copyOf(choices.values()))) { reopen(Page.ROSTER, null); return; }
+                var currentRoster = roster(helpers, owner);
+                if (!currentRoster.keySet().equals(rosterSnapshot.keySet())) { reopen(Page.ROSTER, null); return; }
+                rosterSnapshot = Map.copyOf(currentRoster);
                 icon(view, 4, Items.IRON_GOLEM_SPAWN_EGG, "Helpers: " + helpers.count(owner) + "/" + AgentCompanions.LIMIT);
                 for (var choice : choices.entrySet()) {
                     var agent = selected(helpers, choice.getValue());
@@ -306,6 +370,8 @@ final class AgentMenu {
                 hive(view, helpers, owner);
                 askButton(view, owner);
                 recallButton(view);
+                comboButton(view, helpers, owner, helperId);
+                captureSelection(helpers);
             }
             sendAllDataToRemote();
         }
@@ -327,6 +393,8 @@ final class AgentMenu {
             if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE)
                 || button < 0 || button > 1 || !getCarried().isEmpty()) { sendAllDataToRemote(); return; }
             var helpers = AgentCompanions.get(owner.level().getServer());
+            if (page == Page.ROSTER && !sameRoster(helpers)
+                || page != Page.ROSTER && !sameSelection(helpers)) { stale(); return; }
             if (page == Page.ROSTER && helpers.count(owner) == 0
                     && (clicked == FOLLOW || clicked == GUARD || clicked == STAY || clicked == RECALL
                         || clicked == FORMATION || clicked == SQUAD_PRIMITIVE || clicked == SQUAD_REGULAR || clicked == SQUAD_ULTIMATE)) {
@@ -343,12 +411,22 @@ final class AgentMenu {
                 return;
             }
             if (page == Page.ROSTER) {
+                if (clicked == PREVIOUS_PAGE || clicked == NEXT_PAGE) {
+                    int targetPage = rosterPage + (clicked == NEXT_PAGE ? 1 : -1);
+                    if (targetPage >= 0 && targetPage < rosterPages(helpers.count(owner))) {
+                        owner.closeContainer(); open(owner, Page.ROSTER, null, targetPage);
+                    } else sendAllDataToRemote();
+                    return;
+                }
                 var squadProfile = clicked == SQUAD_PRIMITIVE ? AgentCompanions.Profile.PRIMITIVE
                     : clicked == SQUAD_REGULAR ? AgentCompanions.Profile.REGULAR
                     : clicked == SQUAD_ULTIMATE ? AgentCompanions.Profile.ULTIMATE_FINALS : null;
                 if (squadProfile != null) { helpers.squadProfile(owner, squadProfile); refresh(); return; }
                 if (clicked == BACK) { owner.closeContainer(); ServerMenu.open(owner); return; }
-                if (clicked >= helperSlot(0) && clicked < helperSlot(AgentCompanions.LIMIT)) {
+                if (clicked >= helperSlot(0) && clicked < helperSlot(ROSTER_PAGE_SIZE)) {
+                    if (rosterPage * ROSTER_PAGE_SIZE + clicked - helperSlot(0) >= AgentCompanions.LIMIT) {
+                        sendAllDataToRemote(); return;
+                    }
                     String id = choices.get(clicked);
                     if (id != null) {
                         if (selected(helpers, id) == null) { stale(); return; }
@@ -395,6 +473,15 @@ final class AgentMenu {
                     if (clicked == CONFIRM) { helpers.dismiss(owner, agent.name()); reopen(Page.ROSTER, null); return; }
                     if (clicked == CANCEL) { reopen(Page.HELPER, helperId); return; }
                 } else {
+                    if (clicked == ENABLE_COMBOS) {
+                        if (helpers.enableCombos(owner, agent.name())) refresh();
+                        else {
+                            owner.closeContainer();
+                            var message = Component.literal("Combos need this existing helper loaded in your current world. Its saved identity and stats were kept.");
+                            owner.sendSystemMessage(message); owner.sendOverlayMessage(message);
+                        }
+                        return;
+                    }
                     var profiles = AgentCompanions.Profile.values();
                     for (int index = 0; index < profiles.length; index++) if (clicked == profileSlot(index)) {
                         helpers.profile(owner, agent.name(), profiles[index]);

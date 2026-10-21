@@ -34,7 +34,7 @@ final class HelperCombatStatus {
         switch (agent.profile()) {
             case REGULAR -> text.append("Hostile defense only. Choose Ultimate Finals for spear/glide/mace combos.");
             case PRIMITIVE -> text.append("Hostile defense; combos need Ultimate Finals.\n")
-                .append(playerOrder(helpers, owner).message());
+                .append(AgentEntityTargets.summary(owner)).append('\n').append(playerOrder(helpers, owner).message());
             case DEBUG, CLI, API -> text.append("Combat is off for this passive profile. Follow and Guard still control movement.");
             case ULTIMATE_FINALS -> ultimate(text, helpers, owner, helperId, golem, pause);
         }
@@ -62,9 +62,24 @@ final class HelperCombatStatus {
             + "Combos need Ultimate Finals on Follow or Guard. Player attacks require owner and live Codex approval.";
     }
 
+    /** Menu reads explain stale reviews without advancing their combat lifecycle. */
+    static String playerOrderSummary(ServerPlayer owner) {
+        String ownerProblem = ownerProblem(owner);
+        if (ownerProblem != null) return "Player target unavailable: " + ownerProblem;
+        var helpers = AgentCompanions.get(owner.level().getServer());
+        var order = helpers.playerTargets.get(owner.getUUID());
+        if (order == null) return "Player target: none.";
+        var snapshot = playerOrder(helpers, owner);
+        if (snapshot.target() == null) return snapshot.message();
+        return "Player target: " + plain(snapshot.target().getGameProfile().name()) + " (" + snapshot.target().getUUID() + "), "
+            + Math.max(0, (order.expiresAt() - helpers.clock.millis() + 999) / 1000)
+            + "s remaining; Primitive and Ultimate Finals only.";
+    }
+
     private static void ultimate(StringBuilder text, AgentCompanions helpers, ServerPlayer owner,
                                  UUID id, IronGolem golem, String pause) {
         var order = playerOrder(helpers, owner);
+        var chosen = AgentEntityTargets.peek(owner);
         if (golem != null && golem.isAlive() && !golem.isRemoved()) {
             var held = golem.getMainHandItem();
             var target = golem.getTarget();
@@ -72,11 +87,16 @@ final class HelperCombatStatus {
             var feedback = helpers.comboFeedback(id);
             boolean blockedPlayer = target instanceof ServerPlayer && order.target() != target
                 || sequence != null && sequence.target instanceof ServerPlayer && order.target() != sequence.target;
+            boolean blockedEntity = target != null && !(target instanceof ServerPlayer) && !AgentCompanions.hostile(target)
+                && (chosen == null || chosen.target() != target)
+                || sequence != null && !(sequence.target instanceof ServerPlayer) && !AgentCompanions.hostile(sequence.target)
+                    && (chosen == null || chosen.target() != sequence.target);
             text.append("Held: ").append(held.isEmpty() ? "empty" : plain(held.getHoverName().getString()))
                 .append("; gliding: ").append(golem.isFallFlying() ? "yes" : "no")
                 .append("; target: ").append(target == null ? "none" : plain(target.getName().getString())).append(".\n");
             if (pause != null) text.append("Combo paused.\n");
             else if (blockedPlayer) text.append("Player combo blocked: this player is not the current eligible reviewed target.\n");
+            else if (blockedEntity) text.append("Chosen mob target expired or changed; a fresh exact target is required.\n");
             else if (feedback != null) text.append(feedback.text()).append('\n');
             else if (sequence != null) text.append("Combo sequence in progress.\n");
             else if (target != null) text.append("Spear/glide/mace sequence runs when combat and terrain checks pass.\n");
@@ -86,10 +106,10 @@ final class HelperCombatStatus {
             else text.append("Waiting for the reviewed player target.\n");
             int remaining = Math.max(0, helpers.nextLeap.getOrDefault(id, 0) - helpers.server.getTickCount());
             text.append(remaining == 0 ? "Aerial cooldown ready." : "Aerial cooldown: " + ((remaining + 19) / 20) + "s.")
-                .append(" A leap still needs a clear, dry, level route at 4–7 blocks.\n");
+                .append(" A leap needs a clear, dry, level route within seven blocks; close targets use a mace opener.\n");
         } else text.append(golem == null ? "Combo unavailable until this helper is loaded.\n"
             : "Combo unavailable while this helper is unavailable.\n");
-        text.append(order.message());
+        text.append(AgentEntityTargets.summary(owner)).append('\n').append(order.message());
     }
 
     private record PlayerOrder(ServerPlayer target, String message) {}

@@ -6,6 +6,8 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.permissions.LevelBasedPermissionSet;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 
@@ -32,7 +34,8 @@ public class HelperCombatStatusGameTests {
                 "Ultimate status reports the actual held weapon, glide flag and target");
             c.assertTrue(text.contains("Waiting for an eligible hostile") && text.contains("Aerial cooldown: 3s"),
                 "Idle combat and real tick cooldown are explained separately");
-            c.assertTrue(text.contains("still needs a clear, dry, level route"), "Cooldown readiness never claims the leap path was checked");
+            c.assertTrue(text.contains("A leap needs a clear, dry, level route within seven blocks")
+                && text.contains("close targets use a mace opener"), "Cooldown readiness describes current range and terrain requirements without claiming the leap path was checked");
             c.assertTrue(arena.golem.getTarget() == null && !arena.helpers.aerial.containsKey(arena.golem.getUUID()), "Reading status does not acquire a target or launch a combo");
             c.assertTrue(net.minecraft.world.item.ItemStack.isSameItemSameComponents(weapon, arena.golem.getMainHandItem())
                 && arena.golem.getTicksUsingItem() == use, "Reading status does not replace or restart the actual spear");
@@ -182,6 +185,56 @@ public class HelperCombatStatusGameTests {
                     && arena.golem.getTicksUsingItem() == use, "Both status reads leave actual equipment and spear use unchanged");
                 c.assertValueEqual(target.getHealth(), health, "Reading expired target state causes no player damage");
             } finally { target.level().getServer().getPlayerList().remove(target); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena")
+    public void openingJavaMenusAfterPlayerOrderExpiryDoesNotCeasefireCombatState(GameTestHelper c) {
+        try (var arena = new AgentTacticsGameTests.Arena(c, "status-open")) {
+            var target = new ModeGameTests().player(c, "status-menu");
+            try {
+                target.setGameMode(GameType.SURVIVAL);
+                target.setPos(arena.golem.position().add(5, 0, 0));
+                c.assertTrue(arena.helpers.assignPlayerTarget(arena.owner, target), "Fixture starts with an eligible reviewed player order");
+                arena.helpers.control(arena.golem, arena.record(arena.golem), arena.helpers.server.getTickCount());
+                c.assertTrue(arena.golem.getTarget() == target, "Normal control establishes the reviewed target before expiry");
+                AgentWeapons.spear(arena.golem, target);
+                arena.golem.setOnGround(false);
+                AgentWeapons.glide(arena.golem);
+                c.assertTrue(arena.golem.isUsingItem() && arena.golem.isFallFlying(), "Fixture retains actual native charge and flight state");
+                var sequence = new AgentCompanions.Aerial(arena.record(arena.golem), target,
+                    arena.golem.position().add(1, 0, 0), arena.helpers.server.getTickCount());
+                arena.helpers.aerial.put(arena.golem.getUUID(), sequence);
+                long now = arena.helpers.clock.millis();
+                var expired = new AgentCompanions.PlayerTarget(arena.owner, arena.owner.connection, target, target.connection,
+                    arena.owner.level(), now - 1000, now - 1);
+                arena.helpers.playerTargets.put(arena.owner.getUUID(), expired);
+                var held = arena.golem.getMainHandItem().copy();
+                int use = arena.golem.getTicksUsingItem();
+                float health = target.getHealth();
+
+                AgentMenu.open(arena.owner);
+                var roster = (AgentMenu.Handler)arena.owner.containerMenu;
+                c.assertTrue(roster.view.getItem(22).getHoverName().getString().contains("Player order expired"),
+                    "Opening the real roster explains expiry without running its lifecycle validator");
+                int slot = roster.choices.entrySet().stream().filter(e -> e.getValue().equals(arena.golem.getStringUUID()))
+                    .mapToInt(java.util.Map.Entry::getKey).findFirst().orElseThrow();
+                roster.clicked(slot, 0, ContainerInput.PICKUP, arena.owner);
+                var detail = (AgentMenu.Handler)arena.owner.containerMenu;
+                detail.clicked(AgentMenu.INFO, 0, ContainerInput.PICKUP, arena.owner);
+                c.assertTrue(arena.helpers.playerTargets.get(arena.owner.getUUID()) == expired
+                    && arena.golem.getTarget() == target && arena.helpers.aerial.get(arena.golem.getUUID()) == sequence,
+                    "Roster opening, detail opening and status reading preserve the exact order, target and flight sequence");
+                c.assertTrue(arena.golem.isFallFlying() && arena.golem.isUsingItem()
+                    && ItemStack.isSameItemSameComponents(held, arena.golem.getMainHandItem())
+                    && use == arena.golem.getTicksUsingItem(), "Menu reads do not cancel flight, swap weapons or restart native charge");
+                c.assertValueEqual(target.getHealth(), health, "Menu reads cause no player damage");
+            } finally {
+                arena.owner.closeContainer();
+                arena.helpers.playerTargets.remove(arena.owner.getUUID());
+                target.level().getServer().getPlayerList().remove(target);
+            }
         }
         c.succeed();
     }

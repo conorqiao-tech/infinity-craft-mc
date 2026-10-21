@@ -34,12 +34,17 @@ public class AgentComboRecoveryGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=90)
-    public void normalCloseCombatKeepsMaceAndLandsCadencedFollowup(GameTestHelper c) {
+    public void blockedCloseArcKeepsMaceAndLandsCadencedGroundFollowup(GameTestHelper c) {
         var f = arena(c, "combo-close-cycle");
         var closed = new AtomicBoolean();
         var close = cleanup(f, closed);
+        // A blocked arc deliberately exercises the ground fallback. Open close
+        // combat is covered against native chasing AI by the chase regressions.
+        for (var at : BlockPos.betweenClosed(BlockPos.containing(f.start).offset(-9, 3, -9),
+                BlockPos.containing(f.start).offset(9, 3, 9)))
+            c.getLevel().setBlockAndUpdate(at, Blocks.STONE.defaultBlockState());
         f.target.getAttribute(Attributes.KNOCKBACK_RESISTANCE).setBaseValue(1);
-        f.golem.setPos(f.target.position().add(-1.6, 0, 0));
+        f.golem.setPos(f.target.position().add(-1, 0, 0));
         float[] health = {f.target.getHealth()};
         boolean[] sawMace = {false};
         var hits = new ArrayList<Integer>();
@@ -146,7 +151,8 @@ public class AgentComboRecoveryGameTests {
             var validated = move.landing;
             f.target.setPos(f.start.add(5, 0, 4)); f.target.setDeltaMovement(Vec3.ZERO);
             var direction = f.target.position().subtract(f.golem.position()).multiply(1, 0, 1).normalize();
-            var desired = new Vec3(f.target.getX()-direction.x*1.6, f.golem.getY(), f.target.getZ()-direction.z*1.6);
+            double offset = f.helpers.landingOffset(f.golem, f.target);
+            var desired = new Vec3(f.target.getX()-direction.x*offset, f.golem.getY(), f.target.getZ()-direction.z*offset);
             var shift = desired.subtract(validated).multiply(1, 0, 1);
             if (shift.lengthSqr()>4) shift=shift.normalize().scale(2);
             var unsafe = validated.add(shift);
@@ -188,7 +194,7 @@ public class AgentComboRecoveryGameTests {
         try (var f = arena(c, "combo-guard-contact")) {
             f.helpers.mode(f.owner, "alpha", AgentCompanions.Mode.GUARD);
             f.target.setPos(f.start.add(14.2, 0, 0));
-            f.golem.setPos(f.target.position().add(-1.6, 0, 0));
+            f.golem.setPos(f.target.position().add(-1, 0, 0));
             AgentWeapons.mace(f.golem, f.target);
             float health = f.target.getHealth(); var velocity = f.target.getDeltaMovement();
             c.assertTrue(f.helpers.insideLeash(f.record(f.golem), f.owner, f.golem.position()), "Helper itself remains in guard range");
@@ -196,7 +202,7 @@ public class AgentComboRecoveryGameTests {
             c.assertFalse(f.golem.doHurtTarget(c.getLevel(), f.target), "Native weapon contact rechecks the leash between five-tick controls");
             c.assertValueEqual(f.target.getHealth(), health, "An out-of-leash hostile loses no health");
             c.assertValueEqual(f.target.getDeltaMovement(), velocity, "An out-of-leash contact causes no knockback");
-            f.target.setPos(f.start.add(13.5, 0, 0)); f.golem.setPos(f.target.position().add(-1.6, 0, 0));
+            f.target.setPos(f.start.add(13.5, 0, 0)); f.golem.setPos(f.target.position().add(-1, 0, 0));
             c.assertTrue(f.golem.doHurtTarget(c.getLevel(), f.target), "An otherwise identical eligible contact still uses native damage");
             c.assertTrue(f.target.getHealth()<health, "In-leash control proves the refusal was the guard boundary");
         }
@@ -215,6 +221,10 @@ public class AgentComboRecoveryGameTests {
             target.level().getServer().getPlayerList().remove(target); f.close();
         };
         try {
+            // This case isolates revocation of the reviewed player. Leaving the
+            // fixture's unrelated Husk alive would legitimately resume ordinary
+            // hostile defense, including spear use, after the player is revoked.
+            f.target.discard();
             c.getLevel().getGameRules().set(GameRules.PVP, true, f.helpers.server);
             target.setGameMode(GameType.SURVIVAL); target.setPos(f.start.add(5, 0, 0));
             c.assertTrue(f.helpers.assignPlayerTarget(f.owner, target), "Fixture starts with the exact final reviewed player assignment");

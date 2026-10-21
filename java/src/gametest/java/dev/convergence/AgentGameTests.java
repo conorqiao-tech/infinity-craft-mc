@@ -246,21 +246,33 @@ public class AgentGameTests {
         }
         c.succeed();
     }
-    @GameTest public void helpersBoundNamesOwnershipAndUnloadedCount(GameTestHelper c) {
+    @GameTest public void helpersBoundNamesOwnershipAndUnloadedCount(GameTestHelper c) throws Exception {
         var p = player(c, "helper-owner"); var other = player(c, "helper-other"); var s = AgentCompanions.get(c.getLevel().getServer());
+        Path boundary = Files.createTempDirectory("infinity-helper-owner-boundary-");
         try {
             s.spawn(p, "../escape"); c.assertValueEqual(s.count(p), 0, "Invalid names rejected");
             var golem = golem(s, p, "one"); s.spawn(p, "one"); c.assertValueEqual(s.count(p), 1, "Duplicate name rejected");
             s.mode(other, "one", AgentCompanions.Mode.STAY); s.dismiss(other, "one");
             c.assertTrue(s.owned(p, "one") != null, "Other UUID cannot modify or dismiss owner's helper");
             c.assertValueEqual(s.owned(p, "one").getValue().mode(), AgentCompanions.Mode.FOLLOW, "Unauthorized mode change rejected");
-            for (String name : new String[]{"two", "three", "four", "five", "six"}) golem(s, p, name);
-            s.loaded.remove(golem.getUUID()); s.spawn(p, "seven");
-            c.assertValueEqual(s.count(p), AgentCompanions.LIMIT, "Unloaded helper still consumes a slot");
-            c.assertTrue(s.owned(p, "seven") == null, "Seventh helper rejected");
-            s.dismiss(p, "one"); s.load(golem); c.assertTrue(golem.isRemoved(), "Dismissed unloaded entity removed on next load");
-            c.assertValueEqual(s.count(p), AgentCompanions.LIMIT - 1, "Dismissal frees exactly one slot");
-        } finally { cleanup(s, p); cleanup(s, other); }
+            // Persist a full unloaded roster in its own file. Other concurrent
+            // lifecycle fixtures retain their real server-wide slots unchanged.
+            var isolated = new AgentCompanions(s.server, boundary.resolve("agents.json"));
+            isolated.data.agents.put(golem.getStringUUID(), s.owned(p, "one").getValue());
+            for (int index = 1; index < AgentCompanions.LIMIT; index++)
+                isolated.data.agents.put(UUID.randomUUID().toString(),
+                    new AgentCompanions.Agent(p.getStringUUID(), "saved-" + index, AgentCompanions.Mode.STAY,
+                        "minecraft:overworld", 0, 64, 0));
+            isolated.save();
+            c.assertValueEqual(AgentCompanions.read(isolated.file).agents.size(), AgentCompanions.LIMIT,
+                "All fifty saved identities remain readable, including unloaded helpers");
+            isolated.spawn(p, "overflow");
+            c.assertValueEqual(isolated.count(p), AgentCompanions.LIMIT, "Unloaded helpers still consume every slot");
+            c.assertTrue(isolated.owned(p, "overflow") == null, "The fifty-first helper is rejected");
+            isolated.dismiss(p, "one"); isolated.load(golem);
+            c.assertTrue(golem.isRemoved(), "Dismissed unloaded entity removed on next load");
+            c.assertValueEqual(isolated.count(p), AgentCompanions.LIMIT - 1, "Dismissal frees exactly one slot");
+        } finally { cleanup(s, p); cleanup(s, other); removeDirectory(boundary); }
         c.succeed();
     }
     @GameTest public void helpersPersistRosterVanillaTagsAndModes(GameTestHelper c) {
@@ -457,7 +469,7 @@ public class AgentGameTests {
             }
             Files.writeString(file, CommunityServer.GSON.toJson(data)); rejected = false;
             try { AgentCompanions.read(file); } catch (IllegalStateException expected) { rejected = true; }
-            c.assertTrue(rejected, "Roster rejects a 25th helper even when individual owners remain within six");
+            c.assertTrue(rejected, "Roster rejects a fifty-first helper even when individual owners remain within their limit");
         } finally { removeDirectory(dir); }
         c.succeed();
     }
@@ -558,7 +570,9 @@ public class AgentGameTests {
             s.control(first, s.owned(p, "alpha").getValue(), 20); s.control(second, s.owned(p, "beta").getValue(), 20);
             c.assertTrue(first.getTarget() == focus && second.getTarget() == focus, "Hive shares focus despite a nearer hostile for one golem");
             var left = s.flankPoint(first, s.owned(p, "alpha").getValue(), p, focus); var right = s.flankPoint(second, s.owned(p, "beta").getValue(), p, focus);
-            c.assertTrue(left != null && right != null && left.distanceToSqr(right) > 4, "Squad receives separate clear loaded flanking positions");
+            c.assertTrue(left != null && right != null && !first.getDimensions(first.getPose()).makeBoundingBox(left)
+                .intersects(second.getDimensions(second.getPose()).makeBoundingBox(right)),
+                "Squad receives separate clear loaded flanking positions without overlapping native bodies");
             closer.setTarget(p); s.control(first, s.owned(p, "alpha").getValue(), 25); s.control(second, s.owned(p, "beta").getValue(), 25);
             c.assertTrue(first.getTarget() == closer && second.getTarget() == closer, "Owner threat overrides prior shared focus");
             c.assertFalse(AgentCompanions.allowDamage(p, p.damageSources().mobAttack(first)), "Aggressive hive still cannot attack a player");
@@ -765,7 +779,10 @@ public class AgentGameTests {
         Runnable releaseTickets=()->{for(var chunk:tickets)c.getLevel().getChunkSource().removeTicketWithRadius(ticket,chunk,2);};
         Vec3 center=Vec3.atBottomCenterOf(feet);
         owner.setPos(center.add(0, 0, -5)); target.setPos(center.add(3, 0, 0));
-        target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100); target.setHealth(100);
+        // The route check keeps running after native Infinity sword contact. Give
+        // this fixture finite capacity through the real editor, before combat.
+        c.assertTrue(AdminStats.set(owner.createCommandSourceStack(), target, "health", 10000).success(), "Pursuit target starts with finite capacity without healing during combat");
+        c.assertValueEqual(target.getHealth(), 10000.0F, "The initial player health is not clamped to its ordinary capacity");
         c.getLevel().getGameRules().set(GameRules.PVP, true, s.server); var helper = golem(s, owner, "fighter"); s.profile(owner, "fighter", AgentCompanions.Profile.PRIMITIVE);
         helper.setPos(center.add(-3, 0, 0)); helper.setOnGround(true);
         BlockPos wall = BlockPos.containing(center);
@@ -817,6 +834,13 @@ public class AgentGameTests {
             var left = s.flankPoint(first, s.owned(owner, "alpha").getValue(), owner, focus); var right = s.flankPoint(second, s.owned(owner, "beta").getValue(), owner, focus);
             c.assertTrue(left != null && right != null, "The two actual combat peers have clear flanking positions");
             c.assertTrue(left.add(right).scale(.5).distanceToSqr(focus.position()) < .000001, "Two engaged peers receive opposite angles despite distant guards and another fight");
+            first.setPos(left); second.setPos(right);
+            AgentWeapons.mace(first, focus); AgentWeapons.mace(second, focus);
+            c.assertTrue(first.isWithinMeleeAttackRange(focus) && second.isWithinMeleeAttackRange(focus),
+                "Both selected ground flanks are inside the smaller bodies' actual native mace reach");
+            c.assertFalse(first.getBoundingBox().intersects(second.getBoundingBox())
+                || first.getBoundingBox().intersects(focus.getBoundingBox()) || second.getBoundingBox().intersects(focus.getBoundingBox()),
+                "Melee flanking does not require colliding with the target or teammate");
             second.setTarget(alternative);
             c.assertTrue(s.flankPoint(first, s.owned(owner, "alpha").getValue(), owner, focus) == null, "A lone engaged helper uses direct pursuit rather than a slot reserved for absent combat peers");
         } finally { focus.discard(); alternative.discard(); cleanup(s, owner); }

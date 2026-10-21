@@ -18,12 +18,13 @@ import net.minecraft.world.item.Items;
 /** Owner approvals are visible in-game; the separate console/Codex gate is unchanged. */
 final class AgentOrdersMenu {
     enum Page { MAIN, TARGETS, PENDING, REVIEW }
-    static final int TARGET=10,PENDING=12,APPROVE=11,CANCEL=15,BACK=49,PREVIOUS=45,NEXT=53;
+    static final int TARGET=10,PENDING=12,ENTITY_TARGET=14,APPROVE=11,CANCEL=15,BACK=49,PREVIOUS=45,NEXT=53;
     private static final Map<Integer,String> ACTIONS=Map.of(19,"set day",21,"set night",23,"clear weather",25,"make it rain",28,"save world",30,"list players");
     private AgentOrdersMenu() {}
     static int open(ServerPlayer owner) {
         return CrossplaySupport.bedrock(owner) ? BedrockAgentOrdersMenu.open(owner) : show(owner,Page.MAIN,0,null);
     }
+    static int openPending(ServerPlayer owner) { return show(owner,Page.PENDING,0,null); }
     private static int show(ServerPlayer owner,Page page,int index,String proposalId) {
         if(!AgentMenu.allowed(owner)||owner.containerMenu!=owner.inventoryMenu||!owner.inventoryMenu.getCarried().isEmpty())return 0;
         var queue=AgentActions.get(owner.level().getServer());queue.expire();
@@ -40,6 +41,8 @@ final class AgentOrdersMenu {
             AgentMenu.icon(view,TARGET,Items.PLAYER_HEAD,"Choose player target");
             AgentMenu.description(view,TARGET,"Propose a player for your Primitive or Ultimate Finals squad. Review your approval, then ask Codex here for its separate review. Nothing attacks automatically.");
             AgentMenu.icon(view,PENDING,Items.WRITABLE_BOOK,"Pending orders • approve or cancel");
+            AgentMenu.icon(view,ENTITY_TARGET,Items.IRON_SWORD,"Choose any nearby living target");
+            AgentMenu.description(view,ENTITY_TARGET,"Choose and review an exact mob, animal, pet or player. Mobs need your explicit confirmation; player attacks retain owner and live Codex approval. No broad automatic targeting is enabled.");
             for(var entry:ACTIONS.entrySet()) {
                 AgentMenu.icon(view,entry.getKey(),Items.PAPER,"Propose: "+entry.getValue());
                 AgentMenu.description(view,entry.getKey(),"Queues this exact action. Owner and live Codex approvals are both required before it runs.");
@@ -96,6 +99,7 @@ final class AgentOrdersMenu {
             if(page==Page.MAIN) {
                 if(slot==TARGET)next(Page.TARGETS,0,null);
                 else if(slot==PENDING)next(Page.PENDING,0,null);
+                else if(slot==ENTITY_TARGET) { owner.closeContainer();AgentEntityTargetMenu.open(owner); }
                 else if(ACTIONS.containsKey(slot)) { queue.suggest(owner,ACTIONS.get(slot));next(Page.PENDING,0,null); }
             } else if(page==Page.TARGETS) {
                 if((slot==PREVIOUS||slot==NEXT)&&!getSlot(slot).getItem().isEmpty())next(Page.TARGETS,index+(slot==NEXT?1:-1),null);

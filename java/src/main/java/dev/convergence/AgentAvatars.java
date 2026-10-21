@@ -3,6 +3,7 @@ package dev.convergence;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
 import net.minecraft.world.entity.EntityTypes;
 import eu.pb4.polymer.core.api.entity.PolymerEntityUtils;
+import com.mojang.datafixers.util.Pair;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -17,7 +18,9 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerPlayerConnection;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
 
@@ -39,6 +42,21 @@ final class AgentAvatars implements PolymerEntity {
     }
     @Override public EntityType<?> getPolymerEntityType(PacketContext context) {return EntityTypes.PLAYER;}
     @Override public boolean canSynchronizeToPolymerClient(ServerPlayer player) {return false;}
+    @Override public List<Pair<EquipmentSlot, ItemStack>> getPolymerVisibleEquipment(
+            List<Pair<EquipmentSlot, ItemStack>> equipment, ServerPlayer viewer) {
+        List<Pair<EquipmentSlot, ItemStack>> visible = null;
+        for (int index = 0; index < equipment.size(); index++) {
+            var entry = equipment.get(index);
+            if (entry.getFirst() != EquipmentSlot.MAINHAND) continue;
+            var stack = AgentWeapons.visibleWeapon(helper, entry.getSecond());
+            if (stack == entry.getSecond()) continue;
+            if (visible == null) visible = new ArrayList<>(equipment);
+            visible.set(index, Pair.of(entry.getFirst(), stack));
+        }
+        // Server equipment remains native for charge/mace physics. Only this
+        // helper avatar's outgoing weapon uses the catalogue's existing overlay.
+        return visible == null ? equipment : visible;
+    }
     ClientboundPlayerInfoUpdatePacket profilePacket() {
         var packet=PolymerEntityUtils.createMutablePlayerInfoUpdatePacket(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.ADD_PLAYER,
             ClientboundPlayerInfoUpdatePacket.Action.UPDATE_GAME_MODE,ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LISTED,
