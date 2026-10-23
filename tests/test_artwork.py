@@ -167,7 +167,11 @@ class OriginalArtworkTests(unittest.TestCase):
             held = ("bow", "crossbow", "shield")
             forge = tuple(suit + "_" + piece for suit in ("elemental", "infinity")
                           for piece in ("helmet", "chestplate", "leggings", "boots"))
-            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held, *forge)])
+            self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held, *forge)] + ["minecraft:elytra"])
+            spec = importlib.util.spec_from_file_location("combined_wing_resources", ROOT / "tools/combined_wing_resources.py")
+            overlay = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(overlay)
+            overlay.validate({name: pack.read(name) for name in pack.namelist() if not name.endswith("/")})
             self.assertEqual(len(identifiers),len(set(identifiers)),"Legacy duplicate attachables must not override the refreshed ones")
             for name,slot in wearable.items():
                 desc = json.loads(pack.read(f"attachables/refresh27/{name}.json"))["minecraft:attachable"]["description"]
@@ -206,7 +210,7 @@ class OriginalArtworkTests(unittest.TestCase):
             for piece in ("helmet","chestplate","leggings","boots"):
                 expected[outfit+"_"+piece] = expected["cuirass" if piece=="chestplate" else piece]
         self.assertCountEqual([p.stem.replace(".geo","") for p in (bed / "models/entity/original_armor").glob("*.geo.json")],
-                              list(expected)+["flight_shell"])
+                              list(expected)+["flight_shell", "combined_convergence_wings"])
         for name,joints in expected.items():
             desc = json.loads((bed / f"attachables/refresh27/{name}.json").read_text())["minecraft:attachable"]["description"]
             geo = json.loads((bed / f"models/entity/original_armor/{name}.geo.json").read_text())["minecraft:geometry"][0]

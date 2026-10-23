@@ -4,18 +4,36 @@ Infinity Armor for one shared Minecraft Java + Bedrock world. The Java Fabric se
 
 ## Join Infinity Craft
 
-| Edition | Server address | Port |
+| Edition | Client / address | Port |
 | --- | --- | --- |
-| Java (installed server: 26.3) | `infinity-craft.remotewire.net:25565` | Included in address |
-| Bedrock / iPad | `infinity-craft.remotewire.net` | `19132` |
+| Java | Minecraft **26.4 Snapshot 5**; current address from the owner panel | `25565` by default |
+| Bedrock / iPad | Supported Bedrock client; current address from the owner panel | `19132` by default |
 
-See [JOIN.md](JOIN.md) for connection steps. The owner confirmed a successful iPad/Bedrock join, and the Java TCP port passed an external check. A full Java player join still needs verification. You only need Minecraft on the device you play on. The host Mac must be awake and the Minecraft server running; the public website provides the guide and downloads.
+See [JOIN.md](JOIN.md) for connection steps. Use the panel's current addresses;
+previous temporary public tunnel addresses are not evidence of current access.
+The host Mac must be awake with the server running. Accept the offered resource
+pack on your playing device.
 
-The owner’s Mac server runs **Minecraft 26.3 / 2.13.0-explore.38**, installed with approval and a verified stopped-world backup on October 12, 2026. Both local Java and Bedrock listeners respond; authenticated public joining and current device visuals still need a player check. Its features are available through Infinity Menu and the Creative inventory. Java players need a 26.3 client. Upgrading an older 1.21.11 world converts it and requires a stopped-world backup.
+The owner's installed server is **2.13.0-explore.48**, on **Minecraft Java 26.4
+Snapshot 5**, Java 25 and the pinned Fabric/Geyser compatibility stack. An actual
+iPad login and stable four-piece armor have been confirmed. Actual iPad flight and the new combined appearance remain unverified.
+Installation, source changes and a published release are separate states.
 
-## Next source candidate: explore.39
+## Next source candidate: explore.49
 
-The source includes original Infinity artwork, **Aurora Set** and **Convergence Set** inventory entries, a separate solid Convergence chestplate, existing wings and the 46-entry Creative catalogue. Explore.39 prepares original held models for the bow, crossbow, Ward Shield and totem, preserving ordinary Minecraft textures and native arrow compatibility. Existing menu, inventory, stats, helper and client protections remain. See [original artwork](server/ORIGINAL_ARTWORK.md), [inventory controls](server/CREATIVE_INVENTORY.md) and [validation](server/VALIDATION.md) for the exact scope and checks. The owner's running server remains explore.38 until a separately approved installation.
+**Convergence Wings** combines the accepted Convergence chest armor and original
+folding wings in one chest-slot item. Native elytra flight and the existing item
+identity remain. Open **Infinity Menu → Elemental Forge → Get Convergence Wings**,
+then move that item into the chest equipment slot. Solid Infinity, Elemental and
+Convergence Armor Chestplates remain separate items. The conditional iPad
+appearance still needs a device check after a separately approved installation.
+See [combined chestplate and wings](server/WINGED_CHESTPLATE.md).
+
+The iPad helper detail screen keeps **Enable combos and follow me** visible and
+explains unavailable helpers with their saved/live location. It does not load,
+teleport or replace a helper when the control is unavailable. See
+[helper controls](server/HELPER_COMBOS.md) and [validation](server/VALIDATION.md).
+The live server remains explore.48 until installation is approved and completed.
 
 ## New in explore.25
 
@@ -27,7 +45,7 @@ Creative Studio adds an **Infinity Gust Glove**, **Infinity Anchor Charm** and c
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
-Java players use **Minecraft Java 26.3** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
+Java players use **Minecraft Java 26.4 Snapshot 5** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
@@ -51,7 +69,7 @@ Admin/OP4 can choose **Infinity Menu → Admin editor • players and AI** to ed
 
 Enter **Current health** or **Absorption** directly and confirm. If the value exceeds its current capacity, the same confirmation includes the capacity increase first. Capacity-only edits remain available and do not heal. Absorption saves its remaining amount after damage; armor-bypassing damage still applies.
 
-Use **Infinity Menu → AI Helpers** to create or manage up to six named AI player avatars. The first-helper button and status report make their presence visible. Choose Primitive, Regular, Ultimate Finals, Debug, CLI or API. Ultimate Finals shares targets, predicts pursuit, charges with a native netherite spear, briefly glides with an equipped elytra and switches to a mace for a falling smash. Normal server ticks acquire and attack eligible hostile mobs. Player targets need both exact approvals; no totem bypass is guaranteed.
+Use **Infinity Menu → AI Helpers** to create or manage up to fifty saved helpers per owner and fifty across the whole server. The first-helper button and status report make their presence visible. Choose Primitive, Regular, Ultimate Finals, Debug, CLI or API. Ultimate Finals shares targets, predicts pursuit, charges with an Infinity Spear, briefly glides with an equipped elytra and switches to an Infinity Mace for a falling smash. Normal server ticks acquire and attack eligible hostile mobs. Player targets need both exact approvals; no totem bypass is guaranteed.
 
 If a loaded helper is too far away or in another game world, select it and choose **Bring here**. Its existing health, profile and edited stats stay intact; it resumes Follow and the squad's player-target orders and pending target approvals are cleared. Unloaded helpers need their area visited first. Ordinary Follow does not teleport or load distant chunks.
 
@@ -61,7 +79,7 @@ The host can connect the installed, signed-in Codex CLI in the stopped-world pan
 
 | Path | Contents |
 | --- | --- |
-| [`java/`](java/) | Fabric 26.3 mod source, resources, GameTests, and Gradle wrapper |
+| [`java/`](java/) | Fabric 26.4 Snapshot 5 mod source, resources, GameTests, and Gradle wrapper |
 | [`bedrock/resource_pack/`](bedrock/resource_pack/) | Bedrock textures and client resource definitions used by the bridge |
 | [`server/`](server/) | Local launchers, dashboard, pinned dependency manifests, and setup guides |
 | [`tools/`](tools/) and [`tests/`](tests/) | Build, validation, packaging, and launcher tests |

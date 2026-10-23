@@ -60,6 +60,7 @@ final class CreativeRequestGuard extends PacketTranslator<ItemStackRequestPacket
     @Override
     public void translate(GeyserSession session, ItemStackRequestPacket packet) {
         delegate.translate(session, sanitize(session, packet));
+        WingedChestSupport.syncSelf(session);
     }
 
     @Override

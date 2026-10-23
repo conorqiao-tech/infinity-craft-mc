@@ -1,0 +1,40 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.convergence.combined_wings": {
+      "initial_state": "folded",
+      "states": {
+        "folded": {
+          "animations": [ "convergence_folded" ],
+          "transitions": [
+            { "gliding": "query.is_gliding" },
+            { "sleeping": "query.is_sleeping" },
+            { "swimming": "query.is_swimming" },
+            { "sneaking": "query.is_sneaking" }
+          ],
+          "blend_transition": 0.12
+        },
+        "gliding": {
+          "animations": [ "convergence_gliding" ],
+          "transitions": [ { "folded": "!query.is_gliding" } ],
+          "blend_transition": 0.12
+        },
+        "sneaking": {
+          "animations": [ "convergence_sneaking" ],
+          "transitions": [ { "folded": "!query.is_sneaking || query.is_gliding || query.is_sleeping || query.is_swimming" } ],
+          "blend_transition": 0.12
+        },
+        "sleeping": {
+          "animations": [ "convergence_sleeping" ],
+          "transitions": [ { "folded": "!query.is_sleeping || query.is_gliding" } ],
+          "blend_transition": 0.12
+        },
+        "swimming": {
+          "animations": [ "convergence_swimming" ],
+          "transitions": [ { "folded": "!query.is_swimming || query.is_gliding || query.is_sleeping" } ],
+          "blend_transition": 0.12
+        }
+      }
+    }
+  }
+}

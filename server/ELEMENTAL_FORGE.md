@@ -1,5 +1,24 @@
 # Elemental Forge
 
+The explore.49 source candidate adds **Get Convergence Wings • one empty slot**
+to the Forge home screen and prepares a conditional iPad chestplate-and-wings
+appearance for that same saved item. See [Winged chestplate](WINGED_CHESTPLATE.md).
+It is separate from the installed explore.48 version and still needs its device
+comparison after a separately approved installation.
+
+**Infinity Chestplate** and **Elemental Chestplate** are solid armor and do not
+glide. **Convergence Wings** provide armor and native elytra flight in one item.
+Claim them into an empty inventory slot, then equip them in the chest armor slot.
+Step off a ledge and press Jump while airborne to start gliding. Claiming wings preserves your equipped armor;
+replacing a solid Infinity piece also stops its full matching-set powers.
+
+Before that repair is installed, the optional recovery command
+`/convergence hold chestplate` gives the same item to an eligible Creative,
+Admin or OP2 player, preserving their previous held item when inventory has
+space. Equip the resulting **Convergence Wings** before testing flight.
+
+## Historical Forge updates
+
 Explore.44 prepares new matching Java/Bedrock pixel art for all four relics;
 see [Relic artwork](RELIC_ART.md). Its armor controllers also include the
 [render-view repair](ARMOR_VISIBILITY_REPAIR.md). The playable server is still

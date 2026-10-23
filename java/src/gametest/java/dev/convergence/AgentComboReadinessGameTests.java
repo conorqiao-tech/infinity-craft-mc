@@ -36,6 +36,61 @@ public class AgentComboReadinessGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena")
+    public void nativeContactCannotRetargetHelpersButPreservesOrdinaryGolemsAndPhysicalPush(GameTestHelper c) throws Exception {
+        try (var f = arena(c, "contact-target")) {
+            var ordinary = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.COMMAND);
+            c.assertTrue(ordinary != null, "A real ordinary golem is available for the native contact control");
+            try {
+                ordinary.setNoAi(true);
+                ordinary.setPos(f.start.add(0, 0, 3)); ordinary.setOnGround(true);
+                c.assertTrue(c.getLevel().addFreshEntity(ordinary), "The untagged control enters the native world");
+                c.assertFalse(AgentCompanions.registeredHelper(ordinary), "The control remains an ordinary golem");
+                // Invoke the actual protected collision method on both native entities.
+                // No replacement collision implementation or extra production accessor is used.
+                var contact = IronGolem.class.getDeclaredMethod("doPush", net.minecraft.world.entity.Entity.class);
+                contact.setAccessible(true);
+                long seed = 0;
+                for (; seed < 1000; seed++) {
+                    ordinary.getRandom().setSeed(seed);
+                    if (ordinary.getRandom().nextInt(20) == 0) break;
+                }
+                c.assertTrue(seed < 1000, "Select a real native random roll that enters the contact-acquisition branch");
+                f.target.setPos(ordinary.position().add(.8, 0, 0));
+                ordinary.setDeltaMovement(Vec3.ZERO); f.target.setDeltaMovement(Vec3.ZERO);
+                float health = f.target.getHealth();
+                ordinary.getRandom().setSeed(seed); contact.invoke(ordinary, f.target);
+                c.assertTrue(ordinary.getTarget() == f.target, "Ordinary golems retain actual native hostile contact acquisition");
+                c.assertTrue(ordinary.getDeltaMovement().horizontalDistanceSqr() > 0
+                    && f.target.getDeltaMovement().horizontalDistanceSqr() > 0,
+                    "Native ordinary contact physically pushes both entities");
+                f.helpers.mode(f.owner, "alpha", AgentCompanions.Mode.STAY);
+                f.golem.setPos(f.start); f.golem.setOnGround(true);
+                f.target.setPos(f.golem.position().add(.8, 0, 0));
+                f.golem.setDeltaMovement(Vec3.ZERO); f.target.setDeltaMovement(Vec3.ZERO);
+                c.assertTrue(AgentCompanions.registeredHelper(f.golem)
+                    && f.helpers.loaded.get(f.golem.getUUID()) == f.golem,
+                    "The stopped subject is the exact normally spawned and registered helper");
+                f.golem.getRandom().setSeed(seed); contact.invoke(f.golem, f.target);
+                c.assertTrue(f.golem.getTarget() == null && !f.golem.isUsingItem() && !f.golem.isFallFlying(),
+                    "A successful native collision roll cannot restart a Stay helper's combat state");
+                c.assertTrue(f.golem.getDeltaMovement().horizontalDistanceSqr() > 0
+                    && f.target.getDeltaMovement().horizontalDistanceSqr() > 0,
+                    "Suppressing automatic helper targeting preserves both native physical pushes");
+                c.assertValueEqual(f.target.getHealth(), health, "Collision and stopping invent no attack contact or damage");
+                f.helpers.mode(f.owner, "alpha", AgentCompanions.Mode.FOLLOW);
+                f.golem.setDeltaMovement(Vec3.ZERO); f.target.setDeltaMovement(Vec3.ZERO);
+                f.golem.getRandom().setSeed(seed); contact.invoke(f.golem, f.target);
+                c.assertTrue(f.golem.getTarget() == null, "Contact never replaces the active helper controller's target checks");
+                f.target.setPos(f.start.add(5, 0, 0));
+                f.helpers.control(f.golem, f.record(f.golem), f.helpers.server.getTickCount());
+                c.assertTrue(f.golem.getTarget() == f.target, "The resumed helper controller still acquires an eligible hostile normally");
+                c.assertTrue(f.helpers.playerTargets.isEmpty(), "Native contact never creates a reviewed player-target order");
+            } finally { ordinary.discard(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena")
     public void recentlyStrikingPeerCannotHoldReadyCloseMaceLane(GameTestHelper c) {
         try (var f = arena(c, "ready-recent-hit")) {
             f.golem.setPos(f.target.position().add(-2, 0, 0));

@@ -1,0 +1,40 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.convergence.combined_wings.folded": {
+      "loop": true,
+      "bones": {
+        "convergence_left_wing": { "rotation": [ -6, 0, 6 ] },
+        "convergence_right_wing": { "rotation": [ -6, 0, -6 ] }
+      }
+    },
+    "animation.convergence.combined_wings.gliding": {
+      "loop": true,
+      "bones": {
+        "convergence_left_wing": { "rotation": [ -7, 0, 65 ] },
+        "convergence_right_wing": { "rotation": [ -7, 0, -65 ] }
+      }
+    },
+    "animation.convergence.combined_wings.sneaking": {
+      "loop": true,
+      "bones": {
+        "convergence_left_wing": { "rotation": [ -15, 0, 18 ] },
+        "convergence_right_wing": { "rotation": [ -15, 0, -18 ] }
+      }
+    },
+    "animation.convergence.combined_wings.sleeping": {
+      "loop": true,
+      "bones": {
+        "convergence_left_wing": { "rotation": [ -2, 0, 4 ] },
+        "convergence_right_wing": { "rotation": [ -2, 0, -4 ] }
+      }
+    },
+    "animation.convergence.combined_wings.swimming": {
+      "loop": true,
+      "bones": {
+        "convergence_left_wing": { "rotation": [ -4, 0, 10 ] },
+        "convergence_right_wing": { "rotation": [ -4, 0, -10 ] }
+      }
+    }
+  }
+}

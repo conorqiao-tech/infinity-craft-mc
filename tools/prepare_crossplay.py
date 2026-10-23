@@ -10,11 +10,12 @@ import uuid
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
 from crossplay_resources import NATIVE_SPRITE_ATTACHABLES, resource_version, vanilla_equipment_override
+from combined_wing_resources import ATTACHABLE as COMBINED_ELYTRA, RENDERERS as COMBINED_RENDERERS, validate as validate_combined_wings
 from snapshot5_dependencies import (MINECRAFT, PROTOCOL, FABRIC_API, FABRIC_API_SHA256,
                                    digest as bounded_digest, snapshot_inputs, staged_forks)
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.48"
+VERSION = "2.13.0-explore.49"
 
 
 def fabric_api_input():
@@ -78,10 +79,13 @@ def prepare():
             continue
         # Only item-specific original armor/tools.
         # Exclude legacy duplicates and unsupported custom-glider definitions.
-        if name.startswith("attachables/") and not name.startswith(("attachables/refresh27/", "attachables/held/", "attachables/elemental41/")):
+        if name.startswith("attachables/") and name != COMBINED_ELYTRA and not name.startswith(("attachables/refresh27/", "attachables/held/", "attachables/elemental41/")):
             del files[name]
-        if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json", "render_controllers/original_static_armor.json", "render_controllers/original_tools.json", "render_controllers/elemental41.json"]:
+        if name.startswith("render_controllers/") and name not in ["render_controllers/infinity_visor.json", "render_controllers/flight.json", "render_controllers/original_static_armor.json", "render_controllers/original_tools.json", "render_controllers/elemental41.json", COMBINED_RENDERERS]:
             del files[name]
+    # One guarded, native-identity overlay is permitted. The old unconditional
+    # elytra override and every ordinary texture/icon override remain excluded.
+    validate_combined_wings(files)
     manifest = json.loads(files["manifest.json"])
     # Bedrock caches UUID+version. Reusing [2,12,0] across exploration builds
     # kept stale armor/resources installed after a server update.

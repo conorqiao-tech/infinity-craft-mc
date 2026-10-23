@@ -237,7 +237,7 @@ final class ServerMenu {
                 "Review health, speed, damage and more before applying.", "Base stats and equipment bonuses stay separate.");
             icon(view,SELF_STATS,Items.APPLE,"My stats • quick edit","OP4: jump straight to your own health and attributes.");
             icon(view,CRATES,Items.DYED_SHULKER_BOX.purple(),"Armor, tools & blocks • inventory boxes","Labeled sets: Convergence, Aurora, Ember, Elemental and Infinity.","Place and open the boxes to take items. Requires Creative or gear permission.");
-            icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","The Infinity winged chestplate uses an elytra on Bedrock.");
+            icon(view,ARMOR,Items.LEATHER_CHESTPLATE,"Armor sets • includes chestplates","Claim Aurora or Ember with all four pieces.","Convergence Wings combine armor and elytra flight.");
             icon(view,INVENTORY_GEAR,Items.NETHERITE_CHESTPLATE,"Armor & tools → inventory","Adds real equipment directly to empty inventory slots.","Keeps your existing items; Creative, Admin or OP2 required.");
             icon(view,RANKS,Items.EMERALD,"Ranks & subscriptions","Your badge, permanent rank and all milestone requirements.");
         } else if (page == Page.GEAR) {
@@ -256,7 +256,7 @@ final class ServerMenu {
             title="Infinity Armor Sets";
             icon(view,10,Items.LEATHER_CHESTPLATE,"Aurora • all four pieces","Helmet, chestplate, leggings and boots.","Earn Enchanter or use Admin access. Clear four inventory slots.");
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
-            icon(view,14,Items.ELYTRA,"Infinity winged chestplate","Keeps native elytra flight on Bedrock.","Choose the separate Convergence armor chestplate for solid armor.","Requires Creative, Admin or OP2.");
+            icon(view,14,Items.ELYTRA,"Convergence Wings • armor and flight","Equip in your chest armor slot, then press Jump while airborne.","Infinity Chestplate and Convergence Armor Chestplate are solid armor.","Also available in Elemental Forge. Requires Creative, Admin or OP2.");
             icon(view,16,Items.NETHERITE_CHESTPLATE,"Convergence Armor Chestplate","Solid custom armor; the wings remain a separate item.","Requires Creative, Admin or OP2.");
             icon(view,22,Items.AMETHYST_SHARD,"Elemental & Infinity Armor • Forge","New solid four-piece sets and saved elemental attunement.","Craft in Survival, or claim with Creative/Admin/OP2.");
         } else if(page==Page.RANKS) {

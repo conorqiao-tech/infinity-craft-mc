@@ -302,6 +302,9 @@ def main():
         "ordinary_requests_and_unowned_creative_entries_unchanged"))
     wire_entries = verified_creative_wire(ROOT, lock, provenance)
     persistence_entries = verified_creative_persistence(ROOT, lock, provenance)
+    from check_winged_chest import verified as verified_winged_chest
+    winged_receipt = ROOT / "research/winged-chest" / (VERSION + ".json")
+    verified_winged_chest(winged_receipt)
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
@@ -339,6 +342,8 @@ def main():
     entries["ARMOR_ATTACHMENT_REPAIR.md"] = (server / "ARMOR_ATTACHMENT_REPAIR.md").read_bytes()
     entries["HELPER_CONTROLS.md"] = (server / "HELPER_CONTROLS.md").read_bytes()
     entries["HELPER_COMBOS.md"] = (server / "HELPER_COMBOS.md").read_bytes()
+    entries["WINGED_CHESTPLATE.md"] = (server / "WINGED_CHESTPLATE.md").read_bytes()
+    entries["checks/winged-chest.json"] = winged_receipt.read_bytes()
     capacity_checks = ROOT / "research/capacity-performance" / VERSION
     if capacity_checks.exists():
         from benchmark_capacity import capacity_labels, evidence_hashes, validate_measurement
@@ -387,6 +392,7 @@ def main():
         if file.is_file():
             source[file.relative_to(ROOT).as_posix()] = file.read_bytes()
     for name in ["tools/verify_snapshot5_integration.py", "tools/build_snapshot5_dependencies.py", "tools/snapshot5_dependencies.py", "tools/native_checks/Snapshot5ViaFixture.java",
+        "tools/combined_wing_resources.py", "tools/check_winged_chest.py", "tools/creative-bridge-proof/WingedChestProof.java",
         "java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
         "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
         "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/package_armor_attachment_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py", "tests/fixtures/armor_native_pose_contract.json",

@@ -1,4 +1,28 @@
-# Explore.48 source candidate • Java 26.4 Snapshot 5 and iPad crossplay
+# Explore.49 candidate • Convergence winged chestplate and iPad controls
+
+Convergence Wings now has a conditional iPad appearance combining the accepted
+Convergence chest armor and folding wings in one chest-slot item, while keeping
+native elytra flight. Open **Infinity Menu → Elemental Forge → Get Convergence
+Wings**, then equip the item in the chest slot. Ordinary elytra keeps its native
+rendering when the cosmetic marker is absent or false. See
+[Winged chestplate](WINGED_CHESTPLATE.md).
+
+The iPad helper detail keeps **Enable combos and follow me** visible, with a
+location and explanation when unavailable. The native collision repair prevents
+contact from assigning targets outside the helper controller; physical pushing,
+ordinary golems and both player-target approvals remain. See
+[Helper combat](HELPER_COMBOS.md).
+
+This is **2.13.0-explore.49** for the pinned **Minecraft Java 26.4 Snapshot 5** /
+Java25 / Fabric / Geyser stack. The owner’s installed server remains explore.48.
+The candidate is not installed by preparing or merging source; installation
+requires separate owner approval and a verified stopped-world backup. Native,
+launcher, compatibility and preservation evidence is in
+[Validation](VALIDATION.md). Actual combined iPad rendering and gliding still
+need a device check after installation. Keep worlds, player data, credentials,
+settings and live AI approvals private and intact.
+
+# Historical explore.48 source candidate • Java 26.4 Snapshot 5 and iPad crossplay
 
 This candidate ports InfinityCraft to the exact Java **26.4 Snapshot 5** server
 while retaining the existing Geyser iPad client support. It includes local
