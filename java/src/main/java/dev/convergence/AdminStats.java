@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import dev.convergence.mixin.AttributeMapAccess;
 import java.util.*;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -67,6 +68,16 @@ public final class AdminStats {
         return key.getNamespace().equals("minecraft")?key.getPath():key.toString();
     }
     private static String key(Holder<Attribute> entry) {return BuiltInRegistries.ATTRIBUTE.getKey(entry.value()).toString();}
+    /** A preview must not materialize default instances in native saved attributes. */
+    static AttributeInstance cachedAttribute(LivingEntity target,Holder<Attribute> entry) {
+        return ((AttributeMapAccess)target.getAttributes()).infinity$getInstances().get(entry);
+    }
+    static AttributeInstance detachedAttribute(LivingEntity target,Holder<Attribute> entry) {
+        var map=(AttributeMapAccess)target.getAttributes();
+        var current=map.infinity$getInstances().get(entry);
+        if(current==null)return map.infinity$getSupplier().createInstance(ignored->{},entry);
+        var copy=new AttributeInstance(entry,ignored->{});copy.replaceFrom(current);return copy;
+    }
     private static CompoundTag originals(LivingEntity target) {
         return target instanceof ServerPlayer player?GameModes.state(player).getCompoundOrEmpty(STORAGE):
             target instanceof AdminStatEntity saved?saved.infinity$adminStats():new CompoundTag();
@@ -116,9 +127,9 @@ public final class AdminStats {
     public static Value value(LivingEntity target,Stat stat) {
         double value;
         if(stat.attribute()) {
-            var entry=attribute(stat.id());var instance=entry==null?null:target.getAttribute(entry);
-            if(instance==null)return new Value(Double.NaN,Double.NaN,false);
-            return new Value(instance.getBaseValue(),instance.getValue(),originals(target).contains(key(entry)));
+            var entry=attribute(stat.id());
+            if(entry==null||!target.getAttributes().hasAttribute(entry))return new Value(Double.NaN,Double.NaN,false);
+            return new Value(target.getAttributes().getBaseValue(entry),target.getAttributes().getValue(entry),originals(target).contains(key(entry)));
         }
         if(stat.id().equals("health"))value=target.getHealth();
         else if(stat.id().equals("absorption"))value=target.getAbsorptionAmount();
@@ -156,7 +167,7 @@ public final class AdminStats {
         if(capacity!=null && amount>stat.maximum()) {
             var limit=find(target,capacity);
             if(limit==null)throw new IllegalArgumentException("This target has no editable capacity for "+stat.label()+".");
-            var current=target.getAttribute(attribute(capacity));
+            var current=detachedAttribute(target,attribute(capacity));
             // Evaluate a detached copy so equipment/effect modifiers are preserved and
             // a draft never changes the real entity, even with a negative multiplier.
             var probe=new AttributeInstance(attribute(capacity),ignored->{});

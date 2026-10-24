@@ -271,6 +271,9 @@ final class AgentChat {
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> dispatcher.register(
             Commands.literal("agent").requires(AgentCompanions::operator)
                 .then(Commands.literal("profiles").executes(c -> profiles(c.getSource())))
+                .then(Commands.literal("plan").executes(c -> GptSquadMenu.open(c.getSource().getPlayerOrException()))
+                    .then(Commands.argument("goal", StringArgumentType.greedyString())
+                        .executes(c -> GptSquadPlanner.request(c.getSource().getPlayerOrException(), StringArgumentType.getString(c, "goal")))))
                 .then(Commands.literal("data").then(Commands.argument("name", StringArgumentType.word())
                     .executes(c -> data(c.getSource(), StringArgumentType.getString(c, "name")))))
                 .then(Commands.literal("history").then(Commands.argument("name", StringArgumentType.word())

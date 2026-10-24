@@ -89,7 +89,7 @@ final class BedrockAgentOrdersMenu {
             AgentActions.Action action, String ownerId, String description, long createdAt,
             AgentActions.TargetSession targetBinding, AdminStatsMenu.Session target) {
         Review(AgentActions queue, String id, AgentActions.Proposal proposal) {
-            this(queue, id, proposal, proposal.state, proposal.action, proposal.owner, proposal.description(), proposal.createdAt,
+            this(queue, id, proposal, proposal.state, proposal.action, proposal.owner, queue.reviewDescription(proposal), proposal.createdAt,
                 queue.targetSessions.get(id), queue.targetSessions.get(id) == null ? null : new AdminStatsMenu.Session(queue.targetSessions.get(id).target()));
         }
         boolean valid(ServerPlayer owner) {
@@ -97,7 +97,7 @@ final class BedrockAgentOrdersMenu {
             if (AgentActions.INSTANCES.get(queue.server) != queue || queue.data.proposals.get(id) != proposal
                     || !ownerId.equals(owner.getStringUUID()) || !ownerId.equals(proposal.owner)
                     || !proposal.active() || proposal.state != state || proposal.action != action || proposal.createdAt != createdAt
-                    || now < createdAt || now - createdAt >= AgentActions.LIFETIME_MS || !description.equals(proposal.description())) return false;
+                    || now < createdAt || now - createdAt >= AgentActions.LIFETIME_MS || !description.equals(queue.reviewDescription(proposal))) return false;
             return action != AgentActions.Action.TARGET || target != null && target.valid()
                 && queue.targetSessions.get(id) == targetBinding && queue.targetProblem(id, proposal) == null;
         }
@@ -120,7 +120,7 @@ final class BedrockAgentOrdersMenu {
         for (var snapshot : snapshots) {
             text.append("\nID: ").append(snapshot.id()).append('\n').append(snapshot.description()).append('\n').append(snapshot.status())
                 .append("\nExpires in ").append(snapshot.secondsRemaining()).append(" seconds.\n");
-            choices.add(choice("Review: " + snapshot.description(), () -> review(owner, snapshot.id(), "", sender)));
+            choices.add(choice(snapshot.proposal().action == AgentActions.Action.SQUAD_PLAN ? "Review GPT squad plan • " + snapshot.proposal().helperIds.size() + " helpers" : "Review: " + snapshot.description(), () -> review(owner, snapshot.id(), "", sender)));
         }
         choices.add(choice("Refresh pending orders", () -> pending(owner, "", sender)));
         choices.add(choice("Back to Orders", () -> main(owner, "", sender)));

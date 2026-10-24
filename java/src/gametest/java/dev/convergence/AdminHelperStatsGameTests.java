@@ -140,7 +140,7 @@ public class AdminHelperStatsGameTests {
             c.assertFalse(AdminStats.set(actor.createCommandSourceStack().withPermission(PermissionSet.ALL_PERMISSIONS), helper, "max_health", 500).success(), "Forged source permission cannot replace real OP4");
             c.assertFalse(AdminStats.resetAll(actor.createCommandSourceStack(), helper).success(), "Reset requires the same actual authorization");
             c.assertValueEqual(helper.getMaxHealth(), 180f, "Rejected edits preserve the actual helper value");
-            c.assertValueEqual(AdminStats.original(helper, AdminStats.find(helper, "max_health")), 100d, "Rejected edits preserve original reset history");
+            c.assertValueEqual(AdminStats.original(helper, AdminStats.find(helper, "max_health")), 1000d, "Rejected edits preserve original OP helper reset history");
         } finally { cleanup(actor); cleanup(owner); }
         c.succeed();
     }
@@ -201,9 +201,13 @@ public class AdminHelperStatsGameTests {
             c.assertTrue(AdminStats.resetAll(owner.createCommandSourceStack(), helper).success(), "Reloaded entity can restore originals");
             c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 19d, "Reset restores the original custom base");
             c.assertValueEqual(helper.getAttributeValue(Attributes.ATTACK_DAMAGE), 24d, "Reset leaves the independent modifier in place");
-            c.assertValueEqual(helper.getMaxHealth(), 100f, "Reset restores the golem's original maximum");
-            c.assertValueEqual(helper.getHealth(), 100f, "Reset clamps current health to the restored maximum");
-            c.assertFalse(save(helper).contains("InfinityAdminStats"), "Reset removes obsolete entity undo data");
+            c.assertValueEqual(helper.getMaxHealth(), 1000f, "Reset restores the helper's original OP maximum");
+            c.assertValueEqual(helper.getHealth(), 1000f, "Reset clamps current health to the restored maximum");
+            var migrationOnly = new CompoundTag(); migrationOnly.putInt(HelperPowerDefaults.MARKER, HelperPowerDefaults.VERSION);
+            c.assertValueEqual(((AdminStatEntity)helper).infinity$adminStats(), migrationOnly,
+                "Reset removes every undo record and retains exactly the one-time power migration marker");
+            c.assertValueEqual(save(helper).getCompoundOrEmpty("InfinityAdminStats"), migrationOnly,
+                "Native entity NBT contains only the migration marker after all original attributes are restored");
         } finally { cleanup(owner); }
         c.succeed();
     }
@@ -212,6 +216,7 @@ public class AdminHelperStatsGameTests {
         var owner = owner(c, "helper-fields-op");
         try {
             var helper = helper(c, owner, "fields");
+            var beforeRejected = ((AdminStatEntity)helper).infinity$adminStats().copy();
             var ids = AdminStats.list(helper).stream().map(AdminStats.Stat::id).toList();
             for (var id : List.of("health", "absorption", "max_health", "attack_damage", "movement_speed"))
                 c.assertTrue(ids.contains(id), "Supported helper field is discoverable: " + id);
@@ -221,7 +226,7 @@ public class AdminHelperStatsGameTests {
             }
             c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "attack_damage", Double.NaN).success(), "Non-finite helper damage is rejected");
             c.assertFalse(AdminStats.set(owner.createCommandSourceStack(), helper, "max_health", Math.nextUp((double)Float.MAX_VALUE)).success(), "Non-representable helper health is refused");
-            c.assertTrue(((AdminStatEntity) helper).infinity$adminStats().isEmpty(), "Rejected fields leave no misleading reset metadata");
+            c.assertValueEqual(((AdminStatEntity)helper).infinity$adminStats(), beforeRejected, "Rejected fields preserve migration metadata without adding misleading reset records");
         } finally { cleanup(owner); }
         c.succeed();
     }

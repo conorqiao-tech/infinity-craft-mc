@@ -15,7 +15,7 @@ from snapshot5_dependencies import (MINECRAFT, PROTOCOL, FABRIC_API, FABRIC_API_
                                    digest as bounded_digest, snapshot_inputs, staged_forks)
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.13.0-explore.50"
+VERSION = "2.13.0-explore.51"
 
 
 def fabric_api_input():

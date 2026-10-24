@@ -80,6 +80,14 @@ public class AgentEntityTargetGameTests {
             var cow = f.mob(EntityTypes.COW, "chosen-cow", 1.1, 0);
             var other = f.mob(EntityTypes.COW, "protected-cow", 1.1, .5);
             var pet = f.mob(EntityTypes.WOLF, "chosen-pet", 1.1, -.5); pet.tame(f.live.owner);
+            // A selected victim must survive the new 100-base native helper hit
+            // so the following observations can still inspect its live target
+            // identity and revoke its permission. Taming changes wolf vitals,
+            // so establish this finite test capacity after the native tame call.
+            for (var selected : List.of(cow, pet)) {
+                selected.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH).setBaseValue(1000);
+                selected.setHealth(1000);
+            }
             float cowHealth = cow.getHealth(), otherHealth = other.getHealth(), petHealth = pet.getHealth();
             f.live.control();
             c.assertTrue(f.live.helper.getTarget() == null, "Ordinary defense does not acquire animals or pets");
@@ -87,6 +95,8 @@ public class AgentEntityTargetGameTests {
             c.assertTrue(AgentEntityTargets.select(f.live.owner, cow), "Owner can deliberately choose one exact ordinary animal");
             f.live.core.control(f.live.helper, f.live.core.owned(f.live.owner, "fighter").getValue(), 20);
             c.assertTrue(f.live.helper.getTarget() == cow && cow.getHealth() < cowHealth, "Normal helper native melee damages the chosen animal");
+            c.assertTrue(cow.isAlive() && cow.getLastDamageSource() != null && cow.getLastDamageSource().getEntity() == f.live.helper,
+                "The selected animal survives actual native helper damage for the remaining exact-permission observations");
             c.assertFalse(f.live.helper.doHurtTarget(c.getLevel(), other), "Another animal cannot inherit a chosen target's damage permission");
             c.assertFalse(f.live.helper.doHurtTarget(c.getLevel(), pet), "An unselected pet remains protected");
             c.assertValueEqual(other.getHealth(), otherHealth, "Incidental animal remains untouched");
@@ -94,6 +104,8 @@ public class AgentEntityTargetGameTests {
             c.assertTrue(AgentEntityTargets.select(f.live.owner, pet), "Explicit pet selection is distinct from automatic acquisition");
             f.live.core.control(f.live.helper, f.live.core.owned(f.live.owner, "fighter").getValue(), 40);
             c.assertTrue(f.live.helper.getTarget() == pet && pet.getHealth() < petHealth, "The deliberately selected pet is a native combat target");
+            c.assertTrue(pet.isAlive() && pet.getLastDamageSource() != null && pet.getLastDamageSource().getEntity() == f.live.helper,
+                "The selected pet survives actual native helper damage before the explicit ceasefire check");
             f.live.core.ceasefire(f.live.owner);
             c.assertTrue(AgentEntityTargets.current(f.live.owner) == null && f.live.helper.getTarget() == null, "Ceasefire clears the exact order and current attack");
             c.assertFalse(AgentCompanions.allowDamage(pet, pet.damageSources().mobAttack(f.live.helper)), "Permission closes immediately after ceasefire");

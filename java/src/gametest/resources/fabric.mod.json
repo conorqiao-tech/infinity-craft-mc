@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "convergence_tests",
-  "version": "2.13.0-explore.48",
+  "version": "2.13.0-explore.51",
   "name": "Infinity Armor Tests",
   "environment": "*",
   "entrypoints": {
@@ -78,7 +78,14 @@
       "dev.convergence.AgentInfinityWeaponsGameTests",
       "dev.convergence.AgentFollowGroundGameTests",
       "dev.convergence.HelperBatchGameTests",
-      "dev.convergence.HelperBatchMenuGameTests"
+      "dev.convergence.HelperBatchMenuGameTests",
+      "dev.convergence.PlayerStatBatchGameTests",
+      "dev.convergence.GroupStatsMenuGameTests",
+      "dev.convergence.HelperPowerGameTests",
+      "dev.convergence.HelperFormationGameTests",
+      "dev.convergence.GptSquadPlannerGameTests",
+      "dev.convergence.GptSquadActionsGameTests",
+      "dev.convergence.GptSquadMenuGameTests"
     ]
   },
   "mixins": [
@@ -129,7 +136,14 @@
       "dev.convergence.AgentInfinityWeaponsGameTests",
       "dev.convergence.AgentFollowGroundGameTests",
       "dev.convergence.HelperBatchGameTests",
-      "dev.convergence.HelperBatchMenuGameTests"
+      "dev.convergence.HelperBatchMenuGameTests",
+      "dev.convergence.PlayerStatBatchGameTests",
+      "dev.convergence.GroupStatsMenuGameTests",
+      "dev.convergence.HelperPowerGameTests",
+      "dev.convergence.HelperFormationGameTests",
+      "dev.convergence.GptSquadPlannerGameTests",
+      "dev.convergence.GptSquadActionsGameTests",
+      "dev.convergence.GptSquadMenuGameTests"
     ]
   },
   "depends": {
