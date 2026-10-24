@@ -50,7 +50,7 @@ final class CrossplaySupport {
     // so ordinary Bedrock bows can load them. The pinned bridge supplies original
     // held bow/crossbow definitions with Creative and firework ammunition behavior.
     // Static armor and held tools never replace ordinary native armor/textures.
-    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate",
+    static final Set<String> NATIVE_BEDROCK = Set.of("chestplate", "infinity_chestplate",
         "infinity_arrow", "void_arrow", "starfire_arrow");
     private static final Set<String> POWER_ITEMS = Set.of("sword", "mace", "spear", "pickaxe", "axe", "shovel", "hoe", "builder_wand", "sculptor_wand",
         "blink_wand","party_wand","plane_remote","blueprint_wand","storm_staff",
@@ -95,7 +95,10 @@ final class CrossplaySupport {
         BASES.putAll(ExpandedGear.COSMETIC_ARMOR);
         for (var suit : ElementalArmor.Suit.values()) for (String piece : List.of("helmet", "chestplate", "leggings", "boots")) {
             String path = suit.prefix() + "_" + piece;
-            BASES.put(path, ElementalArmor.baseItem(path));
+            // Bedrock flight requires its native elytra identity. This changes
+            // only the wire projection; the real Infinity chestpiece retains
+            // its original armor defaults and exact matching-set identity.
+            BASES.put(path, path.equals("infinity_chestplate") ? Items.ELYTRA : ElementalArmor.baseItem(path));
         }
         for (String path : ElementalRelics.PATHS) BASES.put(path, ElementalRelics.BASES.get(path));
         for (String path : AstralItems.PATHS) BASES.put(path, AstralItems.BASES.get(path));

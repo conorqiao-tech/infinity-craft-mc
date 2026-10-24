@@ -1,4 +1,21 @@
-# Explore.49 candidate — combined chestplate and wings
+# Explore.50 candidate — Infinity Chestplate flight and helper batches
+
+The existing Infinity Chestplate now has native gliding and an appearance that
+combines its accepted Infinity armor shell with folding wings. Its item identity,
+armor protection and full-set powers remain. Convergence Wings and ordinary
+elytra retain their existing behavior. The same candidate prepares quantity-based
+helper spawning up to fifty total per owner and server, with unloaded helpers
+counted.
+
+The live server is the separately approved explore.49. The owner confirmed helper
+following and combos there, and identified Infinity Chestplate as the item that
+still could not glide. This source candidate passed 673 native and 419
+launcher/resource tests and is not installed
+by preparation or merge. Live installation requires separate owner approval and
+a verified stopped-world backup. Actual iPad flight/rendering remains a device
+check. See the winged chestplate, helper and validation guides.
+
+# Historical explore.49 candidate — combined chestplate and wings
 
 This candidate adds a conditional Bedrock appearance to the existing Convergence
 wing item: the accepted same-set torso and arms plus original folding wings in

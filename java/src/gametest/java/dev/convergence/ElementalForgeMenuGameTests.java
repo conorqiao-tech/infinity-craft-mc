@@ -74,7 +74,8 @@ public class ElementalForgeMenuGameTests {
             p.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
             var form = wingForm(c, p);
             var text = ElementalForgeMenu.view(p, ElementalForgeMenu.Page.HOME, "").content();
-            c.assertTrue(text.contains("Solid Infinity and Elemental chestplates do not glide")
+            c.assertTrue(text.contains("Infinity Chestplate combines Infinity armor, full-set powers and native elytra flight")
+                && text.contains("Elemental chestplates do not glide")
                 && text.contains("chest armor slot") && text.contains("tap Jump while airborne"), "The Forge explains the actual equipment and flight controls");
             reply(form, Integer.toString(wingButton(form)));
             c.assertValueEqual(wingCount(p), 1, "The encoded native button delivers exactly one existing wing item");

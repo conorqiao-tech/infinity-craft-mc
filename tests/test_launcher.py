@@ -331,7 +331,7 @@ class LauncherTests(unittest.TestCase):
         mappings = json.loads((exports / "infinity-items.json").read_text())
         definitions = [entry for entries in mappings["items"].values() for entry in entries]
         catalogue = json.loads((exports / "infinity-catalogue.json").read_text())
-        native_fallbacks = {"chestplate", "infinity_arrow", "void_arrow", "starfire_arrow"}
+        native_fallbacks = {"chestplate", "infinity_chestplate", "infinity_arrow", "void_arrow", "starfire_arrow"}
         expected_mapped = {entry["path"] for entry in catalogue["items"]} - native_fallbacks
         self.assertEqual(len(definitions), len(expected_mapped))
         self.assertEqual({entry["bedrock_identifier"].split(":")[-1] for entry in definitions}, expected_mapped)
@@ -339,8 +339,13 @@ class LauncherTests(unittest.TestCase):
             "All three new original Astral tools must be in the actual native catalogue")
         self.assertTrue(all(entry["type"] == "definition" for entry in definitions))
         static_wearables={"helmet","cuirass","leggings","boots","backpack",*(outfit+"_"+piece for outfit in ("aurora","ember","elemental","infinity") for piece in ("helmet","chestplate","leggings","boots"))}
+        static_wearables.remove("infinity_chestplate")
+        infinity = next(entry for entry in catalogue["items"] if entry["path"] == "infinity_chestplate")
+        self.assertEqual((infinity["base"], infinity["native_appearance"], infinity["slot"], infinity["protection"]),
+                         ("minecraft:elytra", True, "chest", 14), "Infinity retains its canonical armor identity while using native flight")
         mapped={entry["bedrock_identifier"].split(":")[-1]:entry for entry in definitions}
         self.assertNotIn("chestplate",mapped,"Keep the existing glider on native elytra behavior")
+        self.assertNotIn("infinity_chestplate",mapped,"The Infinity glider must also keep native elytra behavior")
         self.assertTrue({"bow", "crossbow", "shield", "totem"}.issubset(mapped), "Original held items have their own canonical model mappings")
         self.assertTrue({"infinity_arrow", "void_arrow", "starfire_arrow"}.isdisjoint(mapped), "Native arrow identities stay compatible with ordinary ranged weapons")
         self.assertTrue(static_wearables.issubset(mapped))

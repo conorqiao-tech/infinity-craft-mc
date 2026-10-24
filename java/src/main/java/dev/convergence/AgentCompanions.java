@@ -57,6 +57,9 @@ public final class AgentCompanions {
     final Path file;
     final Data data;
     final Clock clock;
+    // A failed ownership rollback requires manual inspection. Never let a later
+    // creation silently overwrite its unresolved saved roster in this runtime.
+    boolean creationRecoveryRequired;
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
@@ -186,6 +189,10 @@ public final class AgentCompanions {
         } catch (Exception e) { throw new IllegalStateException("Cannot read " + file + ". Restore its .previous backup; the original was not overwritten.", e); }
     }
     void save() {
+        // A failed batch rollback leaves the main roster and .previous as
+        // distinct recovery evidence. Nothing may rotate or overwrite either
+        // file until the host has inspected them, including automatic callbacks.
+        if (creationRecoveryRequired) return;
         try {
             if (java.nio.file.Files.exists(file)) java.nio.file.Files.copy(file, file.resolveSibling(file.getFileName() + ".previous"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             CommunityServer.atomicJson(file, data);
@@ -296,6 +303,15 @@ public final class AgentCompanions {
         return data.agents.entrySet().stream().filter(e -> e.getValue().owner.equals(owner.getStringUUID()) && e.getValue().name.equals(name)).findFirst().orElse(null);
     }
     int count(ServerPlayer owner) { return (int) data.agents.values().stream().filter(a -> a.owner.equals(owner.getStringUUID())).count(); }
+    /** Saved/unloaded identities reserve capacity just like loaded helpers. */
+    int remaining(ServerPlayer owner) {
+        return creationRecoveryRequired ? 0 : Math.max(0, Math.min(LIMIT - count(owner), GLOBAL_LIMIT - data.agents.size()));
+    }
+    private boolean rosterWritable(ServerPlayer owner) {
+        if (!creationRecoveryRequired) return true;
+        reply(owner, "Helper ownership is frozen after a recovery failure. No change was saved. Ask the host to inspect the roster and its .previous recovery copy.");
+        return false;
+    }
     static int reply(ServerPlayer owner, String text) { return CommunityServer.say(owner, text); }
 
     static boolean playerCombatProfile(Profile profile) { return profile == Profile.PRIMITIVE || profile == Profile.ULTIMATE_FINALS; }
@@ -389,8 +405,13 @@ public final class AgentCompanions {
         return spawnPlace(owner, null);
     }
     private static Vec3 spawnPlace(ServerPlayer owner, IronGolem helper) {
+        var places = spawnPlaces(owner, helper, 1, 4);
+        return places.isEmpty() ? null : places.getFirst();
+    }
+    private static List<Vec3> spawnPlaces(ServerPlayer owner, IronGolem helper, int count, int maxRadius) {
         ServerLevel world = owner.level(); BlockPos origin = owner.blockPosition();
-        for (int radius = 2; radius <= 4; radius++) for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
+        var places = new ArrayList<Vec3>(); var reserved = new ArrayList<AABB>();
+        for (int radius = 2; radius <= maxRadius; radius++) for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
             if (Math.abs(dx) != radius && Math.abs(dz) != radius) continue;
             BlockPos feet = origin.offset(dx, 0, dz);
             if (!world.hasChunk(feet.getX() >> 4, feet.getZ() >> 4) || !world.isInWorldBounds(feet.above(2)) || !world.getWorldBorder().isWithinBounds(feet)) continue;
@@ -407,10 +428,14 @@ public final class AgentCompanions {
                 var floor = world.getBlockState(support);
                 if (!floor.isCollisionShapeFullBlock(world, support) || !floor.getFluidState().isEmpty() || floor.is(Blocks.MAGMA_BLOCK)) { supported = false; break; }
             }
-            if (supported && world.noBlockCollision(null, space) && world.getEntities(helper == null ? owner : helper, space, Entity::isAlive).isEmpty()
-                && world.getBlockState(feet).getFluidState().isEmpty()) return Vec3.atBottomCenterOf(feet);
+            if (supported && reserved.stream().noneMatch(space::intersects) && world.noBlockCollision(null, space)
+                && world.getEntities(helper == null ? owner : helper, space, Entity::isAlive).isEmpty()
+                && world.getBlockState(feet).getFluidState().isEmpty()) {
+                places.add(Vec3.atBottomCenterOf(feet)); reserved.add(space);
+                if (places.size() == count) return List.copyOf(places);
+            }
         }
-        return null;
+        return List.of(); // Never commit a smaller batch than the owner selected.
     }
     /** ModeEntityMixin may allow only the exact transfer validated by recall, on the server thread. */
     public static boolean allowRecallTeleport(Entity entity, TeleportTransition target) {
@@ -425,6 +450,7 @@ public final class AgentCompanions {
     int recall(ServerPlayer owner, String name) {
         // Check the player's own permissions, not elevated permissions inherited from execute-as.
         if (!AgentMenu.allowed(owner)) return reply(owner, "Bring here requires a living, connected, non-spectator OP4 owner.");
+        if (!rosterWritable(owner)) return 0;
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         var id = UUID.fromString(entry.getKey());
@@ -457,6 +483,7 @@ public final class AgentCompanions {
     }
     int spawn(ServerPlayer owner, String name) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can create helpers.");
+        if (creationRecoveryRequired) return reply(owner, "Helper creation is blocked after an ownership recovery failure. The host must inspect the saved roster before any more helpers are created.");
         if (!validName(name)) return reply(owner, "Helper names use 1–24 lowercase letters/numbers, - or _.");
         if (!owner.isAlive() || owner.isSpectator()) return reply(owner, "You must be alive and outside spectator mode to spawn a helper.");
         if (owned(owner, name) != null) return reply(owner, "You already have a helper named " + name + ".");
@@ -473,8 +500,78 @@ public final class AgentCompanions {
         loaded.put(golem.getUUID(), golem);
         return reply(owner, name + " is following you. /agent guard " + name + " guards its current area; /agent stay " + name + " pauses it.");
     }
+    /** One explicit menu activation, one bounded native batch, no existing helper mutation. */
+    int spawnBatch(ServerPlayer owner, int count, Profile profile) {
+        if (owner == null || !server.isSameThread() || owner.level().getServer() != server || !AgentMenu.allowed(owner))
+            return 0;
+        if (creationRecoveryRequired)
+            return batchNotice(owner, "Helper creation is blocked after an ownership recovery failure. Ask the host to inspect the saved roster.", 0);
+        if (profile == null || count < 1 || count > remaining(owner))
+            return batchNotice(owner, "Choose 1–" + remaining(owner) + " helpers. Saved and unloaded helpers count toward both fifty-helper limits.", 0);
+        var world = owner.level(); var connection = owner.connection;
+        var places = spawnPlaces(owner, null, count, 16);
+        if (places.size() != count)
+            return batchNotice(owner, "Not enough clear solid ground within 16 blocks for " + count + " helpers. Nothing was created; move to a larger open area.", 0);
+        var names = new HashSet<String>();
+        for (var agent : data.agents.values()) if (agent.owner.equals(owner.getStringUUID())) names.add(agent.name);
+        var staged = new LinkedHashMap<IronGolem, Agent>();
+        int next = 1;
+        for (var place : places) {
+            while (next <= LIMIT && names.contains("helper-" + next)) next++;
+            if (next > LIMIT) return batchNotice(owner, "Your helper names or slots changed. Reopen AI Helpers; nothing was created.", 0);
+            String name = "helper-" + next++; names.add(name);
+            IronGolem golem = EntityTypes.IRON_GOLEM.create(world, EntitySpawnReason.COMMAND);
+            if (golem == null) return batchNotice(owner, "Could not prepare the complete helper batch. Nothing was created.", 0);
+            golem.setPos(place); prepare(golem);
+            if (data.agents.containsKey(golem.getStringUUID()) || staged.keySet().stream().anyMatch(g -> g.getUUID().equals(golem.getUUID())))
+                return batchNotice(owner, "A helper identity could not be reserved. Nothing was created.", 0);
+            staged.put(golem, new Agent(owner.getStringUUID(), name, Mode.FOLLOW, profile,
+                world.dimension().identifier().toString(), place.x, place.y, place.z));
+        }
+        // The menu/session guards are repeated at the actual commit boundary.
+        if (!AgentMenu.allowed(owner) || owner.connection != connection || owner.level() != world || count > remaining(owner)) return 0;
+        for (var entry : staged.entrySet()) data.agents.put(entry.getKey().getStringUUID(), entry.getValue());
+        try { save(); }
+        catch (RuntimeException failure) {
+            for (var golem : staged.keySet()) data.agents.remove(golem.getStringUUID());
+            // save() writes atomically only after its .previous copy succeeds;
+            // no native entity has entered the world on this failure path.
+            return batchNotice(owner, "Could not save helper ownership. Nothing spawned. Check server storage before retrying.", 0);
+        }
+        try {
+            for (var entry : staged.entrySet()) {
+                var golem = entry.getKey(); tags(golem, entry.getValue());
+                if (!world.addFreshEntity(golem)) throw new IllegalStateException("Native helper insertion was refused");
+                loaded.put(golem.getUUID(), golem);
+            }
+        } catch (RuntimeException failure) {
+            // Only this batch's brand-new identities can be removed here.
+            // A normal discard is not death/dismissal and produces no drops.
+            for (var golem : staged.keySet()) {
+                loaded.remove(golem.getUUID(), golem); AgentAvatars.remove(golem); golem.discard();
+                data.agents.remove(golem.getStringUUID());
+            }
+            // The first save already retained the original .previous file.
+            // Do not replace that recovery copy with the failed staged batch.
+            try { CommunityServer.atomicJson(file, data); }
+            catch (java.io.IOException | RuntimeException rollbackFailure) {
+                // Fail closed: stop this call instead of returning success or
+                // silently retrying a partially recovered ownership save.
+                creationRecoveryRequired = true;
+                rollbackFailure.addSuppressed(failure);
+                throw new IllegalStateException("Helper batch ownership rollback failed; inspect its saved roster before creating more helpers", rollbackFailure);
+            }
+            return batchNotice(owner, "The complete batch could not spawn. Its new helpers were removed; your existing helpers were kept.", 0);
+        }
+        return batchNotice(owner, count + " helpers appeared beside you • " + profile.label() + ", following. Your total: " + count(owner) + "/" + LIMIT + ".", count);
+    }
+    private static int batchNotice(ServerPlayer owner, String text, int result) {
+        owner.sendSystemMessage(Component.literal(text)); owner.sendOverlayMessage(Component.literal(text));
+        return result;
+    }
     int mode(ServerPlayer owner, String name, Mode mode) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can change helper movement.");
+        if (!rosterWritable(owner)) return 0;
         if (mode == null) return reply(owner, "Choose follow, guard, or stay.");
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
@@ -487,6 +584,7 @@ public final class AgentCompanions {
     }
     int profile(ServerPlayer owner, String name, Profile profile) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can change helper profiles.");
+        if (!rosterWritable(owner)) return 0;
         if (profile == null) return reply(owner, "Profiles: primitive, regular, ultimate_finals, debug, cli, api.");
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
@@ -500,6 +598,7 @@ public final class AgentCompanions {
     /** Explicit menu action resumes the same loaded helper without replacing or healing it. */
     boolean enableCombos(ServerPlayer owner, String name) {
         if (!AgentMenu.allowed(owner)) return false;
+        if (!rosterWritable(owner)) return false;
         var entry = owned(owner, name);
         if (entry == null) return false;
         var golem = loaded.get(UUID.fromString(entry.getKey()));
@@ -512,6 +611,7 @@ public final class AgentCompanions {
     }
     int squad(ServerPlayer owner, Mode mode) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can control squads.");
+        if (!rosterWritable(owner)) return 0;
         if (mode == null) return reply(owner, "Choose follow, guard, or stay.");
         Map<IronGolem, Agent> changed = new LinkedHashMap<>(); int skipped = 0;
         for (var entry : data.agents.entrySet()) {
@@ -529,6 +629,7 @@ public final class AgentCompanions {
     }
     int squadProfile(ServerPlayer owner, Profile profile) {
         if (!AgentMenu.allowed(owner) || profile == null || !profile.combat) return 0;
+        if (!rosterWritable(owner)) return 0;
         int changed = 0;
         for (var entry : data.agents.entrySet()) {
             var agent = entry.getValue();
@@ -543,6 +644,7 @@ public final class AgentCompanions {
     }
     int dismiss(ServerPlayer owner, String name) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can dismiss helpers.");
+        if (!rosterWritable(owner)) return 0;
         var entry = owned(owner, name);
         if (entry == null) return reply(owner, "No helper named " + name + " belongs to you.");
         // TreeMap entries are live nodes: deleting a node with two children
@@ -588,6 +690,7 @@ public final class AgentCompanions {
     }
     int recallSquad(ServerPlayer owner){
         if(!operator(owner.createCommandSourceStack())||!owner.isAlive()||owner.isSpectator())return 0;
+        if(!rosterWritable(owner))return 0;
         var names=data.agents.values().stream().filter(a->a.owner().equals(owner.getStringUUID())).map(Agent::name).sorted().toList();
         int moved=0,skipped=0;
         for(var name:names){
@@ -599,6 +702,7 @@ public final class AgentCompanions {
         return reply(owner,"Bring squad here: "+moved+" nearby; "+skipped+" unavailable or without clear landing space. No helpers were replaced.");
     }
     String pauseReason(ServerPlayer owner, IronGolem golem, Agent agent) {
+        if (creationRecoveryRequired) return "helper ownership recovery required";
         if (golem == null) return "unloaded";
         if (!golem.isAlive() || golem.isRemoved()) return "helper unavailable";
         if (owner == null) return "owner offline";
@@ -1017,7 +1121,7 @@ public final class AgentCompanions {
                 var helpers = get(world.getServer());
                 AgentAvatars.remove((IronGolem)entity);
                 helpers.loaded.remove(entity.getUUID()); helpers.lastAttack.remove(entity.getUUID()); helpers.nextLeap.remove(entity.getUUID()); helpers.aerial.remove(entity.getUUID()); helpers.combatFeedback.remove(entity.getUUID());
-                if (helpers.data.agents.remove(entity.getStringUUID()) != null) helpers.save();
+                if (!helpers.creationRecoveryRequired && helpers.data.agents.remove(entity.getStringUUID()) != null) helpers.save();
             }
         });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> allowDamage(entity, source));

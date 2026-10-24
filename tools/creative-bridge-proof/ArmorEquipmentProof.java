@@ -95,7 +95,8 @@ public final class ArmorEquipmentProof {
         for (var element : JsonParser.parseString(Files.readString(work.resolve("infinity-catalogue.json"))).getAsJsonObject().getAsJsonArray("items")) {
             JsonObject entry = element.getAsJsonObject(); entries.put(entry.get("path").getAsString(), entry);
         }
-        JsonArray observations = new JsonArray(); int definitionCases = 0, fullSuitCases = 0, singleSlotCases = 0, clearCases = 0, componentPackets = 0;
+        JsonArray observations = new JsonArray(), gliderDefinitions = new JsonArray();
+        int definitionCases = 0, nativeGliderDefinitionCases = 0, fullSuitCases = 0, singleSlotCases = 0, clearCases = 0, componentPackets = 0;
         for (int protocol : PROTOCOLS) {
             ItemMappings mappings = Registries.ITEMS.get().get(protocol);
             try (CaptureSession session = new CaptureSession(mappings, protocol)) {
@@ -111,7 +112,25 @@ public final class ArmorEquipmentProof {
                         require(entry.get("slot").getAsString().equals(SLOTS.get(slot)), "Catalogue armor slot mismatch");
                         for (String namespace : List.of("convergence:", "infinity_catalog:")) {
                             String identifier = namespace + suit.get(slot);
-                            verifyDefinition(definitions.get(identifier), SLOTS.get(slot), entry); definitionCases++;
+                            if (namespace.equals("convergence:") && suit.get(slot).equals("infinity_chestplate")) {
+                                require(entry.get("native_appearance").getAsBoolean() && entry.get("base").getAsString().equals("minecraft:elytra"), "Infinity flight catalogue must use the native elytra base");
+                                var nativeDefinition = definitions.get("minecraft:elytra");
+                                var aliasDefinition = definitions.get("infinity_catalog:infinity_chestplate");
+                                require(nativeDefinition != null && nativeDefinition.getRuntimeId() == mappings.getMapping("minecraft:elytra").getBedrockDefinition().getRuntimeId(), "The exact native elytra runtime definition must be published for Infinity");
+                                require(definitions.get(identifier) == null, "Infinity canonical wear must not register an unusable duplicate custom glider");
+                                require(aliasDefinition != null && aliasDefinition.getRuntimeId() != nativeDefinition.getRuntimeId(), "The Creative preview remains a distinct custom alias");
+                                var nativeObserved = new JsonObject(); nativeObserved.addProperty("protocol", protocol);
+                                nativeObserved.addProperty("canonical_identifier", identifier); nativeObserved.addProperty("native_wire_identifier", nativeDefinition.getIdentifier());
+                                nativeObserved.addProperty("native_runtime_id", nativeDefinition.getRuntimeId());
+                                nativeObserved.addProperty("creative_alias_identifier", aliasDefinition.getIdentifier());
+                                nativeObserved.addProperty("creative_alias_runtime_id", aliasDefinition.getRuntimeId());
+                                nativeObserved.addProperty("canonical_custom_definition_absent", true);
+                                gliderDefinitions.add(nativeObserved); nativeGliderDefinitionCases++;
+                            } else {
+                                if (namespace.equals("convergence:")) require(!entry.get("native_appearance").getAsBoolean(), "The other nineteen armor identities must retain custom native definitions");
+                                verifyDefinition(definitions.get(identifier), SLOTS.get(slot), entry);
+                            }
+                            definitionCases++;
                         }
                     }
                     for (boolean fromCreative : List.of(false, true)) {
@@ -120,13 +139,22 @@ public final class ArmorEquipmentProof {
                         MobArmorEquipmentPacket actual = dispatch(session, all);
                         JsonObject observed = new JsonObject(); observed.addProperty("protocol", protocol); observed.addProperty("source", fromCreative ? "native_creative_reverse_translation" : "canonical_model_stack");
                         JsonObject emitted = new JsonObject();
+                        JsonObject canonical = new JsonObject();
                         for (int slot = 0; slot < 4; slot++) {
                             String id = "convergence:" + suit.get(slot); ItemData item = armor(actual, slot);
-                            require(item.getCount() == 1 && item.getDefinition().getIdentifier().equals(id), "Missing/wrong full armor slot: " + protocol + "/" + SLOTS.get(slot) + "/" + id);
-                            require(definitions.get(id).getRuntimeId() == item.getDefinition().getRuntimeId(), "Armor references an unpublished runtime definition");
+                            String wireId = wireIdentifier(suit.get(slot));
+                            require(item.getCount() == 1 && item.getDefinition().getIdentifier().equals(wireId), "Missing/wrong full armor slot: " + protocol + "/" + SLOTS.get(slot) + "/" + id);
+                            require(definitions.get(wireId).getRuntimeId() == item.getDefinition().getRuntimeId(), "Armor references an unpublished runtime definition");
+                            var cached = session.getPlayerEntity().getItemInSlot(JAVA_SLOTS.get(slot));
+                            String cachedId = canonicalIdentity(cached);
+                            require(id.equals(cachedId), "Actual cached armor must retain the exact canonical identity");
+                            require(cached.getItemStack().equals(all[slot].getItem()), "Native armor translation must preserve every original canonical stack component");
+                            canonical.addProperty(SLOTS.get(slot), cachedId);
                             emitted.addProperty(SLOTS.get(slot), item.getDefinition().getIdentifier());
                         }
                         observed.add("equipment", emitted);
+                        observed.add("canonical_equipment", canonical);
+                        observed.addProperty("canonical_components_preserved", true);
                         observed.addProperty("encoded_armor_payload", java.util.Base64.getEncoder().encodeToString(session.lastPayload));
                         observations.add(observed); fullSuitCases++;
                         // Independent per-slot transitions catch a missing head/legs/feet setter,
@@ -136,8 +164,9 @@ public final class ArmorEquipmentProof {
                             actual = dispatch(session, new Equipment[]{all[slot]});
                             for (int other = 0; other < 4; other++) {
                                 ItemData item = armor(actual, other);
-                                require(other == slot ? item.getCount() == 1 && item.getDefinition().getIdentifier().equals("convergence:" + suit.get(slot)) : item.getCount() == 0,
+                                require(other == slot ? item.getCount() == 1 && item.getDefinition().getIdentifier().equals(wireIdentifier(suit.get(slot))) : item.getCount() == 0,
                                         "Independent armor slot or clear mismatch: " + protocol + "/" + slot + "/" + other);
+                                if (other == slot) require(canonicalIdentity(session.getPlayerEntity().getItemInSlot(JAVA_SLOTS.get(slot))).equals("convergence:"+suit.get(slot)), "Independent slot cannot lose or replace its real canonical marker");
                             }
                             singleSlotCases++;
                         }
@@ -148,10 +177,12 @@ public final class ArmorEquipmentProof {
                 }
             }
         }
-        require(definitionCases == 120 && fullSuitCases == 30 && singleSlotCases == 120 && clearCases == 30 && componentPackets == 3, "Incomplete armor proof coverage");
+        require(definitionCases == 120 && nativeGliderDefinitionCases == 3 && fullSuitCases == 30 && singleSlotCases == 120 && clearCases == 30 && componentPackets == 3, "Incomplete armor proof coverage");
         JsonObject receipt = new JsonObject(); receipt.addProperty("format_version", 1);
         receipt.add("protocols", new com.google.gson.Gson().toJsonTree(PROTOCOLS)); receipt.addProperty("suits", 5);
         receipt.addProperty("armor_identities", 20); receipt.addProperty("canonical_and_alias_definition_cases", definitionCases);
+        receipt.addProperty("native_glider_definition_cases", nativeGliderDefinitionCases);
+        receipt.add("native_glider_definition_observations", gliderDefinitions);
         receipt.addProperty("native_login_component_packets", componentPackets); receipt.addProperty("native_full_suit_packets", fullSuitCases);
         receipt.addProperty("native_independent_slot_packets", singleSlotCases); receipt.addProperty("native_clear_packets", clearCases);
         receipt.addProperty("native_intermediate_clear_packets", singleSlotCases);
@@ -167,6 +198,13 @@ public final class ArmorEquipmentProof {
     }
 
     private static JsonObject entry(Map<String, JsonObject> entries, String path) { JsonObject result = entries.get(path); require(result != null, "Missing expected armor: " + path); return result; }
+    private static String canonicalIdentity(GeyserItemStack stack) {
+        Object data = stack.getComponent(DataComponentTypes.CUSTOM_DATA);
+        require(data instanceof NbtMap tag && tag.get("$polymer:stack") instanceof NbtMap marker && marker.get("id") instanceof String,
+            "Actual cached armor must contain a real canonical Polymer marker");
+        return ((NbtMap)((NbtMap)data).get("$polymer:stack")).getString("id");
+    }
+    private static String wireIdentifier(String path) { return path.equals("infinity_chestplate") ? "minecraft:elytra" : "convergence:" + path; }
     private static Equipment[] emptyEquipment() { return JAVA_SLOTS.stream().map(s -> new Equipment(s, null)).toArray(Equipment[]::new); }
     private static ItemStack stack(CaptureSession session, JsonObject entry, boolean fromCreative) {
         String path = entry.get("path").getAsString(), base = entry.get("base").getAsString();
@@ -178,7 +216,7 @@ public final class ArmorEquipmentProof {
         }
         DataComponents patch = new DataComponents(new HashMap<>());
         patch.put(DataComponentTypes.ITEM_NAME, Component.text(entry.get("name").getAsString()));
-        patch.put(DataComponentTypes.ITEM_MODEL, Key.key("convergence:" + path));
+        patch.put(DataComponentTypes.ITEM_MODEL, Key.key(entry.get("native_appearance").getAsBoolean() ? base : "convergence:" + path));
         patch.put(DataComponentTypes.CUSTOM_DATA, NbtMap.builder().putCompound("$polymer:stack", NbtMap.builder().putString("id", "convergence:" + path).putInt("count", 1).build()).build());
         return new ItemStack(session.getItemMappings().getMapping(base).getJavaItem().javaId(), 1, patch);
     }

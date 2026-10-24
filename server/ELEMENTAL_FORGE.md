@@ -1,21 +1,18 @@
 # Elemental Forge
 
-The explore.49 source candidate adds **Get Convergence Wings • one empty slot**
-to the Forge home screen and prepares a conditional iPad chestplate-and-wings
-appearance for that same saved item. See [Winged chestplate](WINGED_CHESTPLATE.md).
-It is separate from the installed explore.48 version and still needs its device
-comparison after a separately approved installation.
+Explore.50 prepares flight directly on **Infinity Chestplate** while retaining
+its armor and complete Infinity suit powers. Equip that same chest item and tap
+Jump after stepping off a ledge. Existing saved items keep their identity and
+custom item data. **Elemental Chestplate** remains non-gliding armor.
 
-**Infinity Chestplate** and **Elemental Chestplate** are solid armor and do not
-glide. **Convergence Wings** provide armor and native elytra flight in one item.
-Claim them into an empty inventory slot, then equip them in the chest armor slot.
-Step off a ledge and press Jump while airborne to start gliding. Claiming wings preserves your equipped armor;
-replacing a solid Infinity piece also stops its full matching-set powers.
+**Convergence Wings** remains available through **Get Convergence Wings • one
+empty slot** and has its own armor and native elytra flight. Claiming an item
+preserves existing equipped gear; moving Convergence Wings into the chest slot
+replaces the matching Infinity piece and stops the full Infinity suit bonus.
 
-Before that repair is installed, the optional recovery command
-`/convergence hold chestplate` gives the same item to an eligible Creative,
-Admin or OP2 player, preserving their previous held item when inventory has
-space. Equip the resulting **Convergence Wings** before testing flight.
+The live server remains explore.49. This candidate passed 673 native and 419
+launcher/resource tests and needs separately approved installation. See
+[Winged chestplate](WINGED_CHESTPLATE.md).
 
 ## Historical Forge updates
 

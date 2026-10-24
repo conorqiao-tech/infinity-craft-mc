@@ -25,7 +25,62 @@ class CombinedWingPackageTests(unittest.TestCase):
     def test_valid_conditional_overlay_preserves_native_defaults(self):
         receipt = overlay.validate(self.files)
         self.assertTrue(receipt["ordinary_elytra_uses_native_renderer"])
+        self.assertTrue(receipt["accepted_infinity_shell_unchanged"])
+        self.assertEqual(receipt["infinity_property"], "infinityhub:infinity_winged_chest")
         self.assertFalse(receipt["client_rendering_verified"])
+
+    def test_rejects_unguarded_or_wrong_owner_infinity_selector(self):
+        original = copy.copy(self.files)
+        for replacement in (
+                "variable.infinityhub_infinity_winged_chest = query.property('infinityhub:infinity_winged_chest');",
+                "variable.infinityhub_infinity_winged_chest = 1.0;"):
+            with self.subTest(replacement=replacement):
+                self.files = copy.copy(original)
+                self.alter(overlay.ATTACHABLE, lambda value: value["minecraft:attachable"]["description"]["scripts"][
+                    "pre_animation"].__setitem__(1, replacement))
+                with self.assertRaises(ValueError):
+                    overlay.validate(self.files)
+
+    def test_rejects_infinity_marker_selecting_foreign_armor_geometry_or_texture(self):
+        original = copy.copy(self.files)
+        for aliases, key in (("geometry", "infinity_armor"), ("textures", "infinity_armor")):
+            with self.subTest(aliases=aliases):
+                self.files = copy.copy(original)
+                self.alter(overlay.ATTACHABLE, lambda value: value["minecraft:attachable"]["description"][aliases].update(
+                    {key: "geometry.convergence.cuirass_original" if aliases == "geometry"
+                     else "textures/convergence/models/armor/armor42/convergence"}))
+                with self.assertRaises(ValueError):
+                    overlay.validate(self.files)
+
+    def test_rejects_reversed_or_mismatched_set_arrays(self):
+        original = copy.copy(self.files)
+        for kind, array in (("geometries", "Array.combined_chest_geometry"),
+                            ("textures", "Array.combined_chest_texture")):
+            with self.subTest(kind=kind):
+                self.files = copy.copy(original)
+                self.alter(overlay.RENDERERS, lambda value: value["render_controllers"][
+                    "controller.render.convergence.combined_armor"]["arrays"][kind][array].reverse())
+                with self.assertRaises(ValueError):
+                    overlay.validate(self.files)
+
+    def test_rejects_infinity_texture_selector_that_ignores_set_marker(self):
+        self.alter(overlay.RENDERERS, lambda value: value["render_controllers"][
+            "controller.render.convergence.combined_armor"].update(textures=["Texture.convergence_armor", "Texture.enchanted"]))
+        with self.assertRaises(ValueError):
+            overlay.validate(self.files)
+
+    def test_rejects_visually_unguarded_combined_body_even_if_flag_name_remains(self):
+        self.alter(overlay.RENDERERS, lambda value: value["render_controllers"][
+            "controller.render.convergence.combined_armor"]["part_visibility"].__setitem__(0,
+                {"body": overlay.FLAG + " || 1.0"}))
+        with self.assertRaises(ValueError):
+            overlay.validate(self.files)
+
+    def test_rejects_wing_renderer_rebound_to_a_duplicate_armor_shell(self):
+        self.alter(overlay.RENDERERS, lambda value: value["render_controllers"][
+            "controller.render.convergence.combined_wings"].update(geometry="Geometry.infinity_armor"))
+        with self.assertRaises(ValueError):
+            overlay.validate(self.files)
 
     def test_rejects_ordinary_elytra_texture_replacement(self):
         self.alter(overlay.ATTACHABLE, lambda value: value["minecraft:attachable"]["description"]["textures"].update(

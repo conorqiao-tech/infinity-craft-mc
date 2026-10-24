@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BED = ROOT / "bedrock/resource_pack"
 MARKER = "infinityhub:winged_chest"
 VARIABLE = "variable.infinityhub_winged_chest"
+INFINITY_MARKER = "infinityhub:infinity_winged_chest"
+INFINITY_VARIABLE = "variable.infinityhub_infinity_winged_chest"
 WING_BONES = {"convergence_left_wing", "convergence_right_wing"}
 NATIVE_ANIMATIONS = {"default_controller": "controller.animation.elytra.default",
                      **{state: "animation.elytra." + state for state in
@@ -30,7 +32,7 @@ def attachment():
     return read("attachables/combined_convergence_elytra.json")["minecraft:attachable"]["description"]
 
 
-def marker_value(statement, properties, slot="chest", owner_exists=True):
+def marker_value(statement, properties, slot="chest", owner_exists=True, variable=VARIABLE):
     """Evaluate this guarded contract with injected holder-slot mappings.
 
     The official attachable guide maps main_hand/off_hand to rightItem/leftItem.
@@ -38,7 +40,7 @@ def marker_value(statement, properties, slot="chest", owner_exists=True):
     unknown or non-body mappings must refuse the custom pass.
     """
     match = re.fullmatch(
-        r"variable\.infinityhub_winged_chest = query\.item_slot_to_bone_name\(context\.item_slot\) == 'body' \? "
+        re.escape(variable) + r" = query\.item_slot_to_bone_name\(context\.item_slot\) == 'body' \? "
         r"\(\(context\.owning_entity->query\.has_property\('([^']+)'\)\) \? "
         r"\(context\.owning_entity->query\.property\('([^']+)'\)\) : 0\.0\) : 0\.0;", statement)
     if match is None or match[1] != match[2]:
@@ -103,11 +105,14 @@ class CombinedConvergenceElytraTests(unittest.TestCase):
     def test_marker_is_guarded_refreshed_each_frame_and_switches_both_passes(self):
         description = attachment()
         statements = description["scripts"]["pre_animation"]
-        self.assertEqual(len(statements), 1)
-        for properties, expected in (({}, False), ({MARKER: False}, False),
-                                     ({MARKER: True}, True), ({MARKER: False}, False), ({}, False)):
+        self.assertEqual(len(statements), 2)
+        for properties, expected, infinity in (({}, False, False), ({MARKER: False}, False, False),
+                ({MARKER: True}, True, False), ({MARKER: True, INFINITY_MARKER: True}, True, True),
+                ({MARKER: True, INFINITY_MARKER: False}, True, False),
+                ({MARKER: False, INFINITY_MARKER: True}, False, True), ({}, False, False)):
             marked = marker_value(statements[0], properties)
             self.assertEqual(marked, expected)
+            self.assertEqual(marker_value(statements[1], properties, variable=INFINITY_VARIABLE), infinity)
             self.assertEqual(active(description["scripts"]["animate"], marked),
                              ["convergence_controller"] if expected else ["default_controller"])
             self.assertEqual(active(description["render_controllers"], marked),
@@ -118,42 +123,54 @@ class CombinedConvergenceElytraTests(unittest.TestCase):
 
     def test_held_and_unknown_slots_never_select_custom_pass_even_with_marked_owner(self):
         description = attachment()
-        statement = description["scripts"]["pre_animation"][0]
         # This table is a contract test with injected context, not evidence of
         # what an iPad supplies for an equipped chest item or absent owner.
-        for properties in ({}, {MARKER: False}, {MARKER: True}):
-            for slot in ("main_hand", "off_hand", "head", "legs", "feet", "", "unknown"):
-                with self.subTest(properties=properties, slot=slot):
-                    marked = marker_value(statement, properties, slot)
-                    self.assertFalse(marked)
-                    self.assertEqual(active(description["scripts"]["animate"], marked), ["default_controller"])
-                    self.assertEqual(active(description["render_controllers"], marked), ["controller.render.armor"])
-        self.assertFalse(marker_value(statement, {MARKER: True}, "chest", owner_exists=False))
-        self.assertTrue(marker_value(statement, {MARKER: True}, "chest"))
-        with self.assertRaises(ValueError):
-            marker_value(statement.replace("context.owning_entity->", ""), {MARKER: True})
+        for statement, variable, marker in zip(description["scripts"]["pre_animation"],
+                (VARIABLE, INFINITY_VARIABLE), (MARKER, INFINITY_MARKER)):
+            for properties in ({}, {marker: False}, {MARKER: True, INFINITY_MARKER: True}):
+                for slot in ("main_hand", "off_hand", "head", "legs", "feet", "", "unknown"):
+                    with self.subTest(variable=variable, properties=properties, slot=slot):
+                        marked = marker_value(statement, properties, slot, variable=variable)
+                        self.assertFalse(marked)
+                        self.assertEqual(active(description["scripts"]["animate"], marked), ["default_controller"])
+                        self.assertEqual(active(description["render_controllers"], marked), ["controller.render.armor"])
+            self.assertFalse(marker_value(statement, {marker: True}, "chest", owner_exists=False, variable=variable))
+            self.assertTrue(marker_value(statement, {marker: True}, "chest", variable=variable))
+            with self.assertRaises(ValueError):
+                marker_value(statement.replace("context.owning_entity->", ""), {marker: True}, variable=variable)
 
     def test_custom_armor_reuses_only_accepted_same_set_original_art_and_joints(self):
         description = attachment()
         self.assertEqual(description["geometry"]["convergence_armor"], "geometry.convergence.cuirass_original")
         self.assertEqual(description["textures"]["convergence_armor"], "textures/convergence/models/armor/armor42/convergence")
+        self.assertEqual(description["geometry"]["infinity_armor"], "geometry.convergence.infinity_chestplate_elemental41")
+        self.assertEqual(description["textures"]["infinity_armor"], "textures/convergence/models/armor/armor42/infinity")
         preserved = {
             "models/entity/original_armor/cuirass.geo.json": "4218cd173cfb5159210a9ddf4fc8b117e6faa2fe56f5e29202d9697e9cee849d",
             "textures/convergence/models/armor/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
             "textures/convergence/models/armor/armor_wings.png": "c1d221fe3a87f52f20b42ed507bd2b5872faf21bc412dab0d598c790e7574941",
+            "models/entity/elemental41/infinity_chestplate.geo.json": "660e6467c83cc07eb690e1b2bc02f66e9467377b22fb9b6c6ac21e85ca2d0c13",
+            "textures/convergence/models/armor/armor42/infinity.png": "e7dd7843aaf8e9046a9e0f6c36a6d9728787a61175a8096a56ffeeda5b77d0f1",
         }
         for path, digest in preserved.items():
             self.assertEqual(hashlib.sha256((BED / path).read_bytes()).hexdigest(), digest, path)
-        geometry = read("models/entity/original_armor/cuirass.geo.json")["minecraft:geometry"][0]
-        self.assertEqual({bone["name"]: bone["pivot"] for bone in geometry["bones"]},
-                         {"body": [0, 24, 0], "rightArm": [-5, 22, 0], "leftArm": [5, 22, 0]})
-        for bone in geometry["bones"]:
-            self.assertTrue(bone["cubes"])
-            self.assertFalse({"binding", "parent", "position", "rotation", "scale"} & bone.keys())
+        for path in ("models/entity/original_armor/cuirass.geo.json", "models/entity/elemental41/infinity_chestplate.geo.json"):
+            geometry = read(path)["minecraft:geometry"][0]
+            self.assertEqual({bone["name"]: bone["pivot"] for bone in geometry["bones"]},
+                             {"body": [0, 24, 0], "rightArm": [-5, 22, 0], "leftArm": [5, 22, 0]})
+            for bone in geometry["bones"]:
+                self.assertTrue(bone["cubes"])
+                self.assertFalse({"binding", "parent", "position", "rotation", "scale"} & bone.keys())
         controllers = read("render_controllers/combined_convergence_elytra.json")["render_controllers"]
         armor = controllers["controller.render.convergence.combined_armor"]
-        self.assertEqual(armor["geometry"], "Geometry.convergence_armor")
-        self.assertEqual(armor["textures"], ["Texture.convergence_armor", "Texture.enchanted"])
+        self.assertEqual(armor["geometry"], "Array.combined_chest_geometry[" + INFINITY_VARIABLE + " ? 1 : 0]")
+        self.assertEqual(armor["textures"], ["Array.combined_chest_texture[" + INFINITY_VARIABLE + " ? 1 : 0]", "Texture.enchanted"])
+        # Both indices select a matching geometry/texture pair from the actual
+        # invoked arrays. These are source-resolution checks, not Molang pixels.
+        for infinity, expected in ((False, "convergence_armor"), (True, "infinity_armor")):
+            index = int(infinity)
+            self.assertEqual(armor["arrays"]["geometries"]["Array.combined_chest_geometry"][index], "Geometry." + expected)
+            self.assertEqual(armor["arrays"]["textures"]["Array.combined_chest_texture"][index], "Texture." + expected)
         visibility = {key: value for item in armor["part_visibility"] for key, value in item.items()}
         self.assertEqual(visibility, {"body": VARIABLE + " && (query.is_in_ui || !query.is_first_person)",
                                      "rightArm": VARIABLE, "leftArm": VARIABLE})
@@ -189,8 +206,9 @@ class CombinedConvergenceElytraTests(unittest.TestCase):
         # The wings and accepted torso receive the same owner body transform.
         # Separation from its back plane therefore survives any common walk,
         # crouch or gliding transform, without applying that transform twice.
-        torso = read("models/entity/original_armor/cuirass.geo.json")["minecraft:geometry"][0]["bones"][0]["cubes"][0]
-        torso_back = torso["origin"][2] + torso["size"][2]
+        torsos = [read(path)["minecraft:geometry"][0]["bones"][0]["cubes"][0] for path in
+                  ("models/entity/original_armor/cuirass.geo.json", "models/entity/elemental41/infinity_chestplate.geo.json")]
+        torso_back = max(torso["origin"][2] + torso["size"][2] for torso in torsos)
         for bone in geometry["bones"][1:]:
             self.assertEqual(bone["parent"], "body")
             self.assertNotIn("binding", bone)
@@ -220,6 +238,13 @@ class CombinedConvergenceElytraTests(unittest.TestCase):
                 spans[state, order] = max(xs) - min(xs)
         for order in ((0, 1, 2), (2, 1, 0)):
             self.assertGreater(spans["gliding", order], spans["folded", order] * 1.75)
+
+    def test_java_infinity_asset_keeps_matching_armor_and_adds_existing_wings(self):
+        asset = json.loads((ROOT / "java/src/main/resources/assets/convergence/equipment/infinity_armor.json").read_text())
+        self.assertEqual(asset, {"layers": {
+            "humanoid": [{"texture": "convergence:armor42/infinity"}],
+            "humanoid_leggings": [{"texture": "convergence:armor42/infinity"}],
+            "wings": [{"texture": "convergence:armor"}]}})
 
 
 if __name__ == "__main__":

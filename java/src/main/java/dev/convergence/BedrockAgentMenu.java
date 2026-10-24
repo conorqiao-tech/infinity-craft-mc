@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.animal.golem.IronGolem;
 import org.geysermc.cumulus.form.Form;
+import org.geysermc.cumulus.form.CustomForm;
 
 /** Native touch controls share the existing helper mutators and exact-session form transport. */
 final class BedrockAgentMenu {
@@ -77,9 +78,13 @@ final class BedrockAgentMenu {
         int pages = AgentMenu.rosterPages(saved.size());
         int page = Math.max(0, Math.min(requestedPage, pages - 1));
         var choices = new ArrayList<HelperForms.Choice>();
-        if (saved.size() < AgentCompanions.LIMIT)
+        int free = helpers.remaining(owner);
+        if (free > 0) {
             choices.add(new HelperForms.Choice(saved.isEmpty() ? "Create your first helper" : "Create another helper",
                 () -> create(owner, "", sender)));
+            choices.add(new HelperForms.Choice("Create helpers in a batch • " + free + " free slots",
+                () -> openBatch(owner, sender)));
+        }
         int first = page * AgentMenu.ROSTER_PAGE_SIZE;
         for (var entry : entries.subList(Math.min(first, entries.size()), Math.min(first + AgentMenu.ROSTER_PAGE_SIZE, entries.size()))) {
             String id = entry.getKey(); var agent = entry.getValue();
@@ -95,7 +100,9 @@ final class BedrockAgentMenu {
         choices.add(new HelperForms.Choice("Orders • targets and both approvals", () -> BedrockAgentOrdersMenu.open(owner, sender)));
         choices.add(new HelperForms.Choice("Back to Infinity Menu", () -> ServerMenu.open(owner)));
         String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ". Page " + (page + 1) + " of " + pages + ".\n"
-            + (saved.isEmpty() ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
+            + (saved.isEmpty() ? free > 0
+                ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
+                : "The server's helper capacity is full, including saved unloaded helpers."
                 : "Choose a named helper for its live status and controls. Unloaded helpers stay saved; these menus never load distant chunks.")
             + "\n\nRegular follows and guards. Ultimate Finals uses a real spear charge, elytra flight and a falling mace strike when the target and terrain allow it."
             + "\nChoose nearby mob targets through Orders. Player targets and server-changing AI orders still require your approval and separate live Codex review.\n" + HelperCombatStatus.squadSummary(owner);
@@ -103,6 +110,8 @@ final class BedrockAgentMenu {
     }
 
     private static int create(ServerPlayer owner, String feedback, Predicate<Form> sender) {
+        if (helpers(owner).remaining(owner) < 1) return roster(owner,
+            "No helper slots are free. Saved unloaded helpers count toward both limits. Nothing was created.", sender);
         var saved = snapshot(owner);
         var choices = new ArrayList<HelperForms.Choice>();
         if (saved.size() < AgentCompanions.LIMIT) {
@@ -120,6 +129,48 @@ final class BedrockAgentMenu {
     private static List<AgentCompanions.Profile> creationProfiles() {
         return List.of(AgentCompanions.Profile.REGULAR, AgentCompanions.Profile.ULTIMATE_FINALS,
             AgentCompanions.Profile.PRIMITIVE, AgentCompanions.Profile.DEBUG, AgentCompanions.Profile.CLI, AgentCompanions.Profile.API);
+    }
+
+    static int openBatch(ServerPlayer owner, Predicate<Form> sender) {
+        if (!AgentMenu.allowed(owner) || !HelperForms.emptyScreen(owner)) return 0;
+        var request = new HelperBatchMenu.Request(owner);
+        if (!request.valid(owner)) return roster(owner,
+            "No helper slots are free. The owner and server limits include unloaded helpers. Nothing was created.", sender);
+        var profiles = creationProfiles();
+        var ticket = new HelperForms.Ticket(UUID.randomUUID(), new AdminStatsMenu.Session(owner), () -> request.valid(owner),
+            owner.level().getServer().getTickCount() + 1800, sender);
+        HelperForms.ACTIVE.put(owner.getUUID(), ticket);
+        HelperForms.DELIVERIES.remove(owner.getUUID());
+        var form = CustomForm.builder().title("Spawn helpers")
+            .label("Choose 1–" + request.remaining + " new helpers and a profile. Submit creates the whole batch now on clear solid ground beside you.\n"
+                + "Your existing helpers count toward the " + AgentCompanions.LIMIT + " owner limit and " + AgentCompanions.GLOBAL_LIMIT
+                + " server limit, including unloaded helpers. Existing helpers keep their identities, health, stats and profiles.")
+            .input("Number of helpers", "1–" + request.remaining, "1")
+            .dropdown("Profile", profiles.stream().map(AgentCompanions.Profile::label).toList());
+        form.validResultHandler(result -> HelperForms.response(ticket, () -> {
+            int amount;
+            String input = result.asInput(1);
+            try { amount = Integer.parseInt(input == null ? "" : input.strip()); }
+            catch (NumberFormatException invalid) {
+                HelperForms.message(owner, "Enter a whole number from 1 to " + request.remaining + ". Nothing spawned.");
+                openBatch(owner, sender); return;
+            }
+            int profile = result.asDropdown(2);
+            if (amount < 1 || amount > request.remaining || profile < 0 || profile >= profiles.size()) {
+                HelperForms.message(owner, "Choose a whole number from 1 to " + request.remaining + " and a listed profile. Nothing spawned.");
+                openBatch(owner, sender); return;
+            }
+            request.spawn(owner, amount, profiles.get(profile));
+        })).closedOrInvalidResultHandler(() -> cancelBatch(ticket));
+        return HelperForms.send(ticket, form.build(), sender) ? 1 : 0;
+    }
+
+    private static void cancelBatch(HelperForms.Ticket ticket) {
+        var server = ticket.actor().world().getServer();
+        if (!server.isSameThread()) { server.execute(() -> cancelBatch(ticket)); return; }
+        var id = ticket.actor().player().getUUID();
+        HelperForms.ACTIVE.remove(id, ticket);
+        HelperForms.DELIVERIES.computeIfPresent(id, (key, delivery) -> delivery.ticket() == ticket ? null : delivery);
     }
 
     private static void spawn(ServerPlayer owner, AgentCompanions.Profile profile, Predicate<Form> sender) {

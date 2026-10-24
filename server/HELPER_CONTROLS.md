@@ -1,3 +1,24 @@
+# Explore.50 candidate — create a helper batch
+
+Open **Infinity Menu → AI Helpers → Create helpers in a batch**. On iPad, enter
+a whole-number quantity and choose a profile, then submit once. On Java, select
+quantity presets or use ±1/±10, choose a profile and press **Spawn** once. Changing
+quantity or profile does not create anything. New helpers follow immediately.
+
+Choose from one to the remaining capacity. Both the owner and entire server have
+a total cap of fifty helpers; existing and saved distant helpers count. A batch
+requires enough clear, dry solid ground nearby and does not load distant terrain
+or replace an existing helper. If the entire requested batch cannot be placed or
+ownership cannot be saved, no smaller surprise batch is created. Existing helper
+identities, names, health, edited stats and profiles remain intact. OP4 access and
+combat/target approval rules are unchanged. A stale or replayed menu cannot spawn
+a second batch.
+
+Source candidate50 passed 673 native and 419 launcher/resource tests separately
+from the running explore.49.
+It is not installed by building or merging source. A live update needs separate
+owner approval and a verified stopped-world backup.
+
 # Helper controls — explore.47 source candidate
 
 Open **Infinity Menu → AI Helpers**. Create your first helper on clear solid

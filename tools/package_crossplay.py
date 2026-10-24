@@ -211,15 +211,17 @@ def verified_armor_packets(root):
     receipt_path = root / "research/armor-equipment" / (VERSION + ".json")
     receipt = json.loads(receipt_path.read_text())
     validate_receipt(receipt)
+    pack_name = "server/geyser/packs/Infinity_Armor_Crossplay.mcpack"
     expected = ["tools/verify_armor_equipment.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java",
                 "server/geyser/Geyser-Standalone.jar", "server/geyser/extensions/InfinityCreativeBridge.jar",
-                "server/geyser/packs/Infinity_Armor_Crossplay.mcpack",
+                pack_name,
+                "tools/combined_wing_resources.py",
                 *("research/integration/crossplay-export/" + name for name in
                   ("infinity-catalogue.json", "infinity-items.json", "infinity-blocks.json"))]
     actual = {str((root / name).resolve()): digest(root / name) for name in expected}
     if receipt.get("input_sha256") != actual:
         raise RuntimeError("Armor transport proof inputs changed; rerun the native armor check")
-    if receipt.get("prepared_pack_identity_check") != validate_pack(root / expected[4]):
+    if receipt.get("prepared_pack_identity_check") != validate_pack(root / pack_name):
         raise RuntimeError("Armor transport proof belongs to a different prepared pack")
     # Public packages keep reproducible repository paths, never local home paths.
     receipt["input_sha256"] = {name: actual[str((root / name).resolve())] for name in expected}

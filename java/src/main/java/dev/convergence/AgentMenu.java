@@ -28,6 +28,7 @@ final class AgentMenu {
     static final int SQUAD_PRIMITIVE = 48, SQUAD_REGULAR = 50, SQUAD_ULTIMATE = 52;
     static final int ROSTER_PAGE_SIZE = 6, PREVIOUS_PAGE = 45, NEXT_PAGE = 53;
     static final int ENABLE_COMBOS = 22;
+    static final int BATCH_CREATE = 7;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -154,8 +155,11 @@ final class AgentMenu {
             title = "Your Helper Squad • " + (rosterPage + 1) + "/" + pages;
             icon(view, 4, Items.IRON_GOLEM_SPAWN_EGG,
                 "Helpers: " + helpers.count(player) + "/" + AgentCompanions.LIMIT);
+            batchButton(view, helpers, player);
             var entries = java.util.List.copyOf(savedRoster.entrySet());
-            if (entries.isEmpty()) description(view, 4, "No helpers yet. Tap the green Create your first helper button.");
+            if (entries.isEmpty()) description(view, 4, helpers.remaining(player) > 0
+                ? "No helpers yet. Tap the green Create your first helper button."
+                : "The server's helper capacity is full, including saved unloaded helpers. Your existing helpers remain available.");
             else description(view, 4, "Page " + (rosterPage + 1) + " of " + pages + ". Use Next page and Previous page to find every saved helper.");
             for (int local = 0; local < ROSTER_PAGE_SIZE; local++) {
                 int index = rosterPage * ROSTER_PAGE_SIZE + local;
@@ -167,9 +171,7 @@ final class AgentMenu {
                     choices.put(slot, entry.getKey());
                     rosterIcon(view, slot, helpers, entry.getKey(), agent);
                 } else {
-                    icon(view, slot, Items.DYE.lime(), entries.isEmpty() && index == 0
-                        ? "Create your first helper" : "Create a helper • slot " + (index + 1));
-                    description(view, slot, "Tap to summon a named AI player avatar beside you. Stand on clear solid ground.");
+                    creationButton(view, slot, index, entries.isEmpty(), helpers.remaining(player) > 0);
                 }
             }
             movement(view, "Squad");
@@ -212,11 +214,32 @@ final class AgentMenu {
         icon(view, STAY, Items.REDSTONE_TORCH, label + " • stay / pause");
     }
 
+    private static void batchButton(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
+        int free = helpers.remaining(owner);
+        icon(view, BATCH_CREATE, free > 0 ? Items.IRON_GOLEM_SPAWN_EGG : Items.BARRIER,
+            free > 0 ? "Create helpers in a batch • " + free + " free slots" : "Helper capacity full");
+        description(view, BATCH_CREATE, free > 0
+            ? "Choose any quantity from 1 to your remaining capacity, then a profile. One Spawn activation creates the whole batch. The owner and server caps include unloaded helpers."
+            : "No helper slots are free. Saved unloaded helpers count toward the owner and server limits.");
+    }
+
+    private static void creationButton(SimpleContainer view, int slot, int index, boolean emptyRoster, boolean free) {
+        icon(view, slot, free ? Items.DYE.lime() : Items.BARRIER, free
+            ? emptyRoster && index == 0 ? "Create your first helper" : "Create a helper • slot " + (index + 1)
+            : "Helper capacity full");
+        description(view, slot, free
+            ? "Tap to summon a named AI player avatar beside you. Stand on clear solid ground."
+            : "No helper slots are free. Saved unloaded helpers count toward the owner and server limits.");
+    }
+
     private static void emptySquadControls(SimpleContainer view, AgentCompanions helpers, ServerPlayer owner) {
         if (helpers.count(owner) != 0) return;
+        boolean free = helpers.remaining(owner) > 0;
         for (int slot : new int[]{FOLLOW, GUARD, STAY, RECALL, FORMATION, SQUAD_PRIMITIVE, SQUAD_REGULAR, SQUAD_ULTIMATE}) {
-            icon(view, slot, Items.BARRIER, "Create a helper first");
-            description(view, slot, "Your roster is empty. Select the green Create your first helper button above. Nothing spawns automatically.");
+            icon(view, slot, Items.BARRIER, free ? "Create a helper first" : "No helpers • capacity full");
+            description(view, slot, free
+                ? "Your roster is empty. Select the green Create your first helper button above. Nothing spawns automatically."
+                : "Your roster is empty and the server has no helper slots free, including saved unloaded helpers.");
         }
     }
 
@@ -353,10 +376,17 @@ final class AgentMenu {
                 if (!currentRoster.keySet().equals(rosterSnapshot.keySet())) { reopen(Page.ROSTER, null); return; }
                 rosterSnapshot = Map.copyOf(currentRoster);
                 icon(view, 4, Items.IRON_GOLEM_SPAWN_EGG, "Helpers: " + helpers.count(owner) + "/" + AgentCompanions.LIMIT);
+                batchButton(view, helpers, owner);
                 for (var choice : choices.entrySet()) {
                     var agent = selected(helpers, choice.getValue());
                     if (agent == null) { stale(); return; }
                     rosterIcon(view, choice.getKey(), helpers, choice.getValue(), agent);
+                }
+                for (int local = 0; local < ROSTER_PAGE_SIZE; local++) {
+                    int index = rosterPage * ROSTER_PAGE_SIZE + local;
+                    if (index >= AgentCompanions.LIMIT) break;
+                    if (!choices.containsKey(helperSlot(local))) creationButton(view, helperSlot(local), index,
+                        currentRoster.isEmpty(), helpers.remaining(owner) > 0);
                 }
                 hive(view, helpers, owner);
                 squadProfiles(view, helpers, owner);
@@ -386,6 +416,17 @@ final class AgentMenu {
             reopen(Page.ROSTER, null);
         }
 
+        private boolean refreshUnavailableCreation(AgentCompanions helpers, int slot) {
+            boolean barrier = view.getItem(slot).is(Items.BARRIER);
+            if (!barrier && helpers.remaining(owner) > 0) return false;
+            // A disabled control cannot turn into a creation action under the
+            // click that reveals new capacity. A fresh window also retires
+            // duplicate packets sent while the old barrier was displayed.
+            if (barrier && helpers.remaining(owner) > 0) reopen(Page.ROSTER, null);
+            else refresh();
+            return true;
+        }
+
         @Override public void clicked(int clicked, int button, ContainerInput action, Player player) {
             // A packet for an old window cannot affect a newer screen or another owner.
             if (player != owner || owner.containerMenu != this) return;
@@ -399,7 +440,9 @@ final class AgentMenu {
                     && (clicked == FOLLOW || clicked == GUARD || clicked == STAY || clicked == RECALL
                         || clicked == FORMATION || clicked == SQUAD_PRIMITIVE || clicked == SQUAD_REGULAR || clicked == SQUAD_ULTIMATE)) {
                 owner.closeContainer();
-                var message = Component.literal("Your roster is empty. Reopen AI Helpers and choose Create your first helper.");
+                var message = Component.literal(helpers.remaining(owner) > 0
+                    ? "Your roster is empty. Reopen AI Helpers and choose Create your first helper."
+                    : "Your roster is empty and the server's helper capacity is full, including saved unloaded helpers.");
                 owner.sendSystemMessage(message); owner.sendOverlayMessage(message);
                 return;
             }
@@ -411,6 +454,10 @@ final class AgentMenu {
                 return;
             }
             if (page == Page.ROSTER) {
+                if (clicked == BATCH_CREATE) {
+                    if (refreshUnavailableCreation(helpers, BATCH_CREATE)) return;
+                    owner.closeContainer(); HelperBatchMenu.open(owner); return;
+                }
                 if (clicked == PREVIOUS_PAGE || clicked == NEXT_PAGE) {
                     int targetPage = rosterPage + (clicked == NEXT_PAGE ? 1 : -1);
                     if (targetPage >= 0 && targetPage < rosterPages(helpers.count(owner))) {
@@ -432,6 +479,7 @@ final class AgentMenu {
                         if (selected(helpers, id) == null) { stale(); return; }
                         reopen(Page.HELPER, id);
                     } else {
+                        if (refreshUnavailableCreation(helpers, clicked)) return;
                         String name = nextName(helpers, owner);
                         // Reveal the nearby helper on success, and keep a failed spawn's
                         // explanation visible instead of hiding it behind another chest.

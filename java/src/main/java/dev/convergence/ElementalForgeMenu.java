@@ -110,8 +110,8 @@ final class ElementalForgeMenu {
                 + "Earth's extra knockback resistance changes immediately.\n"
                 + "Survival: craft your gear at a crafting table. Creative inventory: search Elemental, Infinity or a relic's name. "
                 + "Free kit buttons below require Creative, Admin or OP2.\n"
-                + "Solid Infinity and Elemental chestplates do not glide. Convergence Wings combine armor and native elytra flight in one chest-slot item. "
-                + "Get them below, equip them in the chest armor slot, then step off a ledge and tap Jump while airborne. The chestplate and folding wings share that one equipment slot.";
+                + "Infinity Chestplate combines Infinity armor, full-set powers and native elytra flight in one chest-slot item. Elemental chestplates do not glide. "
+                + "Convergence Wings also combine armor and flight. Equip either winged item in the chest armor slot, then step off a ledge and tap Jump while airborne.";
             for (var element : ElementalArmor.Element.values()) {
                 Item icon = switch (element) {
                     case FIRE -> Items.BLAZE_POWDER;
@@ -133,8 +133,8 @@ final class ElementalForgeMenu {
                 + "In the patterns below, D is diamond for Elemental or netherite ingot for Infinity. C is the matching core. A dot means an empty slot.\n"
                 + "Helmet: DDD / DCD\nChestplate: D.D / DCD / DDD\nLeggings: DDD / DCD / D.D\nBoots: D.D / DCD\n"
                 + "Each recipe makes one matching armor piece. Elemental uses ordinary diamond durability; Infinity is unbreakable. "
-                + "These solid Infinity and Elemental chestplates do not glide. Convergence Wings are a different item combining armor and native elytra flight; "
-                + "use Get Convergence Wings on the Forge home screen, equip them in the chest armor slot, then tap Jump while airborne.\n"
+                + "Infinity Chestplate includes wings and native elytra flight while retaining Infinity set powers. Elemental chestplates do not glide. "
+                + "Convergence Wings remain available from Get Convergence Wings on the Forge home screen. Equip a winged chest item, then tap Jump while airborne.\n"
                 + "The four relics are Firebrand, Tidecaller, Terra Gauntlet and Windstep. Five original full-cube building styles: "
                 + "Ember Crystal, Tide Glass, Earth Rune, Air Lattice and Infinity Prism. Their crafting-table recipes are included with the pack.\n"
                 + "Attunement belongs to your character, so trading a piece never changes someone else's selected element.";

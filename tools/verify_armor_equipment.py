@@ -9,6 +9,7 @@ import argparse
 import base64
 import binascii
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import shutil
@@ -36,6 +37,7 @@ def digest(path):
 def validate_receipt(receipt):
     expected = {"format_version": 1, "suits": 5, "armor_identities": 20,
                 "canonical_and_alias_definition_cases": 120,
+                "native_glider_definition_cases": 3,
                 "native_login_component_packets": 3, "native_full_suit_packets": 30,
                 "native_independent_slot_packets": 120, "native_clear_packets": 30,
                 "native_intermediate_clear_packets": 120,
@@ -48,6 +50,19 @@ def validate_receipt(receipt):
     if (receipt.get("device_rendering_verified") is not False
             or receipt.get("network_listener_started") is not False):
         raise ValueError("Offline transport proof cannot claim device rendering or start a listener")
+    gliders = receipt.get("native_glider_definition_observations")
+    if not isinstance(gliders, list) or len(gliders) != len(PROTOCOLS):
+        raise ValueError("Every codec needs an observed native Infinity glider definition")
+    for protocol, entry in zip(PROTOCOLS, gliders):
+        if (not isinstance(entry, dict) or entry.get("protocol") != protocol
+                or entry.get("canonical_identifier") != "convergence:infinity_chestplate"
+                or entry.get("native_wire_identifier") != "minecraft:elytra"
+                or entry.get("creative_alias_identifier") != "infinity_catalog:infinity_chestplate"
+                or entry.get("canonical_custom_definition_absent") is not True
+                or any(type(entry.get(key)) is not int or entry[key] <= 0
+                       for key in ("native_runtime_id", "creative_alias_runtime_id"))
+                or entry["native_runtime_id"] == entry["creative_alias_runtime_id"]):
+            raise ValueError("Native Infinity flight must retain the exact elytra definition and a separate Creative alias")
     observations = receipt.get("full_suit_observations")
     expected_cases = {(p, source, suit) for p in PROTOCOLS
                       for source in ("canonical_model_stack", "native_creative_reverse_translation")
@@ -69,9 +84,18 @@ def validate_receipt(receipt):
             raise ValueError("Invalid actual armor wire capture") from error
         if set(equipment) != set(SLOTS):
             raise ValueError("Observed armor packet omits a slot")
-        suit = tuple(equipment[s].removeprefix("convergence:")
-                     if isinstance(equipment[s], str) and equipment[s].startswith("convergence:")
+        canonical = entry.get("canonical_equipment")
+        if not isinstance(canonical, dict) or set(canonical) != set(SLOTS):
+            raise ValueError("Missing canonical identities from actual cached equipment")
+        if entry.get("canonical_components_preserved") is not True:
+            raise ValueError("The native translator must retain all canonical stack components")
+        suit = tuple(canonical[s].removeprefix("convergence:")
+                     if isinstance(canonical[s], str) and canonical[s].startswith("convergence:")
                      else None for s in SLOTS)
+        for slot, path in zip(SLOTS, suit):
+            expected_wire = "minecraft:elytra" if path == "infinity_chestplate" else "convergence:" + str(path)
+            if equipment[slot] != expected_wire:
+                raise ValueError("Native armor wire base differs from its canonical identity")
         case = (entry.get("protocol"), entry.get("source"), suit)
         if case not in expected_cases or case in seen:
             raise ValueError("Unexpected, missing or duplicated native armor identity")
@@ -84,8 +108,9 @@ def validate_receipt(receipt):
 def validate_pack(path):
     """Bind packet IDs to actual pack attachables; this is not Molang evaluation."""
     with zipfile.ZipFile(path) as archive:
-        if len(archive.namelist()) != len(set(archive.namelist())):
-            raise ValueError("Duplicate pack paths")
+        if (len(archive.namelist()) > 4096 or len(archive.namelist()) != len(set(archive.namelist()))
+                or sum(entry.file_size for entry in archive.infolist()) > 128 * 1024 * 1024):
+            raise ValueError("Pack exceeds bounded unique-entry limits")
         attachables = {}
         for name in archive.namelist():
             if name.startswith("attachables/") and name.endswith(".json"):
@@ -99,8 +124,19 @@ def validate_pack(path):
                 for prefix in ("convergence:", "infinity_catalog:"):
                     if prefix + item not in attachables:
                         raise ValueError("Native armor packet has no matching pack attachable: " + prefix + item)
+        spec = importlib.util.spec_from_file_location("_armor_combined_wing_contract", ROOT / "tools/combined_wing_resources.py")
+        combined = importlib.util.module_from_spec(spec); spec.loader.exec_module(combined)
+        try:
+            contract = combined.validate({name: archive.read(name) for name in archive.namelist()})
+        except (KeyError, TypeError) as error:
+            raise ValueError("Missing conditional native-glider pack resources") from error
         return {"sha256": digest(path), "manifest": json.loads(archive.read("manifest.json")),
-                "matching_armor_attachable_identities": 40, "engine_molang_evaluated": False}
+                "matching_armor_attachable_identities": 40,
+                "unchanged_custom_armor_identities": 19,
+                "native_glider_canonical_identifier": "convergence:infinity_chestplate",
+                "native_glider_wire_identifier": "minecraft:elytra",
+                "conditional_native_glider_contract": contract,
+                "engine_molang_evaluated": False}
 
 
 def main():
@@ -128,7 +164,7 @@ def main():
     if args.output and args.output.exists():
         raise SystemExit("Refusing to overwrite an existing proof receipt")
     source = ROOT / "tools/creative-bridge-proof/ArmorEquipmentProof.java"
-    inputs = [Path(__file__), source, args.geyser, args.bridge, args.pack,
+    inputs = [Path(__file__), source, ROOT / "tools/combined_wing_resources.py", args.geyser, args.bridge, args.pack,
               *(args.exports / n for n in ("infinity-catalogue.json", "infinity-items.json", "infinity-blocks.json"))]
     before = {str(p.resolve()): digest(p) for p in inputs}
     pack = validate_pack(args.pack)

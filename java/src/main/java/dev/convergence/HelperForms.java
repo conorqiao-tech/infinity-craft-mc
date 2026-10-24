@@ -99,6 +99,10 @@ final class HelperForms {
             message(t.actor().player(), "This helper screen expired, or its player, helper or order changed. Reopen AI Helpers.");
             return;
         }
+        if (AgentCompanions.get(server).creationRecoveryRequired) {
+            message(t.actor().player(), "Helper ownership is frozen after a recovery failure. No menu action was applied. Ask the host to inspect the roster and its .previous recovery copy.");
+            return;
+        }
         if (!t.context().getAsBoolean()) {
             changed(t.actor().player(), t.sender());
             return;

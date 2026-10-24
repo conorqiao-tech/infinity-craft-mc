@@ -256,7 +256,7 @@ final class ServerMenu {
             title="Infinity Armor Sets";
             icon(view,10,Items.LEATHER_CHESTPLATE,"Aurora • all four pieces","Helmet, chestplate, leggings and boots.","Earn Enchanter or use Admin access. Clear four inventory slots.");
             icon(view,12,Items.LEATHER_CHESTPLATE,"Ember • all four pieces","Helmet, chestplate, leggings and boots.","Earn Into Fire or use Admin access. Clear four inventory slots.");
-            icon(view,14,Items.ELYTRA,"Convergence Wings • armor and flight","Equip in your chest armor slot, then press Jump while airborne.","Infinity Chestplate and Convergence Armor Chestplate are solid armor.","Also available in Elemental Forge. Requires Creative, Admin or OP2.");
+            icon(view,14,Items.ELYTRA,"Convergence Wings • armor and flight","Equip in your chest armor slot, then press Jump while airborne.","Infinity Chestplate also has wings and keeps its Infinity set powers.","Also available in Elemental Forge. Requires Creative, Admin or OP2.");
             icon(view,16,Items.NETHERITE_CHESTPLATE,"Convergence Armor Chestplate","Solid custom armor; the wings remain a separate item.","Requires Creative, Admin or OP2.");
             icon(view,22,Items.AMETHYST_SHARD,"Elemental & Infinity Armor • Forge","New solid four-piece sets and saved elemental attunement.","Craft in Survival, or claim with Creative/Admin/OP2.");
         } else if(page==Page.RANKS) {

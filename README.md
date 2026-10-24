@@ -14,26 +14,27 @@ previous temporary public tunnel addresses are not evidence of current access.
 The host Mac must be awake with the server running. Accept the offered resource
 pack on your playing device.
 
-The owner's installed server is **2.13.0-explore.48**, on **Minecraft Java 26.4
-Snapshot 5**, Java 25 and the pinned Fabric/Geyser compatibility stack. An actual
-iPad login and stable four-piece armor have been confirmed. Actual iPad flight and the new combined appearance remain unverified.
-Installation, source changes and a published release are separate states.
+The owner's installed server is **2.13.0-explore.49**, on **Minecraft Java 26.4
+Snapshot 5**, Java 25 and the pinned Fabric/Geyser compatibility stack. The owner
+confirmed stable four-piece armor and working helper following/combos. Infinity
+Chestplate flight is the remaining reported gap. Installation, source changes
+and a published release are separate states.
 
-## Next source candidate: explore.49
+## Next source candidate: explore.50
 
-**Convergence Wings** combines the accepted Convergence chest armor and original
-folding wings in one chest-slot item. Native elytra flight and the existing item
-identity remain. Open **Infinity Menu → Elemental Forge → Get Convergence Wings**,
-then move that item into the chest equipment slot. Solid Infinity, Elemental and
-Convergence Armor Chestplates remain separate items. The conditional iPad
-appearance still needs a device check after a separately approved installation.
-See [combined chestplate and wings](server/WINGED_CHESTPLATE.md).
+The existing **Infinity Chestplate** gains native gliding and folding wings while
+retaining its armor, unbreakable equipment and full Infinity suit powers. Its
+saved item ID stays the same. Existing **Convergence Wings** remains available;
+ordinary elytra retains its native appearance. See
+[combined chestplate and wings](server/WINGED_CHESTPLATE.md).
 
-The iPad helper detail screen keeps **Enable combos and follow me** visible and
-explains unavailable helpers with their saved/live location. It does not load,
-teleport or replace a helper when the control is unavailable. See
-[helper controls](server/HELPER_COMBOS.md) and [validation](server/VALIDATION.md).
-The live server remains explore.48 until installation is approved and completed.
+The candidate also adds a quantity control to create a batch of AI helper golems
+at once, capped at fifty total per owner and server, including unloaded helpers.
+Both Java menus and iPad touch forms use the same native ownership and placement
+checks. The candidate passed 673 native and 419 launcher/resource tests; it is
+not installed by building or merging.
+Actual Infinity chestplate appearance and touch gliding need a device check after
+separately approved installation. See [validation](server/VALIDATION.md).
 
 ## New in explore.25
 
