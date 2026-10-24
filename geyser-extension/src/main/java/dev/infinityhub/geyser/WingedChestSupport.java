@@ -41,21 +41,29 @@ import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory.C
  */
 final class WingedChestSupport {
     static final String PROPERTY = "infinityhub:winged_chest";
+    static final String INFINITY_PROPERTY = "infinityhub:infinity_winged_chest";
     private static final Identifier PLAYER = Identifier.of("minecraft:player");
     private static volatile WingedChestSupport active;
     private final GeyserBooleanEntityProperty property;
-    private final Map<Entity, Boolean> applied = Collections.synchronizedMap(new WeakHashMap<>());
+    private final GeyserBooleanEntityProperty infinityProperty;
+    private enum Chest { NONE, CONVERGENCE, INFINITY }
+    private final Map<Entity, Chest> applied = Collections.synchronizedMap(new WeakHashMap<>());
     private final Set<GeyserSession> awaitingChest = Collections.synchronizedSet(
         Collections.newSetFromMap(new WeakHashMap<>()));
     private final Map<Class<? extends Packet>, PacketTranslator<? extends Packet>> installed = new LinkedHashMap<>();
 
-    private WingedChestSupport(GeyserBooleanEntityProperty property) { this.property = property; }
+    private WingedChestSupport(GeyserBooleanEntityProperty property, GeyserBooleanEntityProperty infinityProperty) {
+        this.property = property;
+        this.infinityProperty = infinityProperty;
+    }
 
     static WingedChestSupport define(GeyserDefineEntityPropertiesEvent event) {
-        if (event.properties(PLAYER).size() >= 32
-            || event.properties(PLAYER).stream().anyMatch(p -> p.identifier().equals(Identifier.of(PROPERTY))))
-            throw new IllegalStateException("The owned winged-chest player property cannot be registered");
-        return new WingedChestSupport(event.registerBooleanProperty(PLAYER, Identifier.of(PROPERTY), false));
+        if (event.properties(PLAYER).size() > 30
+            || event.properties(PLAYER).stream().anyMatch(p -> p.identifier().equals(Identifier.of(PROPERTY))
+                || p.identifier().equals(Identifier.of(INFINITY_PROPERTY))))
+            throw new IllegalStateException("The owned winged-chest player properties cannot be registered");
+        return new WingedChestSupport(event.registerBooleanProperty(PLAYER, Identifier.of(PROPERTY), false),
+            event.registerBooleanProperty(PLAYER, Identifier.of(INFINITY_PROPERTY), false));
     }
 
     void install() {
@@ -124,11 +132,14 @@ final class WingedChestSupport {
     }
 
     private void respawn(GeyserSession session, ClientboundRespawnPacket packet) {
+        // A dimension transition may rebuild the client's player appearance.
+        // Reassert both current flags instead of relying on a pre-transition send.
+        applied.remove(session.getPlayerEntity());
         // A death can leave the previous inventory cached until its authoritative
         // replacement arrives. Do not re-enable its shell from an unrelated packet.
         if (!packet.isKeepMetadata()) {
             awaitingChest.add(session);
-            apply(session, session.getPlayerEntity(), false);
+            apply(session, session.getPlayerEntity(), Chest.NONE);
         } else sync(session);
     }
 
@@ -139,40 +150,55 @@ final class WingedChestSupport {
     }
 
     private void sync(GeyserSession session) {
-        apply(session, session.getPlayerEntity(), !awaitingChest.contains(session)
-            && canonical(session.getPlayerInventory().getItem(6)));
+        apply(session, session.getPlayerEntity(), awaitingChest.contains(session)
+            ? Chest.NONE : canonical(session.getPlayerInventory().getItem(6)));
     }
 
-    private void apply(GeyserSession session, PlayerEntity player, boolean value) {
+    private void apply(GeyserSession session, PlayerEntity player, Chest value) {
         session.ensureInEventLoop(() -> {
             if (player == null || player.getSession() != session || !player.isValid()
                 || !player.definition().identifier().equals(PLAYER)
                 || session.getEntityCache().getEntityByJavaId(player.getEntityId()) != player) return;
             var previous = applied.get(player);
-            if (previous != null && previous.booleanValue() == value) return;
+            if (previous == value) return;
             // The public API now runs inline on this connection's event loop.
             // Cache only after its update succeeds; recheck identity after queuing.
-            player.updateProperty(property, value);
+            // Both values are staged in this same event-loop callback before the
+            // native property flush, so a suit change cannot publish mixed flags.
+            player.updatePropertiesBatched(updater -> {
+                updater.update(property, value != Chest.NONE);
+                updater.update(infinityProperty, value == Chest.INFINITY);
+            });
             applied.put(player, value);
         });
     }
 
-    private static boolean canonical(GeyserItemStack stack) {
-        if (stack == null || stack.isEmpty() || stack.getAmount() <= 0 || !stack.is(Items.ELYTRA)) return false;
+    private static Chest canonical(GeyserItemStack stack) {
+        if (stack == null || stack.isEmpty() || stack.getAmount() <= 0 || !stack.is(Items.ELYTRA)) return Chest.NONE;
         Object component = stack.getComponent(DataComponentTypes.CUSTOM_DATA);
-        return component instanceof NbtMap data && data.get("$polymer:stack") instanceof NbtMap marker
-            && "convergence:chestplate".equals(marker.get("id"));
+        if (!(component instanceof NbtMap data) || !(data.get("$polymer:stack") instanceof NbtMap marker)
+            || !(marker.get("id") instanceof String id)) return Chest.NONE;
+        return switch (id) {
+            case "convergence:chestplate" -> Chest.CONVERGENCE;
+            case "convergence:infinity_chestplate" -> Chest.INFINITY;
+            default -> Chest.NONE;
+        };
     }
 
     private void verifySchema() {
+        verifySchema(PROPERTY, property);
+        verifySchema(INFINITY_PROPERTY, infinityProperty);
+    }
+
+    private void verifySchema(String name, GeyserBooleanEntityProperty handle) {
         long matches = Registries.BEDROCK_ENTITY_PROPERTIES.get().stream()
             .filter(nbt -> nbt.getString("type").equals(PLAYER.toString()))
             .flatMap(nbt -> nbt.getList("properties", NbtType.COMPOUND).stream())
-            .filter(nbt -> nbt.getString("name").equals(PROPERTY) && nbt.getInt("type") == 2).count();
+            .filter(nbt -> nbt.getString("name").equals(name) && nbt.getInt("type") == 2).count();
         if (matches != 1) throw new IllegalStateException("Missing unique native-player winged-chest Boolean schema");
         var definition = org.geysermc.geyser.entity.BedrockEntityDefinition.getVanilla(PLAYER);
-        var found = definition.properties().stream().filter(p -> p.identifier().equals(Identifier.of(PROPERTY))).toList();
-        if (found.size() != 1 || found.getFirst() != property)
+        var found = definition.properties().stream().filter(p -> p.identifier().equals(Identifier.of(name))).toList();
+        if (found.size() != 1 || found.getFirst() != handle)
             throw new IllegalStateException("Winged-chest property handle does not match the native player definition");
     }
 
@@ -183,11 +209,13 @@ final class WingedChestSupport {
                 throw new IllegalStateException("The owned winged-chest translator is no longer installed");
         var receipt = new JsonObject();
         receipt.addProperty("entity", PLAYER.toString()); receipt.addProperty("property", PROPERTY);
+        receipt.addProperty("infinity_property", INFINITY_PROPERTY);
         receipt.addProperty("type", "Boolean"); receipt.addProperty("default", false);
         var paths = new JsonArray(); installed.keySet().forEach(type -> paths.add(type.getSimpleName()));
         receipt.add("delegated_java_paths", paths);
         receipt.addProperty("self_request_guard_callback", true);
-        receipt.addProperty("canonical_marker_required", "$polymer:stack.id=convergence:chestplate and native minecraft:elytra");
+        receipt.addProperty("canonical_marker_required", "native minecraft:elytra and $polymer:stack.id=convergence:chestplate or convergence:infinity_chestplate");
+        receipt.addProperty("same_event_loop_suit_properties", true);
         receipt.addProperty("ordinary_elytra_item_and_gameplay_unchanged", true);
         receipt.addProperty("device_rendering_verified", false);
         return receipt;

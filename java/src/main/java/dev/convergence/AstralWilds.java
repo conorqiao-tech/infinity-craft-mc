@@ -165,7 +165,10 @@ final class AstralWilds {
         }
         void tick(){
             int tick=server.getTickCount();
-            loaded.entrySet().removeIf(e->e.getValue().isRemoved()||!e.getValue().isAlive()||!recorded(e.getValue()));
+            // A full terrain chunk can precede native entity tracking, so an
+            // immediate terminal removal may never emit ENTITY_UNLOAD.
+            for(var mob:List.copyOf(loaded.values()))
+                if(mob.isRemoved()||!mob.isAlive()||!recorded(mob))unload(mob);
             if(tick%20==0){
                 for(var mob:loaded.values()){
                     int viewers=0;var v=variant(mob);

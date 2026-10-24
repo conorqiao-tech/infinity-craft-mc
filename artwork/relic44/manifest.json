@@ -177,9 +177,9 @@
   },
   "preserved_sha256": {
     "java/src/main/java/dev/convergence/ElementalRelics.java": "e9c9bb027d44c3217b6750948f53e8465705c9ae57d646afb05ac0d3874a3969",
-    "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "31df061e0ab55c555230da716a46c1f8cc7d0f1c6ff688eaf92045ef65e0d1bf",
+    "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "7c2fa0bf8da69ff6d20557d8b56ee542d0a48e33fbcb3143ece5905f884d4e60",
     "java/src/main/java/dev/convergence/GearNames.java": "45c473150255494b16b8bf22ae2e0d0d5068af7cc3ad89881678006c7fbbfd63",
-    "java/src/main/java/dev/convergence/CrossplaySupport.java": "aa519bb429e9fdc2b1e3b36bec7fd6761667f5e382a7c78df2ab5adc9d0f08e7",
+    "java/src/main/java/dev/convergence/CrossplaySupport.java": "c5263e25190e801994681ab0eb90bb47767e2e019845981b504b2e90da7e6a7d",
     "java/src/main/resources/assets/convergence/lang/en_us.json": "ff35b727a3176472b2afcbd117bc29d93262b80bdee4d2ad9ca8492b0786abef",
     "java/src/main/resources/assets/convergence/items/windstep.json": "3a0872ef05f8b7a8bb3c47110abf9692db947511ffdb4005f463b98b8ab0ccca",
     "java/src/main/resources/data/convergence/recipe/windstep.json": "fb7da1a5784e8d6c55a3d8c6cb5e4f8a019abc55a1e162b897a05bb20b152f5c",
@@ -251,6 +251,30 @@
         "scope": "Add the existing Convergence wing item as one-slot Forge claim and describe chest-slot equipment/native flight. Relic kits and actions remain unchanged."
       },
       "reason": "The tested Forge menu access changes the source preservation pin, not the original relic artwork. All relic PNGs, models, recipes, names, native definitions, ElementalRelics implementation and other artwork preservation hashes remain unchanged. Native655 includes encoded Java/Bedrock menu, access, replay, full-inventory and disk-save coverage."
+    },
+    {
+      "release": "2.13.0-explore.50",
+      "path": "java/src/main/java/dev/convergence/ElementalForgeMenu.java",
+      "previous_sha256": "31df061e0ab55c555230da716a46c1f8cc7d0f1c6ff688eaf92045ef65e0d1bf",
+      "current_sha256": "7c2fa0bf8da69ff6d20557d8b56ee542d0a48e33fbcb3143ece5905f884d4e60",
+      "exact_change": {
+        "base_commit": "f91d6506f79fbc1749b7f178721f2ff51ec79d4d",
+        "git_diff_sha256": "6df9d37d0b8e773612423d3854695dbea44a2b5f3a104b01f133f99ecb911745",
+        "scope": "Describe native flight on the existing Infinity Chestplate and retain the Convergence Wings claim. Relic actions and artwork remain unchanged."
+      },
+      "reason": "The owner requested Infinity Chestplate flight. This updates a source preservation pin only; all original relic PNGs, item models, recipes, names and ElementalRelics behavior remain unchanged. Native equipment changes are validated separately from artwork."
+    },
+    {
+      "release": "2.13.0-explore.50",
+      "path": "java/src/main/java/dev/convergence/CrossplaySupport.java",
+      "previous_sha256": "aa519bb429e9fdc2b1e3b36bec7fd6761667f5e382a7c78df2ab5adc9d0f08e7",
+      "current_sha256": "c5263e25190e801994681ab0eb90bb47767e2e019845981b504b2e90da7e6a7d",
+      "exact_change": {
+        "base_commit": "f91d6506f79fbc1749b7f178721f2ff51ec79d4d",
+        "git_diff_sha256": "f2d1f4e34f6fdb7aec40390ee3da0900992bb3f608b9ab8301becdc7a01583a3",
+        "scope": "Project only Infinity Chestplate as native elytra for crossplay flight while preserving its canonical item identity, other mappings and relic artwork."
+      },
+      "reason": "The owner requested Infinity Chestplate flight. This updates a source preservation pin only; all original relic PNGs, item models, recipes, names and ElementalRelics behavior remain unchanged. Native equipment changes are validated separately from artwork."
     }
   ]
 }

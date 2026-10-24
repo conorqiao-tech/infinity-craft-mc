@@ -1,6 +1,6 @@
 {
   "minecraft": "26.4-snapshot-5",
-  "version": "2.13.0-explore.49",
+  "version": "2.13.0-explore.50",
   "downloads": [
     {
       "path": "fabric/fabric-server-launch.jar",
@@ -17,8 +17,8 @@
   ],
   "bundled": [
     {
-      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.49.jar",
-      "sha256": "29e0d42d15e93b7309b13a5f13ed8baba2debad53e362223f2d2c6a9afd49b92"
+      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.50.jar",
+      "sha256": "07d40f9a3f18284b30cda2092d963a64d2bffbab38f2fbe178a3b6460cbf25eb"
     },
     {
       "path": "fabric/mods/fabric-api-0.164.1+26.4.jar",
@@ -26,11 +26,11 @@
     },
     {
       "path": "geyser/packs/Infinity_Armor_Crossplay.mcpack",
-      "sha256": "10678b11c7f8fd86135ab730c610fad3d4521eb694f90c9865f4a616366ef44c"
+      "sha256": "0df4d912b4840907846c4f7b279d5596bb9e7f59aadc27db523d7e58c68a52c2"
     },
     {
       "path": "geyser/extensions/InfinityCreativeBridge.jar",
-      "sha256": "92e1d0d67829f5396bf6581cd112e60db7bcfdd51d10077f3222dc5f1b735196"
+      "sha256": "16e1f8e9b51820bbc4f804619c7525fb9be4ef56e608d9ae9e16c0f450a59fcc"
     },
     {
       "path": "fabric/mods/polymer-bundled-0.18.5-infinity-snapshot5+26.4-snapshot-5.jar",
@@ -64,9 +64,9 @@
       "geyser-extension/src/main/java/dev/infinityhub/geyser/InfinityCreativeBridge.java": "d73249f534df4f03083250a17063fb9511844ded84464c3f9609cedfded323f4",
       "geyser-extension/src/main/java/dev/infinityhub/geyser/OwnedEquipmentProof.java": "9beb4e0c066cbf1eb66e3c15da4dc2d6010b441ffbc461860c400c6b631d00d9",
       "geyser-extension/src/main/java/dev/infinityhub/geyser/OwnedEquipmentSupport.java": "8adf0d00e1db3d3ab628ba8d82617aba618a77b5fe43126f0d6fae4dfe0f850d",
-      "geyser-extension/src/main/java/dev/infinityhub/geyser/WingedChestSupport.java": "5851d679135a8ec7727b6ca5865151870e4950312d46dade12a772c97976c41a"
+      "geyser-extension/src/main/java/dev/infinityhub/geyser/WingedChestSupport.java": "975d77716be4b3e6bd5c0d8aea9561c0bc1f13d8efbd95b30f0732e8f57a6f88"
     },
-    "extension_sha256": "92e1d0d67829f5396bf6581cd112e60db7bcfdd51d10077f3222dc5f1b735196"
+    "extension_sha256": "16e1f8e9b51820bbc4f804619c7525fb9be4ef56e608d9ae9e16c0f450a59fcc"
   },
   "snapshot5": {
     "experimental": true,

@@ -17,13 +17,21 @@ from combined_wing_resources import validate as validate_resources
 from prepare_crossplay import ROOT, VERSION
 from verify_armor_equipment import PIN, PROTOCOLS, digest
 
+EXPECTED_CASES = 192
+CASES_PER_PROTOCOL = 64
+PROPERTIES = ["infinityhub:winged_chest", "infinityhub:infinity_winged_chest"]
+CANONICAL_ITEM_IDS = ["convergence:chestplate", "convergence:infinity_chestplate"]
+
 
 def validate_receipt(receipt):
-    if (not isinstance(receipt, dict) or receipt.get("format") != 1
-            or type(receipt.get("cases")) is not int or receipt["cases"] != 84
+    if (not isinstance(receipt, dict) or receipt.get("format") != 2
+            or type(receipt.get("cases")) is not int or receipt["cases"] != EXPECTED_CASES
+            or receipt.get("properties") != PROPERTIES
+            or receipt.get("canonical_item_ids") != CANONICAL_ITEM_IDS
             or receipt.get("real_registered_java_paths") != 5
             or receipt.get("installed_bedrock_request_guard") is not True
             or receipt.get("schema_and_property_codec_roundtrips") is not True
+            or receipt.get("property_consistency_on_every_flushed_packet") is not True
             or receipt.get("network_listener_started") is not False
             or receipt.get("client_rendering_or_molang_executed") is not False
             or receipt.get("live_world_access") is not False):
@@ -31,8 +39,19 @@ def validate_receipt(receipt):
     observed = receipt.get("observations")
     if (not isinstance(observed, list) or len(observed) != len(PROTOCOLS)
             or [entry.get("protocol") for entry in observed] != PROTOCOLS
-            or any(entry.get("self_and_observer") is not True for entry in observed)):
+            or any(type(entry.get("cases")) is not int or entry["cases"] != CASES_PER_PROTOCOL
+                   or any(entry.get(key) is not True for key in
+                          ("self_and_observer", "both_canonical_suits",
+                           "real_local_armor_moves_both_suits", "consistent_property_pairs"))
+                   for entry in observed)):
         raise ValueError("Every pinned protocol needs native self and observer evidence")
+    labels = receipt.get("case_labels")
+    if (not isinstance(labels, list) or len(labels) != EXPECTED_CASES
+            or any(not isinstance(label, str) or not 1 <= len(label) <= 256 for label in labels)
+            or len(set(labels)) != EXPECTED_CASES
+            or any(sum(label.startswith(str(protocol) + " ") for label in labels) != CASES_PER_PROTOCOL
+                   for protocol in PROTOCOLS)):
+        raise ValueError("Every native proof case needs a unique label in its pinned protocol")
 
 
 def current_inputs():
@@ -101,7 +120,7 @@ def main():
         result = subprocess.run([str(java), "-Xmx512M", "-Djava.awt.headless=true", "-cp", str(classes) + ":" + str(geyser),
                                  "dev.infinityhub.proof.WingedChestProof", str(work), str(work / "proof.json")],
                                 cwd=work, capture_output=True, text=True, timeout=120)
-        if result.returncode or "WINGED_CHEST_PROOF_PASSED 84" not in result.stdout:
+        if result.returncode or f"WINGED_CHEST_PROOF_PASSED {EXPECTED_CASES}" not in result.stdout:
             raise SystemExit("Winged-chest native proof failed:\n" + result.stdout[-16000:] + result.stderr[-12000:])
         receipt = json.loads((work / "proof.json").read_text()); validate_receipt(receipt)
         if before != current_inputs():

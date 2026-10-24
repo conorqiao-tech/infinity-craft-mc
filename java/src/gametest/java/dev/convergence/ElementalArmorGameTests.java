@@ -5,6 +5,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -26,6 +27,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.GameType;
@@ -50,7 +53,8 @@ public class ElementalArmorGameTests {
             c.assertValueEqual(equipment.assetId().orElseThrow().identifier(), id(suit.prefix() + "_armor"), "Each suit owns an independent equipped model");
             c.assertValueEqual(equipment.damageOnHurt(), suit == ElementalArmor.Suit.ELEMENTAL, "Only the normal-durability Elemental suit takes armor wear");
             c.assertValueEqual(equipment.equipSound(), ElementalArmor.baseItem(path).getDefaultInstance().get(DataComponents.EQUIPPABLE).equipSound(), "Native optional equip sound is preserved for every piece");
-            c.assertFalse(stack.has(DataComponents.GLIDER), "These are four solid pieces; existing separate wings stay independent");
+            c.assertValueEqual(stack.has(DataComponents.GLIDER), suit == ElementalArmor.Suit.INFINITY && SLOTS.get(i) == EquipmentSlot.CHEST,
+                "Only the existing Infinity chestpiece gains native flight; all other suit pieces remain unchanged");
             c.assertValueEqual(stack.has(DataComponents.UNBREAKABLE), suit == ElementalArmor.Suit.INFINITY, "Only ultimate Infinity armor is unbreakable");
             c.assertValueEqual(stack.getMaxDamage(), ElementalArmor.baseItem(path).getDefaultInstance().getMaxDamage(), "Native base durability is preserved");
             double armor = 0, toughness = 0, knockback = 0;
@@ -152,6 +156,133 @@ public class ElementalArmorGameTests {
             effect(c, p, MobEffects.FIRE_RESISTANCE, 0); effect(c, p, MobEffects.WATER_BREATHING, 0); effect(c, p, MobEffects.NIGHT_VISION, 0);
             effect(c, p, MobEffects.SPEED, 2); effect(c, p, MobEffects.HASTE, 4); effect(c, p, MobEffects.STRENGTH, 4);
             effect(c, p, MobEffects.RESISTANCE, 3); effect(c, p, MobEffects.REGENERATION, 2);
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
+    /** Independent pre-flight save shape: unchanged defaults were never written as patches. */
+    private static CompoundTag legacyInfinityChest() {
+        var item = new CompoundTag();
+        item.putString("id", "convergence:infinity_chestplate"); item.putInt("count", 1);
+        var components = new CompoundTag();
+        components.putString("minecraft:custom_name", "My pre-flight Infinity chestplate");
+        components.putInt("minecraft:damage", 37); components.putInt("minecraft:repair_cost", 9);
+        var enchantments = new CompoundTag();
+        enchantments.putInt("minecraft:protection", 4); enchantments.putInt("minecraft:unbreaking", 3);
+        enchantments.putInt("minecraft:mending", 1);
+        components.put("minecraft:enchantments", enchantments);
+        var trim = new CompoundTag(); trim.putString("material", "minecraft:gold"); trim.putString("pattern", "minecraft:spire");
+        components.put("minecraft:trim", trim);
+        var data = new CompoundTag(); data.putString("owner_note", "Keep my existing armor");
+        var future = new CompoundTag(); future.putInt("receipt", 49); future.putBoolean("pending", true);
+        data.put("future_mod_data", future); components.put("minecraft:custom_data", data);
+        item.put("components", components);
+        return item;
+    }
+
+    private static ItemStack legacyInfinityChest(GameTestHelper c) {
+        return ItemStack.CODEC.parse(RegistryOps.create(NbtOps.INSTANCE, c.getLevel().registryAccess()), legacyInfinityChest()).getOrThrow();
+    }
+
+    private static void assertLegacyChest(GameTestHelper c, ItemStack actual) {
+        var expected = legacyInfinityChest(c);
+        c.assertTrue(actual.is(Convergence.ITEMS.get("convergence:infinity_chestplate")), "Old gear retains its exact Infinity item identity");
+        c.assertTrue(actual.has(DataComponents.GLIDER), "Old saved item gains the new default flight component without replacement");
+        c.assertTrue(ItemStack.isSameItemSameComponents(actual, expected), "Name, enchantments, damage, trim, repair cost, custom data and armor defaults are preserved together");
+    }
+
+    @GameTest public void existingInfinityChestSaveGainsFlightAndRetainsEveryOwnedComponent(GameTestHelper c) {
+        var registries = c.getLevel().registryAccess(); var ops = RegistryOps.create(NbtOps.INSTANCE, registries);
+        var legacy = legacyInfinityChest(); var patch = legacy.getCompoundOrEmpty("components");
+        c.assertFalse(patch.contains("minecraft:glider") || patch.contains("!minecraft:glider"), "The old native save has neither a flight component nor an explicit removal patch");
+        var untouched = legacy.copy(); var stack = ItemStack.CODEC.parse(ops, legacy).getOrThrow();
+        c.assertValueEqual(legacy, untouched, "Decoding never edits the original old saved NBT");
+        assertLegacyChest(c, stack);
+        c.assertValueEqual(stack.getHoverName().getString(), "My pre-flight Infinity chestplate", "The owner's saved name wins over the default label");
+        c.assertValueEqual(stack.getDamageValue(), 37, "Existing durability damage is retained even on unbreakable gear");
+        c.assertValueEqual(stack.get(DataComponents.REPAIR_COST), 9, "Existing repair cost is retained");
+        var enchantments = stack.get(DataComponents.ENCHANTMENTS);
+        c.assertValueEqual(enchantments.getLevel(registries.lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT).getOrThrow(Enchantments.PROTECTION)), 4, "Protection level survives the old save decode");
+        c.assertTrue(stack.has(DataComponents.TRIM), "The actual native trim component survives decode");
+        c.assertValueEqual(stack.get(DataComponents.CUSTOM_DATA), CustomData.of(patch.getCompoundOrEmpty("minecraft:custom_data")), "Unknown nested owner/mod data is preserved");
+        var nativeBase = Items.NETHERITE_CHESTPLATE.getDefaultInstance();
+        for (var component : nativeBase.getComponents()) {
+            if (List.of(DataComponents.ITEM_NAME, DataComponents.ITEM_MODEL, DataComponents.ATTRIBUTE_MODIFIERS,
+                    DataComponents.EQUIPPABLE, DataComponents.DAMAGE, DataComponents.REPAIR_COST,
+                    DataComponents.ENCHANTMENTS, DataComponents.CUSTOM_NAME, DataComponents.CUSTOM_DATA,
+                    DataComponents.TRIM, DataComponents.UNBREAKABLE).contains(component.type())) continue;
+            c.assertValueEqual(stack.get(component.type()), nativeBase.get(component.type()), "Native netherite defaults remain intact: " + component.type());
+        }
+        var encoded = (CompoundTag) ItemStack.CODEC.encodeStart(ops, stack).getOrThrow();
+        c.assertFalse(encoded.getCompoundOrEmpty("components").contains("minecraft:glider"), "The default is inherited rather than manufactured as an inventory patch");
+        assertLegacyChest(c, ItemStack.CODEC.parse(ops, encoded).getOrThrow());
+        var intentionallyDisabled = stack.copy(); intentionallyDisabled.remove(DataComponents.GLIDER);
+        var disabled = ItemStack.CODEC.parse(ops, ItemStack.CODEC.encodeStart(ops, intentionallyDisabled).getOrThrow()).getOrThrow();
+        c.assertFalse(disabled.has(DataComponents.GLIDER), "An explicitly removed component remains an owner-authored override; no automatic inventory rewrite occurs");
+        c.succeed();
+    }
+
+    @GameTest public void savedInfinityFlightSurvivesNativePlayerModeAndBackpackStorage(GameTestHelper c) throws Exception {
+        var p = player(c, "infinity-old-save");
+        try {
+            equip(p, ElementalArmor.Suit.INFINITY);
+            var old = legacyInfinityChest(c); p.setItemSlot(EquipmentSlot.CHEST, old);
+            p.getInventory().setItem(8, old.copy()); p.getEnderChestInventory().setItem(9, old.copy());
+            var profile = GameModes.capture(p); profile.put("equipment_chest", legacyInfinityChest());
+            var profiles = new CompoundTag(); profiles.put("SURVIVAL", profile);
+            GameModes.state(p).put("profiles", profiles); GameModes.state(p).putString("owner_receipt", "preserve mode state");
+            var survivalBag = new ArrayList<ItemStack>(java.util.Collections.nCopies(BackpackStorage.SIZE, ItemStack.EMPTY));
+            survivalBag.set(7, old.copy()); BackpackStorage.write(p, "SURVIVAL", survivalBag);
+            var creativeBag = new ArrayList<ItemStack>(java.util.Collections.nCopies(BackpackStorage.SIZE, ItemStack.EMPTY));
+            creativeBag.set(8, new ItemStack(Items.EMERALD, 5)); BackpackStorage.write(p, "CREATIVE", creativeBag);
+            PlayerPersistence.save(p);
+            var disk = NbtIo.readCompressed(GameModes.savedPlayerFile(p.level().getServer(), p.getUUID()), NbtAccounter.create(64L * 1024 * 1024));
+            var restored = new ServerPlayer(p.level().getServer(), p.level(), p.getGameProfile(), p.clientInformation());
+            restored.load(TagValueInput.create(ProblemReporter.DISCARDING, p.registryAccess(), disk));
+            assertLegacyChest(c, restored.getItemBySlot(EquipmentSlot.CHEST));
+            assertLegacyChest(c, restored.getInventory().getItem(8)); assertLegacyChest(c, restored.getEnderChestInventory().getItem(9));
+            assertLegacyChest(c, BackpackStorage.read(restored, "SURVIVAL").get(7));
+            c.assertTrue(BackpackStorage.read(restored, "CREATIVE").get(7).isEmpty(), "Survival gear never leaks into the independent Creative backpack");
+            c.assertValueEqual(BackpackStorage.read(restored, "CREATIVE").get(8).getCount(), 5, "Unrelated Creative storage remains unchanged");
+            var savedProfile = GameModes.state(restored).getCompoundOrEmpty("profiles").getCompoundOrEmpty("SURVIVAL");
+            // The detached disk reader has no packet listener. Restore the
+            // actual disk profile into our connected native player before
+            // testing effects and flight, which legitimately send packets.
+            GameModes.restore(p, savedProfile);
+            assertLegacyChest(c, p.getItemBySlot(EquipmentSlot.CHEST));
+            c.assertValueEqual(ElementalArmor.fullSuit(p), ElementalArmor.Suit.INFINITY, "The old matching suit remains Infinity after player and mode reload");
+            c.assertValueEqual(GameModes.state(restored).getStringOr("owner_receipt", ""), "preserve mode state", "Unrelated owner state survives the native save and mode restore");
+            ElementalArmor.tick(p);
+            effect(c, p, MobEffects.STRENGTH, 4); effect(c, p, MobEffects.RESISTANCE, 3); effect(c, p, MobEffects.HASTE, 4);
+            var airborne = c.absolutePos(new BlockPos(2, 6, 2));
+            p.setPos(airborne.getX() + .5, airborne.getY(), airborne.getZ() + .5);
+            p.setOnGround(false); p.setDeltaMovement(0, -.4, 0);
+            c.assertTrue(p.tryToStartFallFlying() && p.isFallFlying(), "The real reloaded Infinity chestpiece starts native Survival glide with its full set intact");
+            assertLegacyChest(c, p.getItemBySlot(EquipmentSlot.CHEST));
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
+    @GameTest public void infinityFlightProjectsNativeElytraWithoutChangingRealArmorOrOtherEquipment(GameTestHelper c) {
+        var p = player(c, "infinity-wire");
+        try {
+            var registries = c.getLevel().registryAccess(); var context = p.connection.getPacketContext();
+            var original = legacyInfinityChest(c);
+            c.assertValueEqual(CrossplaySupport.BASES.get("infinity_chestplate"), Items.ELYTRA, "The iPad native base is actual elytra");
+            c.assertTrue(CrossplaySupport.nativeAppearance("infinity_chestplate", true, true), "Bedrock retains native flight identity even with the resource pack");
+            c.assertFalse(CrossplaySupport.nativeAppearance("infinity_chestplate", false, true), "Pack-enabled Java retains its own armor and wings asset");
+            var wire = eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(original, context, registries);
+            c.assertTrue(wire.is(Items.ELYTRA), "The real Polymer projection sends elytra, allowing native Bedrock glide");
+            c.assertTrue(wire.has(DataComponents.GLIDER), "The native outgoing item retains glide");
+            c.assertValueEqual(wire.get(DataComponents.EQUIPPABLE), Items.ELYTRA.components().get(DataComponents.EQUIPPABLE), "Packless Java and Bedrock receive complete native elytra equipment defaults");
+            c.assertValueEqual(wire.getHoverName(), original.getHoverName(), "Wire projection retains the owner's custom name");
+            assertLegacyChest(c, eu.pb4.polymer.core.api.item.PolymerItemUtils.getRealItemStack(wire, registries));
+            var nativeWings = new ItemStack(Items.ELYTRA); var ordinaryBefore = nativeWings.copy();
+            var ordinaryWire = eu.pb4.polymer.core.api.item.PolymerItemUtils.getPolymerItemStack(nativeWings, context, registries);
+            c.assertTrue(ItemStack.isSameItemSameComponents(ordinaryWire, ordinaryBefore), "Ordinary elytra and all its components remain native");
+            c.assertTrue(gear("chestplate").has(DataComponents.GLIDER) && CrossplaySupport.BASES.get("chestplate") == Items.ELYTRA, "Convergence Wings keep their existing native flight");
+            for (String path : List.of("cuirass", "elemental_chestplate", "aurora_chestplate", "ember_chestplate", "backpack", "infinity_helmet", "infinity_leggings", "infinity_boots"))
+                c.assertFalse(gear(path).has(DataComponents.GLIDER), "Only the requested Infinity chestpiece gains flight: " + path);
         } finally { cleanup(p); }
         c.succeed();
     }

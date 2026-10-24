@@ -1,4 +1,76 @@
-# Combined Convergence chestplate and wings — explore.49 candidate
+# Explore.50 — Infinity Chestplate flight and instant helper batches
+
+The candidate adds native gliding to the existing Infinity Chestplate while
+preserving its item ID, armor components, unbreakable equipment, saved item data
+and complete Infinity suit powers. Both winged chest items use native elytra on
+the iPad connection; two batched player properties select their matching armor
+shells and folding wings. All 424 tracked PNGs and accepted armor joints remain
+unchanged. Ordinary and held elytra retain their native rendering path.
+
+**AI Helpers → Create helpers in a batch** creates the exact chosen quantity and
+profile in one activation. Both owner and server limits are fifty total, counting
+saved unloaded helpers. Native tests create fifty from an empty roster, add
+forty-nine beside an existing edited helper, and enforce shared server capacity.
+The complete batch needs clear, loaded, dry solid ground within sixteen blocks.
+Insufficient placement or ownership persistence cannot produce a smaller partial
+batch. Existing helper identities, names, health, stats and profiles are retained.
+Java and native iPad form tests cover quantity/profile selection, capacity-full
+controls, capacity changes, cancellation, session changes and replay refusal.
+These are functional capacity tests, not a multiplayer performance benchmark.
+
+## Final candidate evidence
+
+- **673 native tests in 32 isolated groups pass**, with zero failures, errors or
+  skips. Provenance binds all **770 Java source/resource hashes**, the release
+  mod, original test JAR, aggregate report and exact dependency lock.
+- **419 Python launcher/resource tests pass**, with ResourceWarning treated as
+  an error and zero failures, errors or skips.
+- **192 native wing-property cases pass**, with sixty-four each on protocols
+  **1001, 2168 and 2193**. They cover both real winged items, atomic paired flags,
+  equipment/slot guards, observers, replacement, respawn and dimension changes.
+  **303 armor codec round trips pass** across twenty identities and all five
+  suits, including the actual native Infinity Chestplate elytra fallback.
+- Fresh Geyser startup covers **66 identities across three protocols**. The full
+  Via/native wire proof passes **255 hotbar inputs**, **198 overflow refusals**
+  and **255 Survival refusals**. Persistence passes **85 disk/rejoin item-count
+  cases**, all sixty-six identities and **three genuine same-UUID reconnects**,
+  retaining renamed/damaged equipment, backpacks and observer state.
+- The exact Snapshot 5 stack passes **21 codec tests** and **four targeted native
+  ACK cases plus one framework baseline**. The actual Java 26.2 codec sustains
+  **90.095 seconds** of translated application Play, decodes **180 chunks**,
+  acknowledges **five teleports**, receives actual Infinity Chestplate and
+  Convergence Wings packets, and completes a native respawn. All **four
+  authentication negatives** are rejected before Play.
+- **Two isolated full-stack cycles pass** startup, local response, backup,
+  restart and clean shutdown. A separate **92-file** world copy converts
+  DataVersion **5023 → 5125**, preserving four offline player records, nine mod
+  records, saved helper identity/equipment/stats/28 attributes, difficulty and
+  the original fixture. This is a bounded copy test, not a guarantee for all saves.
+
+Failure-path tests retain the original ownership recovery copy after a native
+insertion and rollback-write failure. Roster writes and helper behavior remain
+frozen pending host recovery. Full validation also reproduced terminal guardian
+removals whose entity section never emitted an unload callback; the ordinary tick
+now uses existing retirement rules without freeing nonterminal unloaded claims.
+The original fifty-helper and guardian lifecycle tests remain intact.
+
+The final mod SHA256 is
+`07d40f9a3f18284b30cda2092d963a64d2bffbab38f2fbe178a3b6460cbf25eb`.
+Packaging rejects stale native, packet, persistence, Snapshot and wing-property
+evidence. These checks use isolated research worlds and do not install the mod.
+
+## Live installation and device limits
+
+The live server remains the separately approved **explore.49**, running Minecraft
+Java **26.4 Snapshot 5**. The owner confirmed helper following and combos there;
+Infinity Chestplate flight was the remaining reported gap. Explore.50 requires
+separate owner installation approval and a verified stopped-world backup.
+Actual iPad combined appearance, touch gliding and the new batch form still need
+device acceptance. Synthetic fresh-key probes do not establish an authenticated
+Xbox login; codec checks do not execute client Molang or prove final pixels.
+Live worlds, player data, private settings and AI approvals were not changed.
+
+# Historical combined chestplate and wings — explore.49 source evidence
 
 The candidate keeps the existing `convergence:chestplate` identity, armor
 protection and native elytra flight. Its conditional iPad appearance adds the

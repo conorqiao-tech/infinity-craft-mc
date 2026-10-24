@@ -9,6 +9,11 @@
       {
         "texture": "convergence:armor42/infinity"
       }
+    ],
+    "wings": [
+      {
+        "texture": "convergence:armor"
+      }
     ]
   }
 }

@@ -76,7 +76,9 @@
       "dev.convergence.HelperRosterPaginationGameTests",
       "dev.convergence.AgentEntityTargetGameTests",
       "dev.convergence.AgentInfinityWeaponsGameTests",
-      "dev.convergence.AgentFollowGroundGameTests"
+      "dev.convergence.AgentFollowGroundGameTests",
+      "dev.convergence.HelperBatchGameTests",
+      "dev.convergence.HelperBatchMenuGameTests"
     ]
   },
   "mixins": [
@@ -125,7 +127,9 @@
       "dev.convergence.HelperRosterPaginationGameTests",
       "dev.convergence.AgentEntityTargetGameTests",
       "dev.convergence.AgentInfinityWeaponsGameTests",
-      "dev.convergence.AgentFollowGroundGameTests"
+      "dev.convergence.AgentFollowGroundGameTests",
+      "dev.convergence.HelperBatchGameTests",
+      "dev.convergence.HelperBatchMenuGameTests"
     ]
   },
   "depends": {

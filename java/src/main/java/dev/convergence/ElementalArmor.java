@@ -164,6 +164,11 @@ public final class ElementalArmor {
                     .ifPresentOrElse(equippable::setEquipSound, equippable::noEquidSound);
                 builder.set(DataComponents.EQUIPPABLE, equippable.build());
                 if (suit == Suit.INFINITY) builder.set(DataComponents.UNBREAKABLE, Unit.INSTANCE);
+                // Keep this saved item and its complete armor components. Flight
+                // is an additional default, so existing unmodified stacks gain it
+                // when native item loading resolves the current item prototype.
+                if (suit == Suit.INFINITY && slot == EquipmentSlot.CHEST)
+                    builder.set(DataComponents.GLIDER, Unit.INSTANCE);
             });
             Item item = Registry.register(BuiltInRegistries.ITEM, id, new Item(properties));
             Convergence.ITEMS.put(id.toString(), item);

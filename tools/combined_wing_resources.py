@@ -1,8 +1,9 @@
 """Fail closed if the native-elytra cosmetic overlay changes ordinary equipment.
 
-The bridge supplies one namespaced, per-player boolean. Missing/false properties
-retain Minecraft's own elytra renderer and animations; only a true property can
-enable the original Convergence chest shell and wings. This checks package
+The bridge supplies namespaced, per-player booleans. Missing/false properties
+retain Minecraft's own elytra renderer and animations; only the combined marker
+enables an armor shell and wings, and the set marker selects the accepted
+Convergence or Infinity chest shell. This checks package
 structure, not a Bedrock client's Molang evaluation or rendered pixels.
 """
 import hashlib
@@ -16,10 +17,14 @@ CONTROLLER = "animation_controllers/combined_convergence_elytra.animation_contro
 WINGS = "models/entity/original_armor/combined_convergence_wings.geo.json"
 FLAG = "variable.infinityhub_winged_chest"
 PROPERTY = "infinityhub:winged_chest"
+INFINITY_FLAG = "variable.infinityhub_infinity_winged_chest"
+INFINITY_PROPERTY = "infinityhub:infinity_winged_chest"
 ACCEPTED = {
     "models/entity/original_armor/cuirass.geo.json": "4218cd173cfb5159210a9ddf4fc8b117e6faa2fe56f5e29202d9697e9cee849d",
     "textures/convergence/models/armor/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
     "textures/convergence/models/armor/armor_wings.png": "c1d221fe3a87f52f20b42ed507bd2b5872faf21bc412dab0d598c790e7574941",
+    "models/entity/elemental41/infinity_chestplate.geo.json": "660e6467c83cc07eb690e1b2bc02f66e9467377b22fb9b6c6ac21e85ca2d0c13",
+    "textures/convergence/models/armor/armor42/infinity.png": "e7dd7843aaf8e9046a9e0f6c36a6d9728787a61175a8096a56ffeeda5b77d0f1",
 }
 
 
@@ -43,7 +48,7 @@ def validate(files):
 
     for name, expected in ACCEPTED.items():
         require(hashlib.sha256(files[name]).hexdigest() == expected,
-                "Accepted Convergence armor/artwork changed: " + name)
+                "Accepted combined armor/artwork changed: " + name)
     description = read(ATTACHABLE)["minecraft:attachable"]["description"]
     require(description["identifier"] == "minecraft:elytra", "Flight must retain the native elytra identity")
     for name, expected in (("materials", {"default": "elytra", "enchanted": "elytra_glint"}),
@@ -58,10 +63,11 @@ def validate(files):
     scripts = description["scripts"]
     require(scripts.get("parent_setup") == "variable.chest_layer_visible = 0.0;", "Native parent setup changed")
     require(scripts.get("pre_animation") == [
-        FLAG + " = query.item_slot_to_bone_name(context.item_slot) == 'body' ? "
-        "((context.owning_entity->query.has_property('" + PROPERTY + "')) ? "
-        "(context.owning_entity->query.property('" + PROPERTY + "')) : 0.0) : 0.0;"
-    ], "Only the chest attachment may read the guarded owner property each frame")
+        flag + " = query.item_slot_to_bone_name(context.item_slot) == 'body' ? "
+        "((context.owning_entity->query.has_property('" + prop + "')) ? "
+        "(context.owning_entity->query.property('" + prop + "')) : 0.0) : 0.0;"
+        for flag, prop in ((FLAG, PROPERTY), (INFINITY_FLAG, INFINITY_PROPERTY))
+    ], "Only the chest attachment may read both guarded owner properties each frame")
     require(scripts.get("animate") == [{"default_controller": "!" + FLAG}, {"convergence_controller": FLAG}],
             "Native and combined animations must be mutually exclusive")
     require(description["render_controllers"] == [
@@ -72,13 +78,36 @@ def validate(files):
     require(description["geometry"]["convergence_armor"] == "geometry.convergence.cuirass_original"
             and description["textures"]["convergence_armor"] == "textures/convergence/models/armor/armor42/convergence",
             "Combined armor must use its own accepted Convergence shell")
+    require(description["geometry"].get("infinity_armor") == "geometry.convergence.infinity_chestplate_elemental41"
+            and description["textures"].get("infinity_armor") == "textures/convergence/models/armor/armor42/infinity",
+            "Infinity's combined armor must retain its own accepted shell and artwork")
+    require(description["geometry"].get("convergence_wing") == "geometry.convergence.combined_wings_original"
+            and description["textures"].get("convergence_wing") == "textures/convergence/models/armor/armor_wings",
+            "Combined wings must retain their own original model and artwork")
     renderers = read(RENDERERS)["render_controllers"]
     require(set(renderers) == {"controller.render.convergence.combined_armor", "controller.render.convergence.combined_wings"},
             "Unexpected combined renderer")
-    for renderer in renderers.values():
-        visibility = renderer.get("part_visibility", [])
-        require(visibility and all(FLAG in expression for entry in visibility for expression in entry.values()),
-                "Combined geometry requires the explicit property guard")
+    armor = renderers["controller.render.convergence.combined_armor"]
+    selector = INFINITY_FLAG + " ? 1 : 0"
+    require(armor.get("geometry") == "Array.combined_chest_geometry[" + selector + "]"
+            and armor.get("textures") == ["Array.combined_chest_texture[" + selector + "]", "Texture.enchanted"]
+            and armor.get("arrays") == {
+                "geometries": {"Array.combined_chest_geometry": ["Geometry.convergence_armor", "Geometry.infinity_armor"]},
+                "textures": {"Array.combined_chest_texture": ["Texture.convergence_armor", "Texture.infinity_armor"]}},
+            "The guarded Infinity marker must select matching armor geometry and texture together")
+    body_visible = FLAG + " && (query.is_in_ui || !query.is_first_person)"
+    require(set(armor) == {"geometry", "materials", "textures", "arrays", "part_visibility"}
+            and armor.get("materials") == [{"*": "variable.is_enchanted ? Material.convergence_armor_enchanted : Material.convergence_armor"}]
+            and armor.get("part_visibility") == [{"body": body_visible}, {"rightArm": FLAG}, {"leftArm": FLAG}],
+            "Combined armor must preserve guarded accepted joint visibility and materials")
+    wings = renderers["controller.render.convergence.combined_wings"]
+    require(set(wings) == {"geometry", "materials", "textures", "part_visibility"}
+            and wings.get("geometry") == "Geometry.convergence_wing"
+            and wings.get("textures") == ["Texture.convergence_wing", "Texture.enchanted"]
+            and wings.get("materials") == [{"*": "variable.is_enchanted ? Material.convergence_wing_enchanted : Material.convergence_wing"}]
+            and wings.get("part_visibility") == [{"body": body_visible},
+                {"convergence_left_wing": body_visible}, {"convergence_right_wing": body_visible}],
+            "Combined wings must retain their guarded renderer, visibility and original aliases")
     animations = read(ANIMATIONS)["animations"]
     states = {"folded", "gliding", "sneaking", "sleeping", "swimming"}
     expected_animations = {"animation.convergence.combined_wings." + state for state in states}
@@ -130,5 +159,7 @@ def validate(files):
     native_attachables = [name for name in files if name.startswith("attachables/") and name.endswith(".json")
                           and read(name).get("minecraft:attachable", {}).get("description", {}).get("identifier") == "minecraft:elytra"]
     require(native_attachables == [ATTACHABLE], "Only the guarded native-elytra attachable may be active")
-    return {"property": PROPERTY, "ordinary_elytra_uses_native_renderer": True,
-            "accepted_convergence_shell_unchanged": True, "client_rendering_verified": False}
+    return {"property": PROPERTY, "infinity_property": INFINITY_PROPERTY,
+            "ordinary_elytra_uses_native_renderer": True,
+            "accepted_convergence_shell_unchanged": True, "accepted_infinity_shell_unchanged": True,
+            "client_rendering_verified": False}
