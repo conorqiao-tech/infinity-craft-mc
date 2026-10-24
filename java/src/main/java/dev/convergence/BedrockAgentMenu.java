@@ -152,13 +152,27 @@ final class BedrockAgentMenu {
         var captured = helpers.loaded.get(UUID.fromString(id));
         var golem = live(helpers, id);
         var choices = new ArrayList<HelperForms.Choice>();
+        String comboUnavailable = golem == null
+            ? captured == null ? "This helper is unloaded. Return near its saved location, then refresh this screen."
+                : "This helper is unavailable. Refresh this screen to check its current state."
+            : golem.level() != owner.level() ? "This helper is in another world. Use Bring this helper here, then enable combos."
+                : null;
+        String comboLabel = "Enable combos and follow me" + (comboUnavailable == null ? ""
+            : golem == null ? captured == null ? " • load helper nearby first" : " • refresh helper status first"
+                : " • bring helper here first");
+        // Keep the main control visible even when its prerequisite is missing.
+        // An unavailable tap explains that state without changing the helper.
+        choices.add(new HelperForms.Choice(comboLabel, () -> {
+            if (comboUnavailable != null) {
+                detail(owner, id, "Combos unavailable: " + comboUnavailable + " No helper was changed.", sender);
+                return;
+            }
+            boolean enabled = helpers.enableCombos(owner, agent.name());
+            detail(owner, id, enabled
+                ? "Combos enabled: Ultimate Finals and Follow. This same helper kept its position, health and edited stats."
+                : "Could not enable combos: this existing helper must be loaded in your current world. Its saved identity and stats were kept.", sender);
+        }));
         if (golem != null && golem.level() == owner.level()) {
-            choices.add(new HelperForms.Choice("Enable combos and follow me", () -> {
-                boolean enabled = helpers.enableCombos(owner, agent.name());
-                detail(owner, id, enabled
-                    ? "Combos enabled: Ultimate Finals and Follow. This same helper kept its position, health and edited stats."
-                    : "Could not enable combos: this existing helper must be loaded in your current world. Its saved identity and stats were kept.", sender);
-            }));
             for (var mode : AgentCompanions.Mode.values()) choices.add(new HelperForms.Choice(
                 switch (mode) { case FOLLOW -> "Follow me"; case GUARD -> "Guard this helper's current area"; case STAY -> "Stay / pause"; },
                 () -> { helpers.mode(owner, agent.name(), mode); detail(owner, id, "Movement updated: " + mode.name().toLowerCase(java.util.Locale.ROOT) + ".", sender); }));
@@ -180,8 +194,10 @@ final class BedrockAgentMenu {
         }));
         choices.add(new HelperForms.Choice("Dismiss helper • review first", () -> dismiss(owner, id, sender)));
         choices.add(new HelperForms.Choice("Back to your squad", () -> roster(owner, "", sender, pageFor(owner, id))));
-        String content = HelperCombatStatus.summary(owner, id, agent) + "\n\n" + agent.profile().description()
-            + "\n" + (golem == null ? "Unloaded: return near its saved location to load it. Movement and recall are unavailable."
+        String content = AgentMenu.helperInfo(owner, id, agent) + "\n\n" + agent.profile().description()
+            + "\n" + (golem == null ? captured == null
+                ? "Unloaded: return near its saved location to load it. Movement and recall are unavailable."
+                : "Unavailable: refresh this screen to check this helper's current state. Movement and recall are unavailable."
                 : golem.level() != owner.level() ? "In another world: use Bring here before giving movement orders." : "Movement applies to this helper only.")
             + "\nEnable combos and follow me changes this helper to Ultimate Finals and Follow, without creating or teleporting a helper. Choose nearby mob targets in Orders; player targets still need both approvals."
             + "\nAsk sends limited Minecraft facts to the configured service only when tapped. Answers cannot execute commands.\n" + HelperCombatStatus.squadSummary(owner);

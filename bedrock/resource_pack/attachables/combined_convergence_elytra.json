@@ -1,0 +1,56 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:attachable": {
+    "description": {
+      "identifier": "minecraft:elytra",
+      "materials": {
+        "default": "elytra",
+        "enchanted": "elytra_glint",
+        "convergence_armor": "armor",
+        "convergence_armor_enchanted": "armor_enchanted",
+        "convergence_wing": "elytra",
+        "convergence_wing_enchanted": "elytra_glint"
+      },
+      "textures": {
+        "default": "textures/models/armor/elytra",
+        "enchanted": "textures/misc/enchanted_actor_glint",
+        "convergence_armor": "textures/convergence/models/armor/armor42/convergence",
+        "convergence_wing": "textures/convergence/models/armor/armor_wings"
+      },
+      "geometry": {
+        "default": "geometry.elytra",
+        "convergence_armor": "geometry.convergence.cuirass_original",
+        "convergence_wing": "geometry.convergence.combined_wings_original"
+      },
+      "animations": {
+        "default_controller": "controller.animation.elytra.default",
+        "default": "animation.elytra.default",
+        "gliding": "animation.elytra.gliding",
+        "sneaking": "animation.elytra.sneaking",
+        "sleeping": "animation.elytra.sleeping",
+        "swimming": "animation.elytra.swimming",
+        "convergence_controller": "controller.animation.convergence.combined_wings",
+        "convergence_folded": "animation.convergence.combined_wings.folded",
+        "convergence_gliding": "animation.convergence.combined_wings.gliding",
+        "convergence_sneaking": "animation.convergence.combined_wings.sneaking",
+        "convergence_sleeping": "animation.convergence.combined_wings.sleeping",
+        "convergence_swimming": "animation.convergence.combined_wings.swimming"
+      },
+      "scripts": {
+        "parent_setup": "variable.chest_layer_visible = 0.0;",
+        "pre_animation": [
+          "variable.infinityhub_winged_chest = query.item_slot_to_bone_name(context.item_slot) == 'body' ? ((context.owning_entity->query.has_property('infinityhub:winged_chest')) ? (context.owning_entity->query.property('infinityhub:winged_chest')) : 0.0) : 0.0;"
+        ],
+        "animate": [
+          { "default_controller": "!variable.infinityhub_winged_chest" },
+          { "convergence_controller": "variable.infinityhub_winged_chest" }
+        ]
+      },
+      "render_controllers": [
+        { "controller.render.armor": "!variable.infinityhub_winged_chest" },
+        { "controller.render.convergence.combined_armor": "variable.infinityhub_winged_chest" },
+        { "controller.render.convergence.combined_wings": "variable.infinityhub_winged_chest" }
+      ]
+    }
+  }
+}

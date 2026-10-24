@@ -1,0 +1,29 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.convergence.combined_armor": {
+      "geometry": "Geometry.convergence_armor",
+      "materials": [
+        { "*": "variable.is_enchanted ? Material.convergence_armor_enchanted : Material.convergence_armor" }
+      ],
+      "textures": [ "Texture.convergence_armor", "Texture.enchanted" ],
+      "part_visibility": [
+        { "body": "variable.infinityhub_winged_chest && (query.is_in_ui || !query.is_first_person)" },
+        { "rightArm": "variable.infinityhub_winged_chest" },
+        { "leftArm": "variable.infinityhub_winged_chest" }
+      ]
+    },
+    "controller.render.convergence.combined_wings": {
+      "geometry": "Geometry.convergence_wing",
+      "materials": [
+        { "*": "variable.is_enchanted ? Material.convergence_wing_enchanted : Material.convergence_wing" }
+      ],
+      "textures": [ "Texture.convergence_wing", "Texture.enchanted" ],
+      "part_visibility": [
+        { "body": "variable.infinityhub_winged_chest && (query.is_in_ui || !query.is_first_person)" },
+        { "convergence_left_wing": "variable.infinityhub_winged_chest && (query.is_in_ui || !query.is_first_person)" },
+        { "convergence_right_wing": "variable.infinityhub_winged_chest && (query.is_in_ui || !query.is_first_person)" }
+      ]
+    }
+  }
+}

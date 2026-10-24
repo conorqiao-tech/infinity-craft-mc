@@ -177,7 +177,7 @@
   },
   "preserved_sha256": {
     "java/src/main/java/dev/convergence/ElementalRelics.java": "e9c9bb027d44c3217b6750948f53e8465705c9ae57d646afb05ac0d3874a3969",
-    "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "9d37b10a34fc344e9a9a128f8771de1c4749077097a182c389c5ac37040bfc7b",
+    "java/src/main/java/dev/convergence/ElementalForgeMenu.java": "31df061e0ab55c555230da716a46c1f8cc7d0f1c6ff688eaf92045ef65e0d1bf",
     "java/src/main/java/dev/convergence/GearNames.java": "45c473150255494b16b8bf22ae2e0d0d5068af7cc3ad89881678006c7fbbfd63",
     "java/src/main/java/dev/convergence/CrossplaySupport.java": "aa519bb429e9fdc2b1e3b36bec7fd6761667f5e382a7c78df2ab5adc9d0f08e7",
     "java/src/main/resources/assets/convergence/lang/en_us.json": "ff35b727a3176472b2afcbd117bc29d93262b80bdee4d2ad9ca8492b0786abef",
@@ -239,6 +239,18 @@
         "after": "catalogue.addProperty(\"minecraft\", net.minecraft.SharedConstants.getCurrentVersion().id());"
       },
       "reason": "Snapshot 5 catalogue metadata uses the actual native Minecraft version. This is the only source difference against explore.47; names, item mappings, artwork, geometry and all other preservation hashes are unchanged."
+    },
+    {
+      "release": "2.13.0-explore.49",
+      "path": "java/src/main/java/dev/convergence/ElementalForgeMenu.java",
+      "previous_sha256": "9d37b10a34fc344e9a9a128f8771de1c4749077097a182c389c5ac37040bfc7b",
+      "current_sha256": "31df061e0ab55c555230da716a46c1f8cc7d0f1c6ff688eaf92045ef65e0d1bf",
+      "exact_change": {
+        "base_commit": "f18378b495289849d7822e04af0c03597acbab35",
+        "git_diff_sha256": "13e3511a6279f9aee48ed1e58d79bb651bd79ad5f7bb35b75103d091cd17a033",
+        "scope": "Add the existing Convergence wing item as one-slot Forge claim and describe chest-slot equipment/native flight. Relic kits and actions remain unchanged."
+      },
+      "reason": "The tested Forge menu access changes the source preservation pin, not the original relic artwork. All relic PNGs, models, recipes, names, native definitions, ElementalRelics implementation and other artwork preservation hashes remain unchanged. Native655 includes encoded Java/Bedrock menu, access, replay, full-inventory and disk-save coverage."
     }
   ]
 }

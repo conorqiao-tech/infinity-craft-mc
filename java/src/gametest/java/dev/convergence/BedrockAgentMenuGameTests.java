@@ -206,14 +206,109 @@ public class BedrockAgentMenuGameTests {
         var owner = player(c, "touch-unloaded"); var helpers = AgentCompanions.get(owner.level().getServer()); var forms = new Capture();
         String id = null; net.minecraft.world.entity.animal.golem.IronGolem entity = null;
         try {
-            helpers.spawn(owner, "saved"); id = helpers.owned(owner, "saved").getKey(); entity = helpers.loaded.remove(UUID.fromString(id));
+            helpers.spawn(owner, "saved"); id = helpers.owned(owner, "saved").getKey();
+            helpers.mode(owner, "saved", AgentCompanions.Mode.STAY);
+            var record = helpers.data.agents.get(id);
+            entity = helpers.loaded.remove(UUID.fromString(id));
+            entity.setHealth(37);
+            var position = entity.position(); var equipment = entity.getMainHandItem().copy();
+            int proposals = AgentActions.get(helpers.server).data.proposals.size();
             BedrockAgentMenu.open(owner, forms); forms.click("saved •");
             c.assertFalse(forms.has("Follow me") || forms.has("Guard") || forms.has("Stay") || forms.has("Bring"), "Unloaded helper cannot receive a silent zero-effect movement action");
             c.assertTrue(forms.last().content().contains("Unloaded"), "The form explains how to load the helper");
+            c.assertTrue(forms.last().buttons().getFirst().text().startsWith("Enable combos and follow me • load helper nearby first"),
+                "The combo control stays first and visible when the helper is unloaded");
+            c.assertTrue(forms.last().content().contains(AgentCompanions.location(null, record)),
+                "The native form supplies the saved dimension and coordinates needed to find this helper");
+            forms.click("Enable combos and follow me");
+            c.assertTrue(forms.last().content().contains("Combos unavailable") && forms.last().content().contains("No helper was changed"),
+                "Tapping an unavailable combo control explains the missing prerequisite inside the form");
+            c.assertTrue(helpers.data.agents.get(id) == record && !helpers.loaded.containsKey(UUID.fromString(id))
+                && entity.position().equals(position) && entity.getHealth() == 37
+                && ItemStack.isSameItemSameComponents(entity.getMainHandItem(), equipment),
+                "An unavailable tap keeps the exact saved record, unloaded state, position, health and equipment");
+            c.assertValueEqual(AgentActions.get(helpers.server).data.proposals.size(), proposals,
+                "Explaining unavailable combos cannot add or approve an action");
             forms.click("Choose profile"); forms.click("Choose: Debug");
             c.assertValueEqual(helpers.data.agents.get(id).profile(), AgentCompanions.Profile.DEBUG, "Passive profile is saved without forcing entity load");
         } finally {
             if (id != null && entity != null) helpers.loaded.put(UUID.fromString(id), entity);
+            cleanup(owner);
+        }
+        c.succeed();
+    }
+
+    @GameTest public void otherWorldComboControlExplainsRecallWithoutChangingTheHelper(GameTestHelper c) {
+        var owner = player(c, "touch-combo-world"); var helpers = AgentCompanions.get(owner.level().getServer()); var forms = new Capture();
+        var originalWorld = owner.level(); var originalPosition = owner.position();
+        try {
+            helpers.spawn(owner, "elsewhere"); var id = helpers.owned(owner, "elsewhere").getKey();
+            helpers.mode(owner, "elsewhere", AgentCompanions.Mode.STAY);
+            var record = helpers.data.agents.get(id); var entity = helpers.loaded.get(UUID.fromString(id));
+            entity.setHealth(39); var position = entity.position();
+            int proposals = AgentActions.get(helpers.server).data.proposals.size();
+            owner.teleportTo(helpers.server.getLevel(net.minecraft.world.level.Level.NETHER), 0, 100, 0,
+                java.util.Set.of(), 0, 0, true);
+            BedrockAgentMenu.open(owner, forms); forms.click("elsewhere •");
+            c.assertTrue(forms.last().buttons().getFirst().text().startsWith("Enable combos and follow me • bring helper here first"),
+                "A helper in another world keeps a first visible combo control with its actual prerequisite");
+            c.assertTrue(forms.has("Bring this helper here") && !forms.has("Follow me"),
+                "An already loaded helper can be recalled explicitly, but cannot be given cross-world movement");
+            c.assertTrue(forms.last().content().contains(AgentCompanions.location(entity, record)),
+                "The native form identifies the other world's actual helper location");
+            forms.click("Enable combos and follow me");
+            c.assertTrue(forms.last().content().contains("Combos unavailable")
+                && forms.last().content().contains("Use Bring this helper here"),
+                "The unavailable callback explains the exact explicit recall step");
+            c.assertTrue(helpers.data.agents.get(id) == record && helpers.loaded.get(UUID.fromString(id)) == entity
+                && entity.level() == originalWorld && entity.position().equals(position) && entity.getHealth() == 39,
+                "The explanation cannot recall, replace, change movement/profile or heal the helper");
+            c.assertValueEqual(AgentActions.get(helpers.server).data.proposals.size(), proposals,
+                "Other-world guidance cannot create or approve an action");
+        } finally {
+            owner.teleportTo(originalWorld, originalPosition.x, originalPosition.y, originalPosition.z,
+                java.util.Set.of(), 0, 0, true);
+            cleanup(owner);
+        }
+        c.succeed();
+    }
+
+    @GameTest public void staleComboFormsCannotResumeUnloadedOrSameNameReplacementHelpers(GameTestHelper c) {
+        var owner = player(c, "touch-combo-stale"); var helpers = AgentCompanions.get(owner.level().getServer()); var forms = new Capture();
+        String id = null; net.minecraft.world.entity.animal.golem.IronGolem entity = null;
+        try {
+            helpers.spawn(owner, "same"); id = helpers.owned(owner, "same").getKey();
+            helpers.mode(owner, "same", AgentCompanions.Mode.STAY);
+            var record = helpers.data.agents.get(id); entity = helpers.loaded.get(UUID.fromString(id));
+            BedrockAgentMenu.open(owner, forms); forms.click("same •"); var loadedForm = forms.last();
+            helpers.unload(entity); reply(loadedForm, "0");
+            c.assertValueEqual(forms.last().title(), "Helper or order changed", "Unloading retires a previously enabled combo action");
+            c.assertTrue(helpers.data.agents.get(id) == record && !helpers.loaded.containsKey(UUID.fromString(id)),
+                "An old loaded form cannot resume or load its helper");
+            BedrockAgentMenu.open(owner, forms); forms.click("same •"); var unavailableForm = forms.last();
+            helpers.load(entity); reply(unavailableForm, "0");
+            c.assertValueEqual(forms.last().title(), "Helper or order changed", "Loading also invalidates the old unavailable explanation form");
+            c.assertTrue(helpers.data.agents.get(id) == record && record.mode() == AgentCompanions.Mode.STAY
+                && record.profile() == AgentCompanions.Profile.REGULAR,
+                "An unavailable form never becomes a deferred combo activation after loading");
+            BedrockAgentMenu.open(owner, forms); forms.click("same •"); var oldIdentity = forms.last();
+            helpers.dismiss(owner, "same"); helpers.spawn(owner, "same");
+            var replacementId = helpers.owned(owner, "same").getKey();
+            helpers.mode(owner, "same", AgentCompanions.Mode.STAY);
+            var replacementRecord = helpers.data.agents.get(replacementId);
+            var replacementEntity = helpers.loaded.get(UUID.fromString(replacementId));
+            replacementEntity.setHealth(31); var replacementPosition = replacementEntity.position();
+            reply(oldIdentity, "0");
+            c.assertValueEqual(forms.last().title(), "Helper or order changed", "A same-name replacement requires a newly selected exact identity");
+            c.assertTrue(!replacementId.equals(id) && helpers.count(owner) == 1
+                && helpers.data.agents.get(replacementId) == replacementRecord
+                && replacementRecord.mode() == AgentCompanions.Mode.STAY
+                && replacementRecord.profile() == AgentCompanions.Profile.REGULAR
+                && replacementEntity.position().equals(replacementPosition) && replacementEntity.getHealth() == 31,
+                "The stale combo button cannot change, replace, move or heal the new same-name helper");
+        } finally {
+            if (id != null && entity != null && helpers.data.agents.containsKey(id)
+                && !helpers.loaded.containsKey(UUID.fromString(id))) helpers.load(entity);
             cleanup(owner);
         }
         c.succeed();

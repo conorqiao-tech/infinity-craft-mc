@@ -1,4 +1,76 @@
-# Snapshot 5 migration — explore.48 validated source candidate
+# Combined Convergence chestplate and wings — explore.49 candidate
+
+The candidate keeps the existing `convergence:chestplate` identity, armor
+protection and native elytra flight. Its conditional iPad appearance adds the
+accepted same-set Convergence torso and arms plus original folding wings in one
+chest slot. An absent/false property and held items keep Minecraft's native
+elytra renderer, materials, textures and animations. The accepted armor joints,
+geometry and all 424 tracked PNGs remain unchanged. See
+[Winged chestplate](WINGED_CHESTPLATE.md) for equipment and device checks.
+
+**Elemental Forge → Get Convergence Wings** claims the real item into one empty
+slot with the existing access checks and native save. It never auto-equips or
+replaces owned gear. The iPad helper detail keeps **Enable combos and follow me**
+visible, explains unavailable states and shows saved/live coordinates without
+loading, teleporting or replacing a helper.
+
+Full validation reproduced an existing native contact defect: `IronGolem.doPush`
+can randomly assign a hostile target even after Stay removes AI goals. The
+candidate suppresses only that native target setter for tagged helpers. Both
+entities' physical pushing and ordinary golem acquisition remain; the helper
+controller and both player-target approvals still govern combat. A deterministic
+collision regression and the unchanged real fifty-helper lifecycle pass.
+
+## Final candidate evidence
+
+- **655 native tests in 30 isolated groups pass**, with zero failures or skips.
+  Provenance binds all **767 Java source/resource hashes**, the exact release mod,
+  original test jar, dependency lock and aggregate report.
+- **405 Python launcher/resource tests pass**, with ResourceWarning treated as an
+  error. New resource checks cover native defaults, guarded owner/chest context,
+  wing-only animation channels, resolved controller states and numeric clearance.
+- **84 offline native wing-property cases pass** on protocols **1001, 2168 and
+  2193**. They exercise the registered schema, five original Java translator paths,
+  the native Bedrock inventory guard, observers, replacement, removal and respawn.
+  The proof binds the current extension sources/jar, prepared pack, lock and
+  exported catalogue. It opens no listener and executes no client Molang.
+- **303 native armor codec round trips pass**. Geyser starts with **66 identities
+  across three protocols**. Supplemental Via/native checks pass 255 hotbar inputs,
+  198 overflow refusals, 255 Survival refusals and 85 disk/rejoin count cases across
+  all 66 identities and three genuine same-UUID reconnects.
+- The final Snapshot 5 stack passes **21 codec tests** and **four targeted native
+  ACK cases plus one framework baseline**. The actual Java 26.2 codec sustained
+  **90.093 seconds** of translated application Play, decoding **172 chunks**,
+  acknowledging **five teleports**, receiving the real gear and completing a
+  native health-zero/client-requested respawn. All four authentication negatives
+  were rejected before Play. The synthetic fresh-key identity is distinct from
+  an Xbox-authenticated iPad login.
+- **Two isolated full-stack launcher cycles pass** startup, local response,
+  backup, restart and clean shutdown. A separate **92-file** world copy converts
+  DataVersion **5023 → 5125**, preserving four offline player records, nine mod
+  records, saved helper identity/equipment/stats/28 attributes and Normal
+  difficulty. The original fixture remains unchanged. Native physics settled
+  the helper before a controlled lab-only frozen save; no entity/NBT edits or
+  terrain refresh were used. This bounded copy test does not guarantee all saves.
+
+The final mod SHA256 is
+`29e0d42d15e93b7309b13a5f13ed8baba2debad53e362223f2d2c6a9afd49b92`.
+Packaging requires current native, inventory, snapshot and wing-property proofs;
+stale evidence is rejected.
+
+## Installation and device limits
+
+The live server remains **explore.48**, running on Minecraft **26.4 Snapshot 5**.
+The owner confirmed its four equipped armor pieces were stable. Explore.49 has
+not been installed. Actual combined iPad armor/wings, native touch gliding,
+ordinary elytra comparison, held-item behavior and helper menus/following/combat
+still need device checks after a separately approved installation. The offline
+property fixture explicitly flushes native property updates; it does not prove
+client rendering or scheduled update timing. Building or merging does not grant
+live installation approval. Worlds, player data and live AI approvals were not
+changed by these checks.
+
+# Historical Snapshot 5 migration — explore.48 source evidence
 
 The final pinned application and dependency stack passes **648 native tests in
 30 isolated groups**, with zero failed or skipped cases, against Minecraft Java

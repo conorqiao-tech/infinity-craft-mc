@@ -21,6 +21,7 @@ import org.geysermc.geyser.GeyserImpl;
 import org.geysermc.geyser.api.event.lifecycle.GeyserPostInitializeEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserPreInitializeEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserDefineCustomItemsEvent;
+import org.geysermc.geyser.api.event.lifecycle.GeyserDefineEntityPropertiesEvent;
 import org.geysermc.geyser.api.extension.Extension;
 import org.geysermc.geyser.api.item.custom.v2.CustomItemBedrockOptions;
 import org.geysermc.geyser.api.item.custom.v2.NonVanillaCustomItemDefinition;
@@ -41,6 +42,7 @@ public final class InfinityCreativeBridge implements Extension {
     private Catalogue catalogue;
     private Exception failure;
     private final Map<String, Integer> aliasIds = new LinkedHashMap<>();
+    private WingedChestSupport wingedChest;
 
     @Subscribe
     public void prepare(GeyserPreInitializeEvent event) {
@@ -94,6 +96,13 @@ public final class InfinityCreativeBridge implements Extension {
             // All local validation precedes registration. No vanilla definition is replaced.
             for (NonVanillaCustomItemDefinition definition : definitions) event.register(definition);
         } catch (Exception error) { fail(error); }
+    }
+
+    @Subscribe
+    public void defineEntityProperties(GeyserDefineEntityPropertiesEvent event) {
+        if (failure != null || catalogue == null) return;
+        try { wingedChest = WingedChestSupport.define(event); }
+        catch (RuntimeException error) { fail(error); }
     }
 
     @Subscribe
@@ -161,6 +170,8 @@ public final class InfinityCreativeBridge implements Extension {
             for (int i = 0; i < originalJavaItems.size(); i++) if (!ownedIds.contains(i) && Registries.JAVA_ITEMS.get().get(i) != originalJavaItems.get(i))
                 throw new IllegalStateException("An unowned Java item changed");
             CreativeRequestGuard guard = CreativeRequestGuard.install(catalogue, aliasIds);
+            if (wingedChest == null) throw new IllegalStateException("Winged-chest entity property registration did not run");
+            wingedChest.install();
             JsonObject receipt = new JsonObject(); receipt.addProperty("format_version", 1); receipt.addProperty("geyser_sha256", GEYSER_SHA256);
             receipt.addProperty("catalogue_sha256", catalogue.sha256); receipt.addProperty("items", catalogue.items.size());
             JsonObject protocols = new JsonObject(); prepared.forEach((protocol, entries) -> protocols.addProperty(protocol.toString(), entries.size()));
@@ -169,6 +180,7 @@ public final class InfinityCreativeBridge implements Extension {
             receipt.addProperty("request_guard_delegate_class", guard.delegateClassName());
             receipt.addProperty("unowned_packet_translators_unchanged", true);
             receipt.add("owned_equipment", equipment.receipt());
+            receipt.add("winged_chest", wingedChest.receipt());
             if (Boolean.getBoolean("infinity.creative.proof")) {
                 receipt.add("proof", CreativeProtocolProof.run(catalogue, aliasIds));
                 receipt.add("owned_equipment_proof", OwnedEquipmentProof.run(catalogue, equipment));

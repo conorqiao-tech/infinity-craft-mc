@@ -1,7 +1,8 @@
-# Helper combat — explore.47 source candidate
+# Helper combat and iPad controls — explore.49 candidate
 
-This source repairs repeated combat against moving enemies and adds a fifty-helper
-squad, explicit target selection and Infinity weapon loadouts. Preparing source
+The existing fifty-helper squad uses explicit target selection, Infinity weapon
+loadouts and repeated combat against moving enemies. Explore.49 repairs iPad
+control discovery and native collision targeting while paused. Preparing source
 is separate from installing it. Fresh checks belong in [VALIDATION.md](VALIDATION.md).
 
 ## Start fighting
@@ -12,6 +13,11 @@ is separate from installing it. Fresh checks belong in [VALIDATION.md](VALIDATIO
    explicitly sets Ultimate Finals and Follow on the same entity; it preserves
    its name, health, edited stats and location. It does not create another helper,
    teleport it or approve a player target.
+   In the iPad menu repair, this control stays visible even when unavailable.
+   Its label explains whether to load the helper nearby, refresh its status or
+   explicitly bring an already loaded helper from another world. The detail
+   screen includes its saved/live world and coordinates. Tapping the unavailable
+   control only explains the requirement; it does not load, move or replace it.
 3. Let an eligible hostile approach. Ultimate Finals uses an Infinity Spear when
    there is room for native charging. Close enemies can trigger a checked short
    leap with an Infinity Mace instead of trapping the helper in ground attacks.

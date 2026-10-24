@@ -1,4 +1,22 @@
-# Explore.46 source candidate — helper combos
+# Explore.49 candidate — combined chestplate and wings
+
+This candidate adds a conditional Bedrock appearance to the existing Convergence
+wing item: the accepted same-set torso and arms plus original folding wings in
+one chest slot. The native elytra item, protection and flight behavior remain.
+Ordinary elytra retains native rendering when the owned property is absent or
+false. The iPad helper detail keeps its combo control visible with actionable
+unavailable-state feedback. Native collision cannot assign a helper a target
+outside its controller; ordinary golems and physical pushing retain their native
+behavior. See [combined wings](../server/WINGED_CHESTPLATE.md)
+and [validation](../server/VALIDATION.md).
+
+The installed server remains explore.48. Its four-piece armor was confirmed
+stable. The candidate has not been installed and its combined iPad
+rendering/gliding remains unverified.
+Installations require separate owner approval. Building does not change the
+live world, helper roster, player equipment or approval queues.
+
+# Historical explore.46 source candidate — helper combos
 
 This candidate improves Ultimate Finals' native spear/glide/mace flow: ready
 teammates receive aerial turns, moving targets get bounded checked landing
@@ -107,7 +125,7 @@ Lobby visuals use themed vanilla-block arches, colored glass, banners, lighted c
 
 ## Build and validate
 
-Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.7.1 and Loom 1.18.2 for unobfuscated Minecraft 26.3. `JAVA_HOME` must point to Java 25 when invoking Gradle directly.
+Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.7.1 and Loom 1.18.2 for unobfuscated Minecraft 26.4 Snapshot 5 with the pinned public-source ports in [snapshot compatibility](../compatibility/snapshot5/README.md). `JAVA_HOME` must point to Java 25 when invoking Gradle directly.
 
 ```sh
 python3 tools/generate_odyssey_assets.py --check
@@ -116,10 +134,21 @@ python3 tools/check_crossplay.py --java /path/to/java
 python3 tools/smoke_geyser.py --java /path/to/java > research/geyser-smoke.log 2>&1
 python3 tools/smoke_creative_wire.py --java /path/to/java
 python3 tools/smoke_creative_persistence.py --java /path/to/java --receipt research/integration/creative-bridge/persistence-proof.json
+python3 tools/verify_armor_equipment.py --java /path/to/java --output research/armor-equipment/2.13.0-explore.49.json
+python3 tools/check_winged_chest.py --java /path/to/java --output research/winged-chest/2.13.0-explore.49.json
 python3 tools/smoke_fullstack.py --java /path/to/java > research/fullstack-smoke.log 2>&1
 python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -v > research/launcher-tests.log 2>&1
 python3 tools/package_crossplay.py
 ```
+
+The winged-chest check exercises the real registered Geyser property schema,
+native inventory/equipment paths and packet codecs in a disposable offline
+fixture. Its proof binds the exact extension sources, prepared bridge, pack,
+lock and catalogue. It does not execute a Bedrock renderer or prove touch flight.
+The packager also requires current Snapshot 5 full-application Play,
+authentication refusals and isolated-world conversion evidence, described in the
+snapshot compatibility guide. Archive existing proof receipts before validating
+a newer candidate; the wing/armor checkers refuse to overwrite them.
 
 The bridge builder needs the exact pinned `server/geyser/Geyser-Standalone.jar`, supplied by the checksum-managed server setup. The source package includes the already prepared server artifacts; a repository-only checkout also needs the documented vendor/server setup before preparation. Run each command only after the previous one succeeds. The redirected logs are required packaging evidence; inspect them if a command fails. The native GameTest driver builds the mod, checks dimension fixture drift, and starts disposable Minecraft worlds with release dependencies. The supplementary wire check compiles an external test into a private copy of the tested jar; it requires the preceding normal native and Geyser captures. It sends real Creative/Survival abilities through the pinned Via handler, translates captured Geyser bytes, and verifies native item reconstruction, persistence and refusal. Packaging requires its current source, dependency, capture and report hashes. The new persistence check sends real framed packets through Fabric/Polymer receive hooks, then verifies the complete current catalogue through native UUID player-file writes and every required full or partial 30-slot batch/reconnect; it also preserves renamed/damaged gear and personal backpack contents. Use a new receipt path for an exploratory run; the packager requires the exact fixed current receipt path shown above, so preserve any existing successful receipt before replacing it for a new version. The Python suite checks the launcher and packaging behavior without skipped evidence checks. Geyser and full-stack smoke checks verify startup, Bedrock UDP response, shutdown, and a stopped-world backup. The full-stack check requires EULA acceptance already present in the local host folder; it never accepts the EULA itself. These checks do not establish authenticated player login or client rendering. See `server/VALIDATION.md` for exact coverage and remaining device play-test work.
 

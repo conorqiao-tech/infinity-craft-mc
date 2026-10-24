@@ -29,7 +29,7 @@ import org.geysermc.cumulus.form.SimpleForm;
 /** The same Forge actions drive Java screens and single-use native Bedrock touch forms. */
 final class ElementalForgeMenu {
     enum Page { HOME, CRAFTING }
-    enum Kit { ELEMENTAL, INFINITY, RELICS, BLOCKS }
+    enum Kit { ELEMENTAL, INFINITY, WINGS, RELICS, BLOCKS }
     record Choice(Item icon, String label, Runnable action) {}
     record View(Page page, String title, String content, List<Choice> choices) {}
     record Ticket(UUID nonce, ServerPlayer player, ServerGamePacketListenerImpl connection,
@@ -56,6 +56,7 @@ final class ElementalForgeMenu {
     static List<ItemStack> stacks(Kit kit) {
         if (kit == Kit.ELEMENTAL) return ElementalArmor.kit(ElementalArmor.Suit.ELEMENTAL);
         if (kit == Kit.INFINITY) return ElementalArmor.kit(ElementalArmor.Suit.INFINITY);
+        if (kit == Kit.WINGS) return List.of(new ItemStack(Convergence.ITEMS.get("convergence:chestplate")));
         return (kit == Kit.RELICS ? RELICS : BLOCKS).stream().map(path -> {
             var item = Convergence.ITEMS.get("convergence:" + path);
             if (item == null) throw new IllegalStateException("Forge item is not registered: " + path);
@@ -84,7 +85,9 @@ final class ElementalForgeMenu {
 
     private static void deliver(ServerPlayer p, Kit kit) {
         int result = claim(p, kit);
-        open(p, Page.HOME, result > 0 ? "Added " + result + " real items to your inventory. Move armor into its equipment slots."
+        open(p, Page.HOME, result > 0 ? kit == Kit.WINGS
+            ? "Added Convergence Wings to an empty inventory slot. Equip them in the chest armor slot, then tap Jump while falling to glide. Your equipped armor is unchanged."
+            : "Added " + result + " real items to your inventory. Move armor into its equipment slots."
             : "Creative, Admin or OP2 required. Clear " + stacks(kit).size() + " inventory slots; your existing items are preserved.");
     }
 
@@ -106,7 +109,9 @@ final class ElementalForgeMenu {
                 + "Most old attunement effects fade within four seconds; Night Vision lasts up to fifteen seconds. "
                 + "Earth's extra knockback resistance changes immediately.\n"
                 + "Survival: craft your gear at a crafting table. Creative inventory: search Elemental, Infinity or a relic's name. "
-                + "Free kit buttons below require Creative, Admin or OP2.";
+                + "Free kit buttons below require Creative, Admin or OP2.\n"
+                + "Solid Infinity and Elemental chestplates do not glide. Convergence Wings combine armor and native elytra flight in one chest-slot item. "
+                + "Get them below, equip them in the chest armor slot, then step off a ledge and tap Jump while airborne. The chestplate and folding wings share that one equipment slot.";
             for (var element : ElementalArmor.Element.values()) {
                 Item icon = switch (element) {
                     case FIRE -> Items.BLAZE_POWDER;
@@ -118,6 +123,7 @@ final class ElementalForgeMenu {
             }
             choices.add(new Choice(Items.DIAMOND_CHESTPLATE, "Get Elemental set • four empty slots", () -> deliver(p, Kit.ELEMENTAL)));
             choices.add(new Choice(Items.NETHERITE_CHESTPLATE, "Get Infinity set • four empty slots", () -> deliver(p, Kit.INFINITY)));
+            choices.add(new Choice(Items.ELYTRA, "Get Convergence Wings • one empty slot", () -> deliver(p, Kit.WINGS)));
             choices.add(new Choice(Items.BLAZE_ROD, "Get four elemental relics • four empty slots", () -> deliver(p, Kit.RELICS)));
             choices.add(new Choice(Items.AMETHYST_BLOCK, "Get five block styles × 64 • five empty slots", () -> deliver(p, Kit.BLOCKS)));
             choices.add(new Choice(Items.CRAFTING_TABLE, "Crafting guide • Survival progression", () -> open(p, Page.CRAFTING, "")));
@@ -127,7 +133,8 @@ final class ElementalForgeMenu {
                 + "In the patterns below, D is diamond for Elemental or netherite ingot for Infinity. C is the matching core. A dot means an empty slot.\n"
                 + "Helmet: DDD / DCD\nChestplate: D.D / DCD / DDD\nLeggings: DDD / DCD / D.D\nBoots: D.D / DCD\n"
                 + "Each recipe makes one matching armor piece. Elemental uses ordinary diamond durability; Infinity is unbreakable. "
-                + "These are solid chestplates; use your separate Convergence wings when you want elytra flight.\n"
+                + "These solid Infinity and Elemental chestplates do not glide. Convergence Wings are a different item combining armor and native elytra flight; "
+                + "use Get Convergence Wings on the Forge home screen, equip them in the chest armor slot, then tap Jump while airborne.\n"
                 + "The four relics are Firebrand, Tidecaller, Terra Gauntlet and Windstep. Five original full-cube building styles: "
                 + "Ember Crystal, Tide Glass, Earth Rune, Air Lattice and Infinity Prism. Their crafting-table recipes are included with the pack.\n"
                 + "Attunement belongs to your character, so trading a piece never changes someone else's selected element.";
