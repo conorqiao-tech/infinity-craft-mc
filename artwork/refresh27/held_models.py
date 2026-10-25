@@ -19,14 +19,16 @@ frames 4/5. Their engine-selected frame, remaining use duration and blocking
 flag drive these own poses. Frame declarations and pack references can be
 checked here; actual client query values and rendered fit require game testing.
 These are held-item resources, not replacements for launched arrow entities or
-the Bedrock native totem activation animation. Owned shield poses follow
+the Bedrock native totem activation animation. Historical shield poses reflect
 Geyser's mainhand blocking priority; ordinary offhand shield render predicates
 remain native and require a mixed-hand device check.
 
-The historical totem poses remain reproducible here. Crossplay preparation
-intentionally excludes both totem attachables: its custom atlas sprite instead
-uses the engine's normal item placement after the owner's iPad showed a floating
-held model. Bow, crossbow and shield attachables remain active.
+The historical totem and shield poses remain reproducible here. Crossplay
+preparation intentionally excludes both identities' attachables for each item:
+their original atlas sprites use the engine's normal item placement after the
+owner's iPad showed floating held models. Bow and crossbow attachables remain
+active. Shield gameplay, native hand priority and Ward powers stay on the server;
+these inactive poses do not establish client blocking input or appearance.
 """
 from __future__ import annotations
 
