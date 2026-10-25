@@ -63,11 +63,11 @@ def validate(files):
     scripts = description["scripts"]
     require(scripts.get("parent_setup") == "variable.chest_layer_visible = 0.0;", "Native parent setup changed")
     require(scripts.get("pre_animation") == [
-        flag + " = query.item_slot_to_bone_name(context.item_slot) == 'body' ? "
+        flag + " = (context.owning_entity->query.item_slot_to_bone_name(context.item_slot)) == 'body' ? "
         "((context.owning_entity->query.has_property('" + prop + "')) ? "
         "(context.owning_entity->query.property('" + prop + "')) : 0.0) : 0.0;"
         for flag, prop in ((FLAG, PROPERTY), (INFINITY_FLAG, INFINITY_PROPERTY))
-    ], "Only the chest attachment may read both guarded owner properties each frame")
+    ], "The owning entity must resolve the chest attachment and both guarded properties each frame")
     require(scripts.get("animate") == [{"default_controller": "!" + FLAG}, {"convergence_controller": FLAG}],
             "Native and combined animations must be mutually exclusive")
     require(description["render_controllers"] == [
@@ -160,6 +160,7 @@ def validate(files):
                           and read(name).get("minecraft:attachable", {}).get("description", {}).get("identifier") == "minecraft:elytra"]
     require(native_attachables == [ATTACHABLE], "Only the guarded native-elytra attachable may be active")
     return {"property": PROPERTY, "infinity_property": INFINITY_PROPERTY,
+            "equipment_slot_query_context": "owning_entity",
             "ordinary_elytra_uses_native_renderer": True,
             "accepted_convergence_shell_unchanged": True, "accepted_infinity_shell_unchanged": True,
             "client_rendering_verified": False}

@@ -18,7 +18,7 @@ ELYTRA_OVERRIDES = frozenset({
 # Resource-only repairs keep the Java mod version (and terrain policy) intact.
 # Starting with explore.43 reserve 1,000 cache revisions per exploration release
 # so the next full release always supersedes this release's repairs.
-RESOURCE_REPAIRS = {(2, 13, 43): 1, (2, 13, 44): 1, (2, 13, 45): 1}
+RESOURCE_REPAIRS = {(2, 13, 43): 1, (2, 13, 44): 1, (2, 13, 45): 1, (2, 13, 51): 1}
 
 # The totem's original sprite uses Bedrock's ordinary item grip. Its authored
 # attachable poses float away from the owner's hand on iPad. Keep these legacy

@@ -27,7 +27,22 @@ class CombinedWingPackageTests(unittest.TestCase):
         self.assertTrue(receipt["ordinary_elytra_uses_native_renderer"])
         self.assertTrue(receipt["accepted_infinity_shell_unchanged"])
         self.assertEqual(receipt["infinity_property"], "infinityhub:infinity_winged_chest")
+        self.assertEqual(receipt["equipment_slot_query_context"], "owning_entity")
         self.assertFalse(receipt["client_rendering_verified"])
+
+    def test_rejects_equipment_lookup_on_attachable_instead_of_owning_entity(self):
+        original = copy.copy(self.files)
+        for index in (0, 1):
+            with self.subTest(statement=index):
+                self.files = copy.copy(original)
+                def current_attachable(value):
+                    scripts = value["minecraft:attachable"]["description"]["scripts"]
+                    scripts["pre_animation"][index] = scripts["pre_animation"][index].replace(
+                        "(context.owning_entity->query.item_slot_to_bone_name(context.item_slot))",
+                        "query.item_slot_to_bone_name(context.item_slot)")
+                self.alter(overlay.ATTACHABLE, current_attachable)
+                with self.assertRaises(ValueError):
+                    overlay.validate(self.files)
 
     def test_rejects_unguarded_or_wrong_owner_infinity_selector(self):
         original = copy.copy(self.files)

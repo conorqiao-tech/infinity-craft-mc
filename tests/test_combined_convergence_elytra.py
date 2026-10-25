@@ -32,24 +32,34 @@ def attachment():
     return read("attachables/combined_convergence_elytra.json")["minecraft:attachable"]["description"]
 
 
-def marker_value(statement, properties, slot="chest", owner_exists=True, variable=VARIABLE):
-    """Evaluate this guarded contract with injected holder-slot mappings.
+def marker_value(statement, properties, slot="chest", owner_exists=True, variable=VARIABLE,
+                 owner_slot_bones=None, attachable_slot_bones=None):
+    """Model the two query contexts with injected equipment-slot mappings.
 
     The official attachable guide maps main_hand/off_hand to rightItem/leftItem.
-    The chest/body mapping and owning_entity context still require device proof;
-    unknown or non-body mappings must refuse the custom pass.
+    The chest/body mapping and actual pre_animation contexts still require device
+    proof. This models owner dispatch, not a Bedrock engine. The old unredirected
+    expression is accepted here only to exercise the historical failure; package
+    validation rejects it. Unknown or non-body mappings refuse the custom pass.
     """
+    owner_query = "(context.owning_entity->query.item_slot_to_bone_name(context.item_slot))"
+    item_query = "query.item_slot_to_bone_name(context.item_slot)"
     match = re.fullmatch(
-        re.escape(variable) + r" = query\.item_slot_to_bone_name\(context\.item_slot\) == 'body' \? "
+        re.escape(variable) + r" = (" + re.escape(owner_query) + "|" + re.escape(item_query) + r") == 'body' \? "
         r"\(\(context\.owning_entity->query\.has_property\('([^']+)'\)\) \? "
         r"\(context\.owning_entity->query\.property\('([^']+)'\)\) : 0\.0\) : 0\.0;", statement)
-    if match is None or match[1] != match[2]:
+    if match is None or match[2] != match[3]:
         raise ValueError("The marker must check the body slot and one matching, guarded owning-entity property")
-    mapped_bone = {"chest": "body", "main_hand": "rightItem", "off_hand": "leftItem",
-                   "head": "head", "legs": "rightLeg", "feet": "rightLeg"}.get(slot, "")
+    if owner_slot_bones is None:
+        owner_slot_bones = {"chest": "body", "main_hand": "rightItem", "off_hand": "leftItem",
+                            "head": "head", "legs": "rightLeg", "feet": "rightLeg"}
+    if attachable_slot_bones is None:
+        attachable_slot_bones = {}
+    mapping = owner_slot_bones if match[1] == owner_query and owner_exists else attachable_slot_bones
+    mapped_bone = mapping.get(slot, "")
     if mapped_bone != "body" or not owner_exists:
         return False
-    return bool(properties[match[1]]) if match[1] in properties else False
+    return bool(properties[match[2]]) if match[2] in properties else False
 
 
 def active(entries, marked):
@@ -85,6 +95,28 @@ def rotate(vertex, pivot, angles, order):
 
 
 class CombinedConvergenceElytraTests(unittest.TestCase):
+    def test_equipment_mapping_is_queried_on_owner_not_empty_attachable_context(self):
+        description = attachment()
+        owner_query = "(context.owning_entity->query.item_slot_to_bone_name(context.item_slot))"
+        item_query = "query.item_slot_to_bone_name(context.item_slot)"
+        # A controlled two-entity model reproduces the dispatch failure: the
+        # attachable has no equipment map, while its owner resolves this slot to
+        # body. This is not proof that an iPad supplies that mapping/context.
+        for statement, variable, marker in zip(description["scripts"]["pre_animation"],
+                (VARIABLE, INFINITY_VARIABLE), (MARKER, INFINITY_MARKER)):
+            with self.subTest(variable=variable):
+                self.assertIn(owner_query, statement)
+                previous = statement.replace(owner_query, item_query)
+                context = dict(owner_slot_bones={"chest": "body"}, attachable_slot_bones={})
+                self.assertFalse(marker_value(previous, {marker: True}, variable=variable, **context))
+                self.assertTrue(marker_value(statement, {marker: True}, variable=variable, **context))
+                # A name on the attachable itself must not substitute for the
+                # owning player's map, nor make an absent owner valid.
+                self.assertFalse(marker_value(statement, {marker: True}, variable=variable,
+                    owner_slot_bones={}, attachable_slot_bones={"chest": "body"}))
+                self.assertFalse(marker_value(statement, {marker: True}, owner_exists=False,
+                    variable=variable, **context))
+
     def test_unmarked_item_keeps_exact_native_resources_and_animation_aliases(self):
         # Pinned official source: Mojang/bedrock-samples commit
         # 46ba6ea985fb5a92d79a9419198f10dda14c199d, attachables/elytra.json.

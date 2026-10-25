@@ -33,10 +33,15 @@ single native property batch. The cosmetic bridge grants no items or powers.
 
 ## Delivery and iPad check
 
-The separately installed explore.49 remains running. Explore.50 passed 673 native
-and 419 launcher/resource tests in isolated research runtimes.
-The owner confirmed helper following/combos; Infinity Chestplate flight is not
-fixed on that installed version. Candidate builds and merges do not install it.
+Explore.51 is installed after separate owner approval. Its source baseline passed
+722 native and 434 launcher/resource tests. The owner confirmed on iPad that
+helpers hold separate formation positions and Infinity Chestplate can glide.
+The appearance check failed: only ordinary gray elytra appears, without the
+custom chest shell. Those results establish flight, not the combined appearance.
+
+The [explore.51 r1 resource candidate](WING_APPEARANCE_REPAIR.md) redirects the
+slot-mapping query to the owning player. Its visual result still needs a separate
+installation and device comparison. Candidate builds and merges do not install it.
 
 After separately approved installation, reconnect and accept the updated pack.
 Check Infinity Chestplate with all four Infinity pieces in third-person and the

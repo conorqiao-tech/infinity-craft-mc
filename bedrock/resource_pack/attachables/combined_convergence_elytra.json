@@ -41,8 +41,8 @@
       "scripts": {
         "parent_setup": "variable.chest_layer_visible = 0.0;",
         "pre_animation": [
-          "variable.infinityhub_winged_chest = query.item_slot_to_bone_name(context.item_slot) == 'body' ? ((context.owning_entity->query.has_property('infinityhub:winged_chest')) ? (context.owning_entity->query.property('infinityhub:winged_chest')) : 0.0) : 0.0;",
-          "variable.infinityhub_infinity_winged_chest = query.item_slot_to_bone_name(context.item_slot) == 'body' ? ((context.owning_entity->query.has_property('infinityhub:infinity_winged_chest')) ? (context.owning_entity->query.property('infinityhub:infinity_winged_chest')) : 0.0) : 0.0;"
+          "variable.infinityhub_winged_chest = (context.owning_entity->query.item_slot_to_bone_name(context.item_slot)) == 'body' ? ((context.owning_entity->query.has_property('infinityhub:winged_chest')) ? (context.owning_entity->query.property('infinityhub:winged_chest')) : 0.0) : 0.0;",
+          "variable.infinityhub_infinity_winged_chest = (context.owning_entity->query.item_slot_to_bone_name(context.item_slot)) == 'body' ? ((context.owning_entity->query.has_property('infinityhub:infinity_winged_chest')) ? (context.owning_entity->query.property('infinityhub:infinity_winged_chest')) : 0.0) : 0.0;"
         ],
         "animate": [
           {

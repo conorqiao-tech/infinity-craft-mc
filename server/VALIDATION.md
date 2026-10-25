@@ -1,8 +1,36 @@
+# Explore.51 r1 — wing appearance comparison candidate
+
+The owner confirmed on iPad that installed explore.51 helpers hold separate
+formation positions and Infinity Chestplate can glide. Its appearance failed:
+the device showed ordinary gray elytra without the custom chest shell.
+
+This resource-only candidate redirects both cosmetic equipment-slot queries to
+the owning entity. The nested pack changes exactly the combined-elytra
+attachable and manifest revision `[2,13,51001]`; the other 263 entries are
+byte-identical, including every PNG, model, controller and animation. The exact
+explore.51 mod, Geyser extension, Java runtime, dependencies and mappings remain
+unchanged. No gameplay source or live server file changes for this candidate.
+
+Fresh checks cover the complete 451-test Python suite with ResourceWarning as an
+error, 192 native Geyser property/codec cases across protocols 1001/2168/2193,
+255 actual hotbar inputs plus overflow/Survival refusals, and 85 saved/rejoined
+item-count cases over three genuine reconnects. A separate disposable native
+projection test also verifies both real winged items emit native elytra with
+their exact original Polymer marker and preserve custom names/components.
+The existing 722-test native baseline remains bound to all 784 unchanged Java
+source/resource hashes; that full suite was not rerun for this resource repair.
+
+Neither these checks nor the modeled Molang context test runs the actual iPad
+renderer. The owning-player chest-slot mapping and final visual result remain
+unverified until a separately approved installation and device comparison.
+See [the repair scope and device checks](WING_APPEARANCE_REPAIR.md).
+
 # Explore.51 — GPT squad plans, formations and explicit player groups
 
-This is a tested source/package candidate, not a live installation. The running
-approved server remains explore.50; this version requires separate installation
-approval. Minecraft stays on the pinned experimental **26.4 Snapshot 5** stack.
+The following records the explore.51 source/package baseline. It was subsequently
+installed after separate owner approval. Minecraft stays on the pinned
+experimental **26.4 Snapshot 5** stack. The resource candidate above is separate
+and is not installed by building, committing or merging it.
 
 ## Behavior and boundaries
 
@@ -32,8 +60,15 @@ approval. Minecraft stays on the pinned experimental **26.4 Snapshot 5** stack.
   Each exact live roster/plan needs owner consent and a separate live Codex
   console approval. Stale sessions, changed records, expiry, restart and replay
   cancel proposals. GPT has no commands, code, stat edits, player-target choice
-  or approval authority. Planner transport tests use mocks; a real configured
-  GPT response and physical iPad interaction remain device/installation checks.
+  or approval authority. Planner transport tests use mocks. The post-install
+  real-transport diagnostic stopped before a model turn: Codex inherited a
+  global instructions file despite the current isolation configuration. The
+  empty-source guard remains enforced; a real GPT response is not verified.
+
+The post-install review also found that lowering grouped maximum health or
+absorption omits its secondary current-value clamp from the preview. No live
+player stat changes were used to test it. That separate preview defect is not
+part of the wing resource candidate.
 
 ## Fresh candidate evidence
 
