@@ -27,22 +27,26 @@ class CombinedWingPackageTests(unittest.TestCase):
         self.assertTrue(receipt["ordinary_elytra_uses_native_renderer"])
         self.assertTrue(receipt["accepted_infinity_shell_unchanged"])
         self.assertEqual(receipt["infinity_property"], "infinityhub:infinity_winged_chest")
-        self.assertEqual(receipt["equipment_slot_query_context"], "owning_entity")
+        self.assertEqual(receipt["equipment_slot_query_context"], "attachable.context.item_slot")
+        self.assertEqual(receipt["equipment_slot_value"], "torso")
+        self.assertTrue(receipt["equipment_slot_value_inferred"])
+        self.assertFalse(receipt["equipment_slot_value_device_verified"])
         self.assertFalse(receipt["client_rendering_verified"])
 
-    def test_rejects_equipment_lookup_on_attachable_instead_of_owning_entity(self):
+    def test_rejects_either_historical_equipment_bone_lookup(self):
         original = copy.copy(self.files)
         for index in (0, 1):
-            with self.subTest(statement=index):
-                self.files = copy.copy(original)
-                def current_attachable(value):
-                    scripts = value["minecraft:attachable"]["description"]["scripts"]
-                    scripts["pre_animation"][index] = scripts["pre_animation"][index].replace(
-                        "(context.owning_entity->query.item_slot_to_bone_name(context.item_slot))",
-                        "query.item_slot_to_bone_name(context.item_slot)")
-                self.alter(overlay.ATTACHABLE, current_attachable)
-                with self.assertRaises(ValueError):
-                    overlay.validate(self.files)
+            for query in ("query.item_slot_to_bone_name(context.item_slot)",
+                          "(context.owning_entity->query.item_slot_to_bone_name(context.item_slot))"):
+                with self.subTest(statement=index, query=query):
+                    self.files = copy.copy(original)
+                    def old_lookup(value):
+                        scripts = value["minecraft:attachable"]["description"]["scripts"]
+                        scripts["pre_animation"][index] = scripts["pre_animation"][index].replace(
+                            "context.item_slot == 'torso'", query + " == 'body'")
+                    self.alter(overlay.ATTACHABLE, old_lookup)
+                    with self.assertRaises(ValueError):
+                        overlay.validate(self.files)
 
     def test_rejects_unguarded_or_wrong_owner_infinity_selector(self):
         original = copy.copy(self.files)
