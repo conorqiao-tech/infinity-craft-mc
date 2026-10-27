@@ -77,12 +77,13 @@ class HeldArtworkTests(unittest.TestCase):
 
     def test_prepared_pack_contains_exact_models_textures_and_animation_closure(self):
         with zipfile.ZipFile(ROOT / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
-            excluded = {"attachables/held/totem.json", "attachables/held/catalog_totem.json"}
+            excluded = {"attachables/held/" + prefix + item + ".json"
+                        for prefix in ("", "catalog_") for item in ("totem", "shield")}
             self.assertEqual(HELD.validate(), {"files":14,"attachables":8,"geometries":12,"animations":11,"render_controllers":4})
             resources = {name: json.loads(pack.read(name)) for name in HELD.encoded_resources() if name not in excluded}
             for name, data in HELD.encoded_resources().items():
                 if name in excluded:
-                    self.assertNotIn(name, pack.namelist(), "Both totem identities use the native item grip")
+                    self.assertNotIn(name, pack.namelist(), "Both sprite identities use the native item grip")
                 else:
                     self.assertEqual(pack.read(name), data, name)
             for name, body in resources.items():
@@ -94,17 +95,52 @@ class HeldArtworkTests(unittest.TestCase):
                     if key != "enchanted":
                         self.assertEqual(pack.read(texture+".png"), (BED / (texture+".png")).read_bytes())
 
-    def test_totem_keeps_original_sprite_without_the_floating_custom_hand_pose(self):
+    def test_totem_and_shield_keep_original_sprites_without_floating_custom_hand_poses(self):
         with zipfile.ZipFile(ROOT / "server/geyser/packs/Infinity_Armor_Crossplay.mcpack") as pack:
-            for name in ("totem", "catalog_totem"):
-                self.assertNotIn("attachables/held/" + name + ".json", pack.namelist())
             atlas = json.loads(pack.read("textures/item_texture.json"))["texture_data"]
-            texture = atlas["convergence_totem"]["textures"] + ".png"
-            self.assertEqual(texture, "textures/convergence/items/refresh27/totem.png")
-            self.assertEqual(pack.read(texture), (BED / texture).read_bytes())
-            self.assertEqual(hashlib.sha256(pack.read(texture)).hexdigest(),
-                             "ab956fc7078316b61ebf2125b0a255824a620b4ea088ef40ebe7aa154b36dd71")
-            self.assertNotIn("attachables/totem_of_undying.json", pack.namelist(), "Ordinary native totems are not overridden")
+            active = {json.loads(pack.read(name))["minecraft:attachable"]["description"]["identifier"]
+                      for name in pack.namelist() if name.startswith("attachables/") and name.endswith(".json")}
+            for item, digest in (("totem", "ab956fc7078316b61ebf2125b0a255824a620b4ea088ef40ebe7aa154b36dd71"),
+                                 ("shield", "d5d0967c0e263b7bc9d986e2cda5b8716e518b928f27fe18228f3e02ccd0b13d")):
+                with self.subTest(item=item):
+                    for namespace, prefix in (("convergence", ""), ("infinity_catalog", "catalog_")):
+                        self.assertNotIn("attachables/held/" + prefix + item + ".json", pack.namelist())
+                        self.assertNotIn(namespace + ":" + item, active,
+                                         "Renaming a floating attachable must not reactivate either identity")
+                    texture = atlas["convergence_" + item]["textures"] + ".png"
+                    self.assertEqual(texture, "textures/convergence/items/refresh27/" + item + ".png")
+                    self.assertEqual(pack.read(texture), (BED / texture).read_bytes())
+                    self.assertEqual(hashlib.sha256(pack.read(texture)).hexdigest(), digest)
+            self.assertNotIn("minecraft:shield", active, "Ordinary shield appearance remains native")
+            self.assertNotIn("minecraft:totem_of_undying", active, "Ordinary totem appearance remains native")
+
+    def test_shield_sprite_fallback_retains_native_offhand_mapping_and_blocking_evidence(self):
+        exported = ROOT / "research/integration/crossplay-export"
+        catalogue = json.loads((exported / "infinity-catalogue.json").read_text())
+        shields = [item for item in catalogue["items"] if item["path"] == "shield"]
+        self.assertEqual(len(shields), 1)
+        self.assertEqual({key: shields[0][key] for key in ("base", "icon", "slot", "max_stack_size", "handheld")},
+                         {"base": "minecraft:shield", "icon": "convergence_shield", "slot": "offhand",
+                          "max_stack_size": 1, "handheld": False})
+        mappings = json.loads((exported / "infinity-items.json").read_text())
+        owned = [item for item in mappings["items"]["minecraft:shield"]
+                 if item["bedrock_identifier"] == "convergence:shield"]
+        self.assertEqual(len(owned), 1)
+        self.assertEqual(owned[0]["model"], "convergence:shield")
+        self.assertEqual(owned[0]["bedrock_options"]["icon"], "convergence_shield")
+        self.assertTrue(owned[0]["bedrock_options"]["allow_offhand"])
+        self.assertFalse(owned[0]["bedrock_options"]["display_handheld"])
+        self.assertEqual(owned[0]["components"]["minecraft:max_stack_size"], 1)
+        self.assertEqual(owned[0]["components"]["minecraft:max_damage"], shields[0]["max_damage"])
+        # Require the existing actual native hand/use proof, rather than equating
+        # a resource-file exclusion with server blocking or device input.
+        ready = json.loads((ROOT / "research/integration/creative-bridge/ready.json").read_text())
+        proof = ready["owned_equipment_proof"]
+        self.assertEqual(proof["native_shield_main_and_offhand_cases"], 21)
+        self.assertEqual(proof["native_mixed_shield_cases"], 9)
+        self.assertTrue(proof["complete_cached_components_and_network_ids_preserved"])
+        self.assertTrue(proof["ordinary_vanilla_definitions_unchanged"])
+        self.assertFalse(proof["device_input_or_rendering_proven_here"])
 
     def test_missing_geometry_animation_controller_or_wrong_namespace_is_rejected(self):
         for target in ("geometry", "animation", "controller", "namespace"):
