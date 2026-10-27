@@ -56,6 +56,14 @@ class Fixture:
         # diagnostic helper's marker graph and helmet control get real inputs.
         r1_files = {p.relative_to(resources).as_posix():p.read_bytes() for p in resources.rglob('*') if p.is_file()}
         r1_files.pop('attachables/elytra.json', None)  # Rejected source-only legacy override.
+        # Current production assets can advance beyond r1. Reconstruct the
+        # immutable historical selectors explicitly; never relabel a newer
+        # torso-slot predicate as an r1/native0 fixture.
+        r1_attachable = json.loads(r1_files[R1.ATTACHABLE])
+        r1_attachable['minecraft:attachable']['description']['scripts']['pre_animation'] = [
+            R1._baseline_selector(variable, name).replace(R1.OLD_SLOT_QUERY, R1.OWNER_SLOT_QUERY)
+            for variable, name in R1.SELECTORS]
+        r1_files[R1.ATTACHABLE] = json_bytes(r1_attachable)
         for name in PACKAGE.SHIELD_ATTACHABLES:
             r1_files[name] = b'{"fixture":"old detached shield renderer"}'
         self.r1_files = revision(r1_files, 51001)
@@ -81,7 +89,8 @@ class Fixture:
             'downloads':[{'path':download,'sha256':BASE.digest(self.artifacts[download])}],
             'bundled':[{'path':name,'sha256':BASE.digest(data)} for name,data in self.artifacts.items() if name != download]
                        + [{'path':BASE.PACK_PATH,'sha256':BASE.digest(self.native_pack)}],
-            'creative_bridge':{'source_hashes':{'fixture.java':'a'*64}},
+            'creative_bridge':{'format_version':1,'source_hashes':{'fixture.java':'a'*64}},
+            'snapshot5':{'experimental':True,'protocol':1073742167},
         }
         runtime = json_bytes({'java':'25','sha256':'b'*64})
         self.unchanged = {name:BASE.digest(data) for name,data in self.artifacts.items()}
@@ -110,6 +119,8 @@ class Fixture:
             'expected_new_sha256':{BASE.LOCK_PATH:BASE.digest(self.r1_lock_data),BASE.PACK_PATH:BASE.digest(self.r1_pack)},
             'payload_sha256':{name:BASE.digest(data) for name,data in self.r1_entries.items()},
             'bundle_files':sorted([*self.r1_entries,'PATCH.json']),
+            'provenance':{'packager':'tools/package_wing_appearance_repair.py','packager_sha256':BASE.file_digest(R1.__file__),
+                          'shared_validator':'tools/package_armor_visibility_repair.py','shared_validator_sha256':BASE.file_digest(BASE.__file__)},
             'device_rendering_verified':False,'live_installation_performed':False,
         }
         self.r1_entries['PATCH.json'] = json_bytes(r1_patch)
@@ -156,6 +167,12 @@ class WingDiagnosticPackageTests(unittest.TestCase):
         self.assertFalse(self.f.diagnostic_output.exists())
         self.assertFalse(self.f.cleanup_output.exists())
         self.assertFalse(self.f.pair_output.exists())
+
+    def test_historical_r1_fixture_keeps_bone_queries_when_current_assets_advance(self):
+        r1=json.loads(self.f.r1_files[R1.ATTACHABLE])['minecraft:attachable']['description']['scripts']['pre_animation']
+        native=json.loads(self.f.native_files[R1.ATTACHABLE])['minecraft:attachable']['description']['scripts']['pre_animation']
+        self.assertTrue(all(R1.OWNER_SLOT_QUERY+" == 'body'" in value and "== 'torso'" not in value for value in r1))
+        self.assertEqual(native,[R1._baseline_selector(variable,name) for variable,name in R1.SELECTORS])
 
     def test_pair_binds_both_four_file_candidates_and_exact_normal_cleanup_bytes(self):
         f=self.f;originals=[f.r1_zip.read_bytes(),f.native_zip.read_bytes(),f.diagnostic_pack.read_bytes()]
