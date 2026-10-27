@@ -164,7 +164,9 @@ class OriginalArtworkTests(unittest.TestCase):
             for name in pack.namelist():
                 if name.startswith("attachables/"):
                     identifiers.append(json.loads(pack.read(name))["minecraft:attachable"]["description"]["identifier"])
-            held = ("bow", "crossbow", "shield")
+            # Shield and totem keep their original sprites with the engine's
+            # hand placement; only the two ranged tools use held attachables.
+            held = ("bow", "crossbow")
             forge = tuple(suit + "_" + piece for suit in ("elemental", "infinity")
                           for piece in ("helmet", "chestplate", "leggings", "boots"))
             self.assertCountEqual(identifiers,[prefix+name for prefix in ("convergence:","infinity_catalog:") for name in (*wearable, *held, *forge)] + ["minecraft:elytra"])

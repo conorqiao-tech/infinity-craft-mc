@@ -18,13 +18,14 @@ ELYTRA_OVERRIDES = frozenset({
 # Resource-only repairs keep the Java mod version (and terrain policy) intact.
 # Starting with explore.43 reserve 1,000 cache revisions per exploration release
 # so the next full release always supersedes this release's repairs.
-RESOURCE_REPAIRS = {(2, 13, 43): 1, (2, 13, 44): 1, (2, 13, 45): 1}
+RESOURCE_REPAIRS = {(2, 13, 43): 1, (2, 13, 44): 1, (2, 13, 45): 1, (2, 13, 51): 4}
 
-# The totem's original sprite uses Bedrock's ordinary item grip. Its authored
-# attachable poses float away from the owner's hand on iPad. Keep these legacy
-# generator outputs in source, but never activate them in the crossplay pack.
+# The totem and shield use their original sprites with Bedrock's ordinary item
+# grip. Their authored attachable poses float away from the owner's hand on iPad.
+# Keep these legacy generator outputs in source without activating them in packs.
 NATIVE_SPRITE_ATTACHABLES = frozenset({
     "attachables/held/totem.json", "attachables/held/catalog_totem.json",
+    "attachables/held/shield.json", "attachables/held/catalog_shield.json",
 })
 
 
