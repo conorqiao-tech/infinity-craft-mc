@@ -32,24 +32,25 @@ def attachment():
     return read("attachables/combined_convergence_elytra.json")["minecraft:attachable"]["description"]
 
 
-def marker_value(statement, properties, slot="chest", owner_exists=True, variable=VARIABLE):
-    """Evaluate this guarded contract with injected holder-slot mappings.
+def marker_value(statement, properties, slot="torso", owner_exists=True, variable=VARIABLE):
+    """Model the candidate's strict slot/Boolean-property input contract.
 
-    The official attachable guide maps main_hand/off_hand to rightItem/leftItem.
-    The chest/body mapping and owning_entity context still require device proof;
-    unknown or non-body mappings must refuse the custom pass.
+    The official equipment-filter domain includes torso; it does not establish
+    this attachable's actual context.item_slot value. This parser is not a
+    Molang interpreter. Invalid synthetic property types are refused because the
+    native bridge schema is Boolean, not as a claim about engine coercion rules.
+    Missing/unknown contexts refuse the custom pass rather than guessing a bone.
     """
     match = re.fullmatch(
-        re.escape(variable) + r" = query\.item_slot_to_bone_name\(context\.item_slot\) == 'body' \? "
+        re.escape(variable) + r" = context\.item_slot == 'torso' \? "
         r"\(\(context\.owning_entity->query\.has_property\('([^']+)'\)\) \? "
         r"\(context\.owning_entity->query\.property\('([^']+)'\)\) : 0\.0\) : 0\.0;", statement)
     if match is None or match[1] != match[2]:
-        raise ValueError("The marker must check the body slot and one matching, guarded owning-entity property")
-    mapped_bone = {"chest": "body", "main_hand": "rightItem", "off_hand": "leftItem",
-                   "head": "head", "legs": "rightLeg", "feet": "rightLeg"}.get(slot, "")
-    if mapped_bone != "body" or not owner_exists:
+        raise ValueError("The marker must positively select torso and one matching, guarded owner property")
+    if slot != "torso" or not owner_exists:
         return False
-    return bool(properties[match[1]]) if match[1] in properties else False
+    value = properties.get(match[1])
+    return type(value) is bool and value
 
 
 def active(entries, marked):
@@ -85,6 +86,21 @@ def rotate(vertex, pivot, angles, order):
 
 
 class CombinedConvergenceElytraTests(unittest.TestCase):
+    def test_slot_is_positive_attachable_context_and_properties_remain_on_owner(self):
+        description = attachment()
+        # The context string is an explicit candidate, not a claimed result of
+        # executing Molang on an iPad. No entity-to-bone mapping is modeled.
+        for statement, variable, marker in zip(description["scripts"]["pre_animation"],
+                (VARIABLE, INFINITY_VARIABLE), (MARKER, INFINITY_MARKER)):
+            with self.subTest(variable=variable):
+                self.assertIn(" = context.item_slot == 'torso' ? ", statement)
+                self.assertNotIn("item_slot_to_bone_name", statement)
+                self.assertTrue(marker_value(statement, {marker: True}, variable=variable))
+                for slot in ("chest", "body", "main_hand", "off_hand", None):
+                    self.assertFalse(marker_value(statement, {marker: True}, slot, variable=variable))
+                self.assertFalse(marker_value(statement, {marker: True}, owner_exists=False,
+                    variable=variable))
+
     def test_unmarked_item_keeps_exact_native_resources_and_animation_aliases(self):
         # Pinned official source: Mojang/bedrock-samples commit
         # 46ba6ea985fb5a92d79a9419198f10dda14c199d, attachables/elytra.json.
@@ -128,14 +144,14 @@ class CombinedConvergenceElytraTests(unittest.TestCase):
         for statement, variable, marker in zip(description["scripts"]["pre_animation"],
                 (VARIABLE, INFINITY_VARIABLE), (MARKER, INFINITY_MARKER)):
             for properties in ({}, {marker: False}, {MARKER: True, INFINITY_MARKER: True}):
-                for slot in ("main_hand", "off_hand", "head", "legs", "feet", "", "unknown"):
+                for slot in ("main_hand", "off_hand", "head", "legs", "feet", "chest", "body", "", "unknown", None):
                     with self.subTest(variable=variable, properties=properties, slot=slot):
                         marked = marker_value(statement, properties, slot, variable=variable)
                         self.assertFalse(marked)
                         self.assertEqual(active(description["scripts"]["animate"], marked), ["default_controller"])
                         self.assertEqual(active(description["render_controllers"], marked), ["controller.render.armor"])
-            self.assertFalse(marker_value(statement, {marker: True}, "chest", owner_exists=False, variable=variable))
-            self.assertTrue(marker_value(statement, {marker: True}, "chest", variable=variable))
+            self.assertFalse(marker_value(statement, {marker: True}, "torso", owner_exists=False, variable=variable))
+            self.assertTrue(marker_value(statement, {marker: True}, "torso", variable=variable))
             with self.assertRaises(ValueError):
                 marker_value(statement.replace("context.owning_entity->", ""), {marker: True}, variable=variable)
 

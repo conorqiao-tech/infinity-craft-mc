@@ -1,6 +1,6 @@
 {
   "minecraft": "26.4-snapshot-5",
-  "version": "2.13.0-explore.50",
+  "version": "2.13.0-explore.51",
   "downloads": [
     {
       "path": "fabric/fabric-server-launch.jar",
@@ -17,8 +17,8 @@
   ],
   "bundled": [
     {
-      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.50.jar",
-      "sha256": "07d40f9a3f18284b30cda2092d963a64d2bffbab38f2fbe178a3b6460cbf25eb"
+      "path": "fabric/mods/Infinity-Armor-2.13.0-explore.51.jar",
+      "sha256": "c3e427b16776e9a38effa75e3b5350f0cbed8fbb277e05e3e3c0cb66c6a784ab"
     },
     {
       "path": "fabric/mods/fabric-api-0.164.1+26.4.jar",
@@ -26,7 +26,7 @@
     },
     {
       "path": "geyser/packs/Infinity_Armor_Crossplay.mcpack",
-      "sha256": "0df4d912b4840907846c4f7b279d5596bb9e7f59aadc27db523d7e58c68a52c2"
+      "sha256": "9f53d59e915088756c1486c095739a75a84e4261f5ab18d65b5bd951f4875c84"
     },
     {
       "path": "geyser/extensions/InfinityCreativeBridge.jar",

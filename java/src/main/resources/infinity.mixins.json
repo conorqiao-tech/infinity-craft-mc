@@ -13,6 +13,7 @@
     "AgentConsoleSourceAccess",
     "AdminStatGolemMixin",
     "AdminAttributeMixin",
+    "AttributeMapAccess",
     "AdminArmorMixin",
     "AgentFlightAccess",
     "AgentWeaponMixin",

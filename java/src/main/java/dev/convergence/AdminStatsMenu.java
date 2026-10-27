@@ -37,6 +37,7 @@ final class AdminStatsMenu {
     static final int MINIMUM = 28, MAXIMUM = 34, RESET = 37, REVIEW = 40, RESET_ALL = 47;
     static final int RELATED_HEALTH = 31;
     static final int EXACT = 16;
+    static final int GROUP = 43;
     static final int CONFIRM = 10, CANCEL = 16, PREVIEW_START = 18, PREVIEW_SIZE = 27;
     enum Page { PLAYERS, STATS, EDIT, CONFIRM }
     enum Operation { SET, RESET, RESET_ALL }
@@ -82,6 +83,7 @@ final class AdminStatsMenu {
 
     static void register() {
         BedrockStatsMenu.register();
+        GroupStatsMenu.register();
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->INPUTS.computeIfPresent(handler.player.getUUID(),(id,input)->
             input.actor().player()==handler.player && input.actor().connection()==handler ? null : input));
         ServerTickEvents.END_SERVER_TICK.register(server->INPUTS.entrySet().removeIf(entry->{
@@ -96,8 +98,30 @@ final class AdminStatsMenu {
     /** Consumed before normal chat handling, so an entered value is never broadcast. */
     static boolean consumeChat(ServerPlayer actor,String text) {
         var input=INPUTS.get(actor.getUUID());
-        if(input==null)return false;
+        if(input==null)return GroupStatsMenu.consumeChat(actor,text);
         return consumeChat(actor,text,input);
+    }
+
+    static void cancelInput(ServerPlayer actor) {
+        INPUTS.computeIfPresent(actor.getUUID(),(id,input)->sameActor(input.actor(),actor)?null:input);
+    }
+
+    static boolean sameActor(Session session,ServerPlayer actor) {
+        return session.player()==actor && session.connection()==actor.connection;
+    }
+
+    static void cancelGroupEditors(ServerPlayer actor) {
+        if(!new Session(actor).valid())return;
+        GroupStatsMenu.cancelPending(actor);
+        BedrockGroupStatsMenu.cancelPending(actor);
+    }
+
+    /** Switching stat editors retires every old private prompt and queued form. */
+    static void cancelEditors(ServerPlayer actor) {
+        if(!new Session(actor).valid())return;
+        cancelInput(actor);
+        BedrockStatsMenu.cancelPending(actor);
+        cancelGroupEditors(actor);
     }
 
     private static boolean consumeChat(ServerPlayer actor,String text,Input input) {
@@ -181,7 +205,7 @@ final class AdminStatsMenu {
     private static int show(ServerPlayer actor, LivingEntity target, Page page, int index,
             String statId, double pending, Operation operation, List<Change> changes) {
         if (!allowed(actor)) { message(actor, "Player and AI editing requires an online OP4 admin who has finished respawning or changing mode."); return 0; }
-        INPUTS.remove(actor.getUUID());
+        cancelInput(actor);cancelGroupEditors(actor);
         if (actor.containerMenu != actor.inventoryMenu || !actor.containerMenu.getCarried().isEmpty()) {
             message(actor, "Close your current screen and empty the cursor before editing players or AI helpers."); return 0;
         }
@@ -241,6 +265,9 @@ final class AdminStatsMenu {
                 "Equipment and effects can change the effective value.");
             icon(view, 22, Items.PAPER, "Pending: " + number(pending), "Nothing changes until Review, then Confirm.");
             icon(view, EXACT, Items.WRITABLE_BOOK, "Enter exact number", "Type the value privately in chat. No command needed.", "Then review and confirm the edit.");
+            if(target instanceof ServerPlayer) icon(view,GROUP,Items.PLAYER_HEAD,"Edit matching players together",
+                "Choose specific living online players with this same current stat value.",
+                "No players are selected automatically. Review each selected player's changes before confirming.");
             int[] minus = {MINUS_SMALL, MINUS_MEDIUM, MINUS_LARGE}, plus = {PLUS_SMALL, PLUS_MEDIUM, PLUS_LARGE};
             for (int i = 0, multiplier = 1; i < 3; i++, multiplier *= 10) {
                 String step = number(selected.step() * multiplier);
@@ -360,7 +387,7 @@ final class AdminStatsMenu {
 
         private void exact() {
             var input=new Input(actorSession,targetSession,statId,pending,owner.level().getServer().getTickCount()+1800);
-            owner.closeContainer();INPUTS.put(owner.getUUID(),input);
+            owner.closeContainer();cancelInput(owner);cancelGroupEditors(owner);INPUTS.put(owner.getUUID(),input);
             message(owner,"Enter the exact value for "+AdminStats.find(targetSession.entity(),statId).label()+" in chat (example: 5000), or type cancel. This input is private and expires in 90 seconds. Review and Confirm are still required.");
         }
 
@@ -435,7 +462,9 @@ final class AdminStatsMenu {
                     case MINUS_LARGE -> -100; case MINUS_MEDIUM -> -10; case MINUS_SMALL -> -1;
                     case PLUS_SMALL -> 1; case PLUS_MEDIUM -> 10; case PLUS_LARGE -> 100; default -> 0;
                 };
-                if(slot==EXACT || slot==MAXIMUM && exactMaximum(stat))exact();
+                if(slot==GROUP && targetSession.entity() instanceof ServerPlayer anchor) {
+                    owner.closeContainer();GroupStatsMenu.open(owner,anchor,statId);
+                } else if(slot==EXACT || slot==MAXIMUM && exactMaximum(stat))exact();
                 else if (multiplier != 0 || slot == MINIMUM || slot == MAXIMUM) {
                     double next = slot == MINIMUM ? stat.minimum() : slot == MAXIMUM ? stat.maximum()
                         : Math.max(stat.minimum(), Math.min(AdminStats.inputMaximum(stat), pending + multiplier * stat.step()));

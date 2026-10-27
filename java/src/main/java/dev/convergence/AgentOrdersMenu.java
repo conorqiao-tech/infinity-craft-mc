@@ -61,11 +61,11 @@ final class AgentOrdersMenu {
             int slot=0;
             for(var entry:queue.data.proposals.entrySet())if(entry.getValue().owner.equals(owner.getStringUUID())&&entry.getValue().active()) {
                 proposals.put(slot,entry.getKey());AgentMenu.icon(view,slot,Items.PAPER,entry.getValue().state==AgentActions.State.OWNER_APPROVED?"Waiting for Codex review":"Needs your approval");
-                AgentMenu.description(view,slot,entry.getValue().description()+" • ID: "+entry.getKey());slot++;
+                AgentMenu.description(view,slot,queue.reviewDescription(entry.getValue())+" • ID: "+entry.getKey());slot++;
             }
             if(proposals.isEmpty())AgentMenu.icon(view,4,Items.BARRIER,"No pending orders");
         } else {
-            AgentMenu.icon(view,4,Items.PAPER,"Review exact order");AgentMenu.description(view,4,selected.description()+" • ID: "+proposalId);
+            AgentMenu.icon(view,4,Items.PAPER,"Review exact order");AgentMenu.description(view,4,queue.reviewDescription(selected)+" • ID: "+proposalId);
             AgentMenu.icon(view,APPROVE,Items.DYE.lime(),selected.state==AgentActions.State.PENDING?"Approve as owner":"Owner approved • Codex still required");
             AgentMenu.description(view,APPROVE,"This is only your approval. Ask Codex in this chat to review the displayed ID before expiry.");
             AgentMenu.icon(view,CANCEL,Items.DYE.red(),"Cancel this order");

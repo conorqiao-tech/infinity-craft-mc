@@ -1,3 +1,118 @@
+# Explore.51 r1 — wing appearance comparison candidate
+
+The owner confirmed on iPad that installed explore.51 helpers hold separate
+formation positions and Infinity Chestplate can glide. Its appearance failed:
+the device showed ordinary gray elytra without the custom chest shell.
+
+This resource-only candidate redirects both cosmetic equipment-slot queries to
+the owning entity. The nested pack changes exactly the combined-elytra
+attachable and manifest revision `[2,13,51001]`; the other 263 entries are
+byte-identical, including every PNG, model, controller and animation. The exact
+explore.51 mod, Geyser extension, Java runtime, dependencies and mappings remain
+unchanged. No gameplay source or live server file changes for this candidate.
+
+Fresh checks cover the complete 451-test Python suite with ResourceWarning as an
+error, 192 native Geyser property/codec cases across protocols 1001/2168/2193,
+255 actual hotbar inputs plus overflow/Survival refusals, and 85 saved/rejoined
+item-count cases over three genuine reconnects. A separate disposable native
+projection test also verifies both real winged items emit native elytra with
+their exact original Polymer marker and preserve custom names/components.
+The existing 722-test native baseline remains bound to all 784 unchanged Java
+source/resource hashes; that full suite was not rerun for this resource repair.
+
+Neither these checks nor the modeled Molang context test runs the actual iPad
+renderer. The owning-player chest-slot mapping and final visual result remain
+unverified until a separately approved installation and device comparison.
+See [the repair scope and device checks](WING_APPEARANCE_REPAIR.md).
+
+# Explore.51 — GPT squad plans, formations and explicit player groups
+
+The following records the explore.51 source/package baseline. It was subsequently
+installed after separate owner approval. Minecraft stays on the pinned
+experimental **26.4 Snapshot 5** stack. The resource candidate above is separate
+and is not installed by building, committing or merging it.
+
+## Behavior and boundaries
+
+- **Admin editor → player → stat → Edit matching players together** starts an
+  empty named selection of living online players sharing the selected base
+  value. Java and iPad forms show every selected target's normalized changes and
+  any health/absorption capacity increases before one confirmation. Previewing
+  leaves native save NBT unchanged, including uncached default attributes.
+  Exact player/connection/world/mode/permission and attribute/history drift,
+  replay, changed capacities and normalized zero-health groups are rejected.
+  Saving uses ordinary per-player persistence, not a cross-file transaction.
+- Registered helpers receive one-time finite defaults: max health **1000**,
+  attack **100**, armor **30**, toughness **20**, knockback resistance **1**.
+  Recorded manual overrides, non-default bases, modifiers and reset history
+  remain intact. Existing current health stays unchanged; actual new spawns
+  alone fill their resulting capacity. No operator permissions are granted.
+- Idle FOLLOW helpers receive distinct **Escort**, mirrored **Wedge** or
+  capacity-spaced **Ring** slots. Native navigation reaches exact supported
+  slots, turns with the owner's yaw and climbs ordinary steps. Blocked slots
+  hold; distant chunks are not loaded and following does not teleport. The
+  per-tick cache releases disconnected owners and removed entities.
+- **AI Helpers → Ask GPT for a squad plan** sends one explicit goal plus bounded
+  squad counts/settings through the existing configured GPT service. It shares
+  the normal durable request budget, pending limits and timeouts. Native
+  movement/combat does not call GPT each tick. Strict model JSON can propose
+  only movement, regular/Ultimate Finals profile and formation, or no action.
+  Each exact live roster/plan needs owner consent and a separate live Codex
+  console approval. Stale sessions, changed records, expiry, restart and replay
+  cancel proposals. GPT has no commands, code, stat edits, player-target choice
+  or approval authority. Planner transport tests use mocks. The post-install
+  real-transport diagnostic stopped before a model turn: Codex inherited a
+  global instructions file despite the current isolation configuration. The
+  empty-source guard remains enforced; a real GPT response is not verified.
+
+The post-install review also found that lowering grouped maximum health or
+absorption omits its secondary current-value clamp from the preview. No live
+player stat changes were used to test it. That separate preview defect is not
+part of the wing resource candidate.
+
+## Fresh candidate evidence
+
+- **722 native tests in 39 groups**, zero failures/errors/skips, bind **784 Java
+  source/resource hashes**, exact release/test JARs and dependency lock. This
+  retains all earlier test methods and adds 49 native methods in seven classes.
+- **434 Python launcher/resource tests** pass with ResourceWarning treated as
+  an error, including 15 independent saved-helper migration verifier cases.
+- **192 native wing-property cases** and **303 armor codec round trips** pass
+  across protocols **1001, 2168 and 2193**, covering twenty armor identities and
+  all five suits. All **424 tracked PNGs** match main. The prepared pack's 265
+  entries differ from explore.50 only in the version manifest, now
+  **[2, 13, 51000]**. These headless checks do not execute the iPad renderer or
+  Molang, and do not prove a physical device's gliding/input behavior.
+- Fresh Geyser startup covers **66 item identities** and three protocols. The
+  Via/native wire proof passes **255 real hotbar inputs**, **198 overflow
+  refusals** and **255 Survival refusals**. Persistence passes **85 disk/rejoin
+  item-count cases** across all identities and **three genuine reconnects**.
+- The final application hash sustains **90.096 seconds** of translated Play,
+  decodes **186 chunks**, acknowledges **five teleports** and completes native
+  respawn through the actual pinned Geyser runtime. All **four authentication
+  negatives** fail before Play. The **21 codec cases** and **four native ACK
+  cases plus the framework baseline** retain verified earlier evidence only
+  because all five compatibility dependency hashes remain identical; the full
+  application and copied-world exercises were rerun for this exact app hash.
+- Copied-world conversion preserves the original **92-file** fixture, all
+  **four offline player files** byte-for-byte, **nine mod-state files** and the
+  saved helper's identity, current health, equipment, edited attributes and
+  reset history. Its only derived migration is untouched attack **15 → 100**
+  plus marker **1**. The verifier independently derives allowed changes from
+  original native NBT and saved ownership, including sparse attribute rows;
+  receipt claims cannot authorize other changes. No live world or terrain was
+  modified, and no player logged into this conversion fixture.
+- Two isolated full-stack cycles pass startup, loopback response, restart,
+  backup and clean shutdown. AI provider configuration, accounts,
+  credentials, permissions, production hosting and live resources are unchanged.
+
+Release mod SHA256:
+`c3e427b16776e9a38effa75e3b5350f0cbed8fbb277e05e3e3c0cb66c6a784ab`.
+The canonical sanitized proof is `research/integration/snapshot5-integration.json`;
+private evidence and raw saves are excluded from public archives.
+
+---
+
 # Explore.50 — Infinity Chestplate flight and instant helper batches
 
 The candidate adds native gliding to the existing Infinity Chestplate while

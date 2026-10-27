@@ -3,8 +3,10 @@
 The bridge supplies namespaced, per-player booleans. Missing/false properties
 retain Minecraft's own elytra renderer and animations; only the combined marker
 enables an armor shell and wings, and the set marker selects the accepted
-Convergence or Infinity chest shell. This checks package
-structure, not a Bedrock client's Molang evaluation or rendered pixels.
+Convergence or Infinity chest shell. The positive attachable-context torso
+selector is a candidate inferred from the official equipment-domain vocabulary;
+that documentation does not prove the iPad supplies this context value. This
+checks package structure, not a Bedrock client's Molang evaluation or pixels.
 """
 import hashlib
 import json
@@ -19,6 +21,13 @@ FLAG = "variable.infinityhub_winged_chest"
 PROPERTY = "infinityhub:winged_chest"
 INFINITY_FLAG = "variable.infinityhub_infinity_winged_chest"
 INFINITY_PROPERTY = "infinityhub:infinity_winged_chest"
+SLOT_GUARD = "context.item_slot == 'torso'"
+# The filter domain documents "torso" as an equipment location. Reusing that
+# string in an attachable context is an explicit, still unverified inference.
+SLOT_VALUE_SOURCE = (
+    "https://learn.microsoft.com/en-us/minecraft/creator/reference/content/"
+    "entityreference/examples/filters/has_equipment?view=minecraft-bedrock-stable"
+)
 ACCEPTED = {
     "models/entity/original_armor/cuirass.geo.json": "4218cd173cfb5159210a9ddf4fc8b117e6faa2fe56f5e29202d9697e9cee849d",
     "textures/convergence/models/armor/armor42/convergence.png": "3287b00a45f292e73367ded77c31374f384d4e81c552dfae158383ef90deeacc",
@@ -63,11 +72,11 @@ def validate(files):
     scripts = description["scripts"]
     require(scripts.get("parent_setup") == "variable.chest_layer_visible = 0.0;", "Native parent setup changed")
     require(scripts.get("pre_animation") == [
-        flag + " = query.item_slot_to_bone_name(context.item_slot) == 'body' ? "
+        flag + " = " + SLOT_GUARD + " ? "
         "((context.owning_entity->query.has_property('" + prop + "')) ? "
         "(context.owning_entity->query.property('" + prop + "')) : 0.0) : 0.0;"
         for flag, prop in ((FLAG, PROPERTY), (INFINITY_FLAG, INFINITY_PROPERTY))
-    ], "Only the chest attachment may read both guarded owner properties each frame")
+    ], "Only the positive attachable torso slot and both guarded owner properties may select the overlay each frame")
     require(scripts.get("animate") == [{"default_controller": "!" + FLAG}, {"convergence_controller": FLAG}],
             "Native and combined animations must be mutually exclusive")
     require(description["render_controllers"] == [
@@ -160,6 +169,10 @@ def validate(files):
                           and read(name).get("minecraft:attachable", {}).get("description", {}).get("identifier") == "minecraft:elytra"]
     require(native_attachables == [ATTACHABLE], "Only the guarded native-elytra attachable may be active")
     return {"property": PROPERTY, "infinity_property": INFINITY_PROPERTY,
+            "equipment_slot_query_context": "attachable.context.item_slot",
+            "equipment_slot_value": "torso", "equipment_slot_value_inferred": True,
+            "equipment_slot_value_source": SLOT_VALUE_SOURCE,
+            "equipment_slot_value_device_verified": False,
             "ordinary_elytra_uses_native_renderer": True,
             "accepted_convergence_shell_unchanged": True, "accepted_infinity_shell_unchanged": True,
             "client_rendering_verified": False}

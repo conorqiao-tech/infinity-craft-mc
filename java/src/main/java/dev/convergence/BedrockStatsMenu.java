@@ -26,6 +26,11 @@ final class BedrockStatsMenu {
     private record Delivery(Ticket ticket,Form form,int due) {}
     private BedrockStatsMenu() {}
 
+    static void cancelPending(ServerPlayer actor) {
+        ACTIVE.computeIfPresent(actor.getUUID(),(id,ticket)->AdminStatsMenu.sameActor(ticket.actor(),actor)?null:ticket);
+        DELIVERIES.computeIfPresent(actor.getUUID(),(id,delivery)->AdminStatsMenu.sameActor(delivery.ticket().actor(),actor)?null:delivery);
+    }
+
     static void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server)->{
             ACTIVE.computeIfPresent(handler.player.getUUID(),(id,ticket)->
@@ -58,12 +63,18 @@ final class BedrockStatsMenu {
     }
 
     static int open(ServerPlayer actor,LivingEntity target,String stat) {
-        return open(actor,target,stat,form->{
+        return open(actor,target,stat,new NativeSender(actor));
+    }
+
+    private static final class NativeSender implements Predicate<Form> {
+        private final ServerPlayer actor;
+        NativeSender(ServerPlayer actor) {this.actor=actor;}
+        @Override public boolean test(Form form) {
             // Let the Bedrock client finish closing its chest/previous form first.
             var t=ACTIVE.get(actor.getUUID());
             if(t==null)return false;
             DELIVERIES.put(actor.getUUID(),new Delivery(t,form,actor.level().getServer().getTickCount()+3));return true;
-        });
+        }
     }
 
     // A sender parameter lets native tests exercise the same encoded forms and callbacks.
@@ -83,6 +94,7 @@ final class BedrockStatsMenu {
     }
     private static void message(ServerPlayer actor,String text) { actor.sendSystemMessage(Component.literal(text)); }
     private static Ticket begin(ServerPlayer actor,LivingEntity target) {
+        AdminStatsMenu.cancelGroupEditors(actor);
         var t=new Ticket(UUID.randomUUID(),new AdminStatsMenu.Session(actor),target==null?null:new AdminStatsMenu.TargetSession(target),actor.level().getServer().getTickCount()+1800);
         ACTIVE.put(actor.getUUID(),t);return t;
     }
@@ -144,12 +156,19 @@ final class BedrockStatsMenu {
         var stat=AdminStats.find(target,id);
         if(stat==null) {message(actor,"That stat is no longer available.");return;}
         var t=begin(actor,target);
+        var actions=new ArrayList<String>();actions.add("Set exact value");
+        if(stat.attribute())actions.add("Restore original attribute");
+        int groupAction=actions.size();
+        if(target instanceof ServerPlayer)actions.add("Edit matching players together");
         String range=AdminStats.inputMaximum(stat)==Float.MAX_VALUE ? "Enter a finite value of at least "+AdminStatsMenu.number(stat.minimum())+"." : "Range: "+AdminStatsMenu.number(stat.minimum())+" to "+AdminStatsMenu.number(stat.maximum());
         var form=CustomForm.builder().title(stat.label()+" • "+AdminStats.displayName(target))
             .label("Current: "+AdminStatsMenu.number(AdminStats.value(target,stat).base())+"\nEffective: "+AdminStatsMenu.number(AdminStats.value(target,stat).effective())+"\n"+range+"\n"+AdminStats.boundsHint(stat))
             .input("Exact new value","Example: 5000",AdminStatsMenu.number(AdminStats.value(target,stat).base()))
-            .dropdown("Action",stat.attribute()?List.of("Set exact value","Restore original attribute"):List.of("Set exact value"));
+            .dropdown("Action",actions);
         form.validResultHandler(r->response(t,()->{
+            if(r.asDropdown(2)==groupAction && target instanceof ServerPlayer anchor) {
+                GroupStatsMenu.open(actor,anchor,id,sender instanceof NativeSender?BedrockGroupStatsMenu.sender(actor):sender);return;
+            }
             if(r.asDropdown(2)==1 && stat.attribute()) {
                 review(actor,target,AdminStatsMenu.Operation.RESET,id,0,restorations(target,id),sender);return;
             }

@@ -1,4 +1,48 @@
-# Explore.50 candidate — Infinity Chestplate flight and helper batches
+# Explore.51 source candidate — player groups and helper squad planning
+
+Explore.51 passed **722 native tests in 39 groups**, **434 launcher/resource
+tests**, fresh item persistence and Snapshot 5 application/world checks. It is
+**not installed** on the live server; the separately approved installation is
+explore.50. See [VALIDATION.md](VALIDATION.md) for this candidate's exact evidence.
+Physical iPad checks remain pending. Preparing or merging source does not install it.
+
+- **Explicit player groups:** open **Infinity Menu → Admin editor • players and
+  AI**, choose a player and a stat, then **Edit matching players together**. On
+  iPad, choose that entry in the stat form's **Action** dropdown. Toggle named
+  living online players who share the chosen stat's current base value, enter
+  one exact number, review each selected player's before/after values and
+  confirm once. Selection starts empty. Health and absorption include any
+  needed capacity increases in the preview; group health cannot be set to zero.
+  Manual single-player and AI-helper editing remain available.
+- **Finite helper defaults:** registered helpers receive a one-time upgrade of
+  untouched native defaults to 1,000 maximum health, 100 attack damage, 30 armor,
+  20 armor toughness and 1 knockback resistance. Recorded admin edits and other
+  non-default values are preserved. Existing damaged helpers keep their current
+  health; newly created helpers start at their resulting full capacity. OP4 is
+  still required for helper controls. These values do not guarantee invincibility
+  or successful combos against every target or terrain.
+- **Distinct follow formations:** **Escort**, **Wedge** and **Ring** assign
+  separate positions to idle followers on supported loaded ground. Use
+  **Follow formation** in Java's squad roster, or **Squad controls → Cycle follow
+  formation** on iPad. A blocked member waits instead of sharing the owner's
+  position; formation following does not automatically teleport helpers or load
+  distant chunks. Explicit **Bring loaded squad here** remains a separate action.
+- **Explicit GPT planning:** **AI Helpers → Ask GPT for a squad plan** opens Java
+  goal presets or an iPad goal field. `/agent plan <goal>` is an optional text
+  shortcut. Only submitting a goal requests a plan. It shares the existing
+  configured GPT route and AI request budget/usage limits, sending the goal and
+  limited squad counts/settings. Opening status or following/combat ticks sends
+  no GPT request. A supported result becomes an exact squad proposal in
+  **Orders**, requiring owner approval and separate live Codex approval before
+  application. GPT cannot issue arbitrary commands, target players, change
+  stats, edit worlds or approve its own proposal. This feature does not change
+  the host's account, model or provider settings.
+
+See [Helper guide](AGENTS_GUIDE.md) for controls and boundaries and
+[Validation](VALIDATION.md) for actual completed evidence. Physical iPad checks
+for the new group and GPT forms remain pending.
+
+# Historical explore.50 candidate — Infinity Chestplate flight and helper batches
 
 The existing Infinity Chestplate now has native gliding and an appearance that
 combines its accepted Infinity armor shell with folding wings. Its item identity,
@@ -7,13 +51,13 @@ elytra retain their existing behavior. The same candidate prepares quantity-base
 helper spawning up to fifty total per owner and server, with unloaded helpers
 counted.
 
-The live server is the separately approved explore.49. The owner confirmed helper
-following and combos there, and identified Infinity Chestplate as the item that
-still could not glide. This source candidate passed 673 native and 419
-launcher/resource tests and is not installed
-by preparation or merge. Live installation requires separate owner approval and
-a verified stopped-world backup. Actual iPad flight/rendering remains a device
-check. See the winged chestplate, helper and validation guides.
+At explore.50 preparation time the live server was explore.49. This source
+candidate passed 673 native and 419 launcher/resource tests before its separately
+approved installation. These are historical explore.50 results. The owner has
+since confirmed exact batch creation, following and rear-view wing visibility
+on installed explore.50; gliding is still untested. Live installation requires
+separate owner approval and a verified stopped-world backup. See the winged
+chestplate, helper and validation guides.
 
 # Historical explore.49 candidate • Convergence winged chestplate and iPad controls
 

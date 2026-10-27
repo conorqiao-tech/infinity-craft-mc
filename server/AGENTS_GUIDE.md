@@ -1,4 +1,92 @@
-# Explore.50 candidate — create a helper batch
+# Explore.51 source candidate — explicit groups, stronger helpers and GPT plans
+
+These features are a tested source candidate, **not a live installation**.
+The running approved version is explore.50. Explore.51 passes 722 native tests
+in 39 groups, 434 launcher/resource tests and the fresh crossplay/persistence
+checks detailed in [VALIDATION.md](VALIDATION.md). Physical iPad checks remain
+pending. Preparing or merging source does not install the candidate, restart the
+server or grant either AI approval.
+
+## Edit specifically selected players together
+
+Open **Infinity Menu → Admin editor • players and AI**, choose a player and a
+stat, then **Edit matching players together** in the Java stat editor. In the
+iPad stat form, select **Edit matching players together** under **Action** and
+submit to open the player list. This opens selection without applying the typed
+single-player amount.
+
+The list contains living online player sessions whose selected stat has the
+same current **base value** as the chosen anchor player. Effective values can
+differ because of equipment and effects. No player, including the anchor or
+admin, starts selected. Toggle the actual named players you want, using previous
+and next pages where needed. Equal values or names never add someone to the
+group automatically. AI helpers retain the existing individual editor.
+
+Choose **Enter exact number**, enter one value, and review the before/after
+changes for every selected player before one **Confirm changes** activation.
+Capacity increases needed for health or absorption appear in each affected
+player's preview. Group health must stay above zero; individual lethal health
+editing retains its existing warning and confirmation. Toggling, typing,
+previewing and cancelling change no stats. The group session expires after 90
+seconds and rejects changed player sessions, selected values, permissions or
+reviewed capacities. Switching between single/group editors retires their old
+private number prompts and native forms. Manual stat confirmation remains an
+OP4 action and does not require AI approval.
+
+## One-time finite helper strength defaults
+
+Registered helpers with untouched native defaults receive **1,000 maximum
+health, 100 attack damage, 30 armor, 20 armor toughness and 1 knockback
+resistance**. This is a one-time native default upgrade, not an infinite-health
+mode. Recorded admin edits and other non-default bases remain intact. Existing
+helpers retain their current health, including damage already taken; loading,
+recalling or changing profile does not silently heal them. Newly created single
+or batch helpers start at their resulting full health capacity. Their saved
+identities, equipment and explicit orders are preserved. Normal damage, terrain
+and native combat requirements still apply; OP4 remains necessary for controls.
+
+## Follow formations on real loaded ground
+
+Java's squad roster has **Follow formation**; iPad uses **Squad controls → Cycle
+follow formation**. **Escort** makes spaced rows behind the owner, **Wedge**
+makes symmetric widening rows, and **Ring** distributes followers around the
+owner. These are distinct owner-relative positions for idle helpers in Follow
+mode. Each member gets a separate supported position on loaded ground, with
+local alternatives when the ideal position is obstructed. If none is available,
+that helper holds rather than crowding the owner's position. Following does not
+automatically teleport helpers or load distant terrain. The explicit **Bring
+loaded squad here** control remains available separately. Combat pursuit and
+both player-target approvals remain unchanged.
+
+## Ask GPT for one reviewed squad plan
+
+Open **Infinity Menu → AI Helpers → Ask GPT for a squad plan**. Java offers
+**Request an escort plan**, **Request an area defense plan**, and **Request the
+strongest combat plan**. On iPad, type a one-line goal of 1–256 characters and
+submit. `/agent plan <goal>` is the optional text route. Opening this menu,
+reading status, refreshing helpers and normal movement/combat ticks send no
+GPT request. Each submitted goal is an explicit request through the host's
+already configured GPT route and shares existing AI request budgets and usage
+limits. No account, provider or model setting is changed by the planner.
+
+The request sends the goal and limited counts/settings for the owner's loaded
+squad. GPT can propose only supported high-level movement mode, Regular or
+Ultimate Finals profile, and Escort/Wedge/Ring formation for that exact squad.
+It does not receive a live terrain simulation and cannot promise a flawless
+formation or combo. Unsupported goals can produce an honest no-action answer.
+It cannot issue arbitrary commands, write code, spawn helpers, change stats,
+target players or pets, edit the world, grant permissions or approve actions.
+
+A valid result enters **Orders • targets and both approvals** as a squad
+proposal. Review the exact named helper set and proposed settings. It still
+requires **your owner approval and separate live Codex approval** before the
+native controls can apply it. Asking GPT grants neither approval and changes no
+helper orders. Reconnected owners, changed helpers, changed formations or stale
+reviews cannot inherit an earlier proposal's authority. A disabled or unavailable
+configured route sends nothing; no request or setting change occurs merely by
+viewing this screen.
+
+# Historical explore.50 candidate — create a helper batch
 
 Open **Infinity Menu → AI Helpers → Create helpers in a batch**. On iPad, enter
 a whole-number quantity and choose a profile, then submit once. On Java, select
@@ -14,10 +102,10 @@ identities, names, health, edited stats and profiles remain intact. OP4 access a
 combat/target approval rules are unchanged. A stale or replayed menu cannot spawn
 a second batch.
 
-Source candidate50 passed 673 native and 419 launcher/resource tests separately
-from the running explore.49.
-It is not installed by building or merging source. A live update needs separate
-owner approval and a verified stopped-world backup.
+Source candidate50 passed 673 native and 419 launcher/resource tests while
+explore.49 was running, before the separately approved explore.50 installation.
+These counts are historical explore.50 evidence, not results for explore.51.
+A live update needs separate owner approval and a verified stopped-world backup.
 
 # Helper squads, AI modes, and full operator controls
 
@@ -153,7 +241,7 @@ Level-4 operators can use all mod powers and cosmetics without achievements or i
 /agent spawn buddy
 ```
 
-The server still keeps separate mode profiles and backpack storage, checks valid names and coordinates, and requires both players to confirm trades. Commands that require a living player or a clear spawn location keep that requirement. One power preset is active at a time; use vanilla `/effect` for additional effects. Admin does not increase the six-helper/24-server-helper limits, AI request allowance or available host resources. AI actions and named-player attacks keep both approval gates even for Admin.
+The server still keeps separate mode profiles and backpack storage, checks valid names and coordinates, and requires both players to confirm trades. Commands that require a living player or a clear spawn location keep that requirement. One power preset is active at a time; use vanilla `/effect` for additional effects. Admin does not increase the fifty-helper owner/server limits, AI request allowance or available host resources. AI actions and named-player attacks keep both approval gates even for Admin.
 
 Remove Admin with `membership revokeadmin PlayerName`. It restores the operator state replaced by the role's own promotion, while retaining a pre-existing OP4 grant or a separately recognized manual operator grant. Remove any remaining independent grant with `deop` if needed. De-opping alone while the Admin role remains can be reversed by the role's permission sync. These privileges do not award permanent achievement or trade unlocks. See [MEMBERSHIPS.md](MEMBERSHIPS.md) for private-code setup, revocation and backup details.
 

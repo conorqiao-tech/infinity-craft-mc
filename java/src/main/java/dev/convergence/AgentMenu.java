@@ -29,6 +29,7 @@ final class AgentMenu {
     static final int ROSTER_PAGE_SIZE = 6, PREVIOUS_PAGE = 45, NEXT_PAGE = 53;
     static final int ENABLE_COMBOS = 22;
     static final int BATCH_CREATE = 7;
+    static final int GPT_PLAN = 25;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
     enum Page { ROSTER, HELPER, DISMISS }
 
@@ -156,6 +157,8 @@ final class AgentMenu {
             icon(view, 4, Items.IRON_GOLEM_SPAWN_EGG,
                 "Helpers: " + helpers.count(player) + "/" + AgentCompanions.LIMIT);
             batchButton(view, helpers, player);
+            icon(view,GPT_PLAN,Items.WRITABLE_BOOK,"Ask GPT for a squad plan");
+            description(view,GPT_PLAN,"Choose a goal to send explicitly through the configured GPT planner. Plans enter Orders for your approval and separate live Codex review. Opening this screen sends nothing.");
             var entries = java.util.List.copyOf(savedRoster.entrySet());
             if (entries.isEmpty()) description(view, 4, helpers.remaining(player) > 0
                 ? "No helpers yet. Tap the green Create your first helper button."
@@ -454,6 +457,7 @@ final class AgentMenu {
                 return;
             }
             if (page == Page.ROSTER) {
+                if(clicked==GPT_PLAN) {owner.closeContainer();GptSquadMenu.open(owner);return;}
                 if (clicked == BATCH_CREATE) {
                     if (refreshUnavailableCreation(helpers, BATCH_CREATE)) return;
                     owner.closeContainer(); HelperBatchMenu.open(owner); return;

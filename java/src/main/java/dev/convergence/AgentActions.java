@@ -46,7 +46,7 @@ final class AgentActions {
 
     enum Action {
         DAY("time set day"), NIGHT("time set night"), CLEAR("weather clear"),
-        RAIN("weather rain"), PLAYERS("list"), SAVE("save-all"), TARGET(null);
+        RAIN("weather rain"), PLAYERS("list"), SAVE("save-all"), TARGET(null), SQUAD_PLAN(null);
 
         final String command;
         Action(String command) { this.command = command; }
@@ -74,6 +74,8 @@ final class AgentActions {
         State state;
         long createdAt;
         String targetUuid, targetName, targetDimension, targetSession;
+        List<String> helperIds;
+        String helperMode, helperProfile, helperFormation, planReason, planToken;
 
         Proposal(String owner, Action action, long createdAt) {
             this.owner = owner; this.action = action; this.createdAt = createdAt; this.state = State.PENDING;
@@ -82,13 +84,29 @@ final class AgentActions {
         boolean valid() {
             try { UUID.fromString(owner); } catch (RuntimeException error) { return false; }
             if (action == null || state == null || createdAt <= 0) return false;
-            if (action != Action.TARGET)
-                return targetUuid == null && targetName == null && targetDimension == null && targetSession == null;
+            boolean noTarget = targetUuid == null && targetName == null && targetDimension == null && targetSession == null;
+            boolean noSquad = helperIds == null && helperMode == null && helperProfile == null
+                && helperFormation == null && planReason == null && planToken == null;
+            if (action == Action.SQUAD_PLAN) {
+                if (!noTarget || helperIds == null || helperIds.isEmpty() || helperIds.size() > 50
+                    || helperMode == null || !java.util.Set.of("FOLLOW", "GUARD", "STAY").contains(helperMode)
+                    || helperProfile == null || !java.util.Set.of("REGULAR", "ULTIMATE_FINALS").contains(helperProfile)
+                    || helperFormation == null || !java.util.Set.of("ESCORT", "WEDGE", "RING").contains(helperFormation)
+                    || !validPlanReason(planReason) || !canonicalUuid(planToken)) return false;
+                var unique = new java.util.HashSet<String>();
+                return helperIds.stream().allMatch(id -> canonicalUuid(id) && unique.add(id));
+            }
+            if (!noSquad) return false;
+            if (action != Action.TARGET) return noTarget;
             try { UUID.fromString(targetUuid); UUID.fromString(targetSession); }
             catch (RuntimeException error) { return false; }
             return validPlayerName(targetName) && targetDimension != null && targetDimension.length() <= 128 && Identifier.tryParse(targetDimension) != null;
         }
         String description() {
+            if (action == Action.SQUAD_PLAN)
+                return "typed squad plan helpers=" + String.join(",", helperIds) + " mode=" + helperMode
+                    + " profile=" + helperProfile + " formation=" + helperFormation
+                    + " reason=" + planReason + " token=" + planToken;
             return action == Action.TARGET
                 ? "squad target=" + targetName + " uuid=" + targetUuid + " dimension=" + targetDimension
                     + " session=" + targetSession + " (Primitive / Ultimate Finals, at most five minutes)"
@@ -115,11 +133,13 @@ final class AgentActions {
                          ServerPlayer target, ServerGamePacketListenerImpl targetConnection, ServerLevel world,
                          String ownerUuid, String targetUuid, String targetName, String token) {}
     final Map<String, TargetSession> targetSessions = new LinkedHashMap<>();
+    final Map<String, GptSquadPlanner.Scope> squadSessions = new LinkedHashMap<>();
 
     AgentActions(MinecraftServer server, Path file, Clock clock, Consumer<String> dispatch) {
         this.server = server; this.file = file; this.clock = clock; this.dispatch = dispatch; this.data = read(file);
         boolean changed = false;
-        for (Proposal proposal : data.proposals.values()) if (proposal.active() && proposal.action == Action.TARGET) {
+        for (Proposal proposal : data.proposals.values()) if (proposal.active()
+                && (proposal.action == Action.TARGET || proposal.action == Action.SQUAD_PLAN)) {
             proposal.state = State.CANCELLED; changed = true;
         }
         if (changed) { trimHistory(); save(); }
@@ -143,17 +163,18 @@ final class AgentActions {
             if (!document.isJsonObject() || !document.getAsJsonObject().has("format")
                 || !document.getAsJsonObject().get("format").isJsonPrimitive()
                 || !document.getAsJsonObject().getAsJsonPrimitive("format").isNumber()
-                || !java.util.Set.of("1", "2").contains(document.getAsJsonObject().get("format").getAsString()))
+                || !java.util.Set.of("1", "2", "3").contains(document.getAsJsonObject().get("format").getAsString()))
                 throw new IOException("Missing or invalid action queue format");
             Data data = CommunityServer.GSON.fromJson(document, Data.class);
-            if (data == null || (data.format != 1 && data.format != 2) || data.proposals == null || data.proposals.size() > MAX_ACTIVE + MAX_HISTORY)
+            if (data == null || (data.format != 1 && data.format != 2 && data.format != 3) || data.proposals == null || data.proposals.size() > MAX_ACTIVE + MAX_HISTORY)
                 throw new IOException("Invalid action queue");
             int active = 0;
             Map<String, Integer> perOwner = new LinkedHashMap<>();
             for (var entry : data.proposals.entrySet()) {
                 UUID.fromString(entry.getKey());
                 Proposal proposal = entry.getValue();
-                if (proposal == null || !proposal.valid() || (data.format == 1 && proposal.action == Action.TARGET))
+                if (proposal == null || !proposal.valid() || (data.format == 1 && proposal.action == Action.TARGET)
+                    || (data.format < 3 && proposal.action == Action.SQUAD_PLAN))
                     throw new IOException("Invalid action proposal");
                 if (proposal.active()) {
                     active++;
@@ -161,7 +182,7 @@ final class AgentActions {
                 }
             }
             if (active > MAX_ACTIVE) throw new IOException("Action limit exceeded");
-            data.format = 2;
+            if (data.format == 1) data.format = 2;
             return data;
         } catch (Exception error) {
             throw new IllegalStateException("Cannot read " + file + ". Restore its .previous backup; the original was not overwritten.", error);
@@ -169,6 +190,8 @@ final class AgentActions {
     }
 
     void save() {
+        // Enforce the serialized limit before rotating the last good backup.
+        trimHistory();
         try {
             if (Files.exists(file)) Files.copy(file, file.resolveSibling(file.getFileName() + ".previous"), StandardCopyOption.REPLACE_EXISTING);
             CommunityServer.atomicJson(file, data);
@@ -211,11 +234,13 @@ final class AgentActions {
         long now = clock.millis(); boolean changed = false;
         for (var entry : data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
-            if (!proposal.active()) { targetSessions.remove(entry.getKey()); continue; }
+            if (!proposal.active()) { targetSessions.remove(entry.getKey()); squadSessions.remove(entry.getKey()); continue; }
             if (now < proposal.createdAt || now - proposal.createdAt >= LIFETIME_MS) {
-                proposal.state = State.EXPIRED; targetSessions.remove(entry.getKey()); changed = true;
+                proposal.state = State.EXPIRED; targetSessions.remove(entry.getKey()); squadSessions.remove(entry.getKey()); changed = true;
             } else if (proposal.action == Action.TARGET && targetProblem(entry.getKey(), proposal) != null) {
                 proposal.state = State.CANCELLED; targetSessions.remove(entry.getKey()); changed = true;
+            } else if (proposal.action == Action.SQUAD_PLAN && squadProblem(entry.getKey(), proposal) != null) {
+                proposal.state = State.CANCELLED; squadSessions.remove(entry.getKey()); changed = true;
             }
         }
         if (changed) { trimHistory(); maintenanceDirty = true; }
@@ -225,9 +250,65 @@ final class AgentActions {
     void trimHistory() {
         List<String> terminal = data.proposals.entrySet().stream().filter(entry -> !entry.getValue().active())
             .sorted(Comparator.comparingLong(entry -> entry.getValue().createdAt)).map(Map.Entry::getKey).toList();
-        for (int i = 0; i < terminal.size() - MAX_HISTORY; i++) {
-            data.proposals.remove(terminal.get(i)); targetSessions.remove(terminal.get(i));
+        int removed = 0;
+        while (removed < terminal.size() && (terminal.size() - removed > MAX_HISTORY || serializedBytes() > MAX_BYTES)) {
+            String id = terminal.get(removed++);
+            data.proposals.remove(id); targetSessions.remove(id); squadSessions.remove(id);
         }
+        if (serializedBytes() > MAX_BYTES)
+            throw new IllegalStateException("Active helper proposals exceed the bounded action queue. Nothing was written.");
+    }
+
+    private int serializedBytes() { return CommunityServer.GSON.toJson(data).getBytes(StandardCharsets.UTF_8).length; }
+
+    static boolean canonicalUuid(String value) {
+        try { return UUID.fromString(value).toString().equals(value); }
+        catch (RuntimeException invalid) { return false; }
+    }
+
+    static boolean validPlanReason(String value) {
+        return value != null && !value.isBlank() && value.length() <= 240
+            && value.codePoints().noneMatch(c -> Character.isISOControl(c) || Character.getType(c) == Character.FORMAT
+                || Character.getType(c) == Character.LINE_SEPARATOR || Character.getType(c) == Character.PARAGRAPH_SEPARATOR);
+    }
+
+    String squadProblem(String id, Proposal proposal) {
+        var scope = squadSessions.get(id);
+        if (scope == null) return "The original live squad scope is no longer available.";
+        if (!proposal.valid() || !scope.matches(proposal)) return "The proposal no longer matches the exact reviewed squad plan.";
+        if (scope.owner().level().getServer() != server
+            || server.getPlayerList().getPlayer(scope.owner().getUUID()) != scope.owner())
+            return "The squad owner left the original server session.";
+        return scope.problem();
+    }
+
+    String reviewDescription(Proposal proposal) {
+        if (proposal.action == Action.SQUAD_PLAN) {
+            for (var scope : squadSessions.values())
+                if (scope.matches(proposal)) return scope.reviewDescription();
+        }
+        return proposal.description();
+    }
+
+    int proposeSquad(ServerPlayer owner, GptSquadPlanner.Scope scope, GptSquadPlanner.Plan plan) {
+        if (!server.isSameThread() || owner == null || scope == null || plan == null || scope.owner() != owner
+            || owner.level().getServer() != server || !AgentCompanions.operator(owner.createCommandSourceStack())) return 0;
+        String error = scope.problem();
+        if (error != null) return AgentCompanions.reply(owner, "Squad plan refused: " + error);
+        if (!plan.actionable()) return AgentCompanions.reply(owner, "The planner did not return a supported typed squad plan. Nothing changed.");
+        expire();
+        if (queueFull(owner)) return AgentCompanions.reply(owner, "The helper action queue is full. Cancel or wait for a proposal to expire.");
+        var proposal = new Proposal(owner.getStringUUID(), Action.SQUAD_PLAN, clock.millis());
+        proposal.helperIds = List.copyOf(scope.ids()); proposal.helperMode = plan.mode().name();
+        proposal.helperProfile = plan.profile().name(); proposal.helperFormation = plan.formation().name();
+        proposal.planReason = plan.reason(); proposal.planToken = scope.token();
+        if (!proposal.valid() || !scope.review(plan))
+            return AgentCompanions.reply(owner, "The exact squad scope or typed plan is invalid or already reviewed. Nothing changed.");
+        String id = UUID.randomUUID().toString();
+        squadSessions.put(id, scope); data.proposals.put(id, proposal); data.format = 3;
+        trimHistory(); save();
+        return AgentCompanions.reply(owner, "Proposed " + id + ": " + proposal.description()
+            + ". /agent approve " + id + " is your approval. Ask Codex here for the separate live review. Nothing changes before both approvals.");
     }
 
     static boolean validPlayerName(String name) {
@@ -288,12 +369,13 @@ final class AgentActions {
         boolean changed = false;
         for (var entry : data.proposals.entrySet()) {
             Proposal proposal = entry.getValue();
-            if (proposal.active() && proposal.action == Action.TARGET && proposal.owner.equals(owner.getStringUUID())) {
-                proposal.state = State.CANCELLED; targetSessions.remove(entry.getKey()); changed = true;
+            if (proposal.active() && (proposal.action == Action.TARGET || proposal.action == Action.SQUAD_PLAN)
+                    && proposal.owner.equals(owner.getStringUUID())) {
+                proposal.state = State.CANCELLED; targetSessions.remove(entry.getKey()); squadSessions.remove(entry.getKey()); changed = true;
             }
         }
         if (changed) { trimHistory(); save(); }
-        return AgentCompanions.reply(owner, "Ceasefire: your player target is cleared and pending player-target proposals are cancelled.");
+        return AgentCompanions.reply(owner, "Ceasefire: your player target is cleared and pending player-target and squad-plan proposals are cancelled.");
     }
 
     static void invalidatePlayer(ServerPlayer player) {
@@ -306,6 +388,10 @@ final class AgentActions {
             if (proposal.active() && proposal.action == Action.TARGET
                 && session != null && (session.owner == player || session.target == player)) {
                 proposal.state = State.CANCELLED; queue.targetSessions.remove(entry.getKey()); changed = true;
+            }
+            var squad = queue.squadSessions.get(entry.getKey());
+            if (proposal.active() && proposal.action == Action.SQUAD_PLAN && squad != null && squad.owner() == player) {
+                proposal.state = State.CANCELLED; queue.squadSessions.remove(entry.getKey()); changed = true;
             }
         }
         if (changed) { queue.trimHistory(); queue.saveMaintenance(); }
@@ -357,7 +443,7 @@ final class AgentActions {
         Proposal proposal = data.proposals.get(id);
         if (proposal == null || !proposal.owner.equals(owner.getStringUUID()) || !proposal.active())
             return AgentCompanions.reply(owner, "No active helper action with that ID belongs to you.");
-        proposal.state = State.CANCELLED; targetSessions.remove(id); trimHistory(); save();
+        proposal.state = State.CANCELLED; targetSessions.remove(id); squadSessions.remove(id); trimHistory(); save();
         return AgentCompanions.reply(owner, "Cancelled " + id + ". The command will not run.");
     }
 
@@ -379,6 +465,29 @@ final class AgentActions {
         ServerPlayer owner = server.getPlayerList().getPlayer(UUID.fromString(proposal.owner));
         if (owner == null || !AgentCompanions.operator(owner.createCommandSourceStack()))
             return CommunityServer.info(source, "The proposing OP4 owner must still be online. Nothing ran.");
+        if (proposal.action == Action.SQUAD_PLAN) {
+            String error = squadProblem(id, proposal);
+            if (error != null) {
+                proposal.state = State.CANCELLED; squadSessions.remove(id); trimHistory(); save();
+                return CommunityServer.info(source, "Squad proposal cancelled: " + error + " Nothing changed.");
+            }
+            var scope = squadSessions.remove(id);
+            var plan = new GptSquadPlanner.Plan(AgentCompanions.Mode.valueOf(proposal.helperMode),
+                AgentCompanions.Profile.valueOf(proposal.helperProfile), AgentCompanions.Formation.valueOf(proposal.helperFormation), proposal.planReason);
+            // Persist consumption before applying typed behavior. Neither restart
+            // nor a failed native application can resurrect this exact approval.
+            proposal.state = State.DISPATCHED; trimHistory(); save();
+            int applied;
+            try { applied = scope.apply(plan); }
+            catch (RuntimeException failure) {
+                return CommunityServer.info(source, "Squad application failed after consuming " + id
+                    + ". Inspect the native helper state and server log; this ID cannot run again.");
+            }
+            if (applied <= 0) return CommunityServer.info(source,
+                "Squad proposal was consumed, but its native scope is no longer applicable. Nothing changed.");
+            AgentCompanions.reply(owner, "Codex approved " + id + ": applied typed plan to " + applied + " exact helpers.");
+            return CommunityServer.info(source, "Applied " + id + " to " + applied + " exact helpers. This ID cannot run again.");
+        }
         if (proposal.action == Action.TARGET) {
             String reason = targetProblem(id, proposal);
             if (reason != null) {

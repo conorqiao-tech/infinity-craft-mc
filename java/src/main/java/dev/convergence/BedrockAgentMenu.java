@@ -98,6 +98,7 @@ final class BedrockAgentMenu {
             () -> roster(owner, "", sender, page + 1)));
         if (!saved.isEmpty()) choices.add(new HelperForms.Choice("Squad controls • movement, profiles and recall", () -> squad(owner, "", sender)));
         choices.add(new HelperForms.Choice("Orders • targets and both approvals", () -> BedrockAgentOrdersMenu.open(owner, sender)));
+        choices.add(new HelperForms.Choice("Ask GPT for a squad plan", () -> GptSquadMenu.openBedrock(owner,sender,GptSquadPlanner::request)));
         choices.add(new HelperForms.Choice("Back to Infinity Menu", () -> ServerMenu.open(owner)));
         String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ". Page " + (page + 1) + " of " + pages + ".\n"
             + (saved.isEmpty() ? free > 0

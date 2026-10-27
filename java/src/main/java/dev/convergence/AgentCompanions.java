@@ -63,6 +63,9 @@ public final class AgentCompanions {
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
+    private final Map<UUID, FormationPlan> formationPlans = new HashMap<>();
+    private record FormationPlan(ServerPlayer owner, ServerGamePacketListenerImpl connection, ServerLevel world,
+        Vec3 center, float yaw, Formation shape, int tick, List<IronGolem> peers, Map<UUID, Vec3> points) {}
     /** Exists only during one synchronous, explicitly requested transfer. Never grants portal access. */
     private RecallPermit recallPermit;
     private record RecallPermit(ServerPlayer owner, IronGolem helper, Agent agent, TeleportTransition target) {}
@@ -270,6 +273,7 @@ public final class AgentCompanions {
             && companions.insideLeash(agent, owner, victim.position());
     }
     static void prepare(IronGolem golem) {
+        HelperPowerDefaults.applyRegistered(golem);
         golem.removeFreeWill();
         ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
         golem.setPlayerCreated(true); golem.setPersistenceRequired(); golem.setCanPickUpLoot(false);
@@ -281,6 +285,7 @@ public final class AgentCompanions {
         golem.addTag(TAG); golem.addTag("infinity_owner_" + agent.owner);
         golem.addTag("infinity_name_" + agent.name); golem.addTag("infinity_mode_" + agent.mode.name().toLowerCase(Locale.ROOT));
         golem.addTag("infinity_profile_" + agent.profile.id());
+        HelperPowerDefaults.applyRegistered(golem);
         golem.refreshDimensions();
         golem.setCustomName(Component.literal(agent.name + " [" + agent.profile.label + "]")); golem.setCustomNameVisible(true); AgentAvatars.attach(golem);
     }
@@ -495,7 +500,7 @@ public final class AgentCompanions {
         if (golem == null) return reply(owner, "Could not create a helper.");
         golem.setPos(place); prepare(golem);
         Agent agent = new Agent(owner.getStringUUID(), name, Mode.FOLLOW, owner.level().dimension().identifier().toString(), place.x, place.y, place.z);
-        data.agents.put(golem.getStringUUID(), agent); save(); tags(golem, agent);
+        data.agents.put(golem.getStringUUID(), agent); save(); tags(golem, agent); HelperPowerDefaults.fillNewSpawn(golem);
         if (!owner.level().addFreshEntity(golem)) { data.agents.remove(golem.getStringUUID()); save(); return reply(owner, "Could not spawn a helper here."); }
         loaded.put(golem.getUUID(), golem);
         return reply(owner, name + " is following you. /agent guard " + name + " guards its current area; /agent stay " + name + " pauses it.");
@@ -540,7 +545,7 @@ public final class AgentCompanions {
         }
         try {
             for (var entry : staged.entrySet()) {
-                var golem = entry.getKey(); tags(golem, entry.getValue());
+                var golem = entry.getKey(); tags(golem, entry.getValue()); HelperPowerDefaults.fillNewSpawn(golem);
                 if (!world.addFreshEntity(golem)) throw new IllegalStateException("Native helper insertion was refused");
                 loaded.put(golem.getUUID(), golem);
             }
@@ -608,6 +613,36 @@ public final class AgentCompanions {
         data.agents.put(entry.getKey(), agent); save(); tags(golem, agent); halt(golem);
         validatePlayerTargets();
         return true;
+    }
+    /** Apply only the exact native helpers reviewed by the separate approved plan queue. */
+    int applyReviewedSquadPlan(ServerPlayer owner, Map<UUID, Agent> expectedRecords,
+        Map<UUID, IronGolem> expectedEntities, Mode mode, Profile profile, Formation shape) {
+        if (owner == null || !server.isSameThread() || owner.level().getServer() != server || !AgentMenu.allowed(owner)
+            || creationRecoveryRequired || expectedRecords == null || expectedEntities == null
+            || expectedRecords.isEmpty() || expectedRecords.size() > LIMIT
+            || !expectedRecords.keySet().equals(expectedEntities.keySet()) || mode == null || shape == null
+            || (profile != Profile.REGULAR && profile != Profile.ULTIMATE_FINALS)) return 0;
+        var changed = new LinkedHashMap<UUID, Agent>();
+        for (var entry : expectedRecords.entrySet()) {
+            UUID id = entry.getKey(); var before = entry.getValue(); var helper = expectedEntities.get(id);
+            if (id == null || before == null || helper == null || data.agents.get(id.toString()) != before
+                || !before.owner.equals(owner.getStringUUID()) || loaded.get(id) != helper
+                || !id.equals(helper.getUUID()) || owner.level().getEntity(id) != helper
+                || helper.level() != owner.level() || !isAgent(helper) || !helper.isAlive() || helper.isRemoved()) return 0;
+            changed.put(id, before.mode(mode, helper).profile(profile));
+        }
+        changed.forEach((id, record) -> data.agents.put(id.toString(), record));
+        try { save(); }
+        catch (RuntimeException failure) {
+            expectedRecords.forEach((id, record) -> data.agents.put(id.toString(), record));
+            return 0;
+        }
+        changed.forEach((id, record) -> { var helper = expectedEntities.get(id); tags(helper, record); halt(helper); });
+        GameModes.state(owner).putInt("helper_formation", shape.ordinal());
+        PlayerPersistence.save(owner);
+        formationPlans.remove(owner.getUUID());
+        validatePlayerTargets();
+        return changed.size();
     }
     int squad(ServerPlayer owner, Mode mode) {
         if (!operator(owner.createCommandSourceStack())) return reply(owner, "Only OP4 owners can control squads.");
@@ -720,6 +755,9 @@ public final class AgentCompanions {
         APPROVED_TARGETS.remove(golem); golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0); golem.getNavigation().stop(); golem.stopInPlace();
     }
     void tick() {
+        // Plans only serve controls within this tick. Release obsolete owner
+        // sessions/helpers even on ticks without the five-tick control pass.
+        formationPlans.clear();
         validatePlayerTargets();
         for (var id : new ArrayList<>(aerial.keySet())) {
             var golem = loaded.get(id);
@@ -814,11 +852,20 @@ public final class AgentCompanions {
             }
         } else {
             var destination=agent.mode==Mode.FOLLOW?formationPoint(golem,agent,owner):center;
-            double tolerance=agent.mode==Mode.FOLLOW&&formation(owner)!=Formation.ESCORT?1:agent.mode==Mode.FOLLOW?9:4;
+            double tolerance=agent.mode==Mode.FOLLOW?.16:4;
             AgentWeapons.stop(golem);
             feedback(golem, "Waiting for hostile", "No eligible target in the movement area.", ticks);
+            if (destination == null) {
+                golem.getNavigation().stop(); golem.stopInPlace();
+                feedback(golem, "Formation slot blocked", "No distinct supported loaded slot is available. Waiting without teleporting or crowding the owner.", ticks);
+                return;
+            }
             if(golem.position().distanceToSqr(destination)>tolerance) {
-                boolean route = golem.getNavigation().moveTo(destination.x,destination.y,destination.z,1);
+                // Native navigation may use a partial route through a passage;
+                // never replace a blocked destination with the owner's feet.
+                boolean route = loadedRoom(world, new AABB(golem.position(), destination).inflate(1))
+                    && golem.getNavigation().moveTo(destination.x,destination.y,destination.z,agent.mode==Mode.FOLLOW?0:1,1);
+                if (!route) golem.getNavigation().stop();
                 feedback(golem, route ? agent.mode == Mode.FOLLOW ? "Following" : "Returning to guard area" : "Walking route blocked",
                     route ? "Walking by native navigation; no hostile target is selected."
                         : "No walking path is available. Move to reachable ground or explicitly use Bring here.", ticks);
@@ -827,18 +874,88 @@ public final class AgentCompanions {
         }
     }
 
-    Vec3 formationPoint(IronGolem self,Agent agent,ServerPlayer owner){
-        var shape=formation(owner);if(shape==Formation.ESCORT)return owner.position();
-        var peers=loaded.entrySet().stream().filter(entry->{
-            var record=data.agents.get(entry.getKey().toString());
-            return record!=null&&record.owner.equals(agent.owner)&&record.mode==Mode.FOLLOW&&pauseReason(owner,entry.getValue(),record)==null;
-        }).sorted(Comparator.comparing(entry->data.agents.get(entry.getKey().toString()).name)).map(Map.Entry::getKey).toList();
-        int index=peers.indexOf(self.getUUID());if(index<0)return owner.position();
-        double yaw=Math.toRadians(owner.getYRot()),side,behind;
-        if(shape==Formation.WEDGE){side=(index%2==0?-1:1)*(2+index/2.0);behind=3+index/2;}
-        else {double angle=2*Math.PI*index/Math.max(1,peers.size());side=Math.cos(angle)*4;behind=Math.sin(angle)*4;}
-        var destination=owner.position().add(Math.cos(yaw)*side+Math.sin(yaw)*behind,0,Math.sin(yaw)*side-Math.cos(yaw)*behind);
-        return insideLeash(agent,owner,destination)&&landingClear(self,destination)?destination:owner.position();
+    /** Side/behind coordinates remain deterministic for the current named roster. */
+    static Vec3 formationOffset(Formation shape, int index, int count) {
+        if (shape == null || count < 1 || count > LIMIT || index < 0 || index >= count)
+            throw new IllegalArgumentException("Invalid formation slot");
+        double side, behind;
+        if (shape == Formation.WEDGE) {
+            int row = index / 2; // Integer pairs have equal depth and mirrored sides.
+            side = (index % 2 == 0 ? -1 : 1) * (2 + row * 1.25);
+            behind = 3 + row * 1.25;
+        } else if (shape == Formation.RING) {
+            double radius = Math.max(3, count * 2d / (2 * Math.PI));
+            double angle = 2 * Math.PI * index / count;
+            side = Math.cos(angle) * radius; behind = Math.sin(angle) * radius;
+        } else {
+            int width = Math.min(7, count), row = index / width;
+            int columns = Math.min(width, count - row * width);
+            side = (index % width - (columns - 1) / 2d) * 2;
+            behind = 2.25 + row * 2;
+        }
+        return new Vec3(side, 0, behind);
+    }
+    Vec3 formationPoint(IronGolem self, Agent agent, ServerPlayer owner) {
+        if (owner == null || !AgentMenu.allowed(owner) || agent == null || agent.mode != Mode.FOLLOW
+            || !agent.owner.equals(owner.getStringUUID()) || data.agents.get(self.getStringUUID()) != agent
+            || loaded.get(self.getUUID()) != self || owner.level().getEntity(self.getUUID()) != self
+            || pauseReason(owner, self, agent) != null) return null;
+        var peers = loaded.entrySet().stream().filter(entry -> {
+            var record = data.agents.get(entry.getKey().toString()); var helper = entry.getValue();
+            return record != null && record.owner.equals(agent.owner) && record.mode == Mode.FOLLOW
+                && owner.level().getEntity(entry.getKey()) == helper && pauseReason(owner, helper, record) == null;
+        }).sorted(Comparator.<Map.Entry<UUID, IronGolem>, String>comparing(entry -> data.agents.get(entry.getKey().toString()).name)
+            .thenComparing(Map.Entry::getKey)).map(Map.Entry::getValue).toList();
+        var shape = formation(owner); var cached = formationPlans.get(owner.getUUID());
+        if (cached == null || cached.owner != owner || cached.connection != owner.connection || cached.world != owner.level()
+            || cached.tick != server.getTickCount() || !cached.center.equals(owner.position())
+            || cached.yaw != owner.getYRot() || cached.shape != shape || !cached.peers.equals(peers)) {
+            var positions = new HashMap<UUID, Vec3>(); var reserved = new ArrayList<AABB>();
+            reserved.add(owner.getBoundingBox().inflate(.2, 0, .2));
+            double yaw = Math.toRadians(owner.getYRot());
+            for (int index = 0; index < peers.size(); index++) {
+                var helper = peers.get(index); var record = data.agents.get(helper.getStringUUID());
+                var offset = formationOffset(shape, index, peers.size());
+                var nominal = owner.position().add(Math.cos(yaw) * offset.x + Math.sin(yaw) * offset.z, 0,
+                    Math.sin(yaw) * offset.x - Math.cos(yaw) * offset.z);
+                var point = supportedFormationSlot(helper, record, owner, nominal, reserved);
+                if (point != null) {
+                    positions.put(helper.getUUID(), point);
+                    reserved.add(helper.getDimensions(helper.getPose()).makeBoundingBox(point).inflate(.3, 0, .3));
+                }
+            }
+            cached = new FormationPlan(owner, owner.connection, owner.level(), owner.position(), owner.getYRot(),
+                shape, server.getTickCount(), peers, Map.copyOf(positions));
+            formationPlans.put(owner.getUUID(), cached);
+        }
+        var point = cached.points.get(self.getUUID());
+        return point != null && landingClear(self, point) ? point : null;
+    }
+    private Vec3 supportedFormationSlot(IronGolem helper, Agent agent, ServerPlayer owner, Vec3 nominal, List<AABB> reserved) {
+        // A hovering owner has no walking floor at its own Y. Search only the
+        // helper's nearby supported levels, then let native navigation walk there.
+        int floor = (int)Math.floor(helper.getY()), ownerFloor = (int)Math.floor(owner.getY());
+        for (int radius = 0; radius <= 3; radius++)
+            for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
+                if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) continue;
+                for (int step = 0; step <= 9; step++) {
+                    // Prefer the owner's supported level so ordinary stairs can
+                    // reach a raised platform. A hovering owner's unsupported
+                    // column falls through to the helper's nearby ground levels.
+                    int dy = step == 0 ? ownerFloor - floor : step == 1 ? 0
+                        : (step % 2 == 0 ? -step / 2 : (step - 1) / 2);
+                    // Local alternatives use block centers so a player-width
+                    // helper can use a one-block passage even when its ideal
+                    // owner-relative slot lies on the passage's block edge.
+                    double x = radius == 0 ? nominal.x : Math.floor(nominal.x + dx) + .5;
+                    double z = radius == 0 ? nominal.z : Math.floor(nominal.z + dz) + .5;
+                    var point = new Vec3(x, floor + dy, z);
+                    if (!insideLeash(agent, owner, point) || !landingClear(helper, point)) continue;
+                    var space = helper.getDimensions(helper.getPose()).makeBoundingBox(point).inflate(.3, 0, .3);
+                    if (reserved.stream().noneMatch(space::intersects)) return point;
+                }
+            }
+        return null; // A blocked member holds; fifty failures never share the owner's position.
     }
 
     boolean strike(IronGolem golem, LivingEntity target, int ticks) {

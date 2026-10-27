@@ -10,7 +10,10 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
+import struct
 import sys
+import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -21,6 +24,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = Path("research/integration/snapshot5-integration.json")
 PRIVATE = Path("research/snapshot5-compatibility")
 SOURCE_FILES = ("tools/verify_snapshot5_integration.py", "tools/package_crossplay.py", "server/terrain_storage.py")
+HELPER_POWER_MARKER = "infinity_helper_power_defaults"
+# Exact Snapshot5 IronGolem native bases and explore.51's five finite defaults.
+# This independent expectation is deliberately not imported from production code
+# or taken from a conversion receipt's declared changes.
+HELPER_POWER_DEFAULTS = {
+    "minecraft:max_health": (100.0, 1000.0),
+    "minecraft:attack_damage": (15.0, 100.0),
+    "minecraft:armor": (0.0, 30.0),
+    "minecraft:armor_toughness": (0.0, 20.0),
+    "minecraft:knockback_resistance": (1.0, 1.0),
+}
 
 
 def require(condition, message):
@@ -61,6 +75,126 @@ def cases(path, expected):
     return tree, names
 
 
+def native_entity_dimension(relative):
+    """Derive the saved native level from its entity-region path, not a receipt."""
+    parts = Path(relative).parts
+    if len(parts) == 2 and parts[0] == "entities":
+        return "minecraft:overworld"
+    if len(parts) == 3 and parts[1] == "entities" and parts[0] in ("DIM-1", "DIM1"):
+        return "minecraft:the_nether" if parts[0] == "DIM-1" else "minecraft:the_end"
+    require(len(parts) >= 5 and parts[0] == "dimensions" and parts[-2] == "entities",
+            "unsupported saved helper native level path")
+    dimension = parts[1] + ":" + "/".join(parts[2:-2])
+    require(re.fullmatch(r"[a-z0-9_.-]+:[a-z0-9_./-]+", dimension) is not None,
+            "invalid saved helper native level")
+    return dimension
+
+
+def native_helper_uuid(entity):
+    raw = entity.get("UUID")
+    require(isinstance(raw, list) and len(raw) == 4
+            and all(type(value) is int and -(2 ** 31) <= value < 2 ** 31 for value in raw),
+            "invalid native helper UUID")
+    return str(uuid.UUID(bytes=b"".join(struct.pack(">I", value & 0xffffffff) for value in raw)))
+
+
+def same_native_value(first, second):
+    """Keep every decoded field, including signed zero and numeric value kinds."""
+    if type(first) is not type(second):
+        return False
+    if isinstance(first, dict):
+        return first.keys() == second.keys() and all(same_native_value(first[key], second[key]) for key in first)
+    if isinstance(first, list):
+        return len(first) == len(second) and all(same_native_value(a, b) for a, b in zip(first, second))
+    if isinstance(first, float):
+        return math.isfinite(first) and math.isfinite(second) and struct.pack(">d", first) == struct.pack(">d", second)
+    return first == second
+
+
+def verify_saved_helper(original, converted, dimension, registrations, version=VERSION):
+    """Derive exactly one authorized migration from native NBT and registration.
+
+    Every other decoded field remains strict, except the existing bounded
+    position/velocity allowance and irrelevant attribute-list ordering. The
+    returned observation contains no identity, name, position, world or values.
+    """
+    require(isinstance(original, dict) and isinstance(converted, dict), "invalid helper NBT")
+    identity = native_helper_uuid(original)
+    require(native_helper_uuid(converted) == identity, "copied helper UUID changed")
+    require(isinstance(registrations, dict) and type(registrations.get("format")) is int
+            and registrations["format"] == 2 and isinstance(registrations.get("agents"), dict),
+            "invalid saved helper registration document")
+    agent = registrations["agents"].get(identity)
+    require(isinstance(agent, dict), "native helper is not registered")
+    owner = agent.get("owner")
+    try:
+        require(isinstance(owner, str) and str(uuid.UUID(owner)) == owner, "invalid registered helper owner")
+    except (ValueError, AttributeError):
+        require(False, "invalid registered helper owner")
+    require(isinstance(agent.get("name"), str) and re.fullmatch(r"[a-z0-9_-]{1,24}", agent["name"]) is not None
+            and agent.get("mode") in ("FOLLOW", "GUARD", "STAY")
+            and agent.get("profile") in ("PRIMITIVE", "REGULAR", "ULTIMATE_FINALS", "DEBUG", "CLI", "API"),
+            "invalid saved helper name, mode or profile")
+    require(agent.get("dimension") == dimension and re.fullmatch(r"[a-z0-9_.-]+:[a-z0-9_./-]+", dimension) is not None,
+            "registered helper native level differs")
+    require(all(type(agent.get(axis)) in (int, float) and math.isfinite(agent[axis]) for axis in ("x", "y", "z"))
+            and abs(agent["x"]) <= 30_000_000 and abs(agent["z"]) <= 30_000_000 and -2048 <= agent["y"] <= 2048,
+            "invalid registered helper anchor")
+    tags = original.get("Tags")
+    require(original.get("id") == "minecraft:iron_golem" and type(original.get("PlayerCreated")) is int
+            and original["PlayerCreated"] == 1 and type(original.get("PersistenceRequired")) is int
+            and original["PersistenceRequired"] == 1 and isinstance(tags, list)
+            and all(isinstance(tag, str) for tag in tags) and len(set(tags)) == len(tags)
+            and "infinity_agent" in tags, "original entity is not the registered native helper")
+    for prefix, value in (("infinity_owner_", owner), ("infinity_name_", agent["name"]),
+                          ("infinity_mode_", agent["mode"].lower()), ("infinity_profile_", agent["profile"].lower())):
+        require([tag for tag in tags if tag.startswith(prefix)] == [prefix + value], "saved helper tags differ from registration")
+    require(type(original.get("Health")) in (int, float) and math.isfinite(original["Health"]) and original["Health"] > 0,
+            "original registered helper is not living")
+    expected = copy.deepcopy(original)
+    attrs = expected.get("attributes")
+    require(isinstance(attrs, list) and all(isinstance(row, dict) and isinstance(row.get("id"), str)
+            and type(row.get("base")) in (int, float) and math.isfinite(row["base"]) for row in attrs)
+            and len({row["id"] for row in attrs}) == len(attrs), "invalid or duplicate original helper attributes")
+    originals = expected.get("InfinityAdminStats", {})
+    require(isinstance(originals, dict), "invalid original helper admin undo history")
+    marker_present = HELPER_POWER_MARKER in originals
+    migrated = version == "2.13.0-explore.51" and not marker_present
+    changed = []; materialized = []
+    if migrated:
+        by_id = {row["id"]: row for row in attrs}
+        for attribute, (native_base, target_base) in HELPER_POWER_DEFAULTS.items():
+            row = by_id.get(attribute)
+            if row is None:
+                # Native IronGolem supports these five instances even when an
+                # older save omitted a default row. getAttribute materializes
+                # them before the production override/history check.
+                row = {"id": attribute, "base": native_base}
+                attrs.append(row); by_id[attribute] = row
+                materialized.append(attribute); changed.append(attribute)
+            # Java Double.compare distinguishes -0.0 from the native +0.0 base.
+            if attribute not in originals and struct.pack(">d", float(row["base"])) == struct.pack(">d", native_base):
+                if row["base"] != target_base and attribute not in changed:
+                    changed.append(attribute)
+                row["base"] = target_base
+        originals[HELPER_POWER_MARKER] = 1
+        expected["InfinityAdminStats"] = originals
+    actual = copy.deepcopy(converted)
+    old_pos, new_pos = expected.pop("Pos", None), actual.pop("Pos", None)
+    require(isinstance(old_pos, list) and isinstance(new_pos, list) and len(old_pos) == len(new_pos) == 3
+            and all(type(value) in (int, float) and math.isfinite(value) for value in [*old_pos, *new_pos])
+            and sum((a - b) ** 2 for a, b in zip(old_pos, new_pos)) <= 1, "unexplained copied helper displacement")
+    expected.pop("Motion", None); actual.pop("Motion", None)
+    for entity in (expected, actual):
+        rows = entity.get("attributes")
+        require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows)
+                and len({row["id"] for row in rows}) == len(rows), "invalid or duplicate copied helper attributes")
+        entity["attributes"] = {row["id"]: row for row in rows}
+    require(same_native_value(expected, actual), "helper differs from exact expected defaults migration or preserved stable fields")
+    return {"migration_applied": migrated, "existing_marker_preserved": marker_present,
+            "changed_attribute_ids": sorted(changed), "materialized_attribute_ids": sorted(materialized), "marker_added": migrated}
+
+
 def native_world(root, base, label, evidence):
     """Recheck copied save bytes, JSON and helper semantics without exporting them."""
     sys.path.insert(0, str(root / "server"))
@@ -96,6 +230,11 @@ def native_world(root, base, label, evidence):
             "mod state preservation comparison failed")
     for name in mods:
         require(Path(name).name == name and read_json(before / name) == read_json(after / name), "private mod state changed")
+    require("infinity-agents.json" in mods and "infinity-agents.json" in originals,
+            "missing actual saved helper registrations")
+    registrations = read_json(before / "infinity-agents.json")
+    require(type(registrations.get("format")) is int and registrations["format"] == 2
+            and isinstance(registrations.get("agents"), dict), "invalid actual saved helper registrations")
     old_level = storage.saved_nbt(before / "level.dat")["Data"]
     new_level = storage.saved_nbt(after / "level.dat")["Data"]
     require(result["source_data_version"] == old_level["DataVersion"]
@@ -106,6 +245,7 @@ def native_world(root, base, label, evidence):
     helpers = result["helpers"]
     wanted = {helper["uuid"] for helper in helpers}
     require(wanted and len(wanted) == len(helpers) == len(semantics["helper_comparison"]), "missing copied helper comparison")
+    require(wanted == set(registrations["agents"]), "copied helper comparison omitted or invented a registered helper")
     def entities(world):
         found = {}
         for file in world.rglob("entities/r.*.mca"):
@@ -113,23 +253,20 @@ def native_world(root, base, label, evidence):
                 nbt = storage.NBT(storage.unpack(record[4], record[5])).parse()
                 for entity in nbt.get("Entities", []):
                     key = storage.identity(entity)
+                    require("infinity_agent" not in entity.get("Tags", []) or key in wanted,
+                            "unregistered tagged helper in copied world")
                     if key in wanted:
                         require(key not in found, "duplicate helper UUID in copied world")
-                        found[key] = entity
+                        found[key] = (entity, native_entity_dimension(file.relative_to(world)))
         require(set(found) == wanted, "saved helper missing from copied entity regions")
         return found
     old_entities, new_entities = entities(before), entities(after)
+    migration_observations = []
     for key in wanted:
-        original, converted = copy.deepcopy(old_entities[key]), copy.deepcopy(new_entities[key])
-        old_pos, new_pos = original.pop("Pos"), converted.pop("Pos")
-        original.pop("Motion", None); converted.pop("Motion", None)
-        require(all(math.isfinite(x) for x in [*old_pos, *new_pos])
-                and sum((a - b) ** 2 for a, b in zip(old_pos, new_pos)) <= 1, "unexplained copied helper displacement")
-        for entity in (original, converted):
-            attrs = entity.get("attributes", [])
-            require(len({entry["id"] for entry in attrs}) == len(attrs), "duplicate helper attributes")
-            entity["attributes"] = {entry["id"]: entry for entry in attrs}
-        require(original == converted, "helper identity/equipment/stats or other stable fields changed")
+        original, old_dimension = old_entities[key]; converted, new_dimension = new_entities[key]
+        require(old_dimension == new_dimension, "copied helper changed native levels")
+        require(native_helper_uuid(original) == key, "saved helper native UUID differs from registration")
+        migration_observations.append(verify_saved_helper(original, converted, old_dimension, registrations))
     for name in ("snapshot5-world-conversion-lab/conversion-result.json", "snapshot5-world-conversion-lab/world-copy-manifest.json", "world-semantics-comparison.json"):
         evidence["world_" + Path(name).stem] = digest(base / name)
     evidence["world_conversion_log"] = digest(private_path(root, result["log"]))
@@ -138,7 +275,16 @@ def native_world(root, base, label, evidence):
             "input_files": len(originals), "offline_player_files": len(players), "mod_state_files": len(mods),
             "helpers": len(wanted), "offline_player_bytes_preserved": True, "mod_state_preserved": True,
             "helper_stable_fields_preserved": True, "difficulty_preserved": True,
-            "original_copy_unchanged": True, "no_player_logins": True, "terrain_refreshed": False}
+            "original_copy_unchanged": True, "no_player_logins": True, "terrain_refreshed": False,
+            "helper_default_migration": {
+                "migrated_helpers": sum(row["migration_applied"] for row in migration_observations),
+                "existing_markers_preserved": sum(row["existing_marker_preserved"] for row in migration_observations),
+                "markers_added": sum(row["marker_added"] for row in migration_observations),
+                "marker_version": 1,
+                "changed_attribute_ids": sorted({attribute for row in migration_observations for attribute in row["changed_attribute_ids"]}),
+                "changed_attributes": sum(len(row["changed_attribute_ids"]) for row in migration_observations),
+                "materialized_attribute_ids": sorted({attribute for row in migration_observations for attribute in row["materialized_attribute_ids"]}),
+                "materialized_attributes": sum(len(row["materialized_attribute_ids"]) for row in migration_observations)}}
 
 
 def collect(root=ROOT):
