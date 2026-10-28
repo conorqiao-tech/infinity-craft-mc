@@ -278,6 +278,132 @@ class TerrainRefreshTests(unittest.TestCase):
         refresh.verify_backup(self.root, self.world, fresh.name)
         self.assertFalse((self.root / refresh.JOURNAL).exists())
 
+    def test_unsynchronized_startup_backup_stops_before_terrain_refresh(self):
+        import errno
+        import server as launcher
+        self.policy()
+        (self.root / "launcher.lock").unlink()
+
+        def fail_backups_directory(path):
+            if Path(path).name == "backups":
+                raise OSError(errno.EIO, "injected directory sync failure")
+
+        failures = {"file": patch.object(community, "sync_file", side_effect=OSError(errno.EIO, "injected file sync failure")),
+                    "directory": patch.object(community, "sync_directory", side_effect=fail_backups_directory)}
+        for case, failure in failures.items():
+            with self.subTest(case=case):
+                # Directory sync is forced on so injected failures are exercised on every platform.
+                with patch.object(launcher, "check_ports"), patch.object(launcher, "emit") as emit, \
+                     patch.object(launcher, "java_command") as java, \
+                     patch.object(community, "DIRECTORY_SYNC", True), failure, \
+                     patch.object(refresh, "maybe_refresh") as maybe_refresh:
+                    with self.assertRaisesRegex(OSError, "injected " + case + " sync failure"):
+                        launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+                maybe_refresh.assert_not_called()
+                java.assert_not_called()
+                self.assertFalse(any("backed up" in str(call) for call in emit.call_args_list))
+                self.assert_original()
+                self.assertEqual(list((self.root / "backups").glob("Terrain-Refresh-*")), [])
+                self.assertEqual(list((self.root / "backups").glob("*.partial")), [])
+                self.assertFalse((self.root / refresh.JOURNAL).exists())
+                self.assertFalse((self.root / "launcher.lock").exists())
+
+    def assert_refresh_did_not_start(self, policy):
+        self.assert_original()
+        self.assertEqual(refresh.read_policy(self.root), policy)
+        self.assertFalse((self.root / refresh.JOURNAL).exists())
+        self.assertEqual(list((self.root / "backups").glob("Terrain-Refresh-*")), [])
+
+    def test_unconfirmed_backup_blocks_regeneration_before_any_terrain_change(self):
+        policy = self.policy()
+        with patch.object(community, "DIRECTORY_SYNC", False):
+            self.backup = community.backup(self.root, {"level-name": "world"}, locked=True)
+            with patch.object(refresh.terrain_storage, "prepare") as prepare:
+                with self.assertRaisesRegex(community.DurabilityError, "terrain refresh was not performed"):
+                    self.apply()
+        prepare.assert_not_called()
+        self.assert_refresh_did_not_start(policy)
+
+    def test_no_op_refresh_checks_do_not_require_directory_durability(self):
+        with patch.object(community, "DIRECTORY_SYNC", False), \
+             patch.object(community, "confirm_backup_durable") as confirm:
+            self.assertIsNone(self.apply())
+            self.policy(enabled=False, refresh_next_start=True)
+            self.assertIsNone(self.apply())
+            self.policy(last_release="")
+            self.assertIsNone(self.apply())
+            self.assertIsNone(self.apply())
+        confirm.assert_not_called()
+        self.assert_original()
+
+    def test_injected_backup_sync_errors_block_regeneration_on_every_platform(self):
+        import errno
+        policy = self.policy()
+
+        def fail_backups_directory(path):
+            if Path(path).name == "backups":
+                raise OSError(errno.EIO, "injected directory sync failure")
+
+        failures = {"archive": patch.object(community, "flush_descriptor",
+                                            side_effect=OSError(errno.EIO, "injected archive sync failure")),
+                    "directory": patch.object(community, "sync_directory", side_effect=fail_backups_directory)}
+        for case, failure in failures.items():
+            with self.subTest(case=case):
+                with patch.object(community, "DIRECTORY_SYNC", True), failure, \
+                     patch.object(refresh.terrain_storage, "prepare") as prepare:
+                    with self.assertRaisesRegex(OSError, "injected " + case + " sync failure"):
+                        self.apply()
+                prepare.assert_not_called()
+                self.assert_refresh_did_not_start(policy)
+
+    def test_regeneration_confirms_the_verified_backup_before_preparing_terrain(self):
+        self.policy()
+        events = []
+        prepare = refresh.terrain_storage.prepare
+        with patch.object(community, "confirm_backup_durable",
+                          side_effect=lambda root, name: events.append(("confirm", name))), \
+             patch.object(refresh.terrain_storage, "prepare",
+                          side_effect=lambda world: events.append("prepare") or prepare(world)):
+            self.assertIsNotNone(self.apply())
+        self.assertEqual(events, [("confirm", self.backup), "prepare"])
+
+    def test_startup_without_directory_sync_saves_backup_but_refuses_refresh(self):
+        import server as launcher
+        policy = self.policy()
+        (self.root / "launcher.lock").unlink()
+        with patch.object(community, "DIRECTORY_SYNC", False), \
+             patch.object(launcher, "check_ports"), patch.object(launcher, "emit") as emit, \
+             patch.object(launcher, "java_command", return_value="java"), \
+             patch.object(launcher, "setup"), patch.object(launcher, "accept_eula"), \
+             patch.object(launcher.owner_rules, "load"), \
+             patch.object(launcher, "Service") as service, \
+             patch.object(refresh.terrain_storage, "prepare") as prepare:
+            with self.assertRaisesRegex(community.DurabilityError, "terrain refresh was not performed"):
+                launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+        service.assert_not_called()
+        prepare.assert_not_called()
+        saved = [call.args[0] for call in emit.call_args_list if "World backup saved before startup" in call.args[0]]
+        self.assertEqual(len(saved), 1)
+        self.assertIn("cannot confirm", saved[0])
+        self.assertFalse(any("World backed up before startup" in call.args[0] for call in emit.call_args_list))
+        fresh = max((self.root / "backups").glob("Infinity-World-*.zip"), key=lambda p: p.stat().st_mtime_ns)
+        refresh.verify_backup(self.root, self.world, fresh.name)
+        self.assert_refresh_did_not_start(policy)
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    def test_startup_without_directory_sync_runs_normally_when_no_refresh_is_due(self):
+        import server as launcher
+        (self.root / "launcher.lock").unlink()
+        with patch.object(community, "DIRECTORY_SYNC", False), \
+             patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+             patch.object(launcher, "java_command", return_value="java"), \
+             patch.object(launcher, "setup"), patch.object(launcher, "accept_eula"), \
+             patch.object(launcher.owner_rules, "load"), \
+             patch.object(launcher, "Service", side_effect=InterruptedError) as service:
+            launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+        service.assert_called_once()
+        self.assert_original()
+
     def test_interrupted_protected_chunk_restore_rolls_back_complete_original_world(self):
         self.policy()
         write = refresh.atomic_bytes

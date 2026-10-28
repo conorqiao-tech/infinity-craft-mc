@@ -1,11 +1,13 @@
 """Community server settings and stopped-world backups."""
 from datetime import datetime, timezone
+import errno
 import json
 import hashlib
 import math
 import os
 from pathlib import Path
 import re
+import sys
 import uuid
 import zipfile
 
@@ -145,7 +147,8 @@ def properties_text(value):
 
 def configure(root, props, data):
     values = settings(data)
-    props.update({"motd": properties_text(values["server_name"] + " | Java + Bedrock | 5 Game Modes"),
+    # The launcher's properties writer escapes values, so store the text Java should read.
+    props.update({"motd": values["server_name"] + " | Java + Bedrock | 5 Game Modes",
                   "max-players": str(values["max_players"]), "white-list": str(values["whitelist"]).lower(),
                   "enforce-whitelist": "true", "difficulty": values["difficulty"]})
     props.setdefault("spawn-protection", "32")
@@ -162,7 +165,95 @@ def backups(root):
     return [{"name": p.name, "bytes": p.stat().st_size} for p in sorted(folder.glob("Infinity-World-*.zip"), reverse=True)[:10]]
 
 
+def world_folder(root, props):
+    """Resolve the decoded level-name as Minecraft does, refusing folders outside fabric."""
+    name = props.get("level-name", "world")
+    if not isinstance(name, str) or any(ord(c) < 32 or ord(c) == 127 for c in name):
+        raise ValueError("level-name in server.properties contains control characters. Choose a plain world folder name.")
+    fabric = (root / "fabric").resolve()
+    world = (fabric / name).resolve()
+    if world == fabric or not world.is_relative_to(fabric):
+        raise ValueError("The world folder must be inside this server's fabric folder.")
+    return fabric, world
+
+
+class DurabilityError(RuntimeError):
+    """A backup could not be confirmed on stable storage, so it must not be relied upon."""
+
+
+# macOS fsync can leave data in the drive cache; F_FULLFSYNC flushes it.
+FULL_FSYNC = sys.platform == "darwin"
+# Only POSIX lets Python open and fsync a directory. Elsewhere (Windows) a
+# backup's contents are still fsynced and renamed into place, but nothing can
+# confirm its folder entry reached stable storage, so it is saved but not a
+# confirmed restore point: terrain refresh refuses to rely on it.
+DIRECTORY_SYNC = os.name == "posix"
+# Filesystems such as SMB or exFAT reject F_FULLFSYNC; plain fsync is then the
+# strongest request available, as Go and SQLite also do on macOS.
+FULLFSYNC_UNSUPPORTED = {getattr(errno, name) for name in ("EINVAL", "ENOTSUP", "EOPNOTSUPP", "ENOTTY") if hasattr(errno, name)}
+UNSUPPORTED_DIRECTORY_SYNC = ("This system cannot confirm that a backup's folder entry reached stable storage, "
+                              "so terrain refresh was not performed and the world was left unchanged. "
+                              "Run the launcher on macOS or Linux to refresh terrain.")
+UNCONFIRMED_BACKUP_NOTE = ("its file was flushed, but this system cannot confirm the backups folder entry "
+                           "reached stable storage, so terrain refresh is unavailable here")
+
+
+def full_fsync(descriptor):
+    import fcntl
+    fcntl.fcntl(descriptor, fcntl.F_FULLFSYNC)
+
+
+def flush_descriptor(descriptor):
+    if FULL_FSYNC:
+        try:
+            full_fsync(descriptor)
+            return
+        except OSError as error:
+            if error.errno not in FULLFSYNC_UNSUPPORTED:
+                raise
+    os.fsync(descriptor)
+
+
+def sync_file(stream):
+    stream.flush()
+    flush_descriptor(stream.fileno())
+
+
+def sync_directory(path):
+    if not DIRECTORY_SYNC:
+        raise DurabilityError(UNSUPPORTED_DIRECTORY_SYNC)
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        flush_descriptor(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def confirm_backup_durable(root, name):
+    """Require the named full-world backup and its folder entries on stable storage.
+
+    Destructive operations call this; it fails rather than trusting a backup
+    whose rename cannot be confirmed durable on this platform."""
+    if not DIRECTORY_SYNC:
+        raise DurabilityError(UNSUPPORTED_DIRECTORY_SYNC)
+    if (not isinstance(name, str) or Path(name).name != name
+            or not re.fullmatch(r"Infinity-World-[0-9_-]+-[0-9a-f]{6}\.zip", name)):
+        raise ValueError("A fresh stopped-world backup is required before regeneration")
+    folder = root / "backups"
+    descriptor = os.open(folder / name, os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0))
+    try:
+        flush_descriptor(descriptor)
+    finally:
+        os.close(descriptor)
+    sync_directory(folder)
+    sync_directory(root)
+
+
 def backup(root, props, locked=False):
+    """Archive the stopped world; returns its name, or None for a genuinely new world.
+
+    Where DIRECTORY_SYNC is false the archive is fsynced and renamed but its
+    folder entry is unconfirmed; confirm_backup_durable reports that."""
     lockfile = root / "launcher.lock"
     fd = None
     if not locked:
@@ -172,28 +263,46 @@ def backup(root, props, locked=False):
             raise ValueError("Save & Stop the server before backing up the world.") from error
     temporary = None
     try:
-        fabric = (root / "fabric").resolve()
-        world = (fabric / props.get("level-name", "world")).resolve()
-        if world == fabric or not world.is_relative_to(fabric):
-            raise ValueError("The world folder must be inside this server's fabric folder.")
-        if not (world / "level.dat").is_file():
+        fabric, world = world_folder(root, props)
+        if not world.exists():
+            return None  # A genuinely new world; Minecraft creates it on first start.
+        if not world.is_dir():
+            raise ValueError("level-name in server.properties names a file, not a world folder.")
+        # Minecraft can still load a folder without level.dat (for example from
+        # level.dat_old), so only an empty folder counts as a new world.
+        if not (world / "level.dat").is_file() and all(p.name == "session.lock" for p in world.iterdir()):
             return None
         folder = root / "backups"
-        folder.mkdir(exist_ok=True)
+        try:
+            folder.mkdir()
+        except FileExistsError:
+            pass
+        else:
+            if DIRECTORY_SYNC:
+                sync_directory(folder.parent)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         destination = folder / ("Infinity-World-" + stamp + "-" + uuid.uuid4().hex[:6] + ".zip")
         temporary = destination.with_suffix(".partial")
         files = list(world.rglob("*"))
         files += [fabric / name for name in ("server.properties", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json")]
-        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
-            for file in files:
-                if file.is_symlink():
-                    raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
-                if file.is_file() and file.name != "session.lock":
-                    output.write(file, file.relative_to(fabric).as_posix())
-            output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
-        temporary.chmod(0o600)
-        temporary.replace(destination)
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
+                for file in files:
+                    if file.is_symlink():
+                        raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
+                    if file.is_file() and file.name != "session.lock":
+                        output.write(file, file.relative_to(fabric).as_posix())
+                output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
+            # Closing the archive wrote its central directory; persist the
+            # complete ZIP before its final name becomes visible.
+            temporary.chmod(0o600)
+            sync_file(stream)
+        os.replace(temporary, destination)
+        # Where possible the backup only counts once its folder entry is durable;
+        # real sync failures propagate.
+        if DIRECTORY_SYNC:
+            sync_directory(folder)
         return destination.name
     finally:
         if temporary is not None:

@@ -1,7 +1,16 @@
 package dev.convergence;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.world.entity.EntityTypes;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.ContainerInput;
+import org.geysermc.cumulus.form.Form;
+import org.geysermc.cumulus.form.ModalForm;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -356,6 +365,243 @@ public class AdminStatsGameTests {
             c.assertFalse(AdminStats.set(actor.createCommandSourceStack(),target,"health",Math.nextUp((double)Float.MAX_VALUE)).success(),"Nonrepresentable health is refused before changing capacity");
             c.assertValueEqual(target.getMaxHealth(),20f,"Invalid health leaves capacity intact");
         } finally {cleanup(actor);cleanup(target);}
+        c.succeed();
+    }
+
+    private void click(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, p); }
+    private AdminStatsMenu.Handler menu(ServerPlayer p) { return (AdminStatsMenu.Handler) p.containerMenu; }
+    private void review(ServerPlayer admin, ServerPlayer target, String id, String amount) {
+        admin.closeContainer(); AdminStatsMenu.openStat(admin, target, id);
+        click(admin, AdminStatsMenu.EXACT); AdminStatsMenu.consumeChat(admin, amount); click(admin, AdminStatsMenu.REVIEW);
+    }
+    private String lore(ServerPlayer p, int slot) {
+        var lore = p.containerMenu.getSlot(slot).getItem().get(DataComponents.LORE);
+        return lore == null ? "" : String.join(" ", lore.lines().stream().map(Component::getString).toList());
+    }
+    private void formReply(Form form, String payload) {
+        try { org.geysermc.cumulus.form.impl.FormDefinitions.instance().definitionFor(form).handleFormResponse(form, payload); }
+        catch (Exception failure) { throw new RuntimeException(failure); }
+    }
+    private Set<String> history(ServerPlayer p) { return GameModes.state(p).getCompoundOrEmpty(AdminStats.STORAGE).keySet(); }
+    private List<AdminStats.Clamp> clamps(ServerPlayer target, String id, double amount) {
+        return AdminStats.clamps(target, AdminStats.planSet(target, id, amount));
+    }
+
+    @GameTest public void resetReviewListsModifiedHealthClampAndStaleHealthCancelsRestore(GameTestHelper c) {
+        var actor = owner(c, "clamp-reset-op"); var target = player(c, "clamp-reset");
+        var capacity = target.getAttribute(Attributes.MAX_HEALTH);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_reset_plus"), 3, AttributeModifier.Operation.ADD_VALUE);
+        var half = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_reset_half"), .5, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+        try {
+            set(c, actor.createCommandSourceStack(), target, "max_health", 80);
+            capacity.addPermanentModifier(plus); capacity.addPermanentModifier(half);
+            c.assertValueEqual(target.getMaxHealth(), 124.5f, "Modifiers apply to the edited base");
+            target.setHealth(100);
+            var untouched = save(target);
+            actor.closeContainer(); AdminStatsMenu.openStat(actor, target, "max_health"); click(actor, AdminStatsMenu.RESET);
+            c.assertValueEqual(menu(actor).operation, AdminStatsMenu.Operation.RESET, "Reset opens its own review");
+            c.assertValueEqual(menu(actor).changes, List.of(new AdminStatsMenu.Change("max_health", 80, 20)), "Only the restore is an executable line");
+            c.assertValueEqual(menu(actor).basis.clamps(), List.of(new AdminStats.Clamp("health", 100, 34.5, 34.5)),
+                "Restored original plus both modifiers clamps health to 34.5");
+            c.assertValueEqual(save(target), untouched, "Reset review never mutates the target");
+            String shown = lore(actor, AdminStatsMenu.PREVIEW_START + 1);
+            c.assertTrue(shown.contains("100") && shown.contains("34.5"), "Reset confirmation shows health before and after: " + shown);
+            target.setHealth(99);
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 80d, "Changed current health cancels before restoring");
+            c.assertValueEqual(target.getHealth(), 99f, "A stale reset review never clamps health");
+            c.assertValueEqual(history(target), Set.of("minecraft:max_health"), "Rejected reset keeps the saved original");
+            actor.closeContainer(); AdminStatsMenu.openStat(actor, target, "max_health"); click(actor, AdminStatsMenu.RESET);
+            var fresh = menu(actor).basis.clamps().getFirst();
+            c.assertValueEqual(fresh.before(), 99d, "A fresh reset review shows the latest health");
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 20d, "Confirmed reset restores the original base");
+            c.assertValueEqual((double) target.getMaxHealth(), fresh.capacity(), "Reviewed effective capacity is the actual native capacity");
+            c.assertValueEqual((double) target.getHealth(), fresh.after(), "Reviewed health result is the actual native health");
+            c.assertValueEqual(capacity.getModifier(plus.id()), plus, "Additive modifier preserved by reset");
+            c.assertValueEqual(capacity.getModifier(half.id()), half, "Base multiplier preserved by reset");
+            c.assertTrue(history(target).isEmpty(), "Reset clears the history entry");
+        } finally { cleanup(actor); cleanup(target); }
+        c.succeed();
+    }
+
+    @GameTest public void bedrockResetAllReviewsSequentialUnexpandedClampsAndStaleAbsorptionCancels(GameTestHelper c) {
+        var actor = owner(c, "clamp-resetall-op"); var target = player(c, "clamp-resetall");
+        var health = target.getAttribute(Attributes.MAX_HEALTH); var absorption = target.getAttribute(Attributes.MAX_ABSORPTION);
+        var reserve = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_resetall_reserve"), 5, AttributeModifier.Operation.ADD_VALUE);
+        var forms = new ArrayList<Form>(); Predicate<Form> sender = f -> { forms.add(f); return true; };
+        try {
+            health.setBaseValue(2000);
+            c.assertValueEqual(target.getMaxHealth(), 1024f, "An unedited instance clamps its large original to the native cap");
+            var source = actor.createCommandSourceStack();
+            set(c, source, target, "max_health", 3000);
+            set(c, source, target, "attack_damage", 9);
+            set(c, source, target, "max_absorption", 40);
+            absorption.addPermanentModifier(reserve);
+            target.setHealth(2500); target.setAbsorptionAmount(30);
+            var untouched = save(target);
+            int restoreAll = AdminStats.list(target).size();
+            BedrockStatsMenu.open(actor, target, null, sender); formReply(forms.getLast(), Integer.toString(restoreAll));
+            var confirm = (ModalForm) forms.getLast();
+            c.assertTrue(confirm.content().contains("max_health: 3000 → 2000") && confirm.content().contains("attack_damage: 9 → 1")
+                && confirm.content().contains("max_absorption: 40 → 0"), "Every executable restore is listed: " + confirm.content());
+            c.assertTrue(confirm.content().contains("2500") && confirm.content().contains("1024") && confirm.content().contains("30"),
+                "Native reset-all confirmation lists both vital results: " + confirm.content());
+            c.assertValueEqual(save(target), untouched, "Reset-all review never mutates the target");
+            target.setAbsorptionAmount(29);
+            formReply(confirm, "true");
+            c.assertValueEqual(health.getBaseValue(), 3000d, "Changed absorption cancels before the first restore");
+            c.assertValueEqual(target.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 9d, "No other attribute is restored either");
+            c.assertValueEqual(target.getAbsorptionAmount(), 29f, "A stale reset-all review never clamps absorption");
+            BedrockStatsMenu.open(actor, target, null, sender); formReply(forms.getLast(), Integer.toString(restoreAll));
+            var ids = AdminStats.list(target).stream().filter(s -> s.attribute() && AdminStats.value(target, s).edited()).map(AdminStats.Stat::id).toList();
+            var predicted = AdminStats.resetClamps(target, ids);
+            c.assertValueEqual(predicted, List.of(new AdminStats.Clamp("health", 2500, 1024, 1024), new AdminStats.Clamp("absorption", 29, 5, 5)),
+                "Restores clear the expansion flag (1024, not 2000) and keep the +5 absorption modifier");
+            formReply(forms.getLast(), "true");
+            c.assertValueEqual(health.getBaseValue(), 2000d, "Original large base restored");
+            c.assertValueEqual(target.getMaxHealth(), 1024f, "Restored instance is unexpanded");
+            c.assertValueEqual(target.getHealth(), 1024f, "Actual health equals the reviewed result");
+            c.assertValueEqual(target.getMaxAbsorption(), 5f, "Restored absorption capacity keeps its modifier");
+            c.assertValueEqual(target.getAbsorptionAmount(), 5f, "Actual absorption equals the reviewed result");
+            c.assertValueEqual(target.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), 1d, "Unrelated edited attribute restored in the same confirmation");
+            c.assertValueEqual(absorption.getModifier(reserve.id()), reserve, "External absorption modifier preserved");
+        } finally { cleanup(actor); cleanup(target); }
+        c.succeed();
+    }
+
+    @GameTest public void sameEffectiveCapacityWithDifferentModifiersInvalidatesReview(GameTestHelper c) {
+        var actor = owner(c, "clamp-swap-op"); var target = player(c, "clamp-swap");
+        var capacity = target.getAttribute(Attributes.MAX_HEALTH);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_swap_plus"), 4, AttributeModifier.Operation.ADD_VALUE);
+        var up = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_swap_up"), 6, AttributeModifier.Operation.ADD_VALUE);
+        var down = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_swap_down"), -2, AttributeModifier.Operation.ADD_VALUE);
+        try {
+            set(c, actor.createCommandSourceStack(), target, "max_health", 40);
+            capacity.addPermanentModifier(plus);
+            review(actor, target, "max_health", "30");
+            c.assertValueEqual(menu(actor).basis.clamps(), List.of(new AdminStats.Clamp("health", 20, 20, 34)), "Lowered capacity reviews health staying at 20");
+            capacity.removeModifier(plus.id()); capacity.addTransientModifier(plus);
+            c.assertValueEqual(target.getMaxHealth(), 44f, "Same modifier made transient keeps the same effective capacity");
+            c.assertValueEqual(AdminStats.clamps(target, AdminStats.planSet(target, "max_health", 30)), menu(actor).basis.clamps(), "Computed consequences are unchanged too");
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 40d, "Permanent-to-transient change rejects the review");
+            capacity.removeModifier(plus.id()); capacity.addPermanentModifier(plus);
+            review(actor, target, "max_health", "30");
+            capacity.removeModifier(plus.id()); capacity.addPermanentModifier(up); capacity.addPermanentModifier(down);
+            c.assertValueEqual(target.getMaxHealth(), 44f, "Different modifiers deliberately give the same effective capacity");
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 40d, "Different modifier identities reject the review");
+            capacity.removeModifier(up.id()); capacity.removeModifier(down.id()); capacity.addPermanentModifier(plus);
+            review(actor, target, "max_health", "30");
+            target.setHealth(19);
+            review(actor, target, "max_health", "30");
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 30d, "An unchanged fresh review still applies");
+            c.assertValueEqual(target.getMaxHealth(), 34f, "Modifier contributes after the edit");
+            c.assertValueEqual(target.getHealth(), 19f, "Health within capacity is not clamped");
+            review(actor, target, "health", "60");
+            target.setHealth(10);
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(target.getHealth(), 60f, "A direct heal with capacity increase still survives live health changes");
+        } finally { cleanup(actor); cleanup(target); }
+        c.succeed();
+    }
+
+    @GameTest public void maxHealthReductionReviewsModifiedClampAndChangedHealthCancels(GameTestHelper c) {
+        var actor = owner(c, "clamp-health-op"); var target = player(c, "clamp-health");
+        var capacity = target.getAttribute(Attributes.MAX_HEALTH);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_health_plus"), 4, AttributeModifier.Operation.ADD_VALUE);
+        var scale = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_health_scale"), .5, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+        try {
+            set(c, actor.createCommandSourceStack(), target, "max_health", 40);
+            capacity.addPermanentModifier(plus); capacity.addPermanentModifier(scale);
+            c.assertValueEqual(target.getMaxHealth(), 66f, "Modifiers make the effective capacity differ from the base");
+            target.setHealth(60);
+            var untouched = save(target);
+            review(actor, target, "max_health", "10.1");
+            c.assertValueEqual(menu(actor).changes, List.of(new AdminStatsMenu.Change("max_health", 40, 10.1)), "Only the requested base is an executable edit");
+            c.assertValueEqual(menu(actor).basis.clamps().size(), 1, "One automatic health result is reviewed separately");
+            var clamp = menu(actor).basis.clamps().getFirst();
+            c.assertTrue(clamp.id().equals("health"), "Current health consequence is listed");
+            c.assertValueEqual(clamp.before(), 60d, "Review shows exact current health");
+            c.assertTrue(clamp.after() > 21 && clamp.after() < 21.2 && clamp.after() == clamp.capacity(), "Clamp uses the modified effective capacity, not the 10.1 base");
+            c.assertValueEqual(save(target), untouched, "Review never mutates the target");
+            String shown = lore(actor, AdminStatsMenu.PREVIEW_START + 1);
+            c.assertTrue(shown.contains(AdminStatsMenu.number(60)) && shown.contains(AdminStatsMenu.number(clamp.after())), "Confirmation shows health before and after: " + shown);
+            target.setHealth(59);
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertTrue(actor.containerMenu == actor.inventoryMenu, "Stale review closes");
+            c.assertValueEqual(capacity.getBaseValue(), 40d, "Changed current health cancels before the capacity edit");
+            c.assertValueEqual(target.getHealth(), 59f, "A stale review never clamps health");
+            review(actor, target, "max_health", "10.1");
+            var fresh = menu(actor).basis.clamps().getFirst();
+            c.assertValueEqual(fresh.before(), 59d, "A fresh review shows the latest health");
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(capacity.getBaseValue(), 10.1, "Confirmed base applied");
+            c.assertValueEqual((double) target.getMaxHealth(), fresh.capacity(), "Reviewed effective capacity equals the actual native capacity");
+            c.assertValueEqual((double) target.getHealth(), fresh.after(), "Reviewed health result equals the actual native health");
+            c.assertValueEqual(capacity.getModifier(plus.id()), plus, "Additive modifier preserved");
+            c.assertValueEqual(capacity.getModifier(scale.id()), scale, "Multiplier preserved");
+            c.assertValueEqual(history(target), Set.of("minecraft:max_health"), "The display-only health line is never applied as a separate edit");
+            review(actor, target, "health", "30");
+            c.assertTrue(menu(actor).basis.clamps().isEmpty(), "A direct heal that raises capacity has no clamp result");
+            c.assertValueEqual(menu(actor).changes.getFirst().id(), "max_health", "Its capacity increase still precedes the heal");
+            target.setHealth(5);
+            click(actor, AdminStatsMenu.CONFIRM);
+            c.assertValueEqual(target.getHealth(), 30f, "Live health changes still do not cancel a reviewed absolute heal");
+            c.assertTrue(target.getMaxHealth() >= 30f, "The direct entry raised effective capacity through the modifiers");
+        } finally { cleanup(actor); cleanup(target); }
+        c.succeed();
+    }
+
+    @GameTest public void bedrockMaxAbsorptionReductionReviewsClampAndBindsUnchangedAbsorption(GameTestHelper c) {
+        var actor = owner(c, "clamp-absorb-op"); var target = player(c, "clamp-absorb");
+        var capacity = target.getAttribute(Attributes.MAX_ABSORPTION);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_absorb_plus"), 2.2, AttributeModifier.Operation.ADD_VALUE);
+        var cut = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_absorb_cut"), -.3, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+        var forms = new ArrayList<Form>(); Predicate<Form> sender = f -> { forms.add(f); return true; };
+        try {
+            set(c, actor.createCommandSourceStack(), target, "max_absorption", 50);
+            capacity.addPermanentModifier(plus); capacity.addPermanentModifier(cut);
+            c.assertTrue(target.getMaxAbsorption() > 36 && target.getMaxAbsorption() < 37, "Modifiers change effective absorption capacity");
+            target.setAbsorptionAmount(30);
+            var untouched = save(target);
+            BedrockStatsMenu.open(actor, target, "max_absorption", sender); formReply(forms.getLast(), "[null,\"7.3\",0]");
+            var confirm = (ModalForm) forms.getLast();
+            var predicted = clamps(target, "max_absorption", 7.3);
+            c.assertValueEqual(predicted.size(), 1, "One absorption result");
+            var clamp = predicted.getFirst();
+            c.assertTrue(clamp.id().equals("absorption") && clamp.before() == 30 && clamp.after() > 6.6 && clamp.after() < 6.7,
+                "Absorption clamps to the modified effective capacity, not the 7.3 base");
+            c.assertTrue(confirm.content().contains("max_absorption: 50 → 7.3") && confirm.content().contains(AdminStatsMenu.number(30))
+                && confirm.content().contains(AdminStatsMenu.number(clamp.after())), "Native confirmation lists the absorption consequence: " + confirm.content());
+            c.assertValueEqual(save(target), untouched, "Native review never mutates the target");
+            target.setAbsorptionAmount(29);
+            formReply(confirm, "true");
+            c.assertValueEqual(capacity.getBaseValue(), 50d, "Changed absorption cancels before the capacity edit");
+            c.assertValueEqual(target.getAbsorptionAmount(), 29f, "A stale review never clamps absorption");
+            BedrockStatsMenu.open(actor, target, "max_absorption", sender); formReply(forms.getLast(), "[null,\"7.3\",0]");
+            predicted = clamps(target, "max_absorption", 7.3);
+            formReply(forms.getLast(), "true");
+            c.assertValueEqual(capacity.getBaseValue(), 7.3, "Fresh confirmation applies the base");
+            c.assertValueEqual((double) target.getMaxAbsorption(), predicted.getFirst().capacity(), "Reviewed effective capacity is exact");
+            c.assertValueEqual((double) target.getAbsorptionAmount(), predicted.getFirst().after(), "Reviewed absorption result is exact");
+            c.assertValueEqual(history(target), Set.of("minecraft:max_absorption"), "The absorption line is not saved as an admin edit");
+            target.setAbsorptionAmount(1);
+            BedrockStatsMenu.open(actor, target, "max_absorption", sender); formReply(forms.getLast(), "[null,\"5\",0]");
+            var bound = clamps(target, "max_absorption", 5).getFirst();
+            c.assertTrue(bound.id().equals("absorption") && bound.before() == 1 && bound.after() == 1 && bound.capacity() < 6, "A lowered capacity that does not clamp says the amount stays");
+            target.setAbsorptionAmount(2);
+            formReply(forms.getLast(), "true");
+            c.assertValueEqual(capacity.getBaseValue(), 7.3, "Changed absorption still cancels a lowered capacity review");
+            BedrockStatsMenu.open(actor, target, "absorption", sender); formReply(forms.getLast(), "[null,\"100\",0]");
+            c.assertTrue(clamps(target, "absorption", 100).isEmpty(), "Direct absorption increase has no clamp result");
+            target.setAbsorptionAmount(0);
+            formReply(forms.getLast(), "true");
+            c.assertValueEqual(target.getAbsorptionAmount(), 100f, "A reviewed absolute absorption amount survives live changes");
+            c.assertValueEqual(capacity.getModifier(cut.id()), cut, "Capacity modifiers preserved");
+        } finally { cleanup(actor); cleanup(target); }
         c.succeed();
     }
 

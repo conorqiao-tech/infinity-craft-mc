@@ -7,6 +7,7 @@ import uuid
 import zipfile
 import tempfile
 import sys
+import community
 import terrain_storage
 
 POLICY = ".world-refresh.json"
@@ -208,6 +209,9 @@ def maybe_refresh(root, level_name, backup_name, emit=print):
     archive, files = verify_backup(root, world, backup_name)
     if policy.get("safety_strategy", "protected_areas") != "protected_areas":
         raise ValueError("Choose the supported protected_areas terrain refresh strategy")
+    # Regeneration is destructive: the full-world backup and its folder entries
+    # must be confirmed on stable storage before any terrain is prepared or moved.
+    community.confirm_backup_durable(root, archive.name)
     kept, protected = terrain_storage.prepare(world)
     paths = []
     dimensions = sorted({p.parent.parent for p in (world / "dimensions").rglob("r.*.*.mca")

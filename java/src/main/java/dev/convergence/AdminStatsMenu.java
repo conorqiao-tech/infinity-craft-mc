@@ -44,6 +44,12 @@ final class AdminStatsMenu {
     private record Input(Session actor, TargetSession target, String stat, double pending, int expires) {}
     private static final Map<UUID,Input> INPUTS = new ConcurrentHashMap<>();
     record Change(String id, double before, double after) {}
+    /** What a review was computed from, kept apart from the executable changes: display-only
+     * vital clamps and exact snapshots of the edited and clamping capacity attributes. */
+    record Basis(List<AdminStats.Clamp> clamps, List<PlayerStatBatch.AttributeState> attributes) {
+        static final Basis NONE = new Basis(List.of(), List.of());
+        Basis { clamps = List.copyOf(clamps); attributes = List.copyOf(attributes); }
+    }
     record Session(ServerPlayer player, ServerGamePacketListenerImpl connection, ServerLevel world, GameModes.Mode mode, GameType vanillaMode) {
         Session(ServerPlayer player) { this(player, player.connection, player.level(), GameModes.current(player), player.gameMode()); }
         boolean valid() {
@@ -204,6 +210,11 @@ final class AdminStatsMenu {
 
     private static int show(ServerPlayer actor, LivingEntity target, Page page, int index,
             String statId, double pending, Operation operation, List<Change> changes) {
+        return show(actor, target, page, index, statId, pending, operation, changes, Basis.NONE);
+    }
+
+    private static int show(ServerPlayer actor, LivingEntity target, Page page, int index,
+            String statId, double pending, Operation operation, List<Change> changes, Basis basis) {
         if (!allowed(actor)) { message(actor, "Player and AI editing requires an online OP4 admin who has finished respawning or changing mode."); return 0; }
         cancelInput(actor);cancelGroupEditors(actor);
         if (actor.containerMenu != actor.inventoryMenu || !actor.containerMenu.getCarried().isEmpty()) {
@@ -224,7 +235,7 @@ final class AdminStatsMenu {
         List<AdminStats.Stat> stats = target == null ? List.of() : AdminStats.list(target);
         var selected = statId == null ? null : AdminStats.find(target, statId);
         if (page == Page.EDIT && selected == null) { message(actor, "That statistic is no longer available."); return 0; }
-        int count = page == Page.PLAYERS ? targets.size() : page == Page.CONFIRM ? changes.size() : stats.size();
+        int count = page == Page.PLAYERS ? targets.size() : page == Page.CONFIRM ? changes.size() + basis.clamps().size() : stats.size();
         int size = page == Page.CONFIRM ? PREVIEW_SIZE : PAGE_SIZE;
         int pageIndex = Math.max(0, Math.min(index, Math.max(0, (count - 1) / size)));
         var view = new SimpleContainer(54);
@@ -295,14 +306,25 @@ final class AdminStatsMenu {
             else icon(view, 37, Items.BOOK, "One-time value edit", "This value changes immediately after confirmation and has no saved reset value.");
         } else {
             boolean lethal = changes.stream().anyMatch(c -> c.id().equals("health") && c.after() == 0);
+            boolean clamped = !basis.clamps().isEmpty();
+            boolean attributes = changes.stream().anyMatch(c -> AdminStats.find(target,c.id()).attribute());
             icon(view, 4, targetIcon(target), AdminStats.displayName(target) + " • " + changes.size() + " change(s)",
-                "Target ID: " + target.getStringUUID(), lethal ? "WARNING: health zero kills this " + targetKind(target) + "." : "Apply exactly the changes shown below.");
+                "Target ID: " + target.getStringUUID(), lethal ? "WARNING: health zero kills this " + targetKind(target) + "." : "Apply exactly the changes shown below.",
+                clamped ? "Automatic current health or absorption results are listed after the edits."
+                    : attributes ? "Current health and absorption are not reduced by this edit." : "");
             icon(view, CONFIRM, lethal ? Items.DYE.red() : Items.DYE.lime(), lethal ? "Confirm • KILL this " + targetKind(target) : "Confirm changes",
-                "Target: " + AdminStats.displayName(target), operation == Operation.SET && changes.stream().allMatch(c -> !AdminStats.find(target,c.id()).attribute())
+                "Target: " + AdminStats.displayName(target), operation == Operation.SET && !attributes
                     ? "Sets the exact reviewed amount, even if gameplay changes the current value."
-                    : "Changed attribute bases cancel this review.", "Changed permissions, sessions or allowed ranges always cancel.");
+                    : "Changed attribute bases or modifiers cancel this review.", clamped ? "Changed current health, absorption or effective capacity cancels this review." : "",
+                "Changed permissions, sessions or allowed ranges always cancel.");
             icon(view, CANCEL, Items.BARRIER, "Cancel • keep current values");
             for (int slot = PREVIEW_START, i = pageIndex * size; slot < PREVIEW_START + size && i < count; slot++, i++) {
+                if (i >= changes.size()) {
+                    var clamp = basis.clamps().get(i - changes.size()); var stat = AdminStats.find(target, clamp.id());
+                    icon(view, slot, stat == null ? Items.PAPER : stat.icon(), (stat == null ? clamp.id() : stat.label()) + " • automatic",
+                        clampText(clamp.id(), clamp.before(), clamp.after(), clamp.capacity()));
+                    continue;
+                }
                 var change = changes.get(i); var stat = AdminStats.find(target, change.id());
                 icon(view, slot, stat == null ? Items.PAPER : stat.icon(), stat == null ? change.id() : stat.label(),
                     "Before: " + number(change.before()), "After: " + number(change.after()));
@@ -314,7 +336,7 @@ final class AdminStatsMenu {
         }
         icon(view, BACK, Items.ARROW, page == Page.PLAYERS ? "Back to Infinity Menu" : "Back • discard pending changes");
         actor.openMenu(new SimpleMenuProvider((sync, inventory, who) ->
-            new Handler(sync, inventory, view, actor, target, page, pageIndex, statId, pending, operation, changes, targets, stats), Component.literal(title)));
+            new Handler(sync, inventory, view, actor, target, page, pageIndex, statId, pending, operation, changes, basis, targets, stats), Component.literal(title)));
         return 1;
     }
 
@@ -323,6 +345,7 @@ final class AdminStatsMenu {
         if(changes.isEmpty())return "No reviewed changes are available. Reopen the editor.";
         if(operation==Operation.SET) {
             List<Change> expected;
+            // Changes hold only executable edits; the requested stat is applied last.
             try {expected=plannedChanges(target,changes.getLast().id(),pending);}
             catch(IllegalArgumentException invalid){return invalid.getMessage();}
             if(expected.size()!=changes.size())return "The capacity changed during review. Review the updated changes.";
@@ -347,6 +370,44 @@ final class AdminStatsMenu {
         return AdminStats.planSet(target,id,amount).stream().map(c->new Change(c.id(),c.before(),c.after())).toList();
     }
 
+    /** clampVitals results of exactly these edits, in set or restore order. Never mutates the target. */
+    static List<AdminStats.Clamp> consequences(LivingEntity target,Operation operation,List<Change> changes) {
+        return operation==Operation.SET
+            ? AdminStats.clamps(target,changes.stream().map(c->new AdminStats.Adjustment(c.id(),c.before(),c.after())).toList())
+            : AdminStats.resetClamps(target,changes.stream().map(Change::id).toList());
+    }
+
+    /** Snapshots edited attributes and the capacities behind each listed clamp. A direct
+     * vital edit without a capacity edit snapshots nothing, so regeneration keeps it valid. */
+    static Basis basis(LivingEntity target,Operation operation,List<Change> changes) {
+        var clamps=consequences(target,operation,changes);
+        var ids=new java.util.LinkedHashSet<String>();
+        for(var change:changes) {var stat=AdminStats.find(target,change.id());if(stat!=null&&stat.attribute())ids.add(stat.id());}
+        for(var clamp:clamps)ids.add(AdminStats.capacityId(clamp.id()));
+        var attributes=new ArrayList<PlayerStatBatch.AttributeState>();
+        for(var id:ids) {
+            var entry=AdminStats.attribute(id);
+            if(entry!=null&&target.getAttributes().hasAttribute(entry))attributes.add(new PlayerStatBatch.AttributeState(target,entry));
+        }
+        return new Basis(clamps,attributes);
+    }
+
+    /** Checked after the executable edits match, immediately before applying anything. */
+    static String basisError(LivingEntity target,Operation operation,List<Change> changes,Basis reviewed) {
+        if(reviewed.attributes().stream().anyMatch(state->!state.valid(target)))
+            return "An edited attribute, capacity or its modifiers changed during review. Nothing changed; review again.";
+        if(!consequences(target,operation,changes).equals(reviewed.clamps()))
+            return "Current health, absorption or effective capacity changed during review. Nothing changed; review the updated results.";
+        return null;
+    }
+
+    static String clampText(String id,double before,double after,double capacity) {
+        String name=id.equals("health")?"Current health":"Absorption";
+        return Double.compare(before,after)!=0
+            ? name+": "+number(before)+" → "+number(after)+" (automatic clamp to new effective capacity "+number(capacity)+"; not a separate edit)"
+            : name+": stays "+number(before)+" (within new effective capacity "+number(capacity)+")";
+    }
+
     static final class Handler extends ChestMenu {
         final ServerPlayer owner;
         final Session actorSession;
@@ -358,17 +419,19 @@ final class AdminStatsMenu {
         final SimpleContainer view;
         final Operation operation;
         final List<Change> changes;
+        final Basis basis;
         final List<TargetSession> targets;
         final List<AdminStats.Stat> stats;
 
         Handler(int sync, Inventory inventory, SimpleContainer view, ServerPlayer actor, LivingEntity target,
                 Page page, int pageIndex, String statId, double pending, Operation operation, List<Change> changes,
-                List<TargetSession> targets, List<AdminStats.Stat> stats) {
+                Basis basis, List<TargetSession> targets, List<AdminStats.Stat> stats) {
             super(MenuType.GENERIC_9x6, sync, inventory, view, 6);
             owner = actor; actorSession = new Session(actor); targetSession = target == null ? null : new TargetSession(target);
             this.page = page; this.pageIndex = pageIndex; this.statId = statId; this.pending = pending;
             this.view = view;
-            this.operation = operation; this.changes = List.copyOf(changes); this.targets = List.copyOf(targets); this.stats = List.copyOf(stats);
+            this.operation = operation; this.changes = List.copyOf(changes); this.basis = basis;
+            this.targets = List.copyOf(targets); this.stats = List.copyOf(stats);
         }
 
         @Override public boolean stillValid(Player player) {
@@ -378,9 +441,14 @@ final class AdminStatsMenu {
         @Override public ItemStack quickMoveStack(Player player, int slot) { return ItemStack.EMPTY; }
         @Override public void setSelectedBundleItemIndex(int slot, int selected) {}
 
-        private void show(Page next, int index, String id, double value, Operation op, List<Change> preview) {
+        private void show(Page next, int index, String id, double value, Operation op, List<Change> preview, Basis reviewed) {
             owner.closeContainer();
-            AdminStatsMenu.show(owner, targetSession == null ? null : targetSession.entity(), next, index, id, value, op, preview);
+            AdminStatsMenu.show(owner, targetSession == null ? null : targetSession.entity(), next, index, id, value, op, preview, reviewed);
+        }
+
+        /** A new review captures its own basis from the current live target. */
+        private void review(Operation op, List<Change> preview) {
+            show(Page.CONFIRM, 0, statId, pending, op, preview, basis(targetSession.entity(), op, preview));
         }
 
         private void fail(String reason) { owner.closeContainer(); message(owner, reason); }
@@ -412,16 +480,19 @@ final class AdminStatsMenu {
         private void reviewReset(boolean all) {
             var preview = restorations(all);
             if (preview.isEmpty()) { owner.sendOverlayMessage(Component.literal("No saved admin edits to restore.")); return; }
-            show(Page.CONFIRM, 0, statId, pending, all ? Operation.RESET_ALL : Operation.RESET, preview);
+            review(all ? Operation.RESET_ALL : Operation.RESET, preview);
         }
 
         private void apply() {
             var target = targetSession.entity();
             String error=reviewError(target,operation,pending,changes);
             if(error!=null) { fail(error);return; }
+            // Executable restore lines first, then the separate display-only consequences.
             if (operation != Operation.SET && !changes.equals(restorations(operation == Operation.RESET_ALL))) {
                 fail("The saved originals changed during review. Review the restore again."); return;
             }
+            error=basisError(target,operation,changes,basis);
+            if(error!=null) { fail(error);return; }
             owner.closeContainer();
             var result = switch (operation) {
                 case SET -> AdminStats.set(owner.createCommandSourceStack(), target, statId, pending);
@@ -445,7 +516,7 @@ final class AdminStatsMenu {
                 else if (page == Page.STATS) open(owner);
                 else openStats(owner, targetSession.entity(), 0);
             } else if (page != Page.EDIT && (slot == PREVIOUS || slot == NEXT) && !getSlot(slot).getItem().isEmpty()) {
-                show(page, pageIndex + (slot == NEXT ? 1 : -1), statId, pending, operation, changes);
+                show(page, pageIndex + (slot == NEXT ? 1 : -1), statId, pending, operation, changes, basis);
             } else if (page == Page.PLAYERS && slot < PAGE_SIZE && pageIndex * PAGE_SIZE + slot < targets.size()) {
                 var selected = targets.get(pageIndex * PAGE_SIZE + slot);
                 if (!selected.valid()) { fail("That player or AI helper changed. Choose the target again."); return; }
@@ -470,7 +541,7 @@ final class AdminStatsMenu {
                         : Math.max(stat.minimum(), Math.min(AdminStats.inputMaximum(stat), pending + multiplier * stat.step()));
                     adjust(AdminStats.normalizedValue(stat, next));
                 } else if (slot == REVIEW) {
-                    try {show(Page.CONFIRM, 0, statId, pending, Operation.SET, plannedChanges(targetSession.entity(),statId,pending));}
+                    try {review(Operation.SET, plannedChanges(targetSession.entity(),statId,pending));}
                     catch(IllegalArgumentException invalid){fail(invalid.getMessage());}
                 } else if (slot == RESET) reviewReset(false);
                 else if (slot == RELATED_HEALTH && List.of("health","max_health","absorption","max_absorption").contains(statId)) {

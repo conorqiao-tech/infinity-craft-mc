@@ -316,7 +316,10 @@ class Panel:
                     name = community.backup(self.root, self.launcher.properties(self.root / "fabric/server.properties"))
                     if name is None:
                         raise ValueError("No saved world yet. Start your world once before backing it up.")
-                    self.log("Backup saved: backups/" + name)
+                    if community.DIRECTORY_SYNC:
+                        self.log("Backup saved: backups/" + name)
+                    else:
+                        self.log("Backup saved: backups/" + name + "; " + community.UNCONFIRMED_BACKUP_NOTE + ".")
                     with self.guard:
                         self.state = "stopped"
                 except Exception as error:

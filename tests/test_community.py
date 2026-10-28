@@ -60,6 +60,222 @@ class CommunityTests(unittest.TestCase):
         self.assertIsNone(community.backup(self.root, {"level-name": "not-created"}))
         self.assertFalse((self.root / "launcher.lock").exists())
 
+    def test_backup_publishes_only_after_closed_zip_is_synchronized(self):
+        import stat
+        events = []
+        backups = self.root / "backups"
+        real_sync_file = community.sync_file
+
+        def published():
+            return ([p.suffix for p in backups.glob("*.partial")], [p.suffix for p in backups.glob("*.zip")])
+
+        def sync_file(stream):
+            real_sync_file(stream)
+            partial = list(backups.glob("*.partial"))
+            self.assertEqual(published(), ([".partial"], []))
+            # A readable central directory proves the ZIP was closed before syncing.
+            with zipfile.ZipFile(partial[0]) as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertEqual(archive.read("my-world/level.dat"), b"test world header")
+            events.append("sync zip")
+
+        def sync_directory(path):
+            # The backup folder is synchronized only after the rename.
+            events.append(("sync directory", Path(path), published()))
+
+        # Recorded rather than real directory syncs keep this ordering check platform-independent.
+        with patch.object(community, "DIRECTORY_SYNC", True), \
+             patch.object(community, "sync_file", side_effect=sync_file), \
+             patch.object(community, "sync_directory", side_effect=sync_directory):
+            name = community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(events, [("sync directory", self.root, ([], [])), "sync zip",
+                                  ("sync directory", backups, ([], [".zip"]))])
+        self.assertEqual([p.name for p in backups.iterdir()], [name])
+        if community.os.name == "posix":
+            self.assertEqual(stat.S_IMODE((backups / name).stat().st_mode), 0o600)
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    def test_zip_sync_failure_publishes_no_backup(self):
+        import errno
+        with patch.object(community, "DIRECTORY_SYNC", True), \
+             patch.object(community, "sync_file", side_effect=OSError(errno.EIO, "injected file sync failure")), \
+             patch.object(community, "sync_directory") as sync_directory:
+            with self.assertRaisesRegex(OSError, "injected file sync failure"):
+                community.backup(self.root, {"level-name": "my-world"})
+        # Only the new backups folder's parent was synchronized; no rename followed.
+        sync_directory.assert_called_once_with(self.root)
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
+
+    def test_backup_directory_sync_failure_is_not_reported_as_success(self):
+        import errno
+
+        def sync_directory(path):
+            if Path(path) == self.root / "backups":
+                raise OSError(errno.EIO, "injected directory sync failure")
+
+        with patch.object(community, "DIRECTORY_SYNC", True), \
+             patch.object(community, "sync_directory", side_effect=sync_directory):
+            with self.assertRaisesRegex(OSError, "injected directory sync failure"):
+                community.backup(self.root, {"level-name": "my-world"})
+            with self.assertRaisesRegex(OSError, "injected directory sync failure"):
+                community.backup(self.root, {"level-name": "my-world"}, locked=True)
+        self.assertEqual(list((self.root / "backups").glob("*.partial")), [])
+        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
+
+    def closed_descriptor(self):
+        descriptor = community.os.open(self.root / "fabric/server.properties", community.os.O_RDONLY)
+        community.os.close(descriptor)
+        return descriptor
+
+    def test_flush_uses_full_sync_where_available_and_propagates_real_failures(self):
+        import errno
+        with tempfile.TemporaryFile() as stream:
+            descriptor = stream.fileno()
+            # A closed descriptor makes the real fsync fail, without patching os.
+            with patch.object(community, "FULL_FSYNC", False):
+                community.flush_descriptor(descriptor)
+                with self.assertRaises(OSError):
+                    community.flush_descriptor(self.closed_descriptor())
+            with patch.object(community, "FULL_FSYNC", True):
+                with patch.object(community, "full_fsync") as full:
+                    community.flush_descriptor(descriptor)
+                full.assert_called_once_with(descriptor)
+                # Unsupported F_FULLFSYNC falls back to a real fsync, whose failures still propagate.
+                with patch.object(community, "full_fsync", side_effect=OSError(errno.ENOTSUP, "unsupported")):
+                    community.flush_descriptor(descriptor)
+                    with self.assertRaises(OSError) as raised:
+                        community.flush_descriptor(self.closed_descriptor())
+                    self.assertNotEqual(raised.exception.errno, errno.ENOTSUP)
+                with patch.object(community, "full_fsync", side_effect=OSError(errno.EIO, "injected device failure")):
+                    with self.assertRaisesRegex(OSError, "injected device failure"):
+                        community.flush_descriptor(descriptor)
+
+    @unittest.skipUnless(community.sys.platform == "darwin", "F_FULLFSYNC is macOS-only")
+    def test_macos_full_sync_succeeds_on_files_and_directories(self):
+        with tempfile.TemporaryFile() as stream:
+            community.full_fsync(stream.fileno())
+        community.sync_directory(self.root)
+
+    def test_unconfirmable_directory_sync_still_saves_a_flushed_backup(self):
+        real_sync_file = community.sync_file
+        with patch.object(community, "DIRECTORY_SYNC", False), \
+             patch.object(community, "sync_file", side_effect=real_sync_file) as sync_file, \
+             patch.object(community, "sync_directory") as sync_directory:
+            name = community.backup(self.root, {"level-name": "my-world"})
+            sync_file.assert_called_once()
+            sync_directory.assert_not_called()
+            # The saved archive is never accepted as a confirmed restore point here.
+            with self.assertRaisesRegex(community.DurabilityError, "stable storage"):
+                community.confirm_backup_durable(self.root, name)
+        with patch.object(community, "DIRECTORY_SYNC", False):
+            with self.assertRaises(community.DurabilityError):
+                community.sync_directory(self.root)
+        with zipfile.ZipFile(self.root / "backups" / name) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(archive.read("my-world/region/r.0.0.mca"), b"test region bytes")
+        self.assertEqual([p.name for p in (self.root / "backups").iterdir()], [name])
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    def test_dashboard_manual_backup_states_unconfirmed_directory_durability(self):
+        from types import SimpleNamespace
+        fake_launcher = SimpleNamespace(properties=launcher.properties,
+                                        join_addresses=lambda args: {"host": "", "java": "", "local_java": "", "bedrock_port": 0, "local_only": True})
+        panel = dashboard.Panel(fake_launcher, launcher.parse_args([]), self.root)
+        # Only the module flag is mocked; directory syncs are recorded so both branches run anywhere.
+        for supported in (False, True):
+            with self.subTest(directory_sync=supported):
+                before = set((self.root / "backups").glob("*.zip")) if (self.root / "backups").exists() else set()
+                with patch.object(community, "DIRECTORY_SYNC", supported), patch.object(community, "sync_directory"):
+                    panel.backup()
+                    panel.worker.join(timeout=60)
+                self.assertFalse(panel.worker.is_alive())
+                self.assertEqual((panel.state, panel.error), ("stopped", ""))
+                created = set((self.root / "backups").glob("*.zip")) - before
+                self.assertEqual(len(created), 1)
+                saved = created.pop()
+                with zipfile.ZipFile(saved) as archive:
+                    self.assertEqual(archive.read("my-world/region/r.0.0.mca"), b"test region bytes")
+                expected = "Backup saved: backups/" + saved.name
+                if not supported:
+                    expected += "; " + community.UNCONFIRMED_BACKUP_NOTE + "."
+                    self.assertIn("cannot confirm", expected)
+                self.assertEqual(list(panel.logs)[-1], expected)
+                self.assertFalse((self.root / "launcher.lock").exists())
+
+    def test_confirming_backup_flushes_archive_then_its_folders(self):
+        name = community.backup(self.root, {"level-name": "my-world"})
+        events = []
+
+        def flush(descriptor):
+            events.append(("flush", community.os.fstat(descriptor).st_size))
+
+        def sync_directory(path):
+            events.append(("sync directory", Path(path)))
+
+        with patch.object(community, "DIRECTORY_SYNC", True), \
+             patch.object(community, "flush_descriptor", side_effect=flush), \
+             patch.object(community, "sync_directory", side_effect=sync_directory):
+            community.confirm_backup_durable(self.root, name)
+        size = (self.root / "backups" / name).stat().st_size
+        self.assertEqual(events, [("flush", size), ("sync directory", self.root / "backups"),
+                                  ("sync directory", self.root)])
+
+    def test_confirming_backup_propagates_sync_failures_and_rejects_other_files(self):
+        import errno
+        name = community.backup(self.root, {"level-name": "my-world"})
+        with patch.object(community, "DIRECTORY_SYNC", True), \
+             patch.object(community, "flush_descriptor", side_effect=OSError(errno.EIO, "injected archive sync failure")), \
+             patch.object(community, "sync_directory") as sync_directory:
+            with self.assertRaisesRegex(OSError, "injected archive sync failure"):
+                community.confirm_backup_durable(self.root, name)
+        sync_directory.assert_not_called()
+        with patch.object(community, "DIRECTORY_SYNC", True), patch.object(community, "flush_descriptor"), \
+             patch.object(community, "sync_directory", side_effect=OSError(errno.EIO, "injected directory sync failure")):
+            with self.assertRaisesRegex(OSError, "injected directory sync failure"):
+                community.confirm_backup_durable(self.root, name)
+        with patch.object(community, "DIRECTORY_SYNC", True):
+            for bad in (None, "", "../" + name, "other.zip", name + ".partial"):
+                with self.subTest(bad=bad), self.assertRaises(ValueError):
+                    community.confirm_backup_durable(self.root, bad)
+
+    def test_backup_follows_decoded_world_and_only_skips_genuinely_new_worlds(self):
+        world = self.root / "fabric/world2"
+        world.mkdir()
+        (world / "level.dat").write_bytes(b"escaped world")
+        (self.root / "fabric/server.properties").write_bytes(b"level-name=world\\u0032\n")
+        name = community.backup(self.root, launcher.properties(self.root / "fabric/server.properties"))
+        with zipfile.ZipFile(self.root / "backups" / name) as archive:
+            self.assertEqual(archive.read("world2/level.dat"), b"escaped world")
+        fresh = self.root / "fabric/fresh"
+        fresh.mkdir()
+        (fresh / "session.lock").write_bytes(b"lock")
+        self.assertIsNone(community.backup(self.root, {"level-name": "fresh"}))
+        old_only = self.root / "fabric/restored"
+        old_only.mkdir()
+        (old_only / "level.dat_old").write_bytes(b"previous header")
+        name = community.backup(self.root, {"level-name": "restored"})
+        with zipfile.ZipFile(self.root / "backups" / name) as archive:
+            self.assertEqual(archive.read("restored/level.dat_old"), b"previous header")
+        (self.root / "fabric/not-a-folder").write_bytes(b"file")
+        with self.assertRaisesRegex(ValueError, "not a world folder"):
+            community.backup(self.root, {"level-name": "not-a-folder"})
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    def test_server_name_is_written_as_equivalent_java_text(self):
+        propfile = self.root / "fabric/server.properties"
+        self.world.rename(self.root / "fabric/my world=2")
+        propfile.write_bytes(rb"level-name=my world\=2" + b"\nmotd=old\n")
+        args = launcher.parse_args([])
+        args.community = community.settings({"server_name": 'Café "Crew" #1'})
+        launcher.configure(args, self.root)
+        propfile.read_bytes().decode("ascii")
+        props = launcher.properties(propfile)
+        self.assertEqual(props["motd"], 'Café "Crew" #1 | Java + Bedrock | 5 Game Modes')
+        self.assertEqual(props["level-name"], "my world=2")
+
     def test_server_settings_preserve_world_and_authentication(self):
         args = launcher.parse_args([])
         args.community = community.settings({"server_name": "Infinity Community", "max_players": 40, "whitelist": True, "rules": "Be kind.\nDo not grief."})

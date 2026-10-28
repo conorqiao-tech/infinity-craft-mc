@@ -168,17 +168,30 @@ final class GroupStatsMenu {
                 AgentMenu.icon(view,slot,Items.PLAYER_HEAD,change.name());
                 String details="Player ID: "+change.uuid()+". ";
                 for(var adjustment:change.changes())details+=adjustment.id()+": "+AdminStatsMenu.number(adjustment.before())+" → "+AdminStatsMenu.number(adjustment.after())+". ";
+                for(var clamp:change.consequences())details+=AdminStatsMenu.clampText(clamp.id(),clamp.before(),clamp.after(),clamp.capacity())+". ";
                 AgentMenu.description(view,slot,details);
             }
         }
         if(page>0)AgentMenu.icon(view,PREVIOUS,Items.ARROW,"Previous players");
         if((page+1)*PAGE_SIZE<count)AgentMenu.icon(view,NEXT,Items.ARROW,"Next players");
-        if(plan!=null)AgentMenu.icon(view,ACTION,Items.DYE.lime(),"Confirm changes for "+plan.targets().size()+" selected players");
-        else AgentMenu.icon(view,ACTION,request.selected.isEmpty()?Items.BARRIER:Items.WRITABLE_BOOK,
+        if(plan!=null) {
+            AgentMenu.icon(view,ACTION,Items.DYE.lime(),"Confirm changes for "+plan.targets().size()+" selected players");
+            String vitals=vitalsNote(request,plan);
+            if(!vitals.isEmpty())AgentMenu.description(view,ACTION,vitals);
+        } else AgentMenu.icon(view,ACTION,request.selected.isEmpty()?Items.BARRIER:Items.WRITABLE_BOOK,
             request.selected.isEmpty()?"Select at least one player":"Enter exact number • "+request.selected.size()+" selected");
         AgentMenu.icon(view,BACK,Items.BARRIER,"Cancel • nothing changes");
         actor.openMenu(new SimpleMenuProvider((sync,inventory,who)->new Handler(sync,inventory,view,request,page,plan),
             Component.literal((plan==null?"Choose matching players • ":"Review player changes • ")+request.label())));
+    }
+
+    /** Attribute edits run the native vital clamp; say whether any listed player is affected. */
+    static String vitalsNote(Request request,PlayerStatBatch.Plan plan) {
+        var found=AdminStats.find(request.anchor.player(),plan.statId());
+        if(found==null || !found.attribute())return "";
+        return plan.changes().stream().anyMatch(c->!c.consequences().isEmpty())
+            ? "Automatic current health or absorption results are listed per player. If they change, the review is cancelled before anyone changes."
+            : "Current health and absorption are not reduced for any selected player.";
     }
 
     static final class Handler extends ChestMenu {

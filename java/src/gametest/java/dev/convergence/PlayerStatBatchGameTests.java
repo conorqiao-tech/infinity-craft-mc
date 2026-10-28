@@ -3,7 +3,14 @@ package dev.convergence;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.ContainerInput;
+import org.geysermc.cumulus.form.Form;
+import org.geysermc.cumulus.form.SimpleForm;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
@@ -342,6 +349,136 @@ public class PlayerStatBatchGameTests {
                 c.assertValueEqual(p.getAbilities().getWalkingSpeed(), walk, "Original ability restored independently");
                 c.assertValueEqual(p.experienceLevel, 30, "Attribute reset does not roll back one-time XP");
             }
+        } finally { cleanup(actor); cleanup(first); cleanup(last); }
+        c.succeed();
+    }
+
+    private void click(ServerPlayer p, int slot) { p.containerMenu.clicked(slot, 0, ContainerInput.PICKUP, p); }
+    private void selectJava(ServerPlayer actor, ServerPlayer target) {
+        var request = ((GroupStatsMenu.Handler) actor.containerMenu).request; int choice = -1;
+        for (int i = 0; i < request.choices.size(); i++) if (request.choices.get(i).player() == target) choice = i;
+        if (choice < 0) throw new IllegalStateException("Named player missing from the matching roster");
+        while (((GroupStatsMenu.Handler) actor.containerMenu).page < choice / GroupStatsMenu.PAGE_SIZE) click(actor, GroupStatsMenu.NEXT);
+        click(actor, choice % GroupStatsMenu.PAGE_SIZE);
+    }
+    private String lore(ServerPlayer p, int slot) {
+        var lore = p.containerMenu.getSlot(slot).getItem().get(DataComponents.LORE);
+        return lore == null ? "" : String.join(" ", lore.lines().stream().map(Component::getString).toList());
+    }
+    private PlayerStatBatch.TargetChange reviewed(PlayerStatBatch.Plan plan, ServerPlayer target) {
+        return plan.changes().stream().filter(t -> t.uuid().equals(target.getUUID())).findFirst().orElseThrow();
+    }
+    private void reply(Form form, String encoded) {
+        try { org.geysermc.cumulus.form.impl.FormDefinitions.instance().definitionFor(form).handleFormResponse(form, encoded); }
+        catch (Exception failure) { throw new RuntimeException(failure); }
+    }
+    private SimpleForm press(List<Form> forms, String prefix) {
+        var form = (SimpleForm) forms.getLast();
+        for (int i = 0; i < form.buttons().size(); i++)
+            if (form.buttons().get(i).text().startsWith(prefix)) { reply(form, Integer.toString(i)); return form; }
+        throw new IllegalStateException("Missing native button: " + prefix);
+    }
+    private Set<String> history(ServerPlayer p) { return GameModes.state(p).getCompoundOrEmpty(AdminStats.STORAGE).keySet(); }
+
+    @GameTest public void javaGroupMaxHealthReductionListsEachClampAndStaleHealthRejectsBeforeAnyone(GameTestHelper c) {
+        var actor = player(c, "clamp-group-op", true);
+        var first = player(c, "clamp-group-a", false);
+        var last = player(c, "clamp-group-b", false);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_group_plus"), 4, AttributeModifier.Operation.ADD_VALUE);
+        var cut = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_group_cut"), -.25, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+        try {
+            for (var p : List.of(first, last))
+                c.assertTrue(AdminStats.set(actor.createCommandSourceStack(), p, "max_health", 44).success(), "Prepare shared capacity base");
+            first.getAttribute(Attributes.MAX_HEALTH).addPermanentModifier(plus);
+            last.getAttribute(Attributes.MAX_HEALTH).addPermanentModifier(cut);
+            first.setHealth(40); last.setHealth(5);
+            var beforeFirst = save(first); var beforeLast = save(last);
+            AdminStatsMenu.openStat(actor, first, "max_health"); click(actor, AdminStatsMenu.GROUP);
+            selectJava(actor, first); selectJava(actor, last);
+            click(actor, GroupStatsMenu.ACTION); AdminStatsMenu.consumeChat(actor, "12");
+            var screen = (GroupStatsMenu.Handler) actor.containerMenu; var plan = screen.plan;
+            c.assertTrue(plan != null && plan.invalidReason().isEmpty(), "Java group review opens");
+            var a = reviewed(plan, first); var b = reviewed(plan, last);
+            c.assertValueEqual(a.changes(), List.of(new AdminStats.Adjustment("max_health", 44, 12)), "Only the requested base is an edit for the first player");
+            c.assertValueEqual(b.changes(), List.of(new AdminStats.Adjustment("max_health", 44, 12)), "Only the requested base is an edit for the last player");
+            c.assertValueEqual(a.consequences().size(), 1, "First player's health result is listed");
+            var clampA = a.consequences().getFirst();
+            c.assertTrue(clampA.id().equals("health") && clampA.before() == 40 && clampA.after() == 16 && clampA.capacity() == 16, "First player's clamp uses its +4 modifier");
+            var boundB = b.consequences().getFirst();
+            c.assertTrue(boundB.id().equals("health") && boundB.before() == 5 && boundB.after() == 5 && boundB.capacity() == 9, "Last player's lowered capacity is shown even though health stays");
+            c.assertValueEqual(save(first), beforeFirst, "Group review never mutates the first player");
+            c.assertValueEqual(save(last), beforeLast, "Group review never mutates the last player");
+            int slot = plan.changes().indexOf(a);
+            c.assertTrue(lore(actor, slot).contains(AdminStatsMenu.number(40)) && lore(actor, slot).contains(AdminStatsMenu.number(16)), "Java review lists the first player's health before and after");
+            last.setHealth(6);
+            click(actor, GroupStatsMenu.ACTION);
+            c.assertValueEqual(first.getAttributeBaseValue(Attributes.MAX_HEALTH), 44d, "A later player's changed health rejects before the first player changes");
+            c.assertValueEqual(first.getHealth(), 40f, "First player's health is not clamped by a stale group");
+            c.assertValueEqual(last.getAttributeBaseValue(Attributes.MAX_HEALTH), 44d, "Last player's capacity unchanged");
+            c.assertValueEqual(last.getHealth(), 6f, "Last player's changed health preserved");
+            c.assertFalse(plan.apply().success(), "The rejected group review is single-use");
+            var fresh = PlayerStatBatch.prepare(actor, List.of(first, last), "max_health", 12);
+            c.assertTrue(fresh.apply().success(), "A fresh group review applies");
+            for (var p : List.of(first, last)) {
+                var clamp = reviewed(fresh, p).consequences().getFirst();
+                c.assertValueEqual((double) p.getMaxHealth(), clamp.capacity(), "Reviewed effective capacity matches native capacity");
+                c.assertValueEqual((double) p.getHealth(), clamp.after(), "Reviewed health result matches native health");
+                c.assertValueEqual(history(p), Set.of("minecraft:max_health"), "Health lines are never applied as admin edits");
+            }
+            c.assertValueEqual(first.getAttribute(Attributes.MAX_HEALTH).getModifier(plus.id()), plus, "First modifier preserved");
+            c.assertValueEqual(last.getAttribute(Attributes.MAX_HEALTH).getModifier(cut.id()), cut, "Last modifier preserved");
+            var raise = PlayerStatBatch.prepare(actor, List.of(first, last), "max_health", 30);
+            c.assertTrue(raise.changes().stream().allMatch(t -> t.consequences().isEmpty()), "Raising capacity lists no health consequence");
+        } finally { cleanup(actor); cleanup(first); cleanup(last); }
+        c.succeed();
+    }
+
+    @GameTest public void bedrockGroupMaxAbsorptionReductionListsClampsAndStaleAbsorptionRejects(GameTestHelper c) {
+        var actor = player(c, "clamp-native-op", true);
+        var first = player(c, "clamp-native-a", false);
+        var last = player(c, "clamp-native-b", false);
+        var plus = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_native_plus"), 2.2, AttributeModifier.Operation.ADD_VALUE);
+        var cut = new AttributeModifier(Identifier.fromNamespaceAndPath("infinity_test", "clamp_native_cut"), -.3, AttributeModifier.Operation.ADD_MULTIPLIED_BASE);
+        var forms = new ArrayList<Form>(); Predicate<Form> sender = f -> { forms.add(f); return true; };
+        try {
+            for (var p : List.of(first, last))
+                c.assertTrue(AdminStats.set(actor.createCommandSourceStack(), p, "max_absorption", 60).success(), "Prepare shared absorption capacity");
+            var capacity = first.getAttribute(Attributes.MAX_ABSORPTION);
+            capacity.addPermanentModifier(plus); capacity.addPermanentModifier(cut);
+            first.setAbsorptionAmount(30); last.setAbsorptionAmount(3);
+            var beforeFirst = save(first); var beforeLast = save(last);
+            var predicted = PlayerStatBatch.prepare(actor, List.of(first, last), "max_absorption", 7.3);
+            var clampA = reviewed(predicted, first).consequences().getFirst();
+            var boundB = reviewed(predicted, last).consequences().getFirst();
+            c.assertTrue(clampA.id().equals("absorption") && clampA.before() == 30 && clampA.after() > 6.6 && clampA.after() < 6.7, "Modified effective capacity clamps the first player");
+            c.assertTrue(boundB.before() == 3 && boundB.after() == 3 && boundB.capacity() == (double) 7.3f, "Unmodified last player keeps absorption below its new capacity");
+            GroupStatsMenu.open(actor, first, "max_absorption", sender);
+            press(forms, "○ " + first.getName().getString() + " • "); press(forms, "○ " + last.getName().getString() + " • ");
+            press(forms, "Enter exact number");
+            reply(forms.getLast(), new com.google.gson.Gson().toJson(new Object[]{null, "7.3"}));
+            var review = (SimpleForm) forms.getLast();
+            String firstText = review.buttons().stream().map(b -> b.text()).filter(t -> t.startsWith(first.getName().getString())).findFirst().orElse("");
+            String lastText = review.buttons().stream().map(b -> b.text()).filter(t -> t.startsWith(last.getName().getString())).findFirst().orElse("");
+            c.assertTrue(firstText.contains("max_absorption: 60 → 7.3") && firstText.contains(AdminStatsMenu.number(30)) && firstText.contains(AdminStatsMenu.number(clampA.after())),
+                "Native review lists the first player's absorption result: " + firstText);
+            c.assertTrue(lastText.contains(AdminStatsMenu.number(3)) && lastText.contains(AdminStatsMenu.number(boundB.capacity())), "Native review lists the last player's unchanged absorption: " + lastText);
+            c.assertValueEqual(save(first), beforeFirst, "Native group review never mutates the first player");
+            c.assertValueEqual(save(last), beforeLast, "Native group review never mutates the last player");
+            last.setAbsorptionAmount(2);
+            press(forms, "Confirm changes");
+            c.assertValueEqual(capacity.getBaseValue(), 60d, "Later player's changed absorption rejects before the first player changes");
+            c.assertValueEqual(first.getAbsorptionAmount(), 30f, "First player's absorption is not clamped");
+            c.assertValueEqual(last.getAttributeBaseValue(Attributes.MAX_ABSORPTION), 60d, "Last player's capacity unchanged");
+            c.assertValueEqual(last.getAbsorptionAmount(), 2f, "Last player's changed absorption preserved");
+            var fresh = PlayerStatBatch.prepare(actor, List.of(first, last), "max_absorption", 7.3);
+            c.assertTrue(fresh.apply().success(), "A fresh group review applies");
+            for (var p : List.of(first, last)) {
+                var clamp = reviewed(fresh, p).consequences().getFirst();
+                c.assertValueEqual((double) p.getMaxAbsorption(), clamp.capacity(), "Reviewed effective absorption capacity is native");
+                c.assertValueEqual((double) p.getAbsorptionAmount(), clamp.after(), "Reviewed absorption result is native");
+                c.assertValueEqual(history(p), Set.of("minecraft:max_absorption"), "Absorption lines are never applied as admin edits");
+            }
+            c.assertValueEqual(capacity.getModifier(cut.id()), cut, "Capacity modifiers preserved");
         } finally { cleanup(actor); cleanup(first); cleanup(last); }
         c.succeed();
     }
