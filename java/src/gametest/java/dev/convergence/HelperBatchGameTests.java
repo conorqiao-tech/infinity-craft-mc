@@ -189,6 +189,45 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void singleSpawnOwnershipSaveFailureLeavesNoGhostForLaterSaves(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 24, "own-"); f.unloaded(UUID.randomUUID(), 24, "other-");
+            f.helpers.spawn(f.owner, "kept"); var kept = f.helpers.owned(f.owner, "kept");
+            var entity = f.helpers.loaded.get(UUID.fromString(kept.getKey())); entity.setHealth(33);
+            var before = Map.copyOf(f.helpers.data.agents); byte[] bytes = Files.readAllBytes(f.helpers.file);
+            Path previous = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".previous");
+            c.assertValueEqual(f.helpers.remaining(f.owner), 1, "Exactly one server slot remains before the failing create");
+            Path blocked = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".tmp");
+            Files.createDirectory(blocked); Files.writeString(blocked.resolve("block-write"), "real filesystem failure");
+            c.assertValueEqual(f.helpers.spawn(f.owner, "retry"), 0, "The real atomic ownership writer fails and the single create reports no success");
+            c.assertTrue(f.helpers.data.agents.equals(before) && f.helpers.owned(f.owner, "retry") == null, "No ghost identity remains in the in-memory roster");
+            c.assertTrue(before.entrySet().stream().allMatch(e -> f.helpers.data.agents.get(e.getKey()) == e.getValue()), "Every existing record object, loaded or unloaded, is kept");
+            c.assertTrue(f.helpers.loaded.size() == 1 && f.helpers.loaded.get(entity.getUUID()) == entity && entity.isAlive() && entity.getHealth() == 33,
+                "No native entity is added and the existing helper is untouched");
+            c.assertTrue(Arrays.equals(bytes, Files.readAllBytes(f.helpers.file)) && Arrays.equals(bytes, Files.readAllBytes(previous)),
+                "The roster file is unchanged and .previous holds the last good roster, never the failed identity");
+            c.assertValueEqual(f.helpers.remaining(f.owner), 1, "The failed attempt reserves no server slot");
+            c.assertFalse(f.helpers.creationRecoveryRequired, "A clean synchronous failure leaves nothing on disk that needs manual recovery");
+            Files.delete(blocked.resolve("block-write")); Files.delete(blocked);
+            c.assertValueEqual(f.helpers.profile(f.owner, "kept", AgentCompanions.Profile.DEBUG), 1, "An unrelated roster change saves after storage repair");
+            c.assertValueEqual(AgentCompanions.read(f.helpers.file).agents.keySet(), before.keySet(), "A later successful save persists only the existing identities");
+            OperatorGameTests.level(f.owner, LevelBasedPermissionSet.ADMIN);
+            f.helpers.spawn(f.owner, "retry");
+            c.assertTrue(f.helpers.owned(f.owner, "retry") == null && f.helpers.data.agents.keySet().equals(before.keySet()), "OP3 still cannot create a helper after the failure");
+            OperatorGameTests.level(f.owner, LevelBasedPermissionSet.OWNER);
+            c.assertValueEqual(f.helpers.spawn(f.owner, "retry"), 1, "Retry reuses the failed name and the last server slot");
+            var retry = f.helpers.owned(f.owner, "retry"); var retried = f.helpers.loaded.get(UUID.fromString(retry.getKey()));
+            c.assertTrue(retried != null && c.getLevel().getEntity(retried.getUUID()) == retried, "The retried identity belongs to a real native entity");
+            c.assertTrue(f.helpers.data.agents.size() == 50 && f.helpers.remaining(f.owner) == 0, "The server reaches exactly fifty without a phantom entry");
+            var saved = AgentCompanions.read(f.helpers.file).agents;
+            c.assertValueEqual(saved, f.helpers.data.agents, "The saved roster matches memory after the successful retry");
+            c.assertTrue(saved.keySet().stream().filter(id -> !before.containsKey(id)).toList().equals(java.util.List.of(retry.getKey())),
+                "The only new saved identity is the retried helper");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void failedNativeInsertionAndOwnershipRollbackLatchAllFurtherCreationUntilManualRecovery(GameTestHelper c) throws Exception {
         try (var f = new Fixture(c)) {
             f.helpers.spawn(f.owner, "kept-recovery"); var kept = f.helpers.owned(f.owner, "kept-recovery");

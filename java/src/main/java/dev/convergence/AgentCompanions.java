@@ -499,8 +499,19 @@ public final class AgentCompanions {
         IronGolem golem = EntityTypes.IRON_GOLEM.create(owner.level(), EntitySpawnReason.COMMAND);
         if (golem == null) return reply(owner, "Could not create a helper.");
         golem.setPos(place); prepare(golem);
+        if (data.agents.containsKey(golem.getStringUUID())) return reply(owner, "A helper identity could not be reserved. Nothing was created.");
         Agent agent = new Agent(owner.getStringUUID(), name, Mode.FOLLOW, owner.level().dimension().identifier().toString(), place.x, place.y, place.z);
-        data.agents.put(golem.getStringUUID(), agent); save(); tags(golem, agent); HelperPowerDefaults.fillNewSpawn(golem);
+        data.agents.put(golem.getStringUUID(), agent);
+        try { save(); }
+        catch (RuntimeException failure) {
+            // Drop only this new identity so no later save can persist it. The
+            // atomic writer left the roster file unchanged; retrying the save
+            // here would only rotate .previous again.
+            data.agents.remove(golem.getStringUUID(), agent);
+            reply(owner, "Could not save helper ownership. Nothing spawned. Check server storage before retrying.");
+            return 0;
+        }
+        tags(golem, agent); HelperPowerDefaults.fillNewSpawn(golem);
         if (!owner.level().addFreshEntity(golem)) { data.agents.remove(golem.getStringUUID()); save(); return reply(owner, "Could not spawn a helper here."); }
         loaded.put(golem.getUUID(), golem);
         return reply(owner, name + " is following you. /agent guard " + name + " guards its current area; /agent stay " + name + " pauses it.");
