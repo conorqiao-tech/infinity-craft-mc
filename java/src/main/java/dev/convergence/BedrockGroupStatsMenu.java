@@ -125,11 +125,12 @@ final class BedrockGroupStatsMenu {
         int page=Math.max(0,Math.min(index,Math.max(0,(plan.changes().size()-1)/PAGE_SIZE)));
         var ticket=begin(request);var actions=new ArrayList<Runnable>();
         var form=SimpleForm.builder().title("Review selected player changes")
-            .content("Only the "+plan.targets().size()+" explicitly selected players below will change. Review their exact before and after values. Nothing changes until Confirm.");
+            .content("Only the "+plan.targets().size()+" explicitly selected players below will change. Review their exact before and after values. Nothing changes until Confirm. "+GroupStatsMenu.vitalsNote(request,plan));
         for(int i=page*PAGE_SIZE;i<plan.changes().size() && i<(page+1)*PAGE_SIZE;i++) {
             var target=plan.changes().get(i);var text=new StringBuilder(target.name()).append("\n");
             for(var change:target.changes())text.append(change.id()).append(": ").append(AdminStatsMenu.number(change.before()))
                 .append(" → ").append(AdminStatsMenu.number(change.after())).append("\n");
+            for(var clamp:target.consequences())text.append(AdminStatsMenu.clampText(clamp.id(),clamp.before(),clamp.after(),clamp.capacity())).append("\n");
             form.button(text.toString());actions.add(()->review(request,plan,page,sender));
         }
         if(page>0) {form.button("Previous changes");actions.add(()->review(request,plan,page-1,sender));}

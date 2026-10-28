@@ -191,9 +191,13 @@ final class BedrockStatsMenu {
         if(changes.isEmpty()) {message(actor,"No saved admin edits to restore.");stats(actor,target,sender);return;}
         var t=begin(actor,target);var text=new StringBuilder("Target: ").append(AdminStats.displayName(target)).append("\n");
         for(var change:changes)text.append(change.id()).append(": ").append(AdminStatsMenu.number(change.before())).append(" → ").append(AdminStatsMenu.number(change.after())).append("\n");
+        var basis=AdminStatsMenu.basis(target,operation,changes);
+        for(var clamp:basis.clamps())text.append(AdminStatsMenu.clampText(clamp.id(),clamp.before(),clamp.after(),clamp.capacity())).append("\n");
         boolean lethal=changes.stream().anyMatch(c->c.id().equals("health") && c.after()==0);
         if(lethal)text.append("WARNING: zero health kills the target.\n");
         if(operation==AdminStatsMenu.Operation.SET && !AdminStats.find(target,id).attribute())text.append("Sets this exact amount even if normal gameplay changes the current value.\n");
+        else text.append(!basis.clamps().isEmpty()?"Changed attribute modifiers, current health, absorption or effective capacity cancel this review.\n"
+            :"Current health and absorption are not reduced by this edit. Changed attribute modifiers cancel this review.\n");
         text.append("Manual stat edits do not wait for AI or Codex approval. This review expires after 90 seconds.");
         var form=ModalForm.builder().title("Confirm stat edit").content(text.toString()).button1(lethal?"Confirm • KILL target":"Confirm changes").button2("Cancel");
         form.validResultHandler(r->response(t,()->{
@@ -201,6 +205,8 @@ final class BedrockStatsMenu {
             String error=AdminStatsMenu.reviewError(target,operation,pending,changes);
             if(error==null && operation!=AdminStatsMenu.Operation.SET && !changes.equals(restorations(target,operation==AdminStatsMenu.Operation.RESET_ALL?null:id)))
                 error="The saved originals changed. Review the restore again.";
+            // Display-only consequences and attribute snapshots are checked separately, before any write.
+            if(error==null)error=AdminStatsMenu.basisError(target,operation,changes,basis);
             if(error!=null) {message(actor,error);stats(actor,target,sender);return;}
             var result=switch(operation) {
                 case SET->AdminStats.set(actor.createCommandSourceStack(),target,id,pending);

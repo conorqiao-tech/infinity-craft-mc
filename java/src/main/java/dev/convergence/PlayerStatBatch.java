@@ -12,6 +12,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -24,13 +25,15 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 final class PlayerStatBatch {
     private PlayerStatBatch() {}
 
-    record TargetChange(UUID uuid, String name, List<AdminStats.Adjustment> changes) {
-        TargetChange { changes = List.copyOf(changes); }
+    /** {@code changes} are the applied edits; {@code consequences} are display-only clamps. */
+    record TargetChange(UUID uuid, String name, List<AdminStats.Adjustment> changes, List<AdminStats.Clamp> consequences) {
+        TargetChange { changes = List.copyOf(changes); consequences = List.copyOf(consequences); }
     }
 
-    private record AttributeState(Holder<Attribute> attribute, AttributeInstance instance,
+    /** Exact attribute instance, base, effective value, expansion and modifier identities (permanent separately). */
+    record AttributeState(Holder<Attribute> attribute, AttributeInstance instance,
             double base, double effective, boolean expanded, Set<AttributeModifier> modifiers, Set<AttributeModifier> permanent) {
-        AttributeState(ServerPlayer player, Holder<Attribute> attribute) {
+        AttributeState(LivingEntity player, Holder<Attribute> attribute) {
             this(attribute, AdminStats.cachedAttribute(player, attribute), AdminStats.detachedAttribute(player, attribute));
         }
 
@@ -41,7 +44,7 @@ final class PlayerStatBatch {
 
         boolean finite() { return Double.isFinite(base) && Double.isFinite(effective); }
 
-        boolean valid(ServerPlayer player) {
+        boolean valid(LivingEntity player) {
             var current = AdminStats.cachedAttribute(player, attribute);
             var now = AdminStats.detachedAttribute(player, attribute);
             // A harmless later native read may materialize an equivalent default.
@@ -54,8 +57,8 @@ final class PlayerStatBatch {
     }
 
     private record TargetState(AdminStatsMenu.Session session, AdminStats.Stat stat, AdminStats.Value value,
-            List<AttributeState> attributes, CompoundTag originals, List<AdminStats.Adjustment> changes) {
-        TargetState { attributes = List.copyOf(attributes); changes = List.copyOf(changes); }
+            List<AttributeState> attributes, CompoundTag originals, List<AdminStats.Adjustment> changes, List<AdminStats.Clamp> clamps) {
+        TargetState { attributes = List.copyOf(attributes); changes = List.copyOf(changes); clamps = List.copyOf(clamps); }
     }
 
     static final class Plan {
@@ -75,7 +78,7 @@ final class PlayerStatBatch {
             this.states = List.copyOf(states);
             this.targets = states.stream().map(s -> s.session().player()).toList();
             this.changes = states.stream().map(s -> new TargetChange(s.session().player().getUUID(),
-                s.session().player().getName().getString(), s.changes())).toList();
+                s.session().player().getName().getString(), s.changes(), s.clamps())).toList();
             this.statId = statId;
             this.requested = requested;
             this.commonBefore = commonBefore;
@@ -109,8 +112,11 @@ final class PlayerStatBatch {
                     || !state.originals().equals(originals(target)))
                     return "A selected attribute, capacity or reset history changed. Nothing changed.";
                 try {
-                    if (!state.changes().equals(AdminStats.planSet(target, statId, requested)))
+                    var plan = AdminStats.planSet(target, statId, requested);
+                    if (!state.changes().equals(plan))
                         return "A selected capacity or allowed range changed. Nothing changed.";
+                    if (!state.clamps().equals(AdminStats.clamps(target, plan)))
+                        return "A selected player's current health, absorption or effective capacity changed. Review the group again. Nothing changed.";
                 } catch (IllegalArgumentException invalid) { return invalid.getMessage(); }
             }
             return "";
@@ -195,7 +201,8 @@ final class PlayerStatBatch {
             if (attributes.stream().anyMatch(snapshot -> !snapshot.finite())
                 || changes.stream().anyMatch(change -> !Double.isFinite(change.before()) || !Double.isFinite(change.after())))
                 return invalid(statId, requested, "A selected attribute or capacity has an invalid numeric value. Nothing changed.");
-            states.add(new TargetState(new AdminStatsMenu.Session(target), stat, value, attributes, originals(target), changes));
+            states.add(new TargetState(new AdminStatsMenu.Session(target), stat, value, attributes, originals(target), changes,
+                AdminStats.clamps(target, changes)));
         }
         return new Plan(new AdminStatsMenu.Session(actor), states, canonical, normalized, common, "");
     }

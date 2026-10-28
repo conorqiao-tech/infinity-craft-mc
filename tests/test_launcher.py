@@ -195,6 +195,287 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("auth-type: floodgate", (self.root / "geyser/config.yml").read_text())
         self.assertFalse((fabric / "eula.txt").exists())
 
+    def test_properties_follow_java_syntax(self):
+        path = self.root / "server.properties"
+        path.write_bytes(b"# comment ending in a backslash \\\n"
+                         b"! bang comment\n"
+                         b"   \t\f\n"
+                         b"level-name=world\\u0032\n"
+                         b"  motd : Hello \\\n      World\n"
+                         b"a\\ b = c\n"
+                         b"colon:value\n"
+                         b"space value\n"
+                         b"tabbed\t\t=\t value\n"
+                         b"eq==x\n"
+                         b"keyonly\n"
+                         b"escapes=\\t\\n\\\\\\:\\=\\#x\n"
+                         b"crlf=one\r\n"
+                         b"cr=two\r"
+                         b"dup=first\n"
+                         b"dup=second\n"
+                         b"latin=caf\xe9\n"
+                         b"emoji=\\ud83d\\uDE00\n"
+                         b"trailing=keep  \n"
+                         b"\\#notcomment=1\n"
+                         b"cont=a\\\n#still value\n"
+                         b"even=a\\\\\n"
+                         b"nel=a\x85b\n"
+                         b"unknown\\qescape=\\q\n")
+        expected = {"level-name": "world2", "motd": "Hello World", "a b": "c", "colon": "value",
+                    "space": "value", "tabbed": "value", "eq": "=x", "keyonly": "",
+                    "escapes": "\t\n\\:=#x", "crlf": "one", "cr": "two", "dup": "second",
+                    "latin": "caf\u00e9", "emoji": "\U0001F600", "trailing": "keep  ",
+                    "#notcomment": "1", "cont": "a#still value", "even": "a\\", "nel": "a\x85b",
+                    "unknownqescape": "q"}
+        self.assertEqual(launcher.properties(path), expected)
+        copy = self.root / "copy.properties"
+        launcher.write_properties(copy, expected)
+        copy.read_bytes().decode("ascii")
+        self.assertEqual(launcher.properties(copy), expected)
+        path.write_bytes(b"# caf\xc3\xa9\nlevel-name=world\n")
+        self.assertEqual(launcher.properties(path), {"level-name": "world"})
+
+    def test_properties_decode_utf8_first_then_whole_file_iso_8859_1(self):
+        path = self.root / "server.properties"
+        utf8 = {"level-name": "wörld 世界", "motd": "Café \U0001F600 \\:", "été key": "v"}
+        path.write_bytes("level-name=wörld 世界\nmotd=Café \U0001F600 \\\\\\:\nété\\ key=v\n".encode())
+        self.assertEqual(launcher.properties(path), utf8)
+        # One invalid UTF-8 byte makes Minecraft read the whole file as ISO-8859-1.
+        path.write_bytes(b"motd=\xc3\xa9\nlevel-name=caf\xe9\n")
+        self.assertEqual(launcher.properties(path), {"motd": "Ã©", "level-name": "café"})
+        # Overlong and encoded-surrogate sequences are not strict UTF-8 either.
+        path.write_bytes(b"level-name=a\xc0\xafb\n")
+        self.assertEqual(launcher.properties(path), {"level-name": "aÀ¯b"})
+        path.write_bytes(b"level-name=\xed\xa0\x80\n")
+        self.assertEqual(launcher.properties(path), {"level-name": chr(0xED) + chr(0xA0) + chr(0x80)})
+        # Strict UTF-8 keeps a byte-order mark as part of the first key, as Java does.
+        path.write_bytes(b"\xef\xbb\xbflevel-name=x\n")
+        self.assertEqual(launcher.properties(path), {chr(0xFEFF) + "level-name": "x"})
+        for values in (utf8, {"level-name": "café", "motd": "Ã©"}):
+            with self.subTest(values=values):
+                launcher.write_properties(path, values)
+                path.read_bytes().decode("ascii")
+                self.assertEqual(launcher.properties(path), values)
+
+    def test_unicode_world_directory_is_backed_up_and_kept_by_configuration(self):
+        import unicodedata
+        import zipfile
+        fabric = self.root / "fabric"
+        name = "wörld 世界 \U0001F600"
+        (fabric / name).mkdir(parents=True)
+        (fabric / name / "level.dat").write_bytes(b"unicode world")
+        propfile = fabric / "server.properties"
+        propfile.write_bytes(("level-name=" + name + "\nmotd=Café\n").encode())
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        with patch.object(launcher, "check_ports"), \
+             patch.object(launcher, "java_command", side_effect=InterruptedError), \
+             patch.object(launcher, "emit"):
+            launcher.run_server(args, root=self.root, console=False)
+        archives = list((self.root / "backups").glob("Infinity-World-*.zip"))
+        self.assertEqual(len(archives), 1)
+        with zipfile.ZipFile(archives[0]) as archive:
+            entries = {unicodedata.normalize("NFC", entry): entry for entry in archive.namelist()}
+            self.assertEqual(archive.read(entries[unicodedata.normalize("NFC", name + "/level.dat")]), b"unicode world")
+        launcher.configure(args, self.root)
+        props = launcher.properties(propfile)
+        self.assertEqual(props["level-name"], name)
+        self.assertEqual(props["motd"], "Café")
+        launcher.configure(args, self.root)
+        self.assertEqual(launcher.properties(propfile), props)
+
+    def test_iso_8859_1_fallback_selects_the_same_world_as_minecraft(self):
+        import zipfile
+        fabric = self.root / "fabric"
+        (fabric / "café").mkdir(parents=True)
+        (fabric / "café/level.dat").write_bytes(b"latin world")
+        (fabric / "server.properties").write_bytes(b"level-name=caf\xe9\n")
+        with patch.object(launcher, "check_ports"), \
+             patch.object(launcher, "java_command", side_effect=InterruptedError), \
+             patch.object(launcher, "emit"):
+            launcher.run_server(launcher.parse_args(["--bind", "127.0.0.1"]), root=self.root, console=False)
+        archive = next((self.root / "backups").glob("Infinity-World-*.zip"))
+        with zipfile.ZipFile(archive) as output:
+            self.assertEqual(len([n for n in output.namelist() if n.endswith("/level.dat")]), 1)
+        launcher.configure(launcher.parse_args([]), self.root)
+        self.assertEqual(launcher.properties(fabric / "server.properties")["level-name"], "café")
+
+    def test_properties_serialization_is_exact_java_text(self):
+        self.assertEqual(launcher.render_properties({"level-name": "world2", " k:=": " v #!\\", "\u00e9": "\U0001F600\n"}),
+                         "level-name=world2\n\\ k\\:\\==\\ v \\#\\!\\\\\n\\u00E9=\\uD83D\\uDE00\\n\n")
+        values = {"": "empty key", "\t lead": " both ends \t", "nul": "\x00\x7f\x85",
+                  "ctrl\r\n": "\f", "slashes\\\\": "\\u0032 is literal", "level-name": "w\u00f6rld \u4e16\u754c"}
+        self.assertEqual(launcher.parse_properties(launcher.render_properties(values)), values)
+
+    def test_malformed_properties_fail_before_changing_files(self):
+        fabric = self.root / "fabric"
+        fabric.mkdir()
+        propfile = fabric / "server.properties"
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        cases = {"bad hex": rb"level-name=world\u00G1" + b"\n", "short escape": rb"level-name=world\u12" + b"\n",
+                 "continuation at end": b"level-name=world\\",
+                 "UTF-8 file with bad escape": "level-name=wörld\n".encode() + rb"motd=\u00e" + b"\n",
+                 "ISO-8859-1 file with bad escape": b"level-name=caf\xe9" + rb"\uZZZZ" + b"\n",
+                 "unpaired surrogate": rb"level-name=\ud800" + b"\n",
+                 "reversed surrogates": rb"level-name=\ude00\ud83d" + b"\n"}
+        for case, content in cases.items():
+            with self.subTest(case=case):
+                propfile.write_bytes(content)
+                with self.assertRaises(launcher.PropertiesError):
+                    launcher.configure(args, self.root)
+                self.assertEqual(propfile.read_bytes(), content)
+                self.assertFalse((self.root / "geyser").exists())
+                self.assertFalse((fabric / "config").exists())
+                with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+                     patch.object(launcher.world_refresh, "recover") as recover, \
+                     patch.object(launcher.community, "backup") as backup:
+                    with self.assertRaises(launcher.PropertiesError):
+                        launcher.run_server(args, root=self.root, console=False)
+                recover.assert_not_called()
+                backup.assert_not_called()
+                self.assertEqual(propfile.read_bytes(), content)
+                self.assertFalse((self.root / "launcher.lock").exists())
+                self.assertFalse((self.root / "backups").exists())
+
+    def test_symlinked_server_properties_is_refused_and_left_untouched(self):
+        import os
+        import stat
+        fabric = self.root / "fabric"
+        (fabric / "world").mkdir(parents=True)
+        (fabric / "world/level.dat").write_bytes(b"linked world")
+        link = fabric / "server.properties"
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        targets = {"relative target inside fabric": (fabric / "shared.properties", "shared.properties"),
+                   "absolute target outside the server": (self.root / "elsewhere.properties", None)}
+        for case, (target, link_text) in targets.items():
+            with self.subTest(case=case):
+                target.write_bytes(b"level-name=world\nmotd=Linked\n")
+                target.chmod(0o640)
+                link.symlink_to(link_text or target)
+
+                def snapshot():
+                    info = target.stat()
+                    return (os.readlink(link), link.lstat().st_ino, target.read_bytes(),
+                            stat.S_IMODE(info.st_mode), info.st_ino, info.st_mtime_ns)
+
+                before = snapshot()
+                with self.assertRaisesRegex(launcher.PropertiesError, "symbolic link"):
+                    launcher.configure(args, self.root)
+                with self.assertRaisesRegex(launcher.PropertiesError, "symbolic link"):
+                    launcher.write_properties(link, {"level-name": "world"})
+                with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+                     patch.object(launcher.world_refresh, "recover") as recover, \
+                     patch.object(launcher.community, "backup") as backup, \
+                     patch.object(launcher, "java_command") as java, patch.object(launcher, "setup") as setup:
+                    with self.assertRaisesRegex(launcher.PropertiesError, "symbolic link"):
+                        launcher.run_server(args, root=self.root, console=False)
+                for step in (recover, backup, java, setup):
+                    step.assert_not_called()
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(snapshot(), before)
+                self.assertFalse((self.root / "launcher.lock").exists())
+                self.assertFalse((self.root / "backups").exists())
+                self.assertFalse((self.root / "geyser").exists())
+                self.assertFalse((fabric / "config").exists())
+                self.assertEqual([p.name for p in fabric.glob("server.properties.*")], [])
+                link.unlink()
+
+    def test_escaped_world_traversal_and_control_characters_are_refused(self):
+        fabric = self.root / "fabric"
+        fabric.mkdir()
+        propfile = fabric / "server.properties"
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        for content, message in ((rb"level-name=..\u002F..\u002Fescape" + b"\n", "inside"),
+                                 (rb"level-name=\u002E" + b"\n", "inside"),
+                                 (rb"level-name=world\u0000" + b"\n", "control characters")):
+            with self.subTest(content=content):
+                propfile.write_bytes(content)
+                with self.assertRaisesRegex(ValueError, message):
+                    launcher.configure(args, self.root)
+                with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+                     patch.object(launcher.world_refresh, "recover") as recover:
+                    with self.assertRaisesRegex(ValueError, message):
+                        launcher.run_server(args, root=self.root, console=False)
+                recover.assert_not_called()
+                self.assertEqual(propfile.read_bytes(), content)
+                self.assertFalse((self.root / "backups").exists())
+
+    def test_startup_backs_up_the_escaped_world_java_selects(self):
+        import zipfile
+        fabric = self.root / "fabric"
+        (fabric / "world2").mkdir(parents=True)
+        (fabric / "world2/level.dat").write_bytes(b"escaped world")
+        (fabric / "server.properties").write_bytes(rb"level-name=world\u0032" + b"\n")
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        with patch.object(launcher, "check_ports"), \
+             patch.object(launcher, "java_command", side_effect=InterruptedError), \
+             patch.object(launcher, "emit") as emit:
+            launcher.run_server(args, root=self.root, console=False)
+        archives = list((self.root / "backups").glob("Infinity-World-*.zip"))
+        self.assertEqual(len(archives), 1)
+        with zipfile.ZipFile(archives[0]) as archive:
+            self.assertEqual(archive.read("world2/level.dat"), b"escaped world")
+        emit.assert_any_call("World backed up before startup: backups/" + archives[0].name)
+
+    def test_configuration_roundtrip_keeps_escaped_world_and_java_values(self):
+        fabric = self.root / "fabric"
+        fabric.mkdir()
+        propfile = fabric / "server.properties"
+        propfile.write_bytes(rb"level-name=world\u0032" + b"\n" + rb"motd=Caf\u00e9 \\ \:ok" + b"\n"
+                             b"level-seed = a\\=b\ncustom\\ key:keep  \nonline-mode=false\n")
+        args = launcher.parse_args(["--java-port", "25599", "--bind", "127.0.0.1"])
+        launcher.configure(args, self.root)
+        written = propfile.read_bytes()
+        written.decode("ascii")
+        self.assertIn(b"level-name=world2\n", written)
+        props = launcher.properties(propfile)
+        self.assertEqual(props["level-name"], "world2")
+        self.assertEqual(props["motd"], "Caf\u00e9 \\ :ok")
+        self.assertEqual(props["level-seed"], "a=b")
+        self.assertEqual(props["custom key"], "keep  ")
+        self.assertEqual(props["online-mode"], "true")
+        self.assertEqual(props["server-port"], "25599")
+        self.assertEqual(props["gamemode"], "survival")
+        launcher.configure(args, self.root)
+        self.assertEqual(propfile.read_bytes(), written)
+
+    def test_fresh_world_without_level_dat_starts_unbacked_and_keeps_its_name(self):
+        fabric = self.root / "fabric"
+        fabric.mkdir()
+        (fabric / "server.properties").write_bytes(rb"level-name=brand\u002Dnew" + b"\n")
+        args = launcher.parse_args(["--bind", "127.0.0.1"])
+        with patch.object(launcher, "check_ports"), \
+             patch.object(launcher, "java_command", side_effect=InterruptedError) as java, \
+             patch.object(launcher, "emit"):
+            launcher.run_server(args, root=self.root, console=False)
+        java.assert_called_once()
+        self.assertFalse((self.root / "backups").exists())
+        launcher.configure(args, self.root)
+        self.assertEqual(launcher.properties(fabric / "server.properties")["level-name"], "brand-new")
+        self.assertFalse((fabric / "brand-new").exists())
+
+    def test_eula_uses_java_properties_values(self):
+        eula = self.root / "fabric/eula.txt"
+        eula.parent.mkdir()
+        with patch.object(launcher.sys, "stdin", io.StringIO()):
+            for accepted in (b"eula = TRUE\n", rb"eula=\u0074rue" + b"\n", b"#note\neula:true\n"):
+                with self.subTest(accepted=accepted):
+                    eula.write_bytes(accepted)
+                    launcher.accept_eula(False, self.root)
+                    self.assertEqual(eula.read_bytes(), accepted)
+            for declined in (b"eula=true \n", b"eula=false\n", b"eula=yes\n"):
+                with self.subTest(declined=declined):
+                    eula.write_bytes(declined)
+                    with self.assertRaisesRegex(RuntimeError, "--accept-eula"):
+                        launcher.accept_eula(False, self.root)
+                    self.assertEqual(eula.read_bytes(), declined)
+            eula.write_bytes(rb"eula=\u00" + b"\n")
+            with self.assertRaises(launcher.PropertiesError):
+                launcher.accept_eula(True, self.root)
+            self.assertEqual(eula.read_bytes(), rb"eula=\u00" + b"\n")
+        eula.write_bytes(b"eula=false\n")
+        launcher.accept_eula(True, self.root)
+        self.assertEqual(launcher.properties(eula)["eula"], "true")
+
     def test_bridge_requires_exports_and_key(self):
         (self.root / "geyser/custom_mappings").mkdir(parents=True)
         with self.assertRaisesRegex(RuntimeError, "did not export"):

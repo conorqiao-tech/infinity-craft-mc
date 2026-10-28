@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -83,35 +84,186 @@ def setup(root=ROOT):
             jar.unlink()
 
 
-def properties(path):
+class PropertiesError(ValueError):
+    """A properties file the launcher cannot interpret exactly as Java would."""
+
+
+PROPERTY_WHITESPACE = " \t\f"
+PROPERTY_ESCAPES = {"t": "\t", "n": "\n", "r": "\r", "f": "\f"}
+PROPERTY_SAVE_ESCAPES = {"\t": "\\t", "\n": "\\n", "\r": "\\r", "\f": "\\f"}
+HEX_DIGITS = "0123456789abcdefABCDEF"
+
+
+def property_text(text, label, number):
+    """Apply java.util.Properties escapes to one key or value."""
+    result = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        index += 1
+        if char != "\\":
+            result.append(char)
+            continue
+        if index == len(text):
+            raise PropertiesError(label + " line " + str(number) + " ends with an incomplete escape. Fix the file before starting.")
+        char = text[index]
+        index += 1
+        if char == "u":
+            digits = text[index:index + 4]
+            if len(digits) < 4 or any(digit not in HEX_DIGITS for digit in digits):
+                raise PropertiesError(label + " line " + str(number) + " has a malformed \\uXXXX escape. "
+                                      "Use exactly four hexadecimal digits, then start again.")
+            result.append(chr(int(digits, 16)))
+            index += 4
+        else:
+            result.append(PROPERTY_ESCAPES.get(char, char))
+    try:
+        # Java strings are UTF-16; join escaped surrogate pairs and refuse halves.
+        return "".join(result).encode("utf-16-le", "surrogatepass").decode("utf-16-le")
+    except UnicodeDecodeError:
+        raise PropertiesError(label + " line " + str(number) + " has an unpaired \\uD800-\\uDFFF escape. "
+                              "Fix the file before starting.") from None
+
+
+def parse_properties(text, label="server.properties"):
+    """Parse decoded text with java.util.Properties.load rules; later duplicates win, as in Java."""
     result = {}
-    if path.exists():
-        for line in path.read_text().splitlines():
-            if line.strip() and not line.lstrip().startswith(("#", "!")) and "=" in line:
-                key, value = line.split("=", 1)
-                result[key.strip()] = value.strip()
+    lines = re.split("\r\n|\r|\n", text)
+    index = 0
+    while index < len(lines):
+        number = index + 1
+        line = lines[index].lstrip(PROPERTY_WHITESPACE)
+        index += 1
+        if not line or line[0] in "#!":
+            continue
+        logical = ""
+        # An odd run of trailing backslashes continues onto the next natural line.
+        while (len(line) - len(line.rstrip("\\"))) % 2:
+            if index == len(lines):
+                raise PropertiesError(label + " line " + str(index) + " ends the file with a continuation backslash. "
+                                      "Remove it or finish the value, then start again.")
+            logical += line[:-1]
+            line = lines[index].lstrip(PROPERTY_WHITESPACE)
+            index += 1
+        logical += line
+        key_end = value_start = len(logical)
+        separator = escaped = False
+        for position, char in enumerate(logical):
+            if not escaped and char in "=:":
+                key_end, value_start, separator = position, position + 1, True
+                break
+            if not escaped and char in PROPERTY_WHITESPACE:
+                key_end, value_start = position, position + 1
+                break
+            escaped = char == "\\" and not escaped
+        while value_start < len(logical):
+            char = logical[value_start]
+            if char not in PROPERTY_WHITESPACE:
+                if separator or char not in "=:":
+                    break
+                separator = True
+            value_start += 1
+        result[property_text(logical[:key_end], label, number)] = property_text(logical[value_start:], label, number)
     return result
+
+
+def properties(path):
+    """Read a properties file as Minecraft's Settings.loadFromFile does, or refuse it before anything changes."""
+    if not path.exists():
+        return {}
+    data = path.read_bytes()
+    # Minecraft decodes the whole file as strict UTF-8 (no BOM removal) and
+    # falls back to ISO-8859-1 only when that decoding fails, then applies
+    # Properties.load(Reader) to the text.
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    return parse_properties(text, path.name)
+
+
+def property_escape(text, key):
+    """Escape like Properties.store with ASCII output, so every reader sees the same text."""
+    if not isinstance(text, str):
+        raise PropertiesError("Properties keys and values must be text.")
+    result = []
+    for index, char in enumerate(text):
+        code = ord(char)
+        if char == " ":
+            result.append("\\ " if key or index == 0 else " ")
+        elif char in "\\=:#!":
+            result.append("\\" + char)
+        elif char in PROPERTY_SAVE_ESCAPES:
+            result.append(PROPERTY_SAVE_ESCAPES[char])
+        elif 0x20 <= code <= 0x7e:
+            result.append(char)
+        else:
+            units = char.encode("utf-16-be", "surrogatepass")
+            result.extend("\\u%02X%02X" % (units[i], units[i + 1]) for i in range(0, len(units), 2))
+    return "".join(result)
+
+
+def render_properties(values):
+    return "".join(property_escape(key, True) + "=" + property_escape(value, False) + "\n"
+                   for key, value in values.items())
+
+
+def require_plain_properties(path):
+    """Refuse a settings file the launcher could only rewrite by replacing a link or non-file."""
+    if path.is_symlink():
+        raise PropertiesError(path.name + " is a symbolic link. The launcher will not rewrite through it or replace it; "
+                              "replace the link with a regular file containing your settings, then start again.")
+    if path.exists() and not path.is_file():
+        raise PropertiesError(path.name + " is not a regular file. Replace it with a regular settings file, then start again.")
+
+
+def write_properties(path, values):
+    """Atomically replace a properties file after proving Java will read back the same values."""
+    require_plain_properties(path)
+    text = render_properties(values)
+    if parse_properties(text, path.name) != dict(values):
+        raise PropertiesError(path.name + " could not be written without changing its values; the original file was kept.")
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile("wb", dir=path.parent, prefix=path.name + ".",
+                                         suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(text.encode("ascii"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def configure(args, root=ROOT):
     fabric = root / "fabric"
     geyser = root / "geyser"
+    propfile = fabric / "server.properties"
+    # Interpret and validate before creating folders or rewriting anything.
+    require_plain_properties(propfile)
+    props = properties(propfile)
+    community.world_folder(root, props)
     (fabric / "config").mkdir(parents=True, exist_ok=True)
     (geyser / "custom_mappings").mkdir(parents=True, exist_ok=True)
-    propfile = fabric / "server.properties"
-    props = properties(propfile)
     for key, value in {
         "motd": "Infinity Armor - Java + Bedrock", "gamemode": "survival",
         "difficulty": "normal", "view-distance": "8", "simulation-distance": "6",
         "max-players": "10", "level-name": "world", "enable-rcon": "false",
     }.items():
         props.setdefault(key, value)
+    level_name = props["level-name"]
     props.update({"server-port": str(args.java_port), "server-ip": args.bind,
                   "online-mode": "true", "enforce-secure-profile": "false"})
     community_settings = getattr(args, "community", None)
     if community_settings is not None:
         community.configure(root, props, community_settings)
-    propfile.write_text("\n".join(k + "=" + v for k, v in props.items()) + "\n")
+    if props["level-name"] != level_name:
+        raise RuntimeError("Launcher settings must not change level-name; server.properties was kept.")
+    write_properties(propfile, props)
     autohost = fabric / "config/polymer/auto-host.json"
     autohost.parent.mkdir(parents=True, exist_ok=True)
     if not autohost.exists():
@@ -527,12 +679,20 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         with os.fdopen(lock_fd, "w") as file:
             file.write(str(os.getpid()))
         check_ports(args)
+        # Interpret both Java properties files before recovery, backup or setup
+        # changes anything, so a malformed file cannot select the wrong world.
+        require_plain_properties(root / "fabric/server.properties")
+        startup_properties = properties(root / "fabric/server.properties")
+        community.world_folder(root, startup_properties)
+        properties(root / "fabric/eula.txt")
         # Recover first so the startup ZIP represents the complete stopped save,
         # rather than a partially archived world from an interrupted refresh.
         world_refresh.recover(root)
-        backup_name = community.backup(root, properties(root / "fabric/server.properties"), locked=True)
-        if backup_name:
+        backup_name = community.backup(root, startup_properties, locked=True)
+        if backup_name and community.DIRECTORY_SYNC:
             emit("World backed up before startup: backups/" + backup_name)
+        elif backup_name:
+            emit("World backup saved before startup: backups/" + backup_name + "; " + community.UNCONFIRMED_BACKUP_NOTE + ".")
         if stop_requested.is_set():
             return
         emit("Preparing your shared world. First setup can take a few minutes.")

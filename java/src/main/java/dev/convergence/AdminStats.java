@@ -41,6 +41,10 @@ public final class AdminStats {
     public record Value(double base,double effective,boolean edited) {}
     public record Result(boolean success,String message) {}
     public record Adjustment(String id,double before,double after) {}
+    /** Display-only result of clampVitals; never applied as its own admin edit. */
+    public record Clamp(String id,double before,double after,double capacity) {
+        public boolean changed() {return Double.compare(before,after)!=0;}
+    }
     public static final int MAX_XP_LEVEL=maximumXpLevel();
     // Client physics/interaction protocols use these native bounds. Extending them
     // only on the server desynchronizes clients and can make collision queries enormous.
@@ -59,7 +63,7 @@ public final class AdminStats {
     private AdminStats() {}
 
     public static void setMenuOpener(Consumer<ServerPlayer> opener) {menuOpener=opener;}
-    private static Holder.Reference<Attribute> attribute(String id) {
+    static Holder.Reference<Attribute> attribute(String id) {
         var key=Identifier.tryParse(id);
         return key==null?null:BuiltInRegistries.ATTRIBUTE.get(key).orElse(null);
     }
@@ -187,6 +191,48 @@ public final class AdminStats {
         }
         changes.add(new Adjustment(stat.id(),value(target,stat).base(),amount));
         return List.copyOf(changes);
+    }
+    /** One attribute base write followed by clampVitals, as performed by set or restore. */
+    private record Step(String id,double base,boolean expanded) {}
+    /** Current vitals that set's clampVitals would lower, or whose capacity the plan lowers. */
+    public static List<Clamp> clamps(LivingEntity target,List<Adjustment> plan) {
+        var steps=new ArrayList<Step>();
+        for(var change:plan) {
+            var stat=find(target,change.id());
+            if(stat!=null&&stat.attribute())steps.add(new Step(stat.id(),change.after(),expanded(stat)));
+        }
+        // A direct vital amount is applied after the clamp and replaces it.
+        return plan.isEmpty()?List.of():simulate(target,steps,plan.getLast().id());
+    }
+    /** The same for restore/resetAll: listed order, expansion cleared, saved original (or default) base. */
+    public static List<Clamp> resetClamps(LivingEntity target,List<String> ids) {
+        var steps=new ArrayList<Step>();
+        for(var id:ids) {
+            var entry=attribute(id);
+            if(entry!=null)steps.add(new Step(id,originals(target).getCompoundOrEmpty(key(entry)).getDoubleOr("original",entry.value().getDefaultValue()),false));
+        }
+        return simulate(target,steps,null);
+    }
+    /** Evaluated on detached copies with the same flags and float conversion; never touches the target. */
+    private static List<Clamp> simulate(LivingEntity target,List<Step> steps,String direct) {
+        if(steps.isEmpty())return List.of(); // Only attribute writes run clampVitals.
+        var result=new ArrayList<Clamp>();
+        for(var vital:List.of("health","absorption")) {
+            if(vital.equals(direct))continue;
+            String capacity=capacityId(vital);var entry=attribute(capacity);
+            if(entry==null||!target.getAttributes().hasAttribute(entry))continue;
+            var probe=detachedAttribute(target,entry);
+            float now=(float)probe.getValue(),limit=now;
+            float before=vital.equals("health")?target.getHealth():target.getAbsorptionAmount(),after=before;
+            for(var step:steps) {
+                if(step.id().equals(capacity)) {
+                    ((AdminAttribute)probe).infinity$expanded(step.expanded());probe.setBaseValue(step.base());limit=(float)probe.getValue();
+                }
+                after=Math.max(0,Math.min(after,limit));
+            }
+            if(after!=before||limit<now)result.add(new Clamp(vital,before,after,limit));
+        }
+        return List.copyOf(result);
     }
     private static boolean online(ServerPlayer player) {
         return player!=null&&player.connection!=null&&player.connection.player==player&&!player.hasDisconnected()
