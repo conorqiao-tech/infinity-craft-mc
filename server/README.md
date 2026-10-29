@@ -1,10 +1,13 @@
 # Explore.51 source candidate — player groups and helper squad planning
 
-Explore.51 passed **722 native tests in 39 groups**, **434 launcher/resource
-tests**, fresh item persistence and Snapshot 5 application/world checks. It is
-**not installed** on the live server; the separately approved installation is
-explore.50. See [VALIDATION.md](VALIDATION.md) for this candidate's exact evidence.
-Physical iPad checks remain pending. Preparing or merging source does not install it.
+The explore.51 candidate passed **722 native tests in 39 groups**, **434
+launcher/resource tests**, fresh item persistence and Snapshot 5 application/world
+checks. As of October 28, 2026, the most recent recorded owner installation was
+**2.13.0-explore.51** with the PR #21 server-reliability fixes, Minecraft Java
+**26.4 Snapshot 5** and Java 25. Local Java and Bedrock probes passed after that
+update. This dated record does not establish current server availability or an
+outside-network authenticated login. See [VALIDATION.md](VALIDATION.md) for the
+candidate's exact evidence. Preparing or merging source does not install it.
 
 - **Explicit player groups:** open **Infinity Menu → Admin editor • players and
   AI**, choose a player and a stat, then **Edit matching players together**. On
@@ -39,8 +42,10 @@ Physical iPad checks remain pending. Preparing or merging source does not instal
   the host's account, model or provider settings.
 
 See [Helper guide](AGENTS_GUIDE.md) for controls and boundaries and
-[Validation](VALIDATION.md) for actual completed evidence. Physical iPad checks
-for the new group and GPT forms remain pending.
+[Validation](VALIDATION.md) for actual completed evidence. The owner confirmed
+separate helper formation positions on iPad; group editing and the real GPT
+response still need device verification. The older candidate sections below
+record their status at the time of preparation, not the current server state.
 
 # Historical explore.50 candidate — Infinity Chestplate flight and helper batches
 
@@ -54,9 +59,9 @@ counted.
 At explore.50 preparation time the live server was explore.49. This source
 candidate passed 673 native and 419 launcher/resource tests before its separately
 approved installation. These are historical explore.50 results. The owner has
-since confirmed exact batch creation, following and rear-view wing visibility
-on installed explore.50; gliding is still untested. Live installation requires
-separate owner approval and a verified stopped-world backup. See the winged
+later confirmed exact batch creation, following and rear-view wing visibility
+on installed explore.50; gliding was not checked in that explore.50 test. Live
+installation requires separate owner approval and a verified stopped-world backup. See the winged
 chestplate, helper and validation guides.
 
 # Historical explore.49 candidate • Convergence winged chestplate and iPad controls
@@ -75,9 +80,9 @@ ordinary golems and both player-target approvals remain. See
 [Helper combat](HELPER_COMBOS.md).
 
 This is **2.13.0-explore.49** for the pinned **Minecraft Java 26.4 Snapshot 5** /
-Java25 / Fabric / Geyser stack. The owner’s installed server remains explore.48.
-The candidate is not installed by preparing or merging source; installation
-requires separate owner approval and a verified stopped-world backup. Native,
+Java25 / Fabric / Geyser stack. At the time this candidate was prepared, the
+owner's installed server was explore.48. Preparing or merging source does not
+install a candidate; installation requires separate owner approval and a verified stopped-world backup. Native,
 launcher, compatibility and preservation evidence is in
 [Validation](VALIDATION.md). Actual combined iPad rendering and gliding still
 need a device check after installation. Keep worlds, player data, credentials,
@@ -91,16 +96,16 @@ public-source Polymer, Floodgate and Via compatibility ports. Their source,
 licenses, rebuild instructions and known limits are documented in
 [Snapshot 5 compatibility](../compatibility/snapshot5/README.md).
 
-The playable server is still the separately installed explore.47 while this
-candidate is being tested. Java players will need the exact Snapshot 5 client;
-older ordinary Java clients are refused. The iPad route keeps Floodgate identity
+At the time this candidate was prepared, the playable server was the separately
+installed explore.47. This candidate required the exact Snapshot 5 Java client;
+older ordinary Java clients were refused. The iPad route keeps Floodgate identity
 verification and native access checks. New snapshot content uses older-client
 visual fallbacks where necessary. Accepted armor art, native armor attachments,
 menus, progression, helpers and separate AI-action approvals are retained.
 
-Source preparation does not install this candidate. The final dependency set,
-Creative inventory/persistence, world-copy conversion and real iPad joining must
-be checked separately. See [VALIDATION.md](VALIDATION.md) for evidence and limits.
+Source preparation did not install this candidate. Its dependency set, Creative
+inventory/persistence, world-copy conversion and real iPad joining required
+separate checks. See [VALIDATION.md](VALIDATION.md) for evidence and limits.
 
 # Historical explore.47 candidate • smarter helpers
 
@@ -111,21 +116,22 @@ and choose **Enable combos and follow me**. Both editions have paginated control
 for up to fifty helpers and an exact nearby-target picker. Player attacks retain
 both approvals. See [Helper combos](HELPER_COMBOS.md) for setup and limits.
 
-The playable server remains the separately installed explore.46. Building this
-candidate does not install it. The owner's accepted armor artwork is retained;
-actual iPad helper controls and appearance need a separate device check after
-approved installation. Source checks are recorded in [VALIDATION.md](VALIDATION.md).
+At the time this candidate was prepared, the playable server was the separately
+installed explore.46. Building this candidate did not install it. The owner's
+accepted armor artwork was retained; actual iPad helper controls and appearance
+required a separate device check after approved installation. Source checks are
+recorded in [VALIDATION.md](VALIDATION.md).
 The candidate notes below are historical.
 
 # Historical explore.45 r1 resource candidate • armor attachment
 
-The installed explore.45 helper update is running. The owner's latest iPad
-photos still show an armor waist/thigh gap and motion flicker. The separate
-[armor attachment repair](ARMOR_ATTACHMENT_REPAIR.md) switches the original
+At the time of this resource candidate, the explore.45 helper update was
+installed and the owner's iPad photos showed an armor waist/thigh gap and motion
+flicker. The separate [armor attachment repair](ARMOR_ATTACHMENT_REPAIR.md) switches the original
 armor to Minecraft's native same-name joint contract while preserving every
-cuboid, texture, item identity and gameplay behavior. It needs separate live
-installation approval and an actual iPad comparison; source preparation does
-not install it. Current checks are recorded in [VALIDATION.md](VALIDATION.md).
+cuboid, texture, item identity and gameplay behavior. At the time, it needed
+separate live installation approval and an actual iPad comparison; source
+preparation did not install it. Its checks are recorded in [VALIDATION.md](VALIDATION.md).
 
 # Explore.45 source candidate • helper touch controls and combo status
 
@@ -135,9 +141,9 @@ This source candidate retains the separate owner and live Codex approvals and
 does not install itself on the playable server. Completed checks are recorded in
 [VALIDATION.md](VALIDATION.md).
 
-The separately approved **explore.44 r1 resource repair** is installed on the
-owner's Mac with the explore.44 mod and existing terrain unchanged. Its actual
-iPad motion comparison remains pending. [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md)
+At the time of the separately approved **explore.44 r1 resource repair**, it was
+installed on the owner's Mac with the explore.44 mod and existing terrain
+unchanged. Its iPad motion comparison had not yet been completed. [ARMOR_MOTION_REPAIR.md](ARMOR_MOTION_REPAIR.md)
 describes the narrow binding change. The older candidate notes below are
 historical; the private live installation receipt records installed artifacts.
 
@@ -146,27 +152,27 @@ historical; the private live installation receipt records installed artifacts.
 This source combines the focused Bedrock armor visibility repair with original
 pixel-art redraws for Windstep, Firebrand, Tidecaller and Terra Gauntlet. Names,
 recipes and powers stay the same. See [Relic artwork](RELIC_ART.md) and
-[Armor visibility](ARMOR_VISIBILITY_REPAIR.md). The live server remains
-explore.43; a source build does not install this candidate.
+[Armor visibility](ARMOR_VISIBILITY_REPAIR.md). At the time this candidate was
+prepared, the live server was explore.43; a source build does not install a candidate.
 
 ## Bedrock armor visibility repair for explore.43
 
 The owner installed explore.43 and reported that only the chest sleeves render
 on iPad. The focused [visibility repair](ARMOR_VISIBILITY_REPAIR.md) changes the
 two armor controllers and pack revision. Its local resource, Geyser, inventory
-persistence and isolated restart checks pass; actual iPad rendering is still
-pending. It is not installed by changing source. See [VALIDATION.md](VALIDATION.md)
-for the current stage; the older candidate notes below are historical.
+persistence and isolated restart checks passed at the time; actual iPad rendering
+had not yet been checked. Changing source alone did not install it. See
+[VALIDATION.md](VALIDATION.md) for the recorded evidence.
 
 ## Explore.43 candidate • Astral Wilds and Infini
 
-This candidate combines the explore.42 armor repair with three native Odyssey guardian variants, three original craftable tools, six advancement rewards, earnable Infini and reviewed cosmetic/staff applications. Real-money checkout is disabled; the owner cancelled the payment-provider integration. The live server remains explore.41. See [ASTRAL_WILDS.md](ASTRAL_WILDS.md), [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) and [ARMOR_REPAIR.md](ARMOR_REPAIR.md).
+This candidate combines the explore.42 armor repair with three native Odyssey guardian variants, three original craftable tools, six advancement rewards, earnable Infini and reviewed cosmetic/staff applications. Real-money checkout is disabled; the owner cancelled the payment-provider integration. At the time this candidate was prepared, the live server was explore.41. See [ASTRAL_WILDS.md](ASTRAL_WILDS.md), [SUBSCRIPTIONS.md](SUBSCRIPTIONS.md) and [ARMOR_REPAIR.md](ARMOR_REPAIR.md).
 
-All 577 native game tests and 307 Python checks pass; current crossplay, inventory persistence and lifecycle checks pass. Tested packages are prepared locally; this candidate is not installed. These source notes do not authorize live installation or claim iPad rendering success.
+At the time, 577 native game tests and 307 Python checks passed, as did the recorded crossplay, inventory persistence and lifecycle checks. Tested packages were prepared locally; the candidate was not yet installed. These historical source notes do not authorize live installation or claim iPad rendering success.
 
 ## Explore.42 source candidate
 
-See [Armor repair](ARMOR_REPAIR.md) for the five-set skin-clearance fix and new original pixel artwork, and [Creative Studio](CREATIVE_STUDIO.md) for Survival access for existing Admin/OP4 users and additional native command shortcuts. This tested source candidate needs separately approved installation; actual iPad rendering remains a required device check. The currently installed explore.41 armor problem has not been declared fixed.
+See [Armor repair](ARMOR_REPAIR.md) for the five-set skin-clearance fix and new original pixel artwork, and [Creative Studio](CREATIVE_STUDIO.md) for Survival access for existing Admin/OP4 users and additional native command shortcuts. At the time, this tested candidate needed separately approved installation and an actual iPad rendering check. The then-installed explore.41 armor problem had not been declared fixed.
 
 # Elemental Forge candidate — explore.41
 
@@ -216,13 +222,13 @@ Choose **Minigames** or **Adventure maps**, then tap a course icon to play. Each
 
 Press **Start server** in the dashboard. On this Mac, a leftover launcher lock can recover automatically only when its process is gone, the file belongs to you and both configured game ports are free. A live launcher or an unverifiable lock still blocks starting, before settings are changed. You do not need to delete lock files manually.
 
-## Minecraft 26.3 upgrade
+## Preserving worlds and historical Minecraft 26.3 upgrade
 
 **Updates keep the existing world.** The launcher does not regenerate terrain after an Infinity mod update or on any ordinary start; worlds, player builds, chests, entities, player saves and mod data are left as saved before Minecraft opens them. An older private `.world-refresh.json` refresh setting is reported at startup but not acted on or changed. A refresh interrupted by an earlier launcher is still recovered before the startup backup. Minecraft itself continues to save and may upgrade world files while running, so keep using the startup backups. See [WORLD_REFRESH.md](WORLD_REFRESH.md).
 
-This release runs **Minecraft Java 26.3** with Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2 and Floodgate 2.2.7. The launcher sets up a private Java 25 runtime and replaces an older Java 21 runtime automatically. Java players need a 26.3 client. Bedrock and iPad players join through Geyser 2.11.3 (Bedrock 26.30–26.52), bridged to 26.3 by ViaBackwards.
+Historical 26.3 upgrade: that build used Fabric Loader 0.19.5, Fabric API 0.161.0, Polymer 0.18.2, Floodgate 2.2.7, Java 25 and Geyser 2.11.3. Its supported client range and bridge details applied to that build; check the exact downloaded package and current owner instructions for the versions used today.
 
-Upgrading an existing server: **Save & Stop, then make a full private backup of the stopped world first.** Minecraft converts the world when 26.3 first loads it, and 1.21.11 cannot open the converted world. Setup removes the older pinned Fabric API, Polymer, Floodgate, Via and Infinity Armor JARs from `fabric/mods` so two versions never load together; other mods you added stay in place but must also support 26.3.
+Upgrading an existing server: **Save & Stop, then make a full private backup of the stopped world first.** Minecraft may convert a world when a newer version first opens it; older versions may not be able to open it afterward. Check compatibility and restore the complete matching world and executable stack when rolling back. Setup removes older pinned Fabric API, Polymer, Floodgate, Via and Infinity Armor JARs from `fabric/mods` so two versions never load together; other mods you added must also support the exact new version.
 
 ## Lobby joining fix
 
@@ -359,17 +365,17 @@ For public access, 24/7 hosting, initial staff setup, spawn protection limits, a
 
 | Player | Address | Port |
 |---|---|---|
-| Java **26.3**, on the host | `localhost` | `25565` |
-| Java **26.3**, another device | Host computer's LAN IP | `25565` |
-| Bedrock **26.30–26.51** | Host computer's LAN IP | `19132` |
+| Java, on the host | `localhost` | Java port from the panel |
+| Java, another device | Host computer's LAN IP | Java port from the panel |
+| Bedrock / iPad | Host computer's LAN IP | Bedrock port from the panel |
 
-Java players can join using an ordinary Java 26.3 client; accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
+Use the Java and Bedrock versions specified by the exact installed package or the owner. Accept the offered server resource pack for Infinity textures. **Do not install this server-only JAR in a Java client.** Use a clean Java profile for the initial test. The original 2.3.0 Fabric client package remains a separate single-edition distribution.
 
 On Bedrock mobile/Windows, choose **Servers → Add Server** and enter the host's IP and port. Accept the required Infinity resource pack. Bedrock players sign in with their Microsoft/Xbox account; Floodgate lets them join without a separate Java license. Do not activate the separate Infinity `.mcaddon` in this Java-hosted world; its behavior scripts do not run through Geyser.
 
 Xbox, PlayStation and Switch do not expose the same Add Server UI; see [Geyser's console connection instructions](https://geysermc.org/wiki/geyser/using-geyser-with-consoles/). For players outside your home network, use the optional [Pinggy joining helper](PINGGY_JOINING.md) on an Apple Silicon Mac, or forward **TCP 25565** and **UDP 19132** to the host (or the ports you selected) and allow them through its firewall. The optional [Dynu companion](DYNU_JOINING.md) keeps an owner-reserved hostname pointed at your home's public IPv4. Port forwarding is not performed by either launcher.
 
-The launcher uses Geyser **2.11.3 build 1248**, which supports Bedrock 26.30–26.52 and speaks the Java 26.2 protocol. ViaBackwards 5.12.0 on the server lets it join this 26.3 world. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
+The installed package's pinned Geyser and Via versions determine its Java and Bedrock compatibility. An advertised protocol or a local UDP response does not prove an authenticated client can join. Bedrock updates may require a new bridge build; dependencies deliberately do not silently upgrade your world. Verify the exact stack and test both editions from outside the host network before inviting the public. See [Geyser supported versions](https://geysermc.org/wiki/geyser/supported-versions/).
 
 ## Get and use Infinity gear
 
