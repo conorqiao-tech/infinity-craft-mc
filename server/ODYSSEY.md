@@ -41,7 +41,7 @@ This added quest is called the **Circuit Keepers journey**. Rediscover a circuit
 
 Each gift can be claimed once. Return to Survival or Hardcore, leave the cursor empty and keep enough empty inventory slots before claiming. A full inventory retains the unclaimed gift and never drops or replaces items. The trident and mace are named native weapons using normal Minecraft combat. The Tidewarden outfit uses native diamond equipment; it does not inherit Infinity powers. You can also obtain the outfit in Creative Studio, separately from earned progress.
 
-Ruins remain rare in newly generated terrain. Existing terrain follows the host's explicit refresh policy during upgrades. The protected player/helper areas remain preserved by that policy.
+Ruins remain rare in newly generated terrain. Existing terrain is preserved during ordinary launcher upgrades; new ruins appear in newly generated terrain. Recovery of an interrupted earlier refresh is described in WORLD_REFRESH.md.
 
 ## Circuit compass — explore.26
 

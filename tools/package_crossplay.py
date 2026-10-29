@@ -3,7 +3,7 @@
 import hashlib
 import argparse
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import runpy
 import shutil
@@ -20,6 +20,117 @@ def verified_test_hash(provenance, test_mod):
     if provenance.get("test_mod_sha256") != actual:
         raise RuntimeError("GameTest jar differs from the native validation evidence; rerun native checks")
     return actual
+
+
+WORLD_PRESERVATION_MARKER = "World preservation passed:"
+WORLD_PRESERVATION_PROVENANCE = "World preservation provenance: "
+# Printed only by the earlier smoke after it erased terrain; never valid evidence now.
+OBSOLETE_REFRESH_MARKER = "Terrain refresh passed:"
+WORLD_PRESERVATION_RUNS = 3
+# Code run by tools/smoke_fullstack.py besides server/*.py; must match its SOURCE_INPUTS.
+WORLD_PRESERVATION_SOURCES = ("tools/smoke_fullstack.py", "tools/verify_owned_equipment.py", "tests/test_terrain_storage.py")
+SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+
+def safe_lock_entries(lock):
+    """Return (path, pinned SHA-256) for every download and bundled file; refuse unsafe or duplicate paths."""
+    entries, seen = [], set()
+    for entry in lock["downloads"] + lock["bundled"]:
+        path, expected = entry.get("path"), entry.get("sha256")
+        parts = PurePosixPath(path).parts if isinstance(path, str) else ()
+        if (not parts or path.startswith("/") or "\\" in path or ".." in parts
+                or PurePosixPath(*parts).as_posix() != path or path in seen
+                or not isinstance(expected, str) or not SHA256_HEX.fullmatch(expected)):
+            raise RuntimeError("Unsafe, duplicate or unpinned dependency lock entry: " + repr(path))
+        seen.add(path)
+        entries.append((path, expected))
+    return entries
+
+
+def world_preservation_inputs(root, entries):
+    """Bytes of every input the preservation smoke must have tested, each read exactly once.
+
+    Packaged files come from the already assembled ZIP entries; unbundled downloads
+    and unpackaged sources are read here. Callers archive these same bytes."""
+    server = root / "server"
+    tested = {"server/dependencies.lock.json": entries["dependencies.lock.json"],
+              "server/runtime.lock.json": entries["runtime.lock.json"]}
+    for path, expected in safe_lock_entries(json.loads(entries["dependencies.lock.json"])):
+        if path in entries:
+            data = entries[path]
+        else:
+            file = server / path
+            if file.is_symlink() or not file.resolve().is_relative_to(server.resolve()):
+                raise RuntimeError("Unsafe dependency file: " + path)
+            data = file.read_bytes()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise RuntimeError("Dependency file differs from its locked SHA-256: " + path)
+        tested["server/" + path] = data
+    for file in sorted(server.glob("*.py")):
+        tested["server/" + file.name] = entries[file.name] if file.name in entries else file.read_bytes()
+    for name in WORLD_PRESERVATION_SOURCES:
+        tested[name] = (root / name).read_bytes()
+    return tested
+
+
+def unique_keys(pairs):
+    names = [name for name, _ in pairs]
+    if len(names) != len(set(names)):
+        raise RuntimeError("World-preservation provenance repeats a key")
+    return dict(pairs)
+
+
+def verified_provenance(text, tested):
+    try:
+        record = json.loads(text, object_pairs_hook=unique_keys)
+    except ValueError as error:
+        raise RuntimeError("World-preservation provenance is malformed") from error
+    if not isinstance(record, dict) or json.dumps(record, sort_keys=True, separators=(",", ":")) != text:
+        raise RuntimeError("World-preservation provenance is not canonical JSON")
+    if (set(record) != {"format", "kind", "runs", "files", "java", "libraries", "not_packaged"}
+            or type(record["format"]) is not int or record["format"] != 1 or record["kind"] != "world-preservation"
+            or type(record["runs"]) is not int or record["runs"] != WORLD_PRESERVATION_RUNS
+            or not isinstance(record["not_packaged"], str) or not record["not_packaged"]
+            or not isinstance(record["java"], dict) or set(record["java"]) != {"executable_sha256", "version"}
+            or not isinstance(record["java"]["version"], str) or not record["java"]["version"]
+            or not isinstance(record["libraries"], dict) or not isinstance(record["files"], dict)):
+        raise RuntimeError("World-preservation provenance has an unexpected structure")
+    recorded = [record["java"]["executable_sha256"], *record["libraries"].values(), *record["files"].values()]
+    if not all(isinstance(value, str) and SHA256_HEX.fullmatch(value) for value in recorded):
+        raise RuntimeError("World-preservation provenance contains an invalid SHA-256")
+    if set(record["files"]) != set(tested):
+        raise RuntimeError("World-preservation smoke tested a different set of files; rerun it")
+    for name, data in sorted(tested.items()):
+        if record["files"][name] != hashlib.sha256(data).hexdigest():
+            raise RuntimeError("World-preservation smoke tested different bytes for " + name + "; rerun it")
+    return record
+
+
+def verified_world_preservation(log_file, tested):
+    """Return packaged evidence from `smoke_fullstack.py --terrain-refresh`, bound by SHA-256 to `tested`.
+
+    `tested` maps each repository path to the exact bytes being packaged or
+    depended upon; see world_preservation_inputs."""
+    result = log_file.read_text()
+    lines = result.splitlines()
+    if OBSOLETE_REFRESH_MARKER in result:
+        raise RuntimeError("Smoke log records an old terrain refresh; rerun the world-preservation smoke")
+    if "ERROR" in result:
+        raise RuntimeError("World-preservation smoke log contains errors")
+    markers = [i for i, line in enumerate(lines) if line.startswith(WORLD_PRESERVATION_MARKER)]
+    runs = ["Full-stack startup and clean shutdown passed, run " + str(n) for n in range(1, WORLD_PRESERVATION_RUNS + 1)]
+    # The smoke prints its marker only after every restart and preservation check finished.
+    if len(markers) != 1 or any(run not in lines for run in runs) or markers[0] < lines.index(runs[-1]):
+        raise RuntimeError("World-preservation smoke did not complete every restart before its marker")
+    if not any(line.startswith("Full-stack lifecycle passed:") for line in lines[markers[0]:]):
+        raise RuntimeError("World-preservation smoke did not finish its lifecycle checks")
+    records = [i for i, line in enumerate(lines) if WORLD_PRESERVATION_PROVENANCE.strip() in line]
+    if len(records) != 1 or not lines[records[0]].startswith(WORLD_PRESERVATION_PROVENANCE) \
+            or not lines.index(runs[-1]) < records[0] < markers[0]:
+        raise RuntimeError("World-preservation smoke needs exactly one provenance record after its final run")
+    verified_provenance(lines[records[0]][len(WORLD_PRESERVATION_PROVENANCE):], tested)
+    return ("\n".join(line for line in lines if line.startswith(
+        ("Full-stack", WORLD_PRESERVATION_PROVENANCE, WORLD_PRESERVATION_MARKER))) + "\n").encode()
 
 
 def verified_creative_bridge(root, lock):
@@ -371,16 +482,16 @@ def main():
     assert fullstack_log_file.stat().st_mtime >= mod.stat().st_mtime
     entries["checks/fullstack-smoke.txt"] = ("\n".join(line for line in fullstack.splitlines() if line.startswith("Full-stack")) + "\n").encode()
     if options.launcher_patch:
-        terrain_log = ROOT / "research/terrain-protected-fullstack-final.log"
-        result = terrain_log.read_text()
-        assert "Terrain refresh passed:" in result and "ERROR" not in result
-        assert terrain_log.stat().st_mtime >= max(p.stat().st_mtime for p in (server).glob("*.py"))
-        entries["checks/terrain-refresh-smoke.txt"] = ("\n".join(
-            line for line in result.splitlines() if line.startswith(("Full-stack", "Terrain refresh passed:"))) + "\n").encode()
+        # Output of `python3 tools/smoke_fullstack.py --terrain-refresh --java ...`, bound by
+        # SHA-256 to the exact bytes archived below rather than to file timestamps.
+        assert json.loads(entries["dependencies.lock.json"]) == lock, "Dependency lock changed during packaging"
+        tested = world_preservation_inputs(ROOT, entries)
+        entries["checks/world-preservation-smoke.txt"] = verified_world_preservation(
+            ROOT / "research/world-preservation-fullstack.log", tested)
     entries["checks/geyser-smoke.txt"] = re.sub(r"\x1b\[[0-9;]*m", "", smokelog).encode()
     dist = ROOT / "dist/lobbies"
     if options.launcher_patch:
-        dist = dist / "launcher-terrain-refresh"
+        dist = dist / "launcher-world-preservation"
     dist.mkdir(exist_ok=True, parents=True)
     server_archive = dist / f"Infinity_Armor_Lobbies_Server_v{VERSION}.zip"
     source_archive = dist / f"Infinity_Armor_Lobbies_Source_v{VERSION}.zip"
@@ -400,6 +511,10 @@ def main():
         "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/package_armor_attachment_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py", "tests/fixtures/armor_native_pose_contract.json",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
+    if options.launcher_patch:
+        # Archive the verified bytes of tested sources, never a later reread.
+        assert all(name in source for name in WORLD_PRESERVATION_SOURCES)
+        source.update({name: data for name, data in tested.items() if name in source})
     source["README.md"] = (ROOT / "docs/CROSSPLAY_SOURCE.md").read_bytes()
     source["ORIGINAL_GUIDE_2.3.0.md"] = (ROOT / "README.md").read_bytes()
     archive(source_archive, source, "Infinity_Armor_Lobbies_Source")

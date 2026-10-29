@@ -1,4 +1,10 @@
-"""Owner opt-in terrain regeneration, performed only during locked, stopped startup."""
+"""Startup world preservation and recovery of earlier terrain refresh transactions.
+
+Ordinary starts never regenerate terrain. A legacy private policy is read only
+to report that it is no longer acted on; it is never rewritten by startup. An
+interrupted transaction left by an earlier release is still recovered before
+the startup backup, but recovery does not authorize a new refresh.
+"""
 import hashlib
 import json
 import os
@@ -108,7 +114,7 @@ def read_policy(root):
     return value
 
 
-def recover(root):
+def recover(root, emit=None):
     path = root / JOURNAL
     if not path.exists():
         return
@@ -151,14 +157,46 @@ def recover(root):
         # The moving transaction has never written its new policy. Preserve
         # the owner's edits, especially a decision to disable refresh.
         record["state"] = "rolled_back"
+        message = ("Rolled back an interrupted terrain refresh from an earlier start; original terrain restored. "
+                   "Recovery record: backups/" + rollback.name)
     else:
+        # This finishes the earlier, already-committed transaction only; it
+        # records that transaction's result and never requests another refresh.
         current = read_policy(root)
         if current is not None:
             atomic_json(root / POLICY, dict(current,
                         last_release=record["new_policy"]["last_release"], refresh_next_start=False))
+        message = ("Finished recording a terrain refresh completed by an earlier start; "
+                   + (POLICY + " was updated to clear its pending request. " if current is not None else "")
+                   + "Recovery record: backups/" + rollback.name)
     atomic_json(rollback / "MANIFEST.json", record)
     path.unlink()
     sync_directory(root)
+    if emit:
+        emit(message)
+
+
+def startup_check(root, emit=print):
+    """Keep every saved world as-is; report, but never act on, a legacy refresh policy.
+
+    Runs after recovery and the startup backup, before Java opens. It writes nothing.
+    """
+    if (root / JOURNAL).exists() or (root / JOURNAL).is_symlink():
+        raise ValueError("An earlier terrain refresh is unrecovered; startup stopped before opening the world")
+    path = root / POLICY
+    if not path.exists() and not path.is_symlink():
+        return
+    try:
+        policy = read_policy(root)
+        if policy is None:  # A dangling symbolic link.
+            raise ValueError("Terrain policy cannot be a symbolic link")
+    except (OSError, ValueError):
+        emit("Existing worlds kept. " + POLICY + " is unreadable and was left unchanged; "
+             "this launcher does not regenerate terrain.")
+        return
+    if policy["enabled"] or policy.get("refresh_next_start"):
+        emit("Existing worlds kept. This launcher does not regenerate terrain; the legacy "
+             + POLICY + " request was left unchanged and is not acted on.")
 
 
 def verify_backup(root, world, backup_name):
@@ -181,7 +219,12 @@ def verify_backup(root, world, backup_name):
     return archive, files
 
 
-def maybe_refresh(root, level_name, backup_name, emit=print):
+def regenerate(root, level_name, backup_name, emit=print):
+    """The earlier destructive transaction, retained so its journal/recovery format stays defined.
+
+    The launcher does not call this. Any future use needs a new, separately
+    approved design; an old policy flag is not approval for it.
+    """
     root = root.resolve()
     # The caller holds the launcher's exclusive lease and has not started Java.
     if not (root / "launcher.lock").is_file():
