@@ -14,27 +14,11 @@ previous temporary public tunnel addresses are not evidence of current access.
 The host Mac must be awake with the server running. Accept the offered resource
 pack on your playing device.
 
-The owner's installed server is **2.13.0-explore.49**, on **Minecraft Java 26.4
-Snapshot 5**, Java 25 and the pinned Fabric/Geyser compatibility stack. The owner
-confirmed stable four-piece armor and working helper following/combos. Infinity
-Chestplate flight is the remaining reported gap. Installation, source changes
-and a published release are separate states.
+As of October 28, 2026, the most recent recorded owner installation was **2.13.0-explore.51** with the PR #21 server-reliability fixes, on Minecraft Java **26.4 Snapshot 5** and Java 25. This is a dated installation record, not a public release or proof of current external access. Helper crash recovery and some iPad appearance checks remain unfinished.
 
-## Next source candidate: explore.50
+## Historical candidate: explore.50
 
-The existing **Infinity Chestplate** gains native gliding and folding wings while
-retaining its armor, unbreakable equipment and full Infinity suit powers. Its
-saved item ID stays the same. Existing **Convergence Wings** remains available;
-ordinary elytra retains its native appearance. See
-[combined chestplate and wings](server/WINGED_CHESTPLATE.md).
-
-The candidate also adds a quantity control to create a batch of AI helper golems
-at once, capped at fifty total per owner and server, including unloaded helpers.
-Both Java menus and iPad touch forms use the same native ownership and placement
-checks. The candidate passed 673 native and 419 launcher/resource tests; it is
-not installed by building or merging.
-Actual Infinity chestplate appearance and touch gliding need a device check after
-separately approved installation. See [validation](server/VALIDATION.md).
+Explore.50 added native gliding to Infinity Chestplate and a batch helper-creation control. Its original candidate passed 673 native and 419 launcher/resource tests. These are historical results for that candidate, not verification of a later package. See [chestplate and wings](server/WINGED_CHESTPLATE.md) and [validation](server/VALIDATION.md).
 
 ## New in explore.25
 
@@ -42,11 +26,11 @@ Creative Studio adds an **Infinity Gust Glove**, **Infinity Anchor Charm** and c
 
 ## Host your own world
 
-1. Download the **server ZIP** from the [GitHub releases page](https://github.com/conorqiao-tech/infinity-craft-mc/releases) or the website and extract it to a folder you will keep. Choose the newest exploration preview if you want the new minigames and menus. The source folders in this repository are for development; they are not a ready-to-run server on their own.
+1. Download the **server ZIP** from the [GitHub releases page](https://github.com/conorqiao-tech/infinity-craft-mc/releases) or the website and extract it to a folder you will keep. Read the release notes for the exact ZIP: published downloads can be older than the current source or the owner's installed server. The source folders in this repository are for development; they are not a ready-to-run server on their own.
 2. On Mac, open `Start-Mac.command` in the extracted folder. On Windows 10/11, run `start.bat`; on Linux, run `bash start.sh`.
 3. The local browser panel guides you through agreeing to the [Minecraft EULA](https://www.minecraft.net/eula), starting the world, and copying the current join addresses. The first launch downloads checksum-pinned Python/Java components and needs an Internet connection. You do not need Minecraft installed on the host computer.
 
-Java players use **Minecraft Java 26.4 Snapshot 5** and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
+Java players use the version required by the exact downloaded package and the Java address and port shown in the panel. Bedrock players, including iPad players, use **Add Server** with the separate Bedrock address and port shown there. Accept the offered server resource pack. Players on the same local network can use the host's LAN address. For friends outside your network, follow [`server/PINGGY_JOINING.md`](server/PINGGY_JOINING.md) for temporary, sign-in-free addresses on an Apple Silicon Mac, [`server/DYNU_JOINING.md`](server/DYNU_JOINING.md) for a fixed hostname with router forwarding, or [`server/HOSTING.md`](server/HOSTING.md) for other hosting options. Free Pinggy tunnel addresses are temporary. A fixed DNS hostname requires its own setup. The host Mac must remain on and the server launcher must stay open while people play.
 
 The local owner panel controls the server; it is not a public website. Back up a stopped world before upgrading, and keep your world, `fabric/config`, and `settings.json` private. See [`server/README.md`](server/README.md) for full setup and upgrade instructions.
 
