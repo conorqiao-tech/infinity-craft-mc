@@ -76,7 +76,8 @@ final class AgentMenu {
         var golem = helpers.loaded.get(helperId);
         boolean live = golem != null && golem.isAlive() && !golem.isRemoved();
         return summary + "\nLocation: " + AgentCompanions.location(golem, agent)
-            + "\nHP: " + (live ? Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()) : "unloaded");
+            + "\nHP: " + (live ? Math.round(golem.getHealth()) + "/" + Math.round(golem.getMaxHealth()) : "unloaded")
+            + (helpers.unresolvedCreation(id) ? "\n" + helpers.creationReview(id) : "");
     }
 
     private static void statusButton(SimpleContainer view, ServerPlayer owner, String id, AgentCompanions.Agent agent) {
