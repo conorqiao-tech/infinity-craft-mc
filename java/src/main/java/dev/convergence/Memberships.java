@@ -77,7 +77,14 @@ final class Memberships {
         boolean adminPreviousBypass=false;
         String adminOperatorName="";
     }
-    static final class Data { int format=1; Map<String,Account> accounts=new TreeMap<>(); }
+    static final int ADMIN_CODE_GLOBAL_FAILURE_LIMIT=10;
+    static final long ADMIN_CODE_GLOBAL_WINDOW_MS=15*60_000L;
+    static final class Data {
+        int format=1; Map<String,Account> accounts=new TreeMap<>();
+        // Shared across accounts, persisted with the existing membership state.
+        int adminCodeGlobalFailures=0;
+        long adminCodeGlobalWindowStarted=0, adminCodeGlobalLockedUntil=0;
+    }
     static final class Config {
         boolean adminCodeEnabled=false;
         String adminCodeSha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -87,12 +94,15 @@ final class Memberships {
     // Fabric JOIN precedes PlayerList UUID publication. Only its exact verified handler may use this scope.
     final Map<UUID,ServerPlayer> joiningAdminTargets=new HashMap<>();
     Data data=new Data(); Config config=new Config();
+    boolean adminCodeStorageFailed=false;
     Memberships(MinecraftServer server,Path file,Path configFile) {
         this.server=server;this.file=file;this.configFile=configFile;
         try {
             if(Files.exists(file)) {
                 data=CommunityServer.GSON.fromJson(Files.readString(file),Data.class);
-                if(data==null||data.format!=1||data.accounts==null)throw new IllegalArgumentException("Invalid member data");
+                if(data==null||data.format!=1||data.accounts==null
+                    ||data.adminCodeGlobalFailures<0||data.adminCodeGlobalFailures>ADMIN_CODE_GLOBAL_FAILURE_LIMIT
+                    ||data.adminCodeGlobalWindowStarted<0||data.adminCodeGlobalLockedUntil<0)throw new IllegalArgumentException("Invalid member data");
                 for(var entry:data.accounts.entrySet()) {
                     UUID.fromString(entry.getKey());var a=entry.getValue();
                     if(a==null||a.tier==null||a.expires<0||a.attempts<0)throw new IllegalArgumentException("Invalid member");
@@ -341,13 +351,33 @@ final class Memberships {
         return finishExternalOperator(id);
     }
     boolean redeem(UUID id,String code,long now) {
+        if(!config.adminCodeEnabled||adminCodeStorageFailed||id==null||code==null||code.length()>128||now<0)return false;
+        // A backwards clock never shortens the active window. Denial after ten
+        // incorrect guesses applies to every account, including correct codes.
+        if(data.adminCodeGlobalLockedUntil>now)return false;
+        if(data.adminCodeGlobalFailures>0 && now>=data.adminCodeGlobalWindowStarted
+            && now-data.adminCodeGlobalWindowStarted>=ADMIN_CODE_GLOBAL_WINDOW_MS) {
+            data.adminCodeGlobalFailures=0;data.adminCodeGlobalWindowStarted=0;data.adminCodeGlobalLockedUntil=0;
+        }
+        if(data.adminCodeGlobalFailures>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)return false;
         var a=account(id);
-        if(!config.adminCodeEnabled||a.lockedUntil>now||code.length()>128)return false;
+        if(a.lockedUntil>now)return false;
         if(a.lockedUntil!=0){if(a.attempts>=3)a.attempts=0;a.lockedUntil=0;}
         boolean matches=MessageDigest.isEqual(hash(code).getBytes(StandardCharsets.US_ASCII),config.adminCodeSha256.getBytes(StandardCharsets.US_ASCII));
         if(matches)return grantAdmin(id);
-        a.attempts++;a.lockedUntil=now+(a.attempts>=3?15*60_000:10_000);save();return false;
+        if(data.adminCodeGlobalFailures==0)data.adminCodeGlobalWindowStarted=now;
+        data.adminCodeGlobalFailures++;
+        if(data.adminCodeGlobalFailures>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)
+            data.adminCodeGlobalLockedUntil=addDelay(now,ADMIN_CODE_GLOBAL_WINDOW_MS);
+        a.attempts++;a.lockedUntil=addDelay(now,a.attempts>=3?15*60_000:10_000);
+        try {save();} catch(IllegalStateException failure) {
+            // Never let another code through this process when a failed guess
+            // cannot be recorded. A restart cannot prove an unsaved failure.
+            adminCodeStorageFailed=true;
+        }
+        return false;
     }
+    private static long addDelay(long now,long delay) {return now>Long.MAX_VALUE-delay?Long.MAX_VALUE:now+delay;}
     static boolean owner(CommandSourceStack source) {return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS));}
     static boolean operator(ServerPlayer player) {return owner(player.createCommandSourceStack());}
     static boolean admin(CommandSourceStack source) {return owner(source)||(source.getEntity() instanceof ServerPlayer p&&get(source.getServer()).account(p.getUUID()).admin);}
