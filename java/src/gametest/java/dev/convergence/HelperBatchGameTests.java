@@ -506,6 +506,8 @@ public class HelperBatchGameTests {
                 c.assertTrue(!saved.isRemoved() && restarted.loaded.get(saved.getUUID()) == saved,
                     "A matching saved helper is preserved rather than replaced or deleted");
                 c.assertTrue(restarted.unresolvedCreation(id), "A load event alone does not prove physical storage durability");
+                c.assertTrue(restarted.creationReview(id).contains("may still exist"),
+                    "A detached object in the loaded map is not reported as a current world entity");
                 saved.discard();
             }
             var existing = f.saved(UUID.fromString(older.getKey())); restarted.load(existing);
@@ -513,6 +515,31 @@ public class HelperBatchGameTests {
             existing.discard();
             c.assertValueEqual(AgentCompanions.read(f.helpers.file).pendingCreations, disk.pendingCreations,
                 "Reading and loading never retire uncertain creation evidence");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void pendingStatusDistinguishesLoadedHelperWithoutClaimingDurability(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "visible"), 1, "A native helper is created");
+            String id = f.helpers.owned(f.owner, "visible").getKey();
+            var live = f.helpers.loaded.get(UUID.fromString(id));
+            byte[] before = Files.readAllBytes(f.helpers.file);
+            var restarted = f.restart();
+            c.assertTrue(restarted.creationReview(id).contains("may still exist"), "An unloaded identity stays uncertain");
+            restarted.load(live);
+            c.assertTrue(restarted.creationReview(id).contains("currently loaded"), "An actual registered live entity is reported as loaded");
+            c.assertTrue(restarted.creationReview(id).contains("durability remains unverified"), "A load does not claim a durable disk write");
+            c.assertTrue(restarted.unresolvedCreation(id), "The pending identity is not cleared by a load");
+            AgentCompanions.INSTANCES.put(restarted.server, restarted);
+            try {
+                String shown = AgentMenu.helperInfo(f.owner, id, restarted.data.agents.get(id));
+                c.assertTrue(shown.contains("currently loaded") && shown.contains("durability remains unverified"),
+                    "Shared Java and Bedrock status reports the same bounded observation");
+            } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+            c.assertTrue(Arrays.equals(before, Files.readAllBytes(f.helpers.file)), "Status and loading do not change the saved roster");
+            restarted.loaded.clear();
         }
         c.succeed();
     }

@@ -886,7 +886,13 @@ public final class AgentCompanions {
     /** A pending identity is not evidence that a saved helper is absent. */
     boolean unresolvedCreation(String id) { return pendingAtStartup.contains(id) && data.pendingCreations.contains(id); }
     String creationReview(String id) {
-        return unresolvedCreation(id) ? "Creation save is not yet independently verified after restart. An unloaded helper may still exist; ask the host to inspect it before replacing it." : "";
+        if (!unresolvedCreation(id)) return "";
+        var golem = loaded.get(UUID.fromString(id));
+        if (golem != null && golem.isAlive() && !golem.isRemoved()
+            && golem.level() instanceof ServerLevel world && world.getServer() == server
+            && world.getEntity(golem.getUUID()) == golem)
+            return "This helper is currently loaded. Its saved entity durability remains unverified; ask the host before replacing it.";
+        return "Creation save is not yet independently verified after restart. An unloaded helper may still exist; ask the host to inspect it before replacing it.";
     }
     int list(ServerPlayer owner) {
         var agents = data.agents.entrySet().stream().filter(e -> e.getValue().owner.equals(owner.getStringUUID())).map(e -> {
