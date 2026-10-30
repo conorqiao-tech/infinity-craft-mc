@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import tempfile
 import threading
 import time
 import urllib.request
@@ -469,6 +470,28 @@ def acquire_panel_lock(root):
     return lock
 
 
+def write_panel_record(record, url, token):
+    """Replace a stale record with a newly created private file in the launcher folder.
+
+    The folder is assumed to be controlled by the launcher owner. The temporary
+    file is exclusive and the old path is never opened or followed for writing.
+    POSIX mode 0600 does not by itself establish a restrictive Windows ACL.
+    """
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=record.parent,
+                                         prefix=".dashboard-", suffix=".tmp", delete=False) as file:
+            temporary = Path(file.name)
+            if os.name == "posix":
+                os.fchmod(file.fileno(), 0o600)
+            json.dump({"url": url, "token": token}, file)
+        os.replace(temporary, record)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def serve(launcher, args):
     root = launcher.ROOT
     record = root / ".dashboard.json"
@@ -498,15 +521,15 @@ def serve(launcher, args):
             raise RuntimeError("The control panel is already opening. Use its existing Terminal window.")
     panel = None
     httpd = None
+    record_owned = False
     try:
         panel = Panel(launcher, args, root)
         launcher.OUTPUT = panel.log
         token = secrets.token_urlsafe(32)
         httpd = PanelServer(("127.0.0.1", 0), handler_for(panel, token, (root / "dashboard.html").read_bytes()))
         url = "http://127.0.0.1:" + str(httpd.server_port)
-        fd = os.open(record, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as file:
-            json.dump({"url": url, "token": token}, file)
+        write_panel_record(record, url, token)
+        record_owned = True
         address = url + "/#" + token
         print("\nInfinity Armor control panel: " + address, flush=True)
         print("Keep this window open. Use Save & Stop in the panel before closing it.", flush=True)
@@ -521,5 +544,6 @@ def serve(launcher, args):
         launcher.OUTPUT = None
         if httpd:
             httpd.server_close()
-        record.unlink(missing_ok=True)
+        if record_owned:
+            record.unlink(missing_ok=True)
         lease.close()
