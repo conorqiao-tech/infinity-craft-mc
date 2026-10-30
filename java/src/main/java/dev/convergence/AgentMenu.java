@@ -490,8 +490,9 @@ final class AgentMenu {
                         // explanation visible instead of hiding it behind another chest.
                         owner.closeContainer();
                         if (name != null) {
-                            helpers.spawn(owner, name);
-                            if (helpers.owned(owner, name) != null) {
+                            // An unresolved creation keeps its record but returns 0 and
+                            // has already explained itself; never add a success over it.
+                            if (helpers.spawn(owner, name) == 1 && helpers.owned(owner, name) != null) {
                                 var message = Component.literal(name + " appeared beside you. Look for the named player avatar.");
                                 owner.sendSystemMessage(message);
                                 owner.sendOverlayMessage(message);

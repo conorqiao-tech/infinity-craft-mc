@@ -62,6 +62,7 @@ final class HelperPersistence {
     HelperPersistence(Io io) { this.io = io; }
 
     static Path previousFile(Path target) { return target.resolveSibling(target.getFileName() + ".previous"); }
+    static Path temporaryFile(Path target) { return target.resolveSibling(target.getFileName() + ".tmp"); }
     /**
      * Present while a write that adds removal proof is in flight, and after any
      * failed or unproven ownership save. Never overwritten; removed only after
@@ -72,7 +73,7 @@ final class HelperPersistence {
     /** With {@code requireProof}, storage that cannot sync its directory refuses before the rename. */
     Durability replace(Path target, byte[] bytes, boolean keepPrevious, boolean requireProof) throws Failure {
         Path directory = target.toAbsolutePath().getParent();
-        Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
+        Path temporary = temporaryFile(target);
         try {
             Files.createDirectories(directory);
             if (keepPrevious && Files.exists(target)) io.copy(target, previousFile(target));
@@ -109,6 +110,22 @@ final class HelperPersistence {
             io.syncFile(target); io.syncDirectory(target.toAbsolutePath().getParent());
             return true;
         } catch (IOException | RuntimeException e) { return false; }
+    }
+
+    /**
+     * Why a roster that is not provably present must not be read as a fresh,
+     * empty world, or null when it is present or nothing shows a prior roster.
+     * Existence that cannot be determined counts as possibly present. Only
+     * reads paths: never restores, renames or deletes anything.
+     */
+    static String absentRosterProblem(Path roster) {
+        if (Files.exists(roster, LinkOption.NOFOLLOW_LINKS)) return null;
+        if (!Files.notExists(roster, LinkOption.NOFOLLOW_LINKS))
+            return "whether " + roster.getFileName() + " exists cannot be determined";
+        for (Path evidence : new Path[]{previousFile(roster), recoveryMarker(roster), temporaryFile(roster)})
+            if (!Files.notExists(evidence, LinkOption.NOFOLLOW_LINKS))
+                return roster.getFileName() + " is missing but " + evidence.getFileName() + " may exist";
+        return null;
     }
 
     /** Any entry at the marker path, readable or not, means recovery is still required. */

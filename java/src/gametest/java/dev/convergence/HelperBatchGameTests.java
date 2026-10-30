@@ -98,6 +98,24 @@ public class HelperBatchGameTests {
             step("sync-after:" + last, true, () -> HelperPersistence.NATIVE.syncDirectory(directory));
         }
     }
+    /** System chat text actually encoded for the player's native connection since the last drain. */
+    private static List<String> chat(NativePlayConnection wire) {
+        var messages = new ArrayList<String>();
+        for (var packet : wire.drain()) {
+            if (packet instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket chat) messages.add(chat.content().getString());
+            else if (packet instanceof net.minecraft.network.protocol.game.ClientboundBundlePacket bundle)
+                for (var inner : bundle.subPackets()) if (inner instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket chat) messages.add(chat.content().getString());
+        }
+        return messages;
+    }
+    /** An unresolved creation is reported as possibly present, never as created or as absent. */
+    private static void assertUnresolvedNotice(GameTestHelper c, List<String> told, String label) {
+        c.assertTrue(told.stream().anyMatch(text -> text.contains("may have appeared") && text.contains("host review")),
+            "The player is told helpers may have appeared and ownership needs host review: " + label + " " + told);
+        c.assertFalse(told.stream().anyMatch(text -> text.contains("Nothing spawned") || text.contains("No helper entity spawned")
+            || text.contains("No helper appeared") || text.contains("appeared beside you") || text.contains("is following you")),
+            "No message claims the creation succeeded or that nothing appeared: " + label + " " + told);
+    }
     /** Roster-replacement faults: untouched, rename refused, rename done but reported failed, rename unsynced. */
     private static final List<Map.Entry<String, Boolean>> REPLACEMENT_FAULTS = List.of(
         Map.entry("write:agents.json.tmp", false), Map.entry("move:agents.json", false),
@@ -305,7 +323,8 @@ public class HelperBatchGameTests {
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void failedNativeInsertionAndOwnershipRollbackLatchAllFurtherCreationUntilManualRecovery(GameTestHelper c) throws Exception {
-        try (var f = new Fixture(c)) {
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
             f.helpers.spawn(f.owner, "kept-recovery"); var kept = f.helpers.owned(f.owner, "kept-recovery");
             var entity = f.helpers.loaded.get(UUID.fromString(kept.getKey())); entity.setHealth(31);
             var before = Map.copyOf(f.helpers.data.agents); byte[] bytes = Files.readAllBytes(f.helpers.file);
@@ -316,11 +335,13 @@ public class HelperBatchGameTests {
             var inserted = new AtomicReference<UUID>(); Path blocked = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".tmp");
             var fault = new InsertionFailure(f.helpers, f.owner.getUUID(), blocked, inserted);
             c.assertTrue(INSERTION_FAILURE.compareAndSet(null, fault), "The private exact-owner fault is armed once");
-            boolean failed = false;
-            try { f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.PRIMITIVE); }
-            catch (IllegalStateException expected) { failed = expected.getMessage().contains("ownership rollback failed"); }
+            int created;
+            wire.drain();
+            try { created = f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.PRIMITIVE); }
             finally { INSERTION_FAILURE.compareAndSet(fault, null); }
-            c.assertTrue(failed && inserted.get() != null, "The real native entity callback failed after the ownership write and the real rollback writer then failed");
+            c.assertTrue(created == 0 && inserted.get() != null,
+                "The real native entity callback failed after the ownership write, the real rollback writer then failed, and the call returned no success instead of throwing");
+            assertUnresolvedNotice(c, chat(wire), "batch, rollback write blocked");
             c.assertTrue(f.helpers.creationRecoveryRequired && f.helpers.remaining(f.owner) == 0, "The double failure latches creation closed for the whole runtime");
             var staged = f.helpers.data.agents.keySet().stream().filter(id -> !before.containsKey(id)).toList();
             c.assertTrue(before.entrySet().stream().allMatch(e -> f.helpers.data.agents.get(e.getKey()) == e.getValue())
@@ -371,7 +392,7 @@ public class HelperBatchGameTests {
                 "Automatic death clears loaded state while retaining the frozen ownership record for manual recovery");
             c.assertTrue(Arrays.equals(unresolved, Files.readAllBytes(f.helpers.file)) && Arrays.equals(bytes, Files.readAllBytes(previous)),
                 "Actual native death neither throws nor destroys the unresolved roster or its last-good recovery file");
-        }
+        } finally { wire.channel.finishAndReleaseAll(); }
         c.succeed();
     }
 
@@ -472,13 +493,7 @@ public class HelperBatchGameTests {
             var entry = f.helpers.owned(f.owner, "helper-1");
             c.assertTrue(entry != null && entry.getValue().profile() == AgentCompanions.Profile.REGULAR,
                 "The helper exists with its actual default profile when its second save fails");
-            var packets = wire.drain();
-            var messages = new ArrayList<String>();
-            for (var packet : packets) {
-                if (packet instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket chat) messages.add(chat.content().getString());
-                else if (packet instanceof net.minecraft.network.protocol.game.ClientboundBundlePacket bundle)
-                    for (var inner : bundle.subPackets()) if (inner instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket chat) messages.add(chat.content().getString());
-            }
+            var messages = chat(wire);
             c.assertTrue(messages.stream().anyMatch(text -> text.contains("Regular; selected profile was not confirmed")),
                 "The native outbound message identifies the actual profile and states that the requested one was not confirmed: " + messages);
             c.assertFalse(messages.stream().anyMatch(text -> text.contains("appeared beside you • Debug")),
@@ -938,17 +953,20 @@ public class HelperBatchGameTests {
             var copy = f.saved(inserted.get()); f.restart().load(copy);
             c.assertTrue(copy.isRemoved(), "Its durable removal proof retires a stale copy after restart");
         }
-        try (var f = new Fixture(c)) {
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
             f.helpers.spawn(f.owner, "kept"); var before = Map.copyOf(f.helpers.data.agents);
             var inserted = new AtomicReference<UUID>();
             Path markerTemporary = f.marker().resolveSibling(f.marker().getFileName() + ".tmp");
             var fault = new InsertionFailure(f.helpers, f.owner.getUUID(), markerTemporary, inserted);
             c.assertTrue(INSERTION_FAILURE.compareAndSet(null, fault), "The private exact-owner fault is armed once");
-            boolean failed = false;
-            try { f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.REGULAR); }
-            catch (IllegalStateException expected) { failed = expected.getMessage().contains("ownership rollback failed"); }
+            int created;
+            wire.drain();
+            try { created = f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.REGULAR); }
             finally { INSERTION_FAILURE.compareAndSet(fault, null); }
-            c.assertTrue(failed && f.helpers.creationRecoveryRequired, "Without a marker the rollback is not attempted; the call fails and this runtime freezes");
+            c.assertTrue(created == 0 && f.helpers.creationRecoveryRequired,
+                "Without a marker the rollback is not attempted; the call returns no success without throwing and this runtime freezes");
+            assertUnresolvedNotice(c, chat(wire), "batch, marker refused");
             var saved = AgentCompanions.read(f.helpers.file);
             c.assertTrue(saved.agents.keySet().containsAll(before.keySet()) && saved.agents.size() == before.size() + 3 && saved.dismissed.isEmpty(),
                 "The saved roster still owns every staged helper and holds no removal proof");
@@ -958,6 +976,389 @@ public class HelperBatchGameTests {
             c.assertTrue(!copy.isRemoved() && restarted.loaded.get(copy.getUUID()) == copy,
                 "With no marker a restart is not frozen, but the copy keeps its record and registers; nothing is deleted");
             copy.discard();
+        } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void unresolvedCreationNeverThrowsAndEveryCallingPathReportsPossiblePresence(GameTestHelper c) throws Exception {
+        // Single command API, Java chest, Bedrock form and the batch request shared by Java and Bedrock.
+        for (String path : List.of("single", "java menu", "bedrock form", "batch request")) {
+            var wire = new NativePlayConnection(c.getLevel().registryAccess());
+            try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
+                f.unloaded(f.owner.getUUID(), 1, "older-"); var older = f.helpers.owned(f.owner, "older-1");
+                // The creation save copies this roster to .previous; the rollback must not replace that copy.
+                byte[] preCreation = Files.readAllBytes(f.helpers.file);
+                var touch = new Touch();
+                if (path.equals("bedrock form")) { BedrockAgentMenu.open(f.owner, touch); touch.click("Create another helper"); }
+                if (path.equals("java menu")) c.assertValueEqual(AgentMenu.open(f.owner), 1, "The Java helper chest opens");
+                var request = path.equals("batch request") ? new HelperBatchMenu.Request(f.owner) : null;
+                var inserted = new AtomicReference<UUID>(); Path blocked = HelperPersistence.temporaryFile(f.helpers.file);
+                var fault = new InsertionFailure(f.helpers, f.owner.getUUID(), blocked, inserted);
+                c.assertTrue(INSERTION_FAILURE.compareAndSet(null, fault), "The private exact-owner fault is armed once: " + path);
+                int result = -1;
+                wire.drain();
+                try {
+                    switch (path) {
+                        case "single" -> result = f.helpers.spawn(f.owner, "helper-solo");
+                        case "java menu" -> f.owner.containerMenu.clicked(AgentMenu.helperSlot(1), 0, net.minecraft.world.inventory.ContainerInput.PICKUP, f.owner);
+                        case "bedrock form" -> touch.click("Create: Regular");
+                        default -> result = request.spawn(f.owner, 2, AgentCompanions.Profile.REGULAR);
+                    }
+                } finally { INSERTION_FAILURE.compareAndSet(fault, null); }
+                c.assertTrue(inserted.get() != null, "The real insertion failed after the ownership save: " + path);
+                if (result != -1) c.assertValueEqual(result, 0, "The API reports no success, without throwing: " + path);
+                assertUnresolvedNotice(c, chat(wire), path);
+                if (path.equals("bedrock form"))
+                    c.assertTrue(touch.last().content().contains("may have appeared") && !touch.last().content().contains("No helper appeared"),
+                        "The Bedrock form shows the unresolved outcome rather than an absent helper");
+                c.assertTrue(f.helpers.creationUnresolved && f.helpers.creationRecoveryRequired && Files.exists(f.marker()) && f.restart().creationRecoveryRequired,
+                    "The outcome is recorded as unresolved and ownership fails closed now and after restart: " + path);
+                var staged = new ArrayList<>(f.helpers.data.agents.keySet()); staged.remove(older.getKey());
+                c.assertTrue(f.helpers.data.agents.get(older.getKey()) == older.getValue()
+                    && staged.size() == (path.equals("batch request") ? 2 : 1) && staged.contains(inserted.get().toString()),
+                    "The older unloaded record and every ambiguous staged record are kept: " + path);
+                var saved = AgentCompanions.read(f.helpers.file);
+                c.assertTrue(saved.agents.keySet().containsAll(staged) && saved.pendingCreations.containsAll(staged) && saved.dismissed.isEmpty(),
+                    "Disk still owns the ambiguous helpers as pending and holds no removal proof: " + path);
+                var partial = c.getLevel().getEntity(inserted.get());
+                c.assertTrue(partial == null || (!partial.isRemoved() && f.helpers.loaded.get(inserted.get()) == partial),
+                    "A helper that reached the world is kept and registered, never deleted: " + path);
+                c.assertTrue(Arrays.equals(preCreation, Files.readAllBytes(f.previousFile())), "The pre-creation roster stays in .previous: " + path);
+                Files.delete(blocked.resolve("block-rollback")); Files.delete(blocked);
+            } finally { wire.channel.finishAndReleaseAll(); }
+        }
+        // A proven rollback whose marker cannot be retired: helpers are kept inert and shielded, not discarded.
+        var io = new FaultyIo(); var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, io, wire)) {
+            var inserted = new AtomicReference<UUID>();
+            var fault = new InsertionFailure(f.helpers, f.owner.getUUID(), f.directory.resolve("unrelated-fault"), inserted);
+            io.arm("delete:agents.json.recovery-required", false);
+            c.assertTrue(INSERTION_FAILURE.compareAndSet(null, fault), "The private exact-owner fault is armed once");
+            int created;
+            wire.drain();
+            try { created = f.helpers.spawnBatch(f.owner, 2, AgentCompanions.Profile.REGULAR); }
+            finally { INSERTION_FAILURE.compareAndSet(fault, null); }
+            c.assertValueEqual(created, 0, "A stuck marker after a proven rollback still reports no success, without throwing");
+            assertUnresolvedNotice(c, chat(wire), "batch, marker retirement refused");
+            c.assertTrue(f.helpers.creationUnresolved && f.helpers.creationRecoveryRequired && Files.exists(f.marker()),
+                "The outcome is unresolved even though memory no longer lists the helpers, and the kept marker freezes ownership");
+            var partial = c.getLevel().getEntity(inserted.get());
+            try {
+                c.assertTrue(partial == null || (!partial.isRemoved() && !f.helpers.loaded.containsKey(inserted.get())
+                    && AgentCompanions.retainedHelperShielded((IronGolem) partial, ((IronGolem) partial).damageSources().playerAttack(f.owner))),
+                    "A helper that reached the world is unregistered, kept inert and shielded rather than discarded");
+            } finally { if (partial != null) partial.discard(); }
+        } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    private static List<Map.Entry<String, net.minecraft.world.damagesource.DamageSource>> ordinaryDamage(IronGolem golem, ServerPlayer player, net.minecraft.world.entity.LivingEntity mob) {
+        var sources = golem.damageSources();
+        return List.of(Map.entry("player", sources.playerAttack(player)), Map.entry("mob", sources.mobAttack(mob)),
+            Map.entry("lava", sources.lava()), Map.entry("fire", sources.inFire()), Map.entry("cactus", sources.cactus()), Map.entry("generic", sources.generic()));
+    }
+    /**
+     * Each hit on an entity is ten more than its previous one. During the native
+     * damage cooldown only a larger hit applies (by the difference), so every
+     * test hit would really land unless something else refuses it.
+     */
+    private static final Map<net.minecraft.world.entity.LivingEntity, Float> LAST_HIT = new java.util.WeakHashMap<>();
+    private static float nextHit(net.minecraft.world.entity.LivingEntity entity) { return LAST_HIT.merge(entity, 10f, Float::sum); }
+    private static void assertShielded(GameTestHelper c, IronGolem golem, List<Map.Entry<String, net.minecraft.world.damagesource.DamageSource>> sources, String label) {
+        for (var source : sources) {
+            float health = golem.getHealth();
+            c.assertTrue(AgentCompanions.retainedHelperShielded(golem, source.getValue()), "The runtime shield applies to " + source.getKey() + " damage: " + label);
+            c.assertFalse(golem.hurtServer(c.getLevel(), source.getValue(), nextHit(golem)), "Native " + source.getKey() + " damage is refused: " + label);
+            c.assertTrue(golem.isAlive() && golem.getHealth() == health, "Health is unchanged by " + source.getKey() + " damage: " + label);
+        }
+        c.assertFalse(golem.isInvulnerable(), "No persistent invulnerability flag is set: " + label);
+        c.assertFalse(AgentCompanions.retainedHelperShielded(golem, golem.damageSources().genericKill()),
+            "Known limit: an operator /kill is not shielded: " + label);
+        c.assertFalse(golem.getY() >= c.getLevel().getMinY() - 64 && AgentCompanions.retainedHelperShielded(golem, golem.damageSources().fellOutOfWorld()),
+            "Out-of-world damage above the native void threshold is not treated as natural: " + label);
+    }
+    private static void assertVulnerable(GameTestHelper c, IronGolem golem, List<Map.Entry<String, net.minecraft.world.damagesource.DamageSource>> sources, String label) {
+        for (var source : sources) {
+            float health = golem.getHealth();
+            c.assertFalse(AgentCompanions.retainedHelperShielded(golem, source.getValue()), "No shield for " + source.getKey() + " damage: " + label);
+            c.assertTrue(golem.hurtServer(c.getLevel(), source.getValue(), nextHit(golem)) && golem.getHealth() < health,
+                "Native " + source.getKey() + " damage still reaches a normal registered helper: " + label);
+        }
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void retainedAndFrozenHelpersIgnoreOrdinaryDamageWhileNormalHelpersStayVulnerable(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            var zombie = EntityTypes.ZOMBIE.create(c.getLevel(), EntitySpawnReason.COMMAND);
+            var retained = f.saved(UUID.randomUUID());
+            try {
+                c.assertValueEqual(f.helpers.spawn(f.owner, "normal"), 1, "A normal registered helper is created");
+                var normal = f.helpers.loaded.get(UUID.fromString(f.helpers.owned(f.owner, "normal").getKey()));
+                // An unknown tagged helper enters the world by the real native load callback.
+                c.assertTrue(c.getLevel().addFreshEntity(retained) && !retained.isRemoved() && !f.helpers.loaded.containsKey(retained.getUUID()),
+                    "An unknown tagged helper is kept inert and unregistered for inspection");
+                double retainedMax = retained.getAttributeBaseValue(Attributes.MAX_HEALTH);
+                assertShielded(c, retained, ordinaryDamage(retained, f.owner, zombie), "unknown retained helper");
+                assertVulnerable(c, normal, ordinaryDamage(normal, f.owner, zombie), "writable runtime");
+                f.helpers.unload(retained); f.helpers.load(retained);
+                assertShielded(c, retained, ordinaryDamage(retained, f.owner, zombie), "after an unload and reload");
+                var restarted = f.restart();
+                AgentCompanions.INSTANCES.put(f.helpers.server, restarted);
+                try {
+                    restarted.load(retained); restarted.load(normal);
+                    assertShielded(c, retained, ordinaryDamage(retained, f.owner, zombie), "after a restart");
+                    assertVulnerable(c, normal, ordinaryDamage(normal, f.owner, zombie), "registered again after a restart");
+                } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+                c.assertFalse(AgentCompanions.allowDamage(f.owner, retained.damageSources().mobAttack(retained)), "A retained helper still cannot deal damage");
+                normal.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1500);
+                io.arm("move:agents.json", true);
+                c.assertValueEqual(f.helpers.mode(f.owner, "normal", AgentCompanions.Mode.STAY), 0, "An ambiguous save freezes ownership");
+                c.assertTrue(f.helpers.creationRecoveryRequired && f.helpers.loaded.get(normal.getUUID()) == normal, "The helper stays registered while frozen");
+                assertShielded(c, normal, ordinaryDamage(normal, f.owner, zombie), "registered helper while frozen");
+                assertShielded(c, retained, ordinaryDamage(retained, f.owner, zombie), "retained helper while frozen");
+                c.assertTrue(normal.getAttributeBaseValue(Attributes.MAX_HEALTH) == 1500 && retained.getAttributeBaseValue(Attributes.MAX_HEALTH) == retainedMax,
+                    "The shield never overwrites edited or default stats");
+            } finally { retained.discard(); zombie.discard(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void firstBootIsWritableButAMissingRosterBesidePriorEvidenceFreezesAndKeepsTheBackup(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            var server = f.helpers.server;
+            Path fresh = f.directory.resolve("fresh").resolve("agents.json"); Files.createDirectories(fresh.getParent());
+            var first = new AgentCompanions(server, fresh);
+            c.assertTrue(!first.creationRecoveryRequired && first.data.agents.isEmpty() && first.remaining(f.owner) == AgentCompanions.LIMIT,
+                "An empty world's first boot is writable with an empty roster");
+            first.save();
+            c.assertTrue(Files.exists(fresh) && Files.notExists(HelperPersistence.recoveryMarker(fresh)) && !first.creationRecoveryRequired,
+                "Its first save creates the roster without a recovery note");
+
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A real helper is created");
+            String id = f.helpers.owned(f.owner, "kept").getKey();
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 1, "A later save rotates the owning roster into .previous");
+            c.assertTrue(AgentCompanions.read(f.previousFile()).agents.containsKey(id), ".previous owns the helper");
+            byte[] backup = Files.readAllBytes(f.previousFile());
+            Files.delete(f.helpers.file);
+            var lost = f.restart();
+            c.assertTrue(lost.creationRecoveryRequired && lost.data.agents.isEmpty() && lost.remaining(f.owner) == 0,
+                "A missing roster beside its backup is frozen, not a fresh world");
+            lost.spawn(f.owner, "replacement");
+            c.assertValueEqual(lost.spawnBatch(f.owner, 1, AgentCompanions.Profile.REGULAR), 0, "Batch creation is refused");
+            boolean refused = false;
+            try { lost.save(); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && lost.owned(f.owner, "replacement") == null && Files.notExists(f.helpers.file) && Files.notExists(f.marker())
+                && Arrays.equals(backup, Files.readAllBytes(f.previousFile())),
+                "No creation or save writes a new roster, replaces the backup bytes or adds a note");
+            var copy = f.saved(UUID.fromString(id)); lost.load(copy);
+            c.assertTrue(!copy.isRemoved() && !lost.loaded.containsKey(copy.getUUID()), "A helper owned only by the backup is kept inert, never deleted");
+            copy.discard();
+            c.assertTrue(f.restart().creationRecoveryRequired && Arrays.equals(backup, Files.readAllBytes(f.previousFile())),
+                "Every restart stays frozen; nothing is restored or deleted automatically");
+
+            for (String suffix : List.of(".recovery-required", ".tmp")) {
+                Path roster = f.directory.resolve("evidence" + suffix).resolve("agents.json"); Files.createDirectories(roster.getParent());
+                Path left = roster.resolveSibling("agents.json" + suffix); Files.writeString(left, "left by an earlier interrupted save");
+                var helpers = new AgentCompanions(server, roster);
+                helpers.spawn(f.owner, "replacement");
+                c.assertTrue(helpers.creationRecoveryRequired && helpers.owned(f.owner, "replacement") == null && Files.notExists(roster)
+                    && Files.readString(left).equals("left by an earlier interrupted save"),
+                    "A missing roster beside " + suffix + " is frozen and nothing is written over that evidence");
+            }
+
+            Path locked = f.directory.resolve("locked"), hidden = locked.resolve("agents.json"); Files.createDirectories(locked);
+            try {
+                Files.setPosixFilePermissions(locked, java.util.Set.of());
+                // Skipped where permissions cannot hide existence (for example, as root).
+                if (!Files.exists(hidden, java.nio.file.LinkOption.NOFOLLOW_LINKS) && !Files.notExists(hidden, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                    c.assertTrue(new AgentCompanions(server, hidden).creationRecoveryRequired, "An undeterminable roster existence is not a fresh world");
+            } catch (UnsupportedOperationException unsupported) {
+                // Storage without POSIX permissions cannot model this case.
+            } finally {
+                try { Files.setPosixFilePermissions(locked, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------")); }
+                catch (UnsupportedOperationException unsupported) {}
+            }
+
+            Path linked = f.directory.resolve("linked").resolve("agents.json"); Files.createDirectories(linked.getParent());
+            boolean link;
+            try { Files.createSymbolicLink(linked, linked.resolveSibling("missing-target.json")); link = true; }
+            catch (UnsupportedOperationException | IOException | SecurityException unsupported) { link = false; }
+            if (link) {
+                boolean failed = false;
+                try { new AgentCompanions(server, linked); } catch (IllegalStateException expected) { failed = true; }
+                c.assertTrue(failed, "A dangling roster link fails closed like an unreadable roster rather than reading as empty");
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void sameSessionPendingCreationShowsUnverifiedDiskDurabilityThroughUnloadWithoutClaimingARestart(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-"); String older = f.helpers.owned(f.owner, "older-1").getKey();
+            c.assertValueEqual(f.helpers.spawn(f.owner, "fresh"), 1, "A single helper is created");
+            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 1, AgentCompanions.Profile.REGULAR), 1, "A batch helper is created");
+            var ids = List.of(f.helpers.owned(f.owner, "fresh").getKey(), f.helpers.owned(f.owner, "helper-1").getKey());
+            for (String id : ids) {
+                var live = f.helpers.loaded.get(UUID.fromString(id));
+                c.assertTrue(f.helpers.unresolvedCreation(id), "A same-session creation is shown as unresolved");
+                String now = f.helpers.creationReview(id);
+                c.assertTrue(now.contains("this server session") && now.contains("currently loaded") && now.contains("durability remains unverified")
+                    && !now.contains("restart"), "The live entity is distinguished from unproven disk durability, without implying a restart: " + now);
+                c.assertTrue(AgentMenu.helperInfo(f.owner, id, f.helpers.data.agents.get(id)).contains(now), "Shared Java and Bedrock status shows it");
+                live.remove(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK); f.helpers.unload(live);
+                String away = f.helpers.creationReview(id);
+                c.assertTrue(away.contains("this server session") && away.contains("not loaded now") && away.contains("may still exist")
+                    && away.contains("durability remains unverified") && !away.contains("currently loaded") && !away.contains("restart"),
+                    "After an unload the same session reports uncertainty, not absence or a restart: " + away);
+                var copy = f.saved(UUID.fromString(id)); f.helpers.load(copy);
+                c.assertTrue(f.helpers.loaded.get(copy.getUUID()) == copy && f.helpers.creationReview(id).contains("not loaded now") && f.helpers.unresolvedCreation(id),
+                    "A load callback for a detached copy neither counts as the live entity nor resolves the creation");
+                f.helpers.unload(copy); copy.discard();
+            }
+            c.assertFalse(f.helpers.unresolvedCreation(older), "A pre-existing helper is not a pending creation");
+            f.helpers.save();
+            var restarted = f.restart();
+            for (String id : ids) {
+                c.assertTrue(f.helpers.unresolvedCreation(id) && AgentCompanions.read(f.helpers.file).pendingCreations.contains(id),
+                    "A flush or save never clears an unresolved pending identity");
+                c.assertTrue(restarted.unresolvedCreation(id) && restarted.creationReview(id).contains("after restart"),
+                    "Only a runtime started from the saved pending record mentions a restart");
+            }
+        }
+        c.succeed();
+    }
+
+    /** What a chunk save would persist for this entity. */
+    private static net.minecraft.nbt.CompoundTag persisted(net.minecraft.world.entity.Entity entity) {
+        var output = net.minecraft.world.level.storage.TagValueOutput.createWithContext(net.minecraft.util.ProblemReporter.DISCARDING, entity.registryAccess());
+        entity.saveWithoutId(output); return output.buildResult();
+    }
+    /** Real native ticks run Entity.checkBelowWorld, its void damage, and movement. */
+    private static void assertHeldInVoid(GameTestHelper c, IronGolem golem, double y, int ticks, String label) {
+        float health = golem.getHealth();
+        for (int tick = 0; tick < ticks; tick++) golem.tick();
+        c.assertTrue(golem.isAlive() && !golem.isRemoved() && golem.getHealth() == health, "Native void ticks never damage it: " + label);
+        c.assertTrue(Math.abs(golem.getY() - y) < .01 && golem.getDeltaMovement().lengthSqr() < .01,
+            "It stays where the void check found it instead of falling further: " + label);
+        var saved = persisted(golem);
+        c.assertTrue(!golem.isNoGravity() && !golem.isInvulnerable() && !saved.getBooleanOr("NoGravity", false) && !saved.getBooleanOr("Invulnerable", false),
+            "Nothing persistent is set: no gravity or invulnerability flag reaches its saved data: " + label);
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void naturalVoidHoldsShieldedHelpersWhileOperatorKillsAndNormalHelpersKeepNativeOutcomes(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            var level = c.getLevel(); double below = level.getMinY() - 70;
+            var types = level.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.DAMAGE_TYPE);
+            var retained = f.saved(UUID.randomUUID()); var doomed = f.saved(UUID.randomUUID());
+            try {
+                c.assertValueEqual(f.helpers.spawn(f.owner, "normal"), 1, "A normal registered helper is created");
+                var normal = f.helpers.loaded.get(UUID.fromString(f.helpers.owned(f.owner, "normal").getKey()));
+                float normalHealth = normal.getHealth();
+                c.assertFalse(AgentCompanions.retainedHelperShielded(normal, normal.damageSources().fellOutOfWorld()), "A normal helper has no void shield");
+                c.assertTrue(normal.hurtServer(level, normal.damageSources().fellOutOfWorld(), 4) && normal.getHealth() < normalHealth,
+                    "Out-of-world damage still reaches a normal registered helper in a writable runtime");
+
+                retained.setPos(retained.getX(), below, retained.getZ());
+                c.assertTrue(level.addFreshEntity(retained) && !f.helpers.loaded.containsKey(retained.getUUID()),
+                    "An unknown tagged helper loads below the world, unregistered and inert");
+                retained.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+                var natural = retained.damageSources().fellOutOfWorld();
+                c.assertTrue(AgentCompanions.naturalVoid(retained, natural) && AgentCompanions.retainedHelperShielded(retained, natural),
+                    "Unattributed out-of-world damage below the native threshold is natural void damage and is shielded");
+                var attributed = new net.minecraft.world.damagesource.DamageSource(types.getOrThrow(net.minecraft.world.damagesource.DamageTypes.FELL_OUT_OF_WORLD), f.owner);
+                c.assertFalse(AgentCompanions.naturalVoid(retained, attributed) || AgentCompanions.retainedHelperShielded(retained, attributed),
+                    "Out-of-world damage attributed to a player is an intentional act, not natural void damage");
+                c.assertFalse(AgentCompanions.retainedHelperShielded(retained, retained.damageSources().genericKill()), "An operator /kill is never shielded");
+                retained.setDeltaMovement(0, -3, 0);
+                assertHeldInVoid(c, retained, below, 40, "unknown retained helper");
+                f.helpers.unload(retained); f.helpers.load(retained);
+                assertHeldInVoid(c, retained, below, 20, "after an unload and reload");
+                c.assertTrue(retained.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31, "The edited stat is kept");
+
+                c.assertTrue(level.addFreshEntity(doomed), "A second retained helper loads at ordinary height");
+                c.assertFalse(AgentCompanions.naturalVoid(doomed, doomed.damageSources().fellOutOfWorld()), "Above the native threshold there is no natural void hit");
+                c.assertTrue(doomed.hurtServer(level, doomed.damageSources().genericKill(), Float.MAX_VALUE) && !doomed.isAlive(),
+                    "Known limit: an intentional operator /kill still removes a retained helper");
+
+                normal.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1500);
+                io.arm("move:agents.json", true);
+                c.assertValueEqual(f.helpers.mode(f.owner, "normal", AgentCompanions.Mode.STAY), 0, "An ambiguous save freezes ownership");
+                normal.setPos(normal.getX(), below, normal.getZ()); normal.setDeltaMovement(0, -1, 0);
+                assertHeldInVoid(c, normal, below, 30, "registered helper while frozen");
+                c.assertTrue(f.helpers.loaded.get(normal.getUUID()) == normal && normal.getAttributeBaseValue(Attributes.MAX_HEALTH) == 1500,
+                    "The frozen helper stays registered with its edited stat");
+            } finally { retained.discard(); doomed.discard(); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void bedrockCreateNeverAsksForBetterGroundAfterAStorageOrFrozenOwnershipFailure(GameTestHelper c) throws Exception {
+        // Untouched storage failure, then an ambiguous initial roster save that freezes ownership.
+        for (var fault : List.of(Map.entry("write:agents.json.tmp", false), Map.entry("sync-after:move:agents.json", true))) {
+            var io = new FaultyIo(); var wire = new NativePlayConnection(c.getLevel().registryAccess());
+            try (var f = new Fixture(c, io, wire)) {
+                var touch = new Touch(); BedrockAgentMenu.open(f.owner, touch); touch.click("Create your first helper");
+                io.arm(fault.getKey(), fault.getValue()); wire.drain();
+                touch.click("Create: Regular");
+                String shown = touch.last().content(); var told = chat(wire); boolean frozen = fault.getValue();
+                c.assertValueEqual(f.helpers.creationRecoveryRequired, frozen, "Only the ambiguous save freezes: " + fault);
+                c.assertTrue(f.helpers.data.agents.isEmpty() && f.helpers.loaded.isEmpty(), "No helper is registered or inserted: " + fault);
+                c.assertFalse(shown.contains("No helper appeared") || shown.contains("Move onto clear solid ground") || shown.contains("try again")
+                    || shown.contains("capacity is full"), "The form does not blame placement, invite an immediate retry or claim full capacity: " + shown);
+                if (frozen) c.assertFalse(shown.contains("clear solid ground") || shown.contains("Create one"),
+                    "A frozen roster does not suggest creating a helper anywhere: " + shown);
+                c.assertTrue(frozen ? shown.contains("No helper entity spawned") && shown.contains("frozen") : shown.contains("check server storage"),
+                    "The form names the actual storage or frozen-ownership outcome: " + shown);
+                c.assertFalse(shown.contains(f.directory.toString()) || told.stream().anyMatch(text -> text.contains(f.directory.toString())),
+                    "No server file path is shown to the player");
+                c.assertFalse(told.stream().anyMatch(text -> text.contains("appeared beside you")), "No success is announced: " + told);
+            } finally { wire.channel.finishAndReleaseAll(); }
+        }
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
+            var touch = new Touch(); BedrockAgentMenu.open(f.owner, touch); touch.click("Create your first helper");
+            wire.drain(); touch.click("Create: Regular");
+            c.assertTrue(f.helpers.owned(f.owner, "helper-1") != null && chat(wire).stream().anyMatch(text -> text.contains("helper-1 appeared beside you • Regular")),
+                "Normal Bedrock creation still succeeds and says so");
+        } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void aRosterLostAfterStartupIsNeverRecreatedOverItsBackup(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A real helper is created");
+            var entry = f.helpers.owned(f.owner, "kept"); var live = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
+            live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            f.unloaded(f.owner.getUUID(), 1, "away-"); var away = f.helpers.owned(f.owner, "away-1");
+            byte[] backup = Files.readAllBytes(f.previousFile());
+            Files.delete(f.helpers.file);
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0, "A change after the roster vanished is refused");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.notExists(f.helpers.file) && Arrays.equals(backup, Files.readAllBytes(f.previousFile())),
+                "No fresh roster is written and the backup bytes are kept");
+            c.assertTrue(Files.exists(f.marker()), "A recovery note keeps restarts frozen");
+            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 1, AgentCompanions.Profile.REGULAR), 0, "Creation is refused");
+            boolean refused = false;
+            try { f.helpers.save(); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && Files.notExists(f.helpers.file) && Arrays.equals(backup, Files.readAllBytes(f.previousFile())), "A defensive save writes nothing");
+            c.assertTrue(f.helpers.data.agents.get(entry.getKey()) == entry.getValue() && f.helpers.data.agents.get(away.getKey()) == away.getValue()
+                && f.helpers.loaded.get(live.getUUID()) == live && live.isAlive() && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "Loaded and unloaded records, the live helper and its edited stat are kept");
+            c.assertTrue(f.restart().creationRecoveryRequired && Arrays.equals(backup, Files.readAllBytes(f.previousFile())),
+                "A restart stays frozen; nothing is restored or deleted automatically");
+
+            Path fresh = f.directory.resolve("first").resolve("agents.json"); Files.createDirectories(fresh.getParent());
+            var first = new AgentCompanions(f.helpers.server, fresh);
+            c.assertFalse(first.rosterEstablished || first.creationRecoveryRequired, "A genuine first boot has no established roster to lose");
+            first.save();
+            c.assertTrue(first.rosterEstablished && Files.exists(fresh) && !first.creationRecoveryRequired, "Its first write succeeds and establishes the roster");
         }
         c.succeed();
     }

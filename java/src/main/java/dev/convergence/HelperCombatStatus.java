@@ -56,7 +56,9 @@ final class HelperCombatStatus {
             if (agent.profile() == AgentCompanions.Profile.ULTIMATE_FINALS
                 && helpers.pauseReason(owner, golem, agent) == null) combo++;
         }
-        if (count == 0) return "No helpers yet. Create your first helper on clear solid ground. Follow and combo controls need a helper.";
+        if (count == 0) return helpers.creationRecoveryRequired
+            ? "No helpers are listed. Creation is unavailable until the host reviews frozen helper ownership."
+            : "No helpers yet. Create your first helper on clear solid ground. Follow and combo controls need a helper.";
         return "Helpers: " + count + "/" + AgentCompanions.LIMIT + "; " + loaded + " loaded; " + combo
             + " Ultimate Finals ready for target checks.\n"
             + "Combos need Ultimate Finals on Follow or Guard. Player attacks require owner and live Codex approval.";

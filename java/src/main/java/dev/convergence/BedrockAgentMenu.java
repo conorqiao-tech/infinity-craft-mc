@@ -102,7 +102,9 @@ final class BedrockAgentMenu {
         choices.add(new HelperForms.Choice("Ask GPT for a squad plan", () -> GptSquadMenu.openBedrock(owner,sender,GptSquadPlanner::request)));
         choices.add(new HelperForms.Choice("Back to Infinity Menu", () -> ServerMenu.open(owner)));
         String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ". Page " + (page + 1) + " of " + pages + ".\n"
-            + (saved.isEmpty() ? free > 0
+            + (saved.isEmpty() ? helpers.creationRecoveryRequired
+                ? "Helper creation is unavailable while ownership is frozen for host review."
+                : free > 0
                 ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
                 : "The server's helper capacity is full, including saved unloaded helpers."
                 : "Choose a named helper for its live status and controls. Unloaded helpers stay saved; these menus never load distant chunks.")
@@ -184,8 +186,23 @@ final class BedrockAgentMenu {
         if (helpers.data.agents.size() >= AgentCompanions.GLOBAL_LIMIT) {
             create(owner, "The server's helper slots are full, including unloaded helpers. Nothing was created.", sender); return;
         }
-        helpers.spawn(owner, name);
+        boolean unresolvedBefore = helpers.creationUnresolved, frozenBefore = helpers.creationRecoveryRequired;
+        int created = helpers.spawn(owner, name);
         var entry = helpers.owned(owner, name);
+        if (created != 1 && !unresolvedBefore && helpers.creationUnresolved) {
+            // Neither the roster record nor its absence shows whether a helper appeared.
+            roster(owner, AgentCompanions.UNRESOLVED_CREATION + name + " may have appeared and was kept; its ownership needs host review. "
+                + AgentCompanions.FROZEN, sender);
+            return;
+        }
+        // Storage and frozen-ownership failures (spawn returns 0, or ownership
+        // froze) are not fixed by moving; the chat notice gives the roster detail.
+        if (entry == null && (created != 1 || helpers.creationRecoveryRequired)) {
+            roster(owner, helpers.creationRecoveryRequired
+                ? (frozenBefore ? "Helper creation is blocked. " : "No helper entity spawned. ") + AgentCompanions.FROZEN
+                : "Could not save helper ownership. Nothing spawned. Ask the host to check server storage before retrying.", sender);
+            return;
+        }
         if (entry == null || live(helpers, entry.getKey()) == null) {
             create(owner, "No helper appeared. Move onto clear solid ground with open space around you and try again. No existing helper was replaced.", sender); return;
         }

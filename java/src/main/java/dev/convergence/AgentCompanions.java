@@ -60,14 +60,19 @@ public final class AgentCompanions {
     final HelperPersistence persistence;
     /** Creation identities read at startup; absence from loaded chunks is never evidence of absence. */
     final Set<String> pendingAtStartup;
-    // A failed or unproven ownership save requires manual inspection. Never let
+    // A failed or unproven ownership save, or a roster missing beside evidence
+    // of an earlier one, requires manual inspection. Never let
     // a later change silently overwrite its unresolved saved roster or evidence,
     // and never delete a helper entity while it is set.
     boolean creationRecoveryRequired;
+    /** True once a roster was read at startup or this runtime may have written one; only a genuine first boot starts false. */
+    boolean rosterEstablished;
+    /** Set once a creation in this runtime ended UNRESOLVED; its helpers may be in the world whatever memory lists. */
+    boolean creationUnresolved;
     /** Removal proofs known to be durable on disk; only these may authorize deleting a saved entity. */
     Set<String> provenRemoved = new HashSet<>();
     static final int DISMISSED_LIMIT = 256;
-    static final String FROZEN = "Helper ownership is frozen after a failed or unproven save. Ask the host to inspect the roster, its .previous copy and its .recovery-required note.";
+    static final String FROZEN = "Helper ownership is frozen after a failed, unproven or missing roster save. Ask the host to inspect the roster, its .previous copy and its .recovery-required note.";
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
@@ -166,12 +171,22 @@ public final class AgentCompanions {
         this(server, file, clock, new HelperPersistence(HelperPersistence.NATIVE));
     }
     AgentCompanions(MinecraftServer server, Path file, Clock clock, HelperPersistence persistence) {
-        this.server = server; this.file = file; this.clock = clock; this.persistence = persistence; this.data = read(file);
+        this.server = server; this.file = file; this.clock = clock; this.persistence = persistence;
+        // A roster missing beside its backup, marker or temporary copy, or one
+        // whose existence cannot be determined, is not a fresh world. Keep an
+        // empty in-memory view and freeze, so no save creates a new roster that
+        // a later save would rotate over that .previous evidence.
+        String absent = HelperPersistence.absentRosterProblem(file);
+        this.data = absent == null ? read(file) : new Data();
+        rosterEstablished = absent == null && java.nio.file.Files.exists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS);
         this.pendingAtStartup = Set.copyOf(data.pendingCreations);
         // A marker left by an earlier failed save, even an unreadable one, keeps
         // ownership frozen. Nothing here may resolve it automatically.
-        creationRecoveryRequired = HelperPersistence.recoveryRequired(file);
-        if (creationRecoveryRequired)
+        creationRecoveryRequired = absent != null || HelperPersistence.recoveryRequired(file);
+        if (absent != null)
+            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen: {}. Nothing was restored, replaced or removed; inspect {}, its .previous copy and any .recovery-required note before restarting.",
+                absent, file);
+        else if (creationRecoveryRequired)
             org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by {}. Inspect {} and its .previous copy, then remove the marker before restarting.",
                 HelperPersistence.recoveryMarker(file), file);
         // Removal proofs read at startup count only once the roster as read is
@@ -182,7 +197,9 @@ public final class AgentCompanions {
         return INSTANCES.computeIfAbsent(server, s -> new AgentCompanions(s, s.getWorldPath(LevelResource.ROOT).resolve("infinity-agents.json")));
     }
     static Data read(Path file) {
-        if (!java.nio.file.Files.exists(file)) return new Data();
+        // Only a provably absent path is empty; a dangling link or an
+        // undeterminable entry fails below rather than reading as a fresh roster.
+        if (java.nio.file.Files.notExists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return new Data();
         try {
             if (java.nio.file.Files.size(file) > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
             byte[] bytes;
@@ -260,11 +277,19 @@ public final class AgentCompanions {
      */
     Commit commit(Runnable change, Save policy, boolean keepPrevious) {
         if (creationRecoveryRequired) return Commit.BLOCKED;
+        // A roster this runtime read or wrote that is no longer provably present
+        // was lost or replaced outside this runtime. Writing a fresh one would let
+        // the next save rotate it over .previous, so refuse before touching disk.
+        if (rosterEstablished && !java.nio.file.Files.exists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            freeze("the saved roster disappeared after it was established", null);
+            return Commit.UNTOUCHED;
+        }
         var agents = new TreeMap<>(data.agents); var dismissed = new ArrayList<>(data.dismissed);
         var pending = new ArrayList<>(data.pendingCreations);
         change.run();
         try {
             var durability = persistence.replace(file, rosterBytes(), keepPrevious, policy == Save.CREATION);
+            rosterEstablished = true;
             if (durability == HelperPersistence.Durability.PROVEN) { provenRemoved = new HashSet<>(data.dismissed); return Commit.PROVEN; }
             // Proofs present in both the earlier and the new roster stay proven.
             provenRemoved.retainAll(data.dismissed);
@@ -274,6 +299,7 @@ public final class AgentCompanions {
             return Commit.UNCERTAIN;
         } catch (HelperPersistence.Failure failure) {
             restore(agents, dismissed, pending);
+            if (failure.mayHaveChanged) rosterEstablished = true;
             if (failure.mayHaveChanged || policy == Save.GUARDED)
                 freeze(failure.mayHaveChanged ? "the saved roster may or may not hold the last change" : "a guarded removal could not be saved", failure);
             return failure.mayHaveChanged ? Commit.UNCERTAIN : Commit.UNTOUCHED;
@@ -389,6 +415,50 @@ public final class AgentCompanions {
             && companions.insideLeash(agent, owner, golem.position())
             && companions.insideLeash(agent, owner, victim.position());
     }
+    /**
+     * Runtime-only shield for a tagged helper kept for host inspection: one that
+     * is not the registered loaded entity for its roster record, or any helper
+     * while ownership is frozen. Decided per hit from current state, so it
+     * follows unloads, reloads and restarts; nothing is persisted, and health,
+     * stats and invulnerability flags are untouched. A registered helper in a
+     * writable runtime is not shielded. Of the damage that vanilla lets bypass
+     * invulnerability, only natural void damage is shielded: /kill, attributed
+     * or above-threshold out-of-world damage, and any harm that never reaches
+     * the damage event (discard, direct health changes, other mods) still apply.
+     */
+    static boolean retainedHelperShielded(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
+        if (!isAgent(victim)) return false;
+        if (source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY) && !naturalVoid(victim, source)) return false;
+        if (!(victim.level() instanceof ServerLevel world)) return true;
+        var companions = INSTANCES.get(world.getServer());
+        return companions == null || companions.creationRecoveryRequired
+            || !companions.data.agents.containsKey(victim.getStringUUID()) || companions.loaded.get(victim.getUUID()) != victim;
+    }
+    /**
+     * The tick-driven hit from Entity.checkBelowWorld: out-of-world damage with
+     * no attacker, below the native threshold. An unattributed /damage below
+     * that threshold looks the same and is treated as natural.
+     */
+    static boolean naturalVoid(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
+        return source.is(net.minecraft.world.damagesource.DamageTypes.FELL_OUT_OF_WORLD) && source.getEntity() == null && source.getDirectEntity() == null
+            && victim.level() instanceof ServerLevel world && victim.getY() < world.getMinY() - 64;
+    }
+    /**
+     * Stops a shielded helper's fall where the void hit found it. Native ticks
+     * run that check before movement, so clearing motion here keeps it in place
+     * each tick. Only motion and fall distance change: no teleport, gravity or
+     * invulnerability flag and no stats. The helper stays below the world, in
+     * its chunk, for the host to retrieve.
+     */
+    static void holdInVoid(LivingEntity victim) {
+        victim.setDeltaMovement(Vec3.ZERO); victim.fallDistance = 0; victim.needsSync = true;
+    }
+    static boolean allowIncomingDamage(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
+        if (!allowDamage(victim, source)) return false;
+        if (!retainedHelperShielded(victim, source)) return true;
+        if (naturalVoid(victim, source)) holdInVoid(victim);
+        return false;
+    }
     static void prepare(IronGolem golem) {
         HelperPowerDefaults.applyRegistered(golem);
         golem.removeFreeWill();
@@ -418,7 +488,8 @@ public final class AgentCompanions {
         if (!creationRecoveryRequired && provenRemoved.contains(golem.getStringUUID())) { golem.discard(); return; }
         // Unknown, ambiguous or frozen: keep the saved entity for host
         // inspection, unregistered and without native AI. allowDamage already
-        // refuses any damage from a tagged helper that has no roster record.
+        // refuses any damage from a tagged helper that has no roster record, and
+        // retainedHelperShielded refuses ordinary damage to it.
         APPROVED_TARGETS.remove(golem); loaded.remove(golem.getUUID(), golem); AgentAvatars.remove(golem);
         golem.removeFreeWill(); ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
         golem.setTarget(null); golem.setPersistenceRequired(); golem.getNavigation().stop();
@@ -639,12 +710,19 @@ public final class AgentCompanions {
         String created = name + " is following you. /agent guard " + name + " guards its current area; /agent stay " + name + " pauses it.";
         return switch (create(owner.level(), staged)) {
             case CREATED -> reply(owner, created);
-            case NOT_SAVED -> { reply(owner, "Could not save helper ownership. Nothing spawned. Check server storage before retrying."); yield 0; }
+            case NOT_SAVED -> { reply(owner, "Could not save helper ownership. Nothing spawned. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying.")); yield 0; }
             case NOT_INSERTED -> reply(owner, "Could not spawn a helper here.");
             case FROZEN -> { reply(owner, "No helper entity spawned, but the saved roster may or may not now list it. " + FROZEN); yield 0; }
+            case UNRESOLVED -> refuse(owner, UNRESOLVED_CREATION + name + " may have appeared and was kept; its ownership needs host review. " + FROZEN);
         };
     }
-    private enum Creation { CREATED, NOT_SAVED, NOT_INSERTED, FROZEN }
+    /**
+     * UNRESOLVED: insertion failed after ownership was saved and the rollback
+     * could not safely finish. Some new helpers may be in the world; ownership
+     * is frozen and its records and entities are kept for host review.
+     */
+    private enum Creation { CREATED, NOT_SAVED, NOT_INSERTED, FROZEN, UNRESOLVED }
+    static final String UNRESOLVED_CREATION = "Helper creation failed partway and its ownership could not be safely rolled back. ";
     /**
      * The durable roster records every new identity as pending before insertion.
      * A crash can still leave a pending entry without a saved entity. Pending
@@ -665,33 +743,40 @@ public final class AgentCompanions {
             }
         } catch (RuntimeException failure) { refused = failure; }
         if (refused == null) return Creation.CREATED;
-        // Only this creation's brand-new identities are removed, and only after
-        // their removal proof is proven durable. The creation save already
-        // retained the original .previous file; do not replace that recovery
-        // copy with the failed staged roster.
-        boolean guarded = guard("rolling back a failed helper creation") == null;
-        var rollback = guarded ? commit(() -> staged.keySet().forEach(golem -> {
-            data.agents.remove(golem.getStringUUID()); data.pendingCreations.remove(golem.getStringUUID()); rememberRemoved(golem.getStringUUID());
-        }), Save.GUARDED, false) : Commit.UNTOUCHED;
-        boolean retired = rollback == Commit.PROVEN && unguard();
-        if (retired) {
-            // A normal discard is not death/dismissal and produces no drops.
-            for (var golem : staged.keySet()) { loaded.remove(golem.getUUID(), golem); AgentAvatars.remove(golem); golem.discard(); }
-            return Creation.NOT_INSERTED;
-        }
-        // Fail closed. A clean marker refusal still freezes this runtime: the
-        // batch is half-inserted and must not be silently treated as created.
+        var rollback = Commit.UNTOUCHED;
+        try {
+            // Only this creation's brand-new identities are removed, and only after
+            // their removal proof is proven durable. The creation save already
+            // retained the original .previous file; do not replace that recovery
+            // copy with the failed staged roster.
+            boolean guarded = guard("rolling back a failed helper creation") == null;
+            if (guarded) rollback = commit(() -> staged.keySet().forEach(golem -> {
+                data.agents.remove(golem.getStringUUID()); data.pendingCreations.remove(golem.getStringUUID()); rememberRemoved(golem.getStringUUID());
+            }), Save.GUARDED, false);
+            if (rollback == Commit.PROVEN && unguard()) {
+                // A normal discard is not death/dismissal and produces no drops.
+                for (var golem : staged.keySet()) { loaded.remove(golem.getUUID(), golem); AgentAvatars.remove(golem); golem.discard(); }
+                return Creation.NOT_INSERTED;
+            }
+        } catch (RuntimeException unexpected) { refused.addSuppressed(unexpected); }
+        // Fail closed without throwing, so the caller can still tell the player.
+        // A clean marker refusal still freezes this runtime: the batch may be
+        // partly inserted and must not be silently treated as created or absent.
         if (!creationRecoveryRequired) freeze("a failed helper creation could not be rolled back safely", refused);
+        else org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("A failed helper creation could not be rolled back safely; its helpers were kept for host review", refused);
         for (var golem : staged.keySet()) {
-            if (world.getEntity(golem.getUUID()) != golem || golem.isRemoved()) continue;
-            // Proven removal with its marker kept: unregister, keep inert. Otherwise
-            // memory still owns the staged helper, as the creation save did.
-            if (rollback == Commit.PROVEN) { loaded.remove(golem.getUUID(), golem); retireStale(golem); }
-            else loaded.put(golem.getUUID(), golem);
+            try {
+                if (world.getEntity(golem.getUUID()) != golem || golem.isRemoved()) continue;
+                // Proven removal with its marker kept: unregister, keep inert. Otherwise
+                // memory still owns the staged helper, as the creation save did.
+                if (rollback == Commit.PROVEN) { loaded.remove(golem.getUUID(), golem); retireStale(golem); }
+                else loaded.put(golem.getUUID(), golem);
+            } catch (RuntimeException unexpected) {
+                org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Could not settle helper {} after a failed creation; it was not removed", golem.getUUID(), unexpected);
+            }
         }
-        var failure = new IllegalStateException("Helper creation ownership rollback failed; its new helpers were kept. Inspect the saved roster before creating more helpers");
-        failure.addSuppressed(refused);
-        throw failure;
+        creationUnresolved = true;
+        return Creation.UNRESOLVED;
     }
     /** One explicit menu activation, one bounded native batch, no existing helper mutation. */
     int spawnBatch(ServerPlayer owner, int count, Profile profile) {
@@ -726,9 +811,10 @@ public final class AgentCompanions {
         if (!AgentMenu.allowed(owner) || owner.connection != connection || owner.level() != world || count > remaining(owner)) return 0;
         return switch (create(world, staged)) {
             case CREATED -> batchNotice(owner, count + " helpers appeared beside you • " + profile.label() + ", following. Your total: " + count(owner) + "/" + LIMIT + ".", count);
-            case NOT_SAVED -> batchNotice(owner, "Could not save helper ownership. Nothing spawned. Check server storage before retrying.", 0);
+            case NOT_SAVED -> batchNotice(owner, "Could not save helper ownership. Nothing spawned. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying."), 0);
             case NOT_INSERTED -> batchNotice(owner, "The complete batch could not spawn. Its new helpers were removed; your existing helpers were kept.", 0);
             case FROZEN -> batchNotice(owner, "No helper entity spawned, but the saved roster may or may not now list them. " + FROZEN, 0);
+            case UNRESOLVED -> batchNotice(owner, UNRESOLVED_CREATION + "Some of the " + count + " new helpers may have appeared and were kept; their ownership needs host review. " + FROZEN, 0);
         };
     }
     private static int batchNotice(ServerPlayer owner, String text, int result) {
@@ -883,14 +969,22 @@ public final class AgentCompanions {
             if (commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); rememberRemoved(id); }, Save.GUARDED, true) == Commit.PROVEN) unguard();
         } else if (!creationRecoveryRequired) commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); }, Save.ORDINARY, true);
     }
-    /** A pending identity is not evidence that a saved helper is absent. */
-    boolean unresolvedCreation(String id) { return pendingAtStartup.contains(id) && data.pendingCreations.contains(id); }
+    /**
+     * A pending identity is not evidence that a saved helper is absent. It stays
+     * unresolved whether created this session or read at startup: a load event,
+     * unload, flush, save callback or restart never proves the entity reached disk.
+     */
+    boolean unresolvedCreation(String id) { return data.pendingCreations.contains(id); }
     String creationReview(String id) {
         if (!unresolvedCreation(id)) return "";
         var golem = loaded.get(UUID.fromString(id));
-        if (golem != null && golem.isAlive() && !golem.isRemoved()
+        boolean live = golem != null && golem.isAlive() && !golem.isRemoved()
             && golem.level() instanceof ServerLevel world && world.getServer() == server
-            && world.getEntity(golem.getUUID()) == golem)
+            && world.getEntity(golem.getUUID()) == golem;
+        if (!pendingAtStartup.contains(id)) return live
+            ? "Created during this server session and currently loaded. The live helper is not proof of its saved entity; its on-disk durability remains unverified. Ask the host before replacing it."
+            : "Created during this server session and not loaded now. Its saved entity's on-disk durability remains unverified, and the helper may still exist; ask the host to inspect it before replacing it.";
+        if (live)
             return "This helper is currently loaded. Its saved entity durability remains unverified; ask the host before replacing it.";
         return "Creation save is not yet independently verified after restart. An unloaded helper may still exist; ask the host to inspect it before replacing it.";
     }
@@ -1448,7 +1542,7 @@ public final class AgentCompanions {
                 helpers.recordDeath(entity.getStringUUID());
             }
         });
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> allowDamage(entity, source));
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> allowIncomingDamage(entity, source));
         ServerTickEvents.END_SERVER_TICK.register(server -> get(server).tick());
         CommandRegistrationCallback.EVENT.register((dispatcher, access, environment) -> {
             var root = Commands.literal("agent").requires(AgentCompanions::operator)
