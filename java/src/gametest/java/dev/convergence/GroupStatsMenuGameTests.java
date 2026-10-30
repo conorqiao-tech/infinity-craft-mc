@@ -127,20 +127,89 @@ public class GroupStatsMenuGameTests {
         c.succeed();
     }
 
+    private static int position(GroupStatsMenu.Request request,ServerPlayer target) {
+        for(int i=0;i<request.choices.size();i++)if(request.choices.get(i).player()==target)return i;
+        return -1;
+    }
+    /** Other tests' online fixtures may share the roster; prove each of ours occurs exactly once without assuming its size. */
+    private static void assertFixturesOnce(GameTestHelper c,GroupStatsMenu.Request request,List<ServerPlayer> fixtures,String view) {
+        var ids=request.choices.stream().map(s->s.player().getUUID()).toList();
+        c.assertValueEqual(new java.util.HashSet<>(ids).size(),ids.size(),view+" roster lists every UUID at most once");
+        for(var p:fixtures)c.assertValueEqual(request.choices.stream().filter(s->s.player()==p && s.player().getUUID().equals(p.getUUID())).count(),1L,view+" roster contains fixture "+p.getName().getString()+" exactly once");
+    }
+    private static boolean nameButton(String text,String name) {
+        return text.startsWith("○ "+name+" • ") || text.startsWith("✓ "+name+" • ") || text.startsWith("Unavailable: "+name+" • ");
+    }
+    private static List<String> encodedButtons(Form form) {
+        var data=org.geysermc.cumulus.form.impl.FormDefinitions.instance().definitionFor(form).codec().jsonData(form);
+        var texts=new ArrayList<String>();
+        for(var button:com.google.gson.JsonParser.parseString(data).getAsJsonObject().getAsJsonArray("buttons"))texts.add(button.getAsJsonObject().get("text").getAsString());
+        if(!texts.equals(((SimpleForm)form).buttons().stream().map(b->b.text()).toList()))throw new IllegalStateException("Encoded native buttons differ from the built form");
+        return texts;
+    }
+
     @GameTest public void namedSelectionPaginationRetainsOnlyExplicitUuidsAcrossPages(GameTestHelper c) {
         var players=new ArrayList<ServerPlayer>();var actor=player(c,"group-pages-op",true);players.add(actor);
         try {
             for(int i=0;i<47;i++)players.add(player(c,String.format(java.util.Locale.ROOT,"group-p%02d",i),false));
             var anchor=players.get(1);group(actor,anchor,"armor");
-            var request=menu(actor).request;c.assertValueEqual(request.choices.size(),48,"Java roster contains every eligible actual online player");
-            var first=request.choices.getFirst().player();var last=request.choices.getLast().player();select(actor,first);select(actor,last);
-            c.assertValueEqual(menu(actor).request.selected.size(),2,"Java pages preserve exactly two toggled UUIDs");
-            click(actor,GroupStatsMenu.PREVIOUS);c.assertTrue(menu(actor).view.getItem(0).getHoverName().getString().startsWith("Selected:"),"Returning a page retains its named selection");
+            var request=menu(actor).request;
+            assertFixturesOnce(c,request,players,"Java");
+            // Targets are our own non-actor fixtures at their actual extreme positions; 47 distinct positions span more than one page of either size.
+            var candidates=players.subList(1,players.size());
+            var first=candidates.stream().min(java.util.Comparator.comparingInt(p->position(request,p))).orElseThrow();
+            var last=candidates.stream().max(java.util.Comparator.comparingInt(p->position(request,p))).orElseThrow();
+            int javaFirst=position(request,first),javaLast=position(request,last);
+            c.assertTrue(javaFirst/GroupStatsMenu.PAGE_SIZE!=javaLast/GroupStatsMenu.PAGE_SIZE,"Explicit Java targets sit on distinct actual pages");
+            select(actor,first);select(actor,last);
+            c.assertTrue(menu(actor).request==request && menu(actor).page==javaLast/GroupStatsMenu.PAGE_SIZE,"Java selection navigated to the second target's actual page");
+            c.assertValueEqual(request.selected,new java.util.LinkedHashSet<>(List.of(first.getUUID(),last.getUUID())),"Java pages preserve exactly the two toggled UUIDs");
+            c.assertValueEqual(request.targets().stream().map(ServerPlayer::getUUID).toList(),List.of(first.getUUID(),last.getUUID()),"Java targets are exactly the explicit fixture identities");
+            while(menu(actor).page>0)click(actor,GroupStatsMenu.PREVIOUS);
+            int javaPages=(request.choices.size()-1)/GroupStatsMenu.PAGE_SIZE+1;var javaSelected=new ArrayList<String>();
+            for(int page=0;page<javaPages;page++) {
+                var handler=menu(actor);c.assertTrue(handler.request==request && handler.page==page,"Java traversal reaches each actual page in order");
+                for(int slot=0,i=page*GroupStatsMenu.PAGE_SIZE;slot<GroupStatsMenu.PAGE_SIZE && i<request.choices.size();slot++,i++) {
+                    var stack=handler.view.getItem(slot);var shown=request.choices.get(i).player();var name=stack.getHoverName().getString();
+                    c.assertTrue(name.startsWith("Select: "+shown.getName().getString()+" • ") || name.startsWith("Selected: "+shown.getName().getString()+" • ")
+                        || name.startsWith("Unavailable: "+shown.getName().getString()+" • "),"Java slot shows the player at its actual roster position");
+                    var lore=String.join(" ",stack.get(net.minecraft.core.component.DataComponents.LORE).lines().stream().map(l->l.getString()).toList());
+                    c.assertTrue(lore.contains("Player ID: "+shown.getStringUUID()+"."),"Java slot carries the exact UUID of its roster position");
+                    if(name.startsWith("Selected: "))javaSelected.add(shown.getStringUUID());
+                }
+                c.assertValueEqual(!handler.view.getItem(GroupStatsMenu.NEXT).isEmpty(),page+1<javaPages,"Java next control matches the actual page count");
+                if(page+1<javaPages)click(actor,GroupStatsMenu.NEXT);
+            }
+            c.assertValueEqual(javaSelected,List.of(first.getStringUUID(),last.getStringUUID()),"Leaving and returning to pages shows only the two explicit selections");
+
             actor.closeContainer();var forms=new Capture();GroupStatsMenu.open(actor,anchor,"armor",forms);
-            c.assertTrue(((SimpleForm)forms.last()).buttons().stream().noneMatch(b->b.text().startsWith("Enter exact")),"New native group starts empty even after Java selection");
-            forms.select(first);forms.click("Next players");forms.click("Next players");forms.click("Next players");forms.select(last);forms.click("Enter exact");forms.input("100");
-            var preview=(SimpleForm)forms.last();c.assertTrue(preview.buttons().stream().filter(b->b.text().contains("armor: 0 → 100")).count()==2,"Native pages retain the exact first and last names for review");
-            forms.click("Cancel");c.assertTrue(players.stream().allMatch(p->p.getAttributeBaseValue(Attributes.ARMOR)==0),"Browsing every page and cancelling changes no players");
+            var nativeRequest=(GroupStatsMenu.Request)map(GroupStatsMenu.class,"ACTIVE").get(actor.getUUID());
+            c.assertTrue(nativeRequest!=null && nativeRequest!=request && nativeRequest.selected.isEmpty(),"New native group is a fresh empty request");
+            c.assertTrue(encodedButtons(forms.last()).stream().noneMatch(b->b.startsWith("Enter exact")),"New native group starts empty even after Java selection");
+            assertFixturesOnce(c,nativeRequest,players,"Native");
+            int nativeFirst=position(nativeRequest,first),nativeLast=position(nativeRequest,last);
+            c.assertTrue(nativeFirst/BedrockGroupStatsMenu.PAGE_SIZE!=nativeLast/BedrockGroupStatsMenu.PAGE_SIZE,"Explicit native targets sit on distinct actual pages");
+            int nativePages=(nativeRequest.choices.size()-1)/BedrockGroupStatsMenu.PAGE_SIZE+1;var nativeSelected=new ArrayList<String>();
+            for(int page=0;page<nativePages;page++) {
+                if(page==nativeFirst/BedrockGroupStatsMenu.PAGE_SIZE)forms.select(first);
+                if(page==nativeLast/BedrockGroupStatsMenu.PAGE_SIZE)forms.select(last);
+                var buttons=encodedButtons(forms.last());int start=page*BedrockGroupStatsMenu.PAGE_SIZE,end=Math.min(nativeRequest.choices.size(),start+BedrockGroupStatsMenu.PAGE_SIZE);
+                for(int i=start;i<end;i++) {
+                    var shown=nativeRequest.choices.get(i).player();var text=buttons.get(i-start);
+                    c.assertTrue(nameButton(text,shown.getName().getString()),"Encoded native button shows the player at its actual roster position");
+                    if(text.startsWith("✓ "))nativeSelected.add(shown.getStringUUID());
+                }
+                c.assertValueEqual(buttons.contains("Next players"),page+1<nativePages,"Encoded native next control matches the actual page count");
+                if(page+1<nativePages)forms.click("Next players");
+            }
+            c.assertValueEqual(nativeSelected,List.of(first.getStringUUID(),last.getStringUUID()),"Encoded native pages mark only the two explicit selections");
+            c.assertValueEqual(nativeRequest.targets().stream().map(ServerPlayer::getUUID).toList(),List.of(first.getUUID(),last.getUUID()),"Native targets are exactly the explicit fixture UUIDs");
+            forms.click("Enter exact");forms.input("100");
+            var preview=encodedButtons(forms.last());var reviewed=preview.stream().filter(b->b.contains("armor: 0 → 100")).map(b->b.substring(0,b.indexOf('\n'))).toList();
+            c.assertValueEqual(reviewed,List.of(first.getName().getString(),last.getName().getString()),"Encoded native review lists exactly the two selected fixtures");
+            forms.click("Cancel");
+            c.assertFalse(map(GroupStatsMenu.class,"ACTIVE").containsKey(actor.getUUID()),"Native cancel retires the group request");
+            c.assertTrue(players.stream().allMatch(p->p.getAttributeBaseValue(Attributes.ARMOR)==0),"Browsing every page and cancelling changes no fixture players");
         } finally {for(var p:players)cleanup(p);}
         c.succeed();
     }
