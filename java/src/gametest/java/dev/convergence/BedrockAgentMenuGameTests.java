@@ -170,6 +170,8 @@ public class BedrockAgentMenuGameTests {
         try {
             helpers.spawn(owner, "kept"); var oldId = helpers.owned(owner, "kept").getKey();
             BedrockAgentMenu.open(owner, forms); forms.click("kept •"); forms.click("Dismiss helper");
+            c.assertTrue(forms.last().content().contains("saved copy") && forms.last().content().contains("cannot see")
+                && forms.last().content().contains("edited stats"), "Bedrock confirmation warns about unseen copies and edited stats");
             c.assertValueEqual(helpers.count(owner), 1, "Opening dismiss review does not remove the helper");
             forms.click("Keep this helper");
             c.assertTrue(helpers.data.agents.containsKey(oldId), "Cancel preserves the exact helper");

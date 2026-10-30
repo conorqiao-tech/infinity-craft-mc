@@ -107,7 +107,7 @@ final class BedrockAgentMenu {
                 : free > 0
                 ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
                 : "The server's helper capacity is full, including saved unloaded helpers."
-                : "Choose a named helper for its live status and controls. Unloaded helpers stay saved; these menus never load distant chunks.")
+                : "Choose a named helper for its live status and controls. Unloaded identities remain reserved; their bodies may be elsewhere or may have died. These menus never load distant chunks.")
             + "\n\nRegular follows and guards. Ultimate Finals uses a real spear charge, elytra flight and a falling mace strike when the target and terrain allow it."
             + "\nChoose nearby mob targets through Orders. Player targets and server-changing AI orders still require your approval and separate live Codex review.\n" + HelperCombatStatus.squadSummary(owner);
         return HelperForms.show(owner, "Your Helper Squad", withFeedback(feedback, content), choices, () -> current(owner, saved), sender);
@@ -310,7 +310,7 @@ final class BedrockAgentMenu {
         var captured = helpers.loaded.get(UUID.fromString(id));
         int returnPage = pageFor(owner, id);
         return HelperForms.show(owner, "Dismiss " + agent.name() + "?",
-            "This removes this exact helper, including its saved identity and edited stats. It does not merely pause it. A saved unloaded copy is removed later only when its safe removal is verified. Choose Keep to cancel.",
+            AgentMenu.DISMISS_WARNING,
             List.of(new HelperForms.Choice("Confirm dismiss " + agent.name(), () -> {
                 int result = helpers.dismiss(owner, agent.name());
                 boolean removed = result == 1 && !helpers.data.agents.containsKey(id);

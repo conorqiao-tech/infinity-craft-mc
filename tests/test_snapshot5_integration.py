@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import struct
 import sys
+import tempfile
 import unittest
 import uuid
 
@@ -79,6 +80,15 @@ class HelperMigrationTests(unittest.TestCase):
         for secret in (str(uuid.UUID(bytes=struct.pack(">iiii", *original["UUID"]))), "buddy", "Saved named spear", "12.5", "73.0"):
             self.assertNotIn(secret, encoded)
 
+    def test_evidence_reader_rejects_duplicate_or_nonstandard_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'evidence.json'
+            for text in ('{"format":3,"format":3}', '{format:3}', '{/*comment*/"format":3}', '{"value":NaN}', '{"value":Infinity}'):
+                path.write_text(text)
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    gate.read_json(path)
+                self.assertEqual(path.read_text(), text)
+
     def test_provenance_roster_acceptance_and_invalid_records_fail_closed(self):
         original, old = self.fixture()
         converted = self.expected(original)
@@ -94,6 +104,15 @@ class HelperMigrationTests(unittest.TestCase):
         for record in bad:
             with self.subTest(record=record), self.assertRaises(ValueError):
                 self.verify(original, converted, record)
+        noncanonical = copy.deepcopy(newer)
+        identity, agent = next(iter(noncanonical['agents'].items()))
+        noncanonical['agents'] = {identity.upper(): agent}
+        noncanonical['dismissed'] = [identity]; noncanonical['guardedRemovals'] = [identity]
+        with self.assertRaisesRegex(ValueError, 'noncanonical registered helper identity'):
+            self.verify(original, converted, noncanonical)
+        noncanonical['agents'] = {'1-1-1-1-1': agent}
+        with self.assertRaisesRegex(ValueError, 'noncanonical registered helper identity'):
+            self.verify(original, converted, noncanonical)
 
     def test_saved_override_even_at_vanilla_base_is_never_upgraded(self):
         original, registration = self.fixture()

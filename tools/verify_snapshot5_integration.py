@@ -53,7 +53,9 @@ def read_json(path):
     with path.open("rb") as stream:
         body = stream.read(8 * 1024 * 1024 + 1)
     require(len(body) <= 8 * 1024 * 1024, "evidence exceeded bounded read")
-    data = json.loads(body, object_pairs_hook=unique)
+    def invalid_constant(value):
+        raise ValueError("Snapshot integration: invalid JSON number " + value)
+    data = json.loads(body, object_pairs_hook=unique, parse_constant=invalid_constant)
     require(isinstance(data, dict), "evidence must be an object")
     return data
 
@@ -116,6 +118,12 @@ def validate_helper_registrations(registrations):
     require(isinstance(registrations, dict) and type(registrations.get("format")) is int
             and registrations["format"] in (2, 3) and isinstance(registrations.get("agents"), dict),
             "invalid saved helper registration document")
+    for identity in registrations["agents"]:
+        try:
+            canonical = isinstance(identity, str) and str(uuid.UUID(identity)) == identity
+        except (ValueError, AttributeError):
+            canonical = False
+        require(canonical, "noncanonical registered helper identity")
     if registrations["format"] == 2:
         require("guardedRemovals" not in registrations, "old helper roster cannot assert new removal provenance")
         return

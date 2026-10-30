@@ -663,14 +663,19 @@ public class HelperBatchGameTests {
                 if (live != null) f.helpers.loaded.put(live.getUUID(), live); else f.helpers.loaded.remove(copy.getUUID(), copy);
                 copy.discard();
                 boolean renamed = fault.getValue();
-                c.assertValueEqual(AgentCompanions.read(f.helpers.file).agents.containsKey(id), !renamed,
+                var disk = AgentCompanions.read(f.helpers.file);
+                c.assertValueEqual(disk.agents.containsKey(id), !renamed,
                     "Disk holds exactly one of the two complete rosters, the new one only if the rename happened: " + label);
+                c.assertTrue(disk.dismissed.contains(id) == renamed && disk.guardedRemovals.contains(id) == renamed,
+                    "Both disk removal lists agree with the exact roster version: " + label);
                 var restarted = f.restart(); var later = f.saved(UUID.fromString(id)); restarted.load(later);
-                c.assertTrue(restarted.creationRecoveryRequired && !later.isRemoved(), "Restart stays frozen by the marker and keeps the saved copy: " + label);
+                c.assertTrue(restarted.creationRecoveryRequired && !restarted.provenRemoved.contains(id) && !later.isRemoved(),
+                    "Restart stays frozen by the marker and keeps the saved copy without trusting the proof: " + label);
                 later.discard();
                 // Removing the marker is the host's explicit decision; the durable roster then decides alone.
                 Files.delete(f.marker());
                 var resolved = f.restart(); var resolvedCopy = f.saved(UUID.fromString(id)); resolved.load(resolvedCopy);
+                c.assertValueEqual(resolved.provenRemoved.contains(id), renamed, "Only the verified on-disk version supplies a removal proof: " + label);
                 c.assertValueEqual(resolvedCopy.isRemoved(), renamed,
                     "After the host clears the marker, a copy is retired only if the dismissal had durably reached disk: " + label);
                 resolvedCopy.discard();
@@ -922,6 +927,55 @@ public class HelperBatchGameTests {
             boolean oldWithProvenance = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { oldWithProvenance = true; }
             c.assertTrue(oldWithProvenance, "An old-format file cannot claim newer removal provenance");
             json.addProperty("format", 3);
+            String canonical = "abcdef01-2222-4333-8444-555555555555";
+            var malformed = new AgentCompanions.Data();
+            malformed.agents.put(canonical.toUpperCase(java.util.Locale.ROOT), new AgentCompanions.Agent(f.owner.getStringUUID(), "case", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0));
+            malformed.dismissed.add(canonical); malformed.guardedRemovals.add(canonical);
+            byte[] ambiguousBytes = CommunityServer.GSON.toJson(malformed).getBytes(StandardCharsets.UTF_8); Files.write(invalid, ambiguousBytes);
+            boolean collisionRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) {
+                collisionRejected = expected.getMessage().contains("matching whole-world backup") && !expected.getMessage().contains("Restore its .previous");
+            }
+            c.assertTrue(collisionRejected && Arrays.equals(ambiguousBytes, Files.readAllBytes(invalid)),
+                "A noncanonical owner key cannot coexist with a canonical removal proof for the same UUID");
+            malformed.agents.clear(); malformed.dismissed.clear(); malformed.guardedRemovals.clear();
+            malformed.agents.put("1-1-1-1-1", new AgentCompanions.Agent(f.owner.getStringUUID(), "short", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0)); Files.writeString(invalid, CommunityServer.GSON.toJson(malformed));
+            boolean shortRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { shortRejected = true; }
+            c.assertTrue(shortRejected, "A shortened agent UUID is rejected");
+            malformed.agents.clear();
+            malformed.agents.put(canonical, new AgentCompanions.Agent("ABCDEF01-2222-4333-8444-555555555555", "owner-case", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0)); Files.writeString(invalid, CommunityServer.GSON.toJson(malformed));
+            boolean ownerRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { ownerRejected = true; }
+            c.assertTrue(ownerRejected, "A noncanonical owner UUID is rejected");
+            for (String text : List.of(
+                "{\"format\":3,\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3,\"agents\":{},\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{format:3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{/*comment*/\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3.0,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3e0,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":\"3\",\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":4,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}")) {
+                byte[] badBytes = text.getBytes(StandardCharsets.UTF_8); Files.write(invalid, badBytes);
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected && Arrays.equals(badBytes, Files.readAllBytes(invalid)), "Duplicate or lenient JSON is rejected without rewriting it");
+            }
+            String validAgent = CommunityServer.GSON.toJson(new AgentCompanions.Agent(f.owner.getStringUUID(), "duplicate", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0));
+            String duplicatedOwner = "{\"owner\":\"" + f.owner.getStringUUID() + "\"," + validAgent.substring(1);
+            String nestedDuplicate = "{\"format\":3,\"agents\":{\"" + canonical + "\":" + duplicatedOwner
+                + "},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}";
+            Files.writeString(invalid, nestedDuplicate); boolean nestedRejected = false;
+            try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { nestedRejected = true; }
+            c.assertTrue(nestedRejected && Files.readString(invalid).equals(nestedDuplicate), "A duplicated nested owner field is rejected without rewriting it");
+            String nested = "{\"x\":".repeat(66) + "null" + "}".repeat(66);
+            Files.writeString(invalid, nested); boolean deepRejected = false;
+            try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { deepRejected = true; }
+            c.assertTrue(deepRejected && Files.readString(invalid).equals(nested), "Excessive nesting is rejected without rewriting it");
+            byte[] invalidUtf8 = new byte[]{'{', (byte) 0xc3, (byte) 0x28, '}'}; Files.write(invalid, invalidUtf8);
+            boolean encodingRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { encodingRejected = true; }
+            c.assertTrue(encodingRejected && Arrays.equals(invalidUtf8, Files.readAllBytes(invalid)), "Malformed UTF-8 is rejected without rewriting it");
             for (String bad : List.of("null", "[\"" + id + "\",\"" + id + "\"]", "[\"" + UUID.randomUUID() + "\"]", "[null]")) {
                 json.add("guardedRemovals", com.google.gson.JsonParser.parseString(bad)); Files.writeString(invalid, json.toString());
                 boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }

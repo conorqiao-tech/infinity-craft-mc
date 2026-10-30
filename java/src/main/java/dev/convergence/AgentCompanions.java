@@ -150,7 +150,7 @@ public final class AgentCompanions {
             return new Agent(owner, name, mode, value, dimension, x, y, z);
         }
         boolean valid() {
-            try { UUID.fromString(owner); } catch (Exception e) { return false; }
+            try { if (!UUID.fromString(owner).toString().equals(owner)) return false; } catch (Exception e) { return false; }
             return validName(name) && mode != null && profile != null
                 && dimension != null && Identifier.tryParse(dimension) != null
                 && Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z) && Math.abs(x) <= 30_000_000 && Math.abs(z) <= 30_000_000 && y >= -2048 && y <= 2048;
@@ -198,6 +198,48 @@ public final class AgentCompanions {
     static AgentCompanions get(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, s -> new AgentCompanions(s, s.getWorldPath(LevelResource.ROOT).resolve("infinity-agents.json")));
     }
+    /** Strict, bounded JSON tree; duplicate keys must never hide an earlier ownership record. */
+    private static com.google.gson.JsonElement uniqueJsonValue(com.google.gson.stream.JsonReader reader, int depth) throws java.io.IOException {
+        if (depth > 64) throw new IllegalArgumentException("Helper roster nesting is too deep");
+        return switch (reader.peek()) {
+            case BEGIN_OBJECT -> {
+                var result = new com.google.gson.JsonObject(); var names = new HashSet<String>();
+                reader.beginObject();
+                while (reader.hasNext()) {
+                    String name = reader.nextName();
+                    if (!names.add(name)) throw new IllegalArgumentException("Duplicate helper roster field");
+                    result.add(name, uniqueJsonValue(reader, depth + 1));
+                }
+                reader.endObject(); yield result;
+            }
+            case BEGIN_ARRAY -> {
+                var result = new com.google.gson.JsonArray(); reader.beginArray();
+                while (reader.hasNext()) result.add(uniqueJsonValue(reader, depth + 1));
+                reader.endArray(); yield result;
+            }
+            case STRING -> new com.google.gson.JsonPrimitive(reader.nextString());
+            case NUMBER -> {
+                String number = reader.nextString();
+                if (number.length() > 1024) throw new IllegalArgumentException("Helper roster number is too long");
+                yield JsonParser.parseString(number);
+            }
+            case BOOLEAN -> new com.google.gson.JsonPrimitive(reader.nextBoolean());
+            case NULL -> { reader.nextNull(); yield com.google.gson.JsonNull.INSTANCE; }
+            default -> throw new IllegalArgumentException("Invalid helper roster JSON");
+        };
+    }
+    private static com.google.gson.JsonElement strictUniqueJson(byte[] bytes) throws java.io.IOException {
+        var decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
+        var text = decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+        try (var reader = new com.google.gson.stream.JsonReader(new java.io.StringReader(text))) {
+            reader.setStrictness(com.google.gson.Strictness.STRICT);
+            var result = uniqueJsonValue(reader, 0);
+            if (reader.peek() != com.google.gson.stream.JsonToken.END_DOCUMENT) throw new IllegalArgumentException("Trailing helper roster data");
+            return result;
+        }
+    }
+
     static Data read(Path file) {
         // Only a provably absent path is empty; a dangling link or an
         // undeterminable entry fails below rather than reading as a fresh roster.
@@ -207,7 +249,7 @@ public final class AgentCompanions {
             byte[] bytes;
             try (var input = java.nio.file.Files.newInputStream(file)) { bytes = input.readNBytes(MAX_BYTES + 1); }
             if (bytes.length > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
-            var json = JsonParser.parseString(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
+            var json = strictUniqueJson(bytes);
             if (!json.isJsonObject() || !json.getAsJsonObject().has("format") || !json.getAsJsonObject().get("format").isJsonPrimitive()
                 || !json.getAsJsonObject().getAsJsonPrimitive("format").isNumber()
                 || !Set.of("1", "2", "3").contains(json.getAsJsonObject().get("format").getAsString()))
@@ -240,7 +282,8 @@ public final class AgentCompanions {
             }
             Map<String, Set<String>> names = new HashMap<>();
             for (var entry : data.agents.entrySet()) {
-                UUID.fromString(entry.getKey()); Agent agent = entry.getValue();
+                if (!UUID.fromString(entry.getKey()).toString().equals(entry.getKey())) throw new IllegalArgumentException("Noncanonical agent identity");
+                Agent agent = entry.getValue();
                 if (agent == null || !agent.valid()) throw new IllegalArgumentException("Invalid agent record");
                 var owned = names.computeIfAbsent(agent.owner, k -> new HashSet<>());
                 if (!owned.add(agent.name) || owned.size() > LIMIT) throw new IllegalArgumentException("Duplicate agent name or exceeded owner limit");
@@ -261,7 +304,7 @@ public final class AgentCompanions {
                 if (id == null || !UUID.fromString(id).toString().equals(id) || !data.agents.containsKey(id))
                     throw new IllegalArgumentException("Invalid pending helper creation identity");
             return data;
-        } catch (Exception e) { throw new IllegalStateException("Cannot read " + file + ". Restore its .previous backup; the original was not overwritten.", e); }
+        } catch (Exception e) { throw new IllegalStateException("Cannot read " + file + ". Stop and inspect the roster and a matching whole-world backup; the original was not overwritten.", e); }
     }
     /** Saves the current roster; never claims success while frozen or after a failed write. */
     void save() {
@@ -696,8 +739,8 @@ public final class AgentCompanions {
         var golem = loaded.get(id);
         if (golem == null || !golem.isAlive() || golem.isRemoved() || !isAgent(golem)
             || !(golem.level() instanceof ServerLevel source) || source.getEntity(id) != golem)
-            return reply(owner, "That helper is unloaded or unavailable. Return near its saved area in "
-                + entry.getValue().dimension + ". Bring here never loads distant chunks.");
+            return reply(owner, "That helper is unloaded or unavailable. Visit its saved area in "
+                + entry.getValue().dimension + " if it may still exist; otherwise ask the host to inspect it. Bring here never loads distant chunks.");
         if (golem.isVehicle() || golem.isPassenger()) return reply(owner, "Dismount this helper and remove its passengers before using Bring here.");
         Vec3 place = spawnPlace(owner, golem);
         if (place == null) return reply(owner, "No clear solid ground nearby for a golem. Move to an open area and try Bring here again.");

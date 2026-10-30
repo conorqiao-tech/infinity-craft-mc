@@ -306,6 +306,10 @@ public class AgentMenuGameTests {
             detail(owner, "keeper");
             click(owner, AgentMenu.DISMISS);
             c.assertValueEqual(menu(owner).page, AgentMenu.Page.DISMISS, "Dismiss opens a separate confirmation screen");
+            var dismissalLore = menu(owner).view.getItem(AgentMenu.CONFIRM).get(DataComponents.LORE).lines();
+            String warning = dismissalLore.stream().map(Component::getString).collect(java.util.stream.Collectors.joining(" "));
+            c.assertTrue(warning.contains("saved copy") && warning.contains("cannot see") && warning.contains("edited stats"),
+                "Java confirmation warns about unseen copies and edited stats");
             c.assertValueEqual(helpers.count(owner), 1, "Opening confirmation leaves the helper alive");
             click(owner, AgentMenu.CANCEL);
             c.assertValueEqual(helpers.count(owner), 1, "Cancel preserves the helper");
