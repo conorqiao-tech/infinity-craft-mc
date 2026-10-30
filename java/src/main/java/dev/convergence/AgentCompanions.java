@@ -159,7 +159,10 @@ public final class AgentCompanions {
     static final class Data {
         int format = 2;
         Map<String, Agent> agents = new TreeMap<>();
-        /** Durable proof that a saved helper copy was dismissed, died or was rolled back; oldest first. */
+        /**
+         * Durable proof that a saved helper copy was dismissed or rolled back; oldest
+         * first. Rosters written by earlier builds may also hold deaths here.
+         */
         List<String> dismissed = new ArrayList<>();
         /** Created identities awaiting a future independent on-disk entity verification. */
         List<String> pendingCreations = new ArrayList<>();
@@ -981,24 +984,21 @@ public final class AgentCompanions {
         return reply(owner, name + " dismissed." + (golem == null ? " Its saved entity will be removed when the area next loads." : ""));
     }
     /**
-     * Native death already removed the entity; this never throws out of the
-     * callback. With a durable marker the record becomes removal proof. Without
-     * one only the record is removed: a stale copy that loads later is kept
-     * inert, never deleted. Any failure keeps the record and freezes.
+     * Native death already removed the exact registered body; this never throws
+     * out of the callback and never writes the roster. Death proves only what
+     * happened to that one body: an unseen saved copy may still exist, and
+     * asynchronous entity storage gives no proof either way. So every rostered
+     * identity, pending or not, keeps its record, pending status and slot, gains
+     * no removal proof, and nothing is recreated or moved. Only an explicit owner
+     * dismissal removes an identity.
      */
     void recordDeath(String id) {
-        if (creationRecoveryRequired || !data.agents.containsKey(id)) return;
-        // Death proves only what happened to this loaded body, not that every
-        // possible saved copy of an unverified creation is gone. Keep its
-        // pending roster identity and slot for host inspection.
-        if (data.pendingCreations.contains(id)) {
-            org.slf4j.LoggerFactory.getLogger("Infinity helpers").warn("An unverified helper body died; its pending saved identity is kept for host review.");
-            notifyRecoveryOwner(id, "An unverified helper died. Its saved identity remains reserved and still uses a helper slot; ask the host to inspect it.");
-            return;
-        }
-        if (guard("recording the death of helper " + id) == null) {
-            if (commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); rememberRemoved(id); }, Save.GUARDED, true) == Commit.PROVEN) unguard();
-        } else if (!creationRecoveryRequired) commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); }, Save.ORDINARY, true);
+        var agent = data.agents.get(id);
+        if (agent == null) return;
+        boolean pending = data.pendingCreations.contains(id);
+        org.slf4j.LoggerFactory.getLogger("Infinity helpers").warn("Helper {} ({}) died; its {}roster identity was kept unchanged for host review.",
+            id, agent.name, pending ? "pending " : "");
+        notifyRecoveryOwner(id, (pending ? "Unverified helper " : "Helper ") + agent.name + " died. Its saved identity remains reserved and still uses a helper slot; ask the host to inspect it. Nothing was recreated or moved, and your other helpers are unaffected.");
     }
     private void notifyRecoveryOwner(String id, String notice) {
         var agent = data.agents.get(id);

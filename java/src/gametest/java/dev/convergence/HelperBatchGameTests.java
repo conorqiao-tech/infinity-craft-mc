@@ -679,30 +679,36 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
-    public void failedDeathSaveKeepsTheRecordFreezesAndNeverRetiresTheSavedCopy(GameTestHelper c) throws Exception {
+    public void nativeDeathWritesNothingAndLeavesAnArmedRosterFaultForTheNextLegitimateWrite(GameTestHelper c) throws Exception {
+        // Natural death performs no roster write, so a replacement fault armed
+        // before it must survive untouched and fire on the next real change.
         for (var fault : REPLACEMENT_FAULTS) {
             var io = new FaultyIo(); String label = fault.toString();
             try (var f = new Fixture(c, io)) {
                 f.helpers.spawn(f.owner, "doomed"); var entry = f.helpers.owned(f.owner, "doomed"); String id = entry.getKey(); var record = entry.getValue();
+                f.helpers.spawn(f.owner, "other"); var other = f.helpers.loaded.get(UUID.fromString(f.helpers.owned(f.owner, "other").getKey()));
                 var entity = f.helpers.loaded.get(UUID.fromString(id));
                 f.legacy(id);
+                byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
                 io.arm(fault.getKey(), fault.getValue());
                 c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(),
                     "A real native death occurs and its callback does not throw: " + label);
-                c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()), "A failed death save freezes and leaves a marker: " + label);
-                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id), "The record is kept with no unsaved removal proof: " + label);
+                c.assertTrue(!f.helpers.creationRecoveryRequired && Files.notExists(f.marker()), "Death neither freezes nor writes a marker: " + label);
+                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id) && !f.helpers.data.pendingCreations.contains(id),
+                    "The exact nonpending record is kept with no removal proof: " + label);
+                c.assertTrue(Arrays.equals(roster, Files.readAllBytes(f.helpers.file)) && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                    "Neither the roster nor its .previous copy is rewritten: " + label);
                 var copy = f.saved(UUID.fromString(id)); f.helpers.load(copy);
-                c.assertFalse(copy.isRemoved(), "An older saved copy that loads is kept: " + label);
+                c.assertTrue(!copy.isRemoved() && f.helpers.loaded.get(copy.getUUID()) == copy, "A later saved copy keeps its record and registers: " + label);
                 f.helpers.loaded.remove(copy.getUUID(), copy); copy.discard();
-                boolean renamed = fault.getValue();
-                c.assertValueEqual(AgentCompanions.read(f.helpers.file).agents.containsKey(id), !renamed, "Disk holds one complete roster: " + label);
+                boolean untouched = fault.getKey().startsWith("write");
+                c.assertValueEqual(f.helpers.mode(f.owner, "other", AgentCompanions.Mode.STAY), 0, "The armed fault fires on the next legitimate write: " + label);
+                c.assertValueEqual(f.helpers.creationRecoveryRequired, !untouched, "That write freezes only if disk may have changed: " + label);
+                c.assertTrue(other.isAlive() && f.helpers.loaded.get(other.getUUID()) == other, "The unrelated helper is kept: " + label);
                 var restarted = f.restart(); var later = f.saved(UUID.fromString(id)); restarted.load(later);
-                c.assertTrue(restarted.creationRecoveryRequired && !later.isRemoved(), "Restart stays frozen and keeps the copy: " + label);
-                later.discard();
-                Files.delete(f.marker());
-                var resolved = f.restart(); var resolvedCopy = f.saved(UUID.fromString(id)); resolved.load(resolvedCopy);
-                c.assertValueEqual(resolvedCopy.isRemoved(), renamed, "After the host clears the marker, only a durable death record retires the copy: " + label);
-                resolvedCopy.discard();
+                c.assertTrue(restarted.data.agents.containsKey(id) && !restarted.data.dismissed.contains(id) && !later.isRemoved(),
+                    "After restart the dead helper's identity and a saved copy are kept: " + label);
+                restarted.loaded.remove(later.getUUID(), later); later.discard();
             }
         }
         c.succeed();
@@ -733,15 +739,17 @@ public class HelperBatchGameTests {
                 "The unloaded record and the saved roster are unchanged");
             var batch = f.helpers.owned(f.owner, "helper-1"); String batchId = batch.getKey();
             var batchEntity = f.helpers.loaded.get(UUID.fromString(batchId));
+            roster = Files.readAllBytes(f.helpers.file);
             c.assertTrue(batchEntity.hurtServer(c.getLevel(), batchEntity.damageSources().genericKill(), 10000) && !batchEntity.isAlive(), "A real native death occurs");
             var saved = AgentCompanions.read(f.helpers.file);
-            c.assertTrue(!saved.agents.containsKey(batchId) && saved.dismissed.isEmpty() && !f.helpers.creationRecoveryRequired,
-                "Death removes only the record, writes no removal proof and does not freeze");
+            c.assertTrue(saved.agents.get(batchId).equals(batch.getValue()) && saved.dismissed.isEmpty() && !f.helpers.creationRecoveryRequired
+                && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
+                "Death keeps the saved record, writes nothing, adds no removal proof and does not freeze");
             for (var restart : List.<java.util.function.Supplier<AgentCompanions>>of(() -> f.helpers, () -> f.restart(io), f::restart)) {
                 var helpers = restart.get(); var copy = f.saved(UUID.fromString(batchId)); helpers.load(copy);
-                c.assertTrue(!copy.isRemoved() && !helpers.loaded.containsKey(copy.getUUID()),
-                    "Without removal proof a stale copy is kept inert, before and after restart, even on storage that can sync later");
-                copy.discard();
+                c.assertTrue(!copy.isRemoved() && helpers.loaded.get(copy.getUUID()) == copy,
+                    "A later saved copy keeps its preserved record and registers, before and after restart, even on storage that can sync later");
+                helpers.loaded.remove(copy.getUUID(), copy); copy.discard();
             }
         }
         c.succeed();
@@ -807,8 +815,10 @@ public class HelperBatchGameTests {
             c.assertValueEqual(f.helpers.dismiss(f.owner, "away-1"), 1, "An unloaded helper can still be dismissed");
             c.assertTrue(nearEntity.hurtServer(c.getLevel(), nearEntity.damageSources().genericKill(), 10000) && !nearEntity.isAlive(), "A real native death occurs");
             var saved = AgentCompanions.read(f.helpers.file);
-            c.assertTrue(saved.dismissed.containsAll(List.of(away, near)) && !saved.agents.containsKey(away) && !saved.agents.containsKey(near),
-                "Dismissal and death each durably replace the record with removal proof");
+            c.assertTrue(saved.dismissed.contains(away) && !saved.agents.containsKey(away),
+                "An explicit dismissal durably replaces the record with removal proof");
+            c.assertTrue(saved.agents.containsKey(near) && !saved.dismissed.contains(near) && !f.helpers.creationRecoveryRequired,
+                "A natural death keeps its record and never becomes removal proof");
             var kept = f.saved(UUID.fromString(stay)); f.helpers.load(kept);
             c.assertTrue(!kept.isRemoved() && f.helpers.loaded.get(kept.getUUID()) == kept, "A pre-existing unloaded helper with a record loads and registers normally");
             f.helpers.loaded.remove(kept.getUUID(), kept); kept.discard();
@@ -824,7 +834,10 @@ public class HelperBatchGameTests {
             var staleNear = f.saved(UUID.fromString(near));
             var unknown = f.saved(UUID.randomUUID());
             restarted.load(staleAway); restarted.load(staleNear); restarted.load(unknown);
-            c.assertTrue(staleAway.isRemoved() && staleNear.isRemoved(), "After restart, saved copies with durable removal proof are retired on load");
+            c.assertTrue(staleAway.isRemoved(), "After restart, a saved copy with durable dismissal proof is retired on load");
+            c.assertTrue(!staleNear.isRemoved() && restarted.loaded.get(staleNear.getUUID()) == staleNear,
+                "After restart, a saved copy of a helper that died naturally survives and keeps its record");
+            restarted.loaded.remove(staleNear.getUUID(), staleNear); staleNear.discard();
             c.assertTrue(!unknown.isRemoved() && !restarted.loaded.containsKey(unknown.getUUID())
                 && ((AgentGoalAccess) unknown).infinity$getTargetSelector().getAvailableGoals().isEmpty(),
                 "An unknown tagged helper is kept, unregistered and without native targeting");
@@ -916,33 +929,90 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
-    public void deathWithoutAMarkerWritesNoRemovalProofAndAnUncertainMarkerKeepsTheRecord(GameTestHelper c) throws Exception {
-        var io = new FaultyIo();
-        try (var f = new Fixture(c, io)) {
-            f.helpers.spawn(f.owner, "doomed"); String id = f.helpers.owned(f.owner, "doomed").getKey(); var entity = f.helpers.loaded.get(UUID.fromString(id));
-            f.legacy(id);
-            io.arm("write:agents.json.recovery-required.tmp", false);
-            c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(), "A real native death occurs");
-            var saved = AgentCompanions.read(f.helpers.file);
-            c.assertTrue(!saved.agents.containsKey(id) && saved.dismissed.isEmpty() && !f.helpers.creationRecoveryRequired,
-                "Without a marker only the record is removed and no removal proof is written");
-            for (var helpers : List.of(f.helpers, f.restart())) {
-                var copy = f.saved(UUID.fromString(id)); helpers.load(copy);
-                c.assertTrue(!copy.isRemoved() && !helpers.loaded.containsKey(copy.getUUID()), "A stale copy is kept inert, never deleted");
-                copy.discard();
+    public void nativeDeathAttemptsNoMarkerWriteAndLeavesAnArmedMarkerFaultForTheNextDismissal(GameTestHelper c) throws Exception {
+        // Death no longer guards a removal, so it must never touch the marker.
+        // The armed marker fault then belongs to the next intentional dismissal.
+        for (boolean ambiguous : new boolean[]{false, true}) {
+            var io = new FaultyIo(); String label = ambiguous ? "marker rename may have happened" : "marker write refused";
+            try (var f = new Fixture(c, io)) {
+                f.helpers.spawn(f.owner, "doomed"); var entry = f.helpers.owned(f.owner, "doomed"); String id = entry.getKey();
+                var entity = f.helpers.loaded.get(UUID.fromString(id));
+                f.helpers.spawn(f.owner, "kept"); var kept = f.helpers.owned(f.owner, "kept");
+                f.legacy(id);
+                byte[] roster = Files.readAllBytes(f.helpers.file);
+                if (ambiguous) io.arm("move:agents.json.recovery-required", true); else io.arm("write:agents.json.recovery-required.tmp", false);
+                c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(), "A real native death occurs: " + label);
+                c.assertTrue(!f.helpers.creationRecoveryRequired && Files.notExists(f.marker()) && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && f.helpers.data.agents.get(id) == entry.getValue() && !f.helpers.data.dismissed.contains(id),
+                    "Death writes no marker or roster, keeps the record and does not freeze: " + label);
+                for (var helpers : List.of(f.helpers, f.restart())) {
+                    var copy = f.saved(UUID.fromString(id)); helpers.load(copy);
+                    c.assertTrue(!copy.isRemoved() && helpers.loaded.get(copy.getUUID()) == copy, "A later saved copy survives and keeps its record: " + label);
+                    helpers.loaded.remove(copy.getUUID(), copy); copy.discard();
+                }
+                c.assertValueEqual(f.helpers.dismiss(f.owner, "kept"), 0, "The still-armed marker fault refuses the next dismissal: " + label);
+                c.assertTrue(f.helpers.data.agents.get(kept.getKey()) == kept.getValue() && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
+                    "The refused dismissal keeps the helper and the roster: " + label);
+                c.assertValueEqual(f.helpers.creationRecoveryRequired, ambiguous, "Only a marker that may exist freezes: " + label);
+                if (ambiguous) c.assertTrue(f.restart().creationRecoveryRequired, "The marker that may exist keeps a restart frozen");
             }
         }
-        io = new FaultyIo();
-        try (var f = new Fixture(c, io)) {
-            f.helpers.spawn(f.owner, "doomed"); var entry = f.helpers.owned(f.owner, "doomed"); var entity = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
-            f.legacy(entry.getKey());
-            byte[] roster = Files.readAllBytes(f.helpers.file);
-            io.arm("move:agents.json.recovery-required", true);
-            c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(), "A real native death occurs");
-            c.assertTrue(f.helpers.creationRecoveryRequired && f.helpers.data.agents.get(entry.getKey()) == entry.getValue()
-                && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)), "An uncertain marker freezes and keeps the record and roster unchanged");
-            c.assertTrue(f.restart().creationRecoveryRequired, "The marker that may exist keeps a restart frozen");
-        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void preExistingNonpendingHelperDeathPreservesExactRosterAndSlotUntilExplicitDismissal(GameTestHelper c) throws Exception {
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
+            // A roster record written before pending-creation tracking, with a real body loaded natively.
+            f.unloaded(f.owner.getUUID(), 1, "veteran-"); var entry = f.helpers.owned(f.owner, "veteran-1"); String id = entry.getKey(); var record = entry.getValue();
+            c.assertValueEqual(f.helpers.spawn(f.owner, "other"), 1, "An unrelated helper is created");
+            var other = f.helpers.loaded.get(UUID.fromString(f.helpers.owned(f.owner, "other").getKey()));
+            other.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.43);
+            var body = f.saved(UUID.fromString(id));
+            c.assertTrue(c.getLevel().addFreshEntity(body) && f.helpers.loaded.get(body.getUUID()) == body, "Native ENTITY_LOAD registers the pre-existing helper");
+            c.assertFalse(f.helpers.unresolvedCreation(id), "The pre-existing helper is not a pending creation");
+            body.getAttribute(Attributes.MAX_HEALTH).setBaseValue(1500); body.setHealth(900); body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            // What an unseen saved chunk copy of this helper could hold.
+            var stale = persisted(body);
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            var disk = AgentCompanions.read(f.helpers.file);
+            int count = f.helpers.count(f.owner), remaining = f.helpers.remaining(f.owner);
+            wire.drain();
+            c.assertTrue(body.hurtServer(c.getLevel(), body.damageSources().genericKill(), 10000) && !body.isAlive(), "A real native death occurs");
+            c.assertTrue(!f.helpers.creationRecoveryRequired && Files.notExists(f.marker()), "Death does not freeze or leave a marker");
+            c.assertTrue(Arrays.equals(roster, Files.readAllBytes(f.helpers.file)) && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The exact roster and .previous bytes are unchanged");
+            var after = AgentCompanions.read(f.helpers.file);
+            c.assertTrue(after.agents.equals(disk.agents) && after.pendingCreations.equals(disk.pendingCreations) && after.dismissed.equals(disk.dismissed)
+                && !after.dismissed.contains(id) && !after.pendingCreations.contains(id), "On-disk records, pending and dismissed lists are exactly preserved with no tombstone");
+            c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.loaded.containsKey(body.getUUID())
+                && f.helpers.count(f.owner) == count && f.helpers.remaining(f.owner) == remaining, "The exact record object and slot stay reserved");
+            c.assertTrue(chat(wire).stream().anyMatch(text -> text.contains("veteran-1") && text.contains("still uses a helper slot")),
+                "The online owner is told the identity remains reserved pending host review");
+            c.assertValueEqual(f.helpers.mode(f.owner, "other", AgentCompanions.Mode.GUARD), 1, "Unrelated helper controls stay writable");
+            c.assertTrue(other.isAlive() && other.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .43, "The unrelated helper and its edited stat are intact");
+
+            // The dead body finishes its native removal; then the saved copy loads.
+            body.remove(net.minecraft.world.entity.Entity.RemovalReason.KILLED);
+            var copy = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.LOAD);
+            copy.load(net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, copy.registryAccess(), stale));
+            c.assertTrue(copy.getUUID().equals(body.getUUID()) && c.getLevel().addFreshEntity(copy), "A tagged saved copy enters the world by native load");
+            c.assertTrue(!copy.isRemoved() && f.helpers.loaded.get(copy.getUUID()) == copy && !f.helpers.creationRecoveryRequired,
+                "The copy survives and registers under the preserved record");
+            c.assertTrue(copy.getAttributeBaseValue(Attributes.MAX_HEALTH) == 1500 && copy.getHealth() == 900 && copy.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "Its edited stats are reachable again");
+            var restarted = f.restart(); var later = f.saved(UUID.fromString(id)); restarted.load(later);
+            c.assertTrue(!restarted.creationRecoveryRequired && restarted.data.agents.equals(f.helpers.data.agents) && !restarted.unresolvedCreation(id)
+                && !later.isRemoved() && restarted.loaded.get(later.getUUID()) == later, "After restart the identity and a saved copy are still kept");
+            restarted.loaded.remove(later.getUUID(), later); later.discard();
+
+            c.assertValueEqual(f.helpers.dismiss(f.owner, "veteran-1"), 1, "Explicit owner dismissal still applies to the selected identity");
+            c.assertTrue(copy.isRemoved() && !f.helpers.data.agents.containsKey(id) && AgentCompanions.read(f.helpers.file).dismissed.contains(id)
+                && f.helpers.count(f.owner) == count - 1, "Dismissal removes the body and record, records proof and frees the slot");
+            var dismissedCopy = f.saved(UUID.fromString(id)); f.restart().load(dismissedCopy);
+            c.assertTrue(dismissedCopy.isRemoved(), "A later copy of a dismissed identity is retired, as the owner chose");
+        } finally { wire.channel.finishAndReleaseAll(); }
         c.succeed();
     }
 

@@ -416,8 +416,12 @@ public class AgentGameTests {
             // Model a legacy helper whose roster predates pending-creation tracking.
             c.assertTrue(s.data.pendingCreations.remove(golem.getStringUUID()), "New test helper begins with pending creation");
             s.save();
+            var record = s.data.agents.get(golem.getStringUUID());
             golem.hurtServer(c.getLevel(), golem.damageSources().genericKill(), 10000);
-            c.assertValueEqual(s.count(p), 0, "Helper death removes ownership record and frees slot");
+            c.assertFalse(golem.isAlive(), "A real native helper death occurs");
+            c.assertTrue(s.data.agents.get(golem.getStringUUID()) == record && !s.data.dismissed.contains(golem.getStringUUID())
+                && !s.loaded.containsKey(golem.getUUID()), "Natural death keeps the exact ownership record without removal proof");
+            c.assertValueEqual(s.count(p), 1, "The dead identity still occupies its slot pending host review");
           } finally { cleanup(s, p); }
           c.succeed();
         });

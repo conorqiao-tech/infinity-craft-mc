@@ -185,9 +185,13 @@ public class HelperDeathIdentityGameTests {
         try(var f=new Fixture(c)) {
             var legacy=f.spawn("legacy");String id=legacy.getStringUUID();
             c.assertTrue(f.helpers.data.pendingCreations.remove(id),"Simulate an old nonpending roster record");f.helpers.save();
+            var record=f.helpers.data.agents.get(id);byte[] before=Files.readAllBytes(f.helpers.file);f.wire.drain();
             c.assertTrue(legacy.hurtServer(c.getLevel(),legacy.damageSources().genericKill(),10000)&&!legacy.isAlive(),"Real legacy helper death occurs");
-            c.assertFalse(f.helpers.data.agents.containsKey(id),"Nonpending death keeps the existing removal behavior");
-            c.assertTrue(f.helpers.data.dismissed.contains(id)&&!f.helpers.creationRecoveryRequired,"A durable nonpending death creates removal proof without freezing");
+            c.assertTrue(f.helpers.data.agents.get(id)==record&&!f.helpers.data.pendingCreations.contains(id)&&!f.helpers.data.dismissed.contains(id),
+                "Nonpending death keeps the exact record, adds no pending entry and writes no removal proof");
+            c.assertTrue(Arrays.equals(before,Files.readAllBytes(f.helpers.file))&&!f.helpers.creationRecoveryRequired,"Nonpending death performs no roster write and does not freeze");
+            c.assertValueEqual(f.helpers.count(f.owner),1,"The dead legacy identity still occupies its slot");
+            c.assertTrue(f.notice("still uses a helper slot"),"The online owner is told the identity remains reserved");
         }
         try(var f=new Fixture(c)) {
             var pending=f.spawn("owner-dismiss");String id=pending.getStringUUID();
