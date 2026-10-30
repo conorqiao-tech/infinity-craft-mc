@@ -651,8 +651,9 @@ public class HelperBatchGameTests {
                 io.arm(fault.getKey(), fault.getValue());
                 c.assertValueEqual(f.helpers.dismiss(f.owner, name), 0, "A dismissal whose save fails never reports success: " + label);
                 c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()), "Every failed removal save freezes and leaves a marker: " + label);
-                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id) && !f.helpers.provenRemoved.contains(id),
-                    "Memory keeps the exact record and holds no unsaved removal proof: " + label);
+                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id)
+                    && !f.helpers.data.guardedRemovals.contains(id) && !f.helpers.provenRemoved.contains(id),
+                    "Memory keeps the exact record and restores both removal lists after failure: " + label);
                 if (live != null) c.assertTrue(f.helpers.loaded.get(live.getUUID()) == live && live.isAlive() && c.getLevel().getEntity(live.getUUID()) == live,
                     "The loaded helper is kept in the world and registered: " + label);
                 f.helpers.controlLoaded();
@@ -852,6 +853,89 @@ public class HelperBatchGameTests {
             var frozenCopy = f.saved(UUID.fromString(away)); var frozen = f.restart(); frozen.load(frozenCopy);
             c.assertTrue(frozen.creationRecoveryRequired && !frozenCopy.isRemoved(), "While recovery is required, even proven removals are retained rather than discarded");
             frozenCopy.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void legacyTombstonesRemainAmbiguousAcrossSaveAndRestart(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "kept-");
+            String existing = f.helpers.owned(f.owner, "kept-1").getKey();
+            String ambiguous = UUID.randomUUID().toString();
+            var old = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(f.helpers.data)).getAsJsonObject();
+            old.addProperty("format", 2);
+            old.remove("guardedRemovals");
+            old.getAsJsonArray("dismissed").add(ambiguous);
+            Path path = f.directory.resolve("old-roster.json");
+            Files.writeString(path, old.toString());
+            var runtime = new AgentCompanions(f.helpers.server, path);
+            c.assertTrue(runtime.data.agents.containsKey(existing) && runtime.data.dismissed.contains(ambiguous)
+                && runtime.data.guardedRemovals.isEmpty() && !runtime.provenRemoved.contains(ambiguous),
+                "A legacy tombstone is reserved but never treated as proof of dismissal");
+            var first = f.saved(UUID.fromString(ambiguous));
+            first.setHealth(37); first.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            runtime.load(first);
+            c.assertTrue(!first.isRemoved() && !runtime.loaded.containsKey(first.getUUID())
+                && ((AgentGoalAccess) first).infinity$getTargetSelector().getAvailableGoals().isEmpty()
+                && first.getHealth() == 37 && first.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "An old ambiguous saved helper and its edited stats remain inert instead of being deleted");
+            first.discard();
+            runtime.save();
+            var saved = AgentCompanions.read(path);
+            c.assertTrue(saved.format == 3 && saved.agents.containsKey(existing) && saved.dismissed.contains(ambiguous) && saved.guardedRemovals.isEmpty(),
+                "An ordinary save keeps the existing record and does not promote old tombstones");
+            var restarted = new AgentCompanions(f.helpers.server, path);
+            var second = f.saved(UUID.fromString(ambiguous)); restarted.load(second);
+            c.assertTrue(!restarted.creationRecoveryRequired && !restarted.provenRemoved.contains(ambiguous)
+                && !second.isRemoved() && !restarted.loaded.containsKey(second.getUUID()),
+                "A later runtime still retains the ambiguous body without registering or deleting it");
+            second.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void guardedRemovalProvenanceRoundTripsAndRejectsMalformedRecords(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "dismissed"), 1, "A new helper exists");
+            String id = f.helpers.owned(f.owner, "dismissed").getKey();
+            c.assertValueEqual(f.helpers.dismiss(f.owner, "dismissed"), 1, "Owner explicitly dismisses this helper");
+            var saved = AgentCompanions.read(f.helpers.file);
+            c.assertTrue(saved.dismissed.contains(id) && saved.guardedRemovals.contains(id),
+                "The proven guarded removal records both its reserved identity and its provenance");
+            var restarted = f.restart(); var copy = f.saved(UUID.fromString(id)); restarted.load(copy);
+            c.assertTrue(restarted.provenRemoved.contains(id) && copy.isRemoved(), "The explicit guarded dismissal survives a fresh runtime");
+            var json = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(saved)).getAsJsonObject();
+            Path invalid = f.directory.resolve("invalid-provenance.json");
+            json.remove("guardedRemovals"); Files.writeString(invalid, json.toString());
+            boolean missing = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { missing = true; }
+            c.assertTrue(missing, "The new format refuses a missing provenance field");
+            for (String field : List.of("agents", "dismissed", "pendingCreations")) {
+                var incomplete = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(saved)).getAsJsonObject();
+                incomplete.remove(field); Files.writeString(invalid, incomplete.toString());
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected, "The new format refuses a missing " + field + " field");
+            }
+            json.addProperty("format", 2); json.add("guardedRemovals", com.google.gson.JsonParser.parseString("[\"" + id + "\"]"));
+            Files.writeString(invalid, json.toString());
+            boolean oldWithProvenance = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { oldWithProvenance = true; }
+            c.assertTrue(oldWithProvenance, "An old-format file cannot claim newer removal provenance");
+            json.addProperty("format", 3);
+            for (String bad : List.of("null", "[\"" + id + "\",\"" + id + "\"]", "[\"" + UUID.randomUUID() + "\"]", "[null]")) {
+                json.add("guardedRemovals", com.google.gson.JsonParser.parseString(bad)); Files.writeString(invalid, json.toString());
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected, "Malformed, duplicate or unrelated removal provenance fails closed: " + bad);
+            }
+            var oldest = UUID.randomUUID().toString(); var firstGuarded = UUID.randomUUID().toString();
+            f.helpers.data.dismissed.clear(); f.helpers.data.guardedRemovals.clear();
+            f.helpers.data.dismissed.add(oldest); f.helpers.rememberRemoved(firstGuarded);
+            for (int n=1; n<AgentCompanions.DISMISSED_LIMIT; n++) f.helpers.rememberRemoved(UUID.randomUUID().toString());
+            c.assertTrue(!f.helpers.data.dismissed.contains(oldest) && f.helpers.data.guardedRemovals.contains(firstGuarded),
+                "Evicting an older ambiguous tombstone does not evict an unrelated guarded removal");
+            f.helpers.rememberRemoved(UUID.randomUUID().toString());
+            c.assertTrue(!f.helpers.data.dismissed.contains(firstGuarded) && !f.helpers.data.guardedRemovals.contains(firstGuarded)
+                && f.helpers.data.dismissed.containsAll(f.helpers.data.guardedRemovals), "Evicting a guarded identity also drops its provenance");
         }
         c.succeed();
     }

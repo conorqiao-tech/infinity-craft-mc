@@ -157,13 +157,12 @@ public final class AgentCompanions {
         }
     }
     static final class Data {
-        int format = 2;
+        int format = 3;
         Map<String, Agent> agents = new TreeMap<>();
-        /**
-         * Durable proof that a saved helper copy was dismissed or rolled back; oldest
-         * first. Rosters written by earlier builds may also hold deaths here.
-         */
+        /** Reserved removed identities, oldest first; earlier builds also put deaths here. */
         List<String> dismissed = new ArrayList<>();
+        /** Subset explicitly removed by a guarded dismissal/rollback in a provenance-aware build. */
+        List<String> guardedRemovals = new ArrayList<>();
         /** Created identities awaiting a future independent on-disk entity verification. */
         List<String> pendingCreations = new ArrayList<>();
     }
@@ -194,7 +193,7 @@ public final class AgentCompanions {
                 HelperPersistence.recoveryMarker(file), file);
         // Removal proofs read at startup count only once the roster as read is
         // itself synced; otherwise stale copies are kept inert, never deleted.
-        else if (persistence.proveExisting(file)) provenRemoved = new HashSet<>(data.dismissed);
+        else if (persistence.proveExisting(file)) provenRemoved = new HashSet<>(data.guardedRemovals);
     }
     static AgentCompanions get(MinecraftServer server) {
         return INSTANCES.computeIfAbsent(server, s -> new AgentCompanions(s, s.getWorldPath(LevelResource.ROOT).resolve("infinity-agents.json")));
@@ -211,10 +210,10 @@ public final class AgentCompanions {
             var json = JsonParser.parseString(new String(bytes, java.nio.charset.StandardCharsets.UTF_8));
             if (!json.isJsonObject() || !json.getAsJsonObject().has("format") || !json.getAsJsonObject().get("format").isJsonPrimitive()
                 || !json.getAsJsonObject().getAsJsonPrimitive("format").isNumber()
-                || !Set.of("1", "2").contains(json.getAsJsonObject().get("format").getAsString()))
+                || !Set.of("1", "2", "3").contains(json.getAsJsonObject().get("format").getAsString()))
                 throw new IllegalArgumentException("Missing helper roster format");
             Data data = CommunityServer.GSON.fromJson(json, Data.class);
-            if (data == null || (data.format != 1 && data.format != 2) || data.agents == null || data.agents.size() > GLOBAL_LIMIT)
+            if (data == null || (data.format != 1 && data.format != 2 && data.format != 3) || data.agents == null || data.agents.size() > GLOBAL_LIMIT)
                 throw new IllegalArgumentException("Invalid agent data or exceeded server limit");
             if (data.format == 1) {
                 // Old rosters had movement modes only. Missing profiles migrate to Regular.
@@ -224,7 +223,20 @@ public final class AgentCompanions {
                     if (entry.getValue() == null) throw new IllegalArgumentException("Invalid agent record");
                     entry.setValue(entry.getValue().profile(Profile.REGULAR));
                 }
-                data.format = 2;
+            }
+            if (data.format < 3) {
+                // Older tombstones conflate death and dismissal. Refuse an
+                // unexpected future field rather than treating it as provenance.
+                if (json.getAsJsonObject().has("guardedRemovals")) throw new IllegalArgumentException("Unexpected provenance in an old roster");
+                data.guardedRemovals = new ArrayList<>();
+                data.format = 3;
+            } else {
+                var object = json.getAsJsonObject();
+                if (!object.has("agents") || !object.get("agents").isJsonObject()
+                    || !object.has("dismissed") || !object.get("dismissed").isJsonArray()
+                    || !object.has("guardedRemovals") || !object.get("guardedRemovals").isJsonArray()
+                    || !object.has("pendingCreations") || !object.get("pendingCreations").isJsonArray())
+                    throw new IllegalArgumentException("Incomplete provenance-aware roster");
             }
             Map<String, Set<String>> names = new HashMap<>();
             for (var entry : data.agents.entrySet()) {
@@ -238,6 +250,10 @@ public final class AgentCompanions {
             for (String id : data.dismissed)
                 if (id == null || !UUID.fromString(id).toString().equals(id) || data.agents.containsKey(id))
                     throw new IllegalArgumentException("Invalid dismissed helper record");
+            if (data.guardedRemovals == null || data.guardedRemovals.size() > DISMISSED_LIMIT
+                || new HashSet<>(data.guardedRemovals).size() != data.guardedRemovals.size()
+                || !data.dismissed.containsAll(data.guardedRemovals))
+                throw new IllegalArgumentException("Invalid guarded removal provenance");
             if (data.pendingCreations == null || data.pendingCreations.size() > GLOBAL_LIMIT
                 || new HashSet<>(data.pendingCreations).size() != data.pendingCreations.size())
                 throw new IllegalArgumentException("Invalid pending helper creation list");
@@ -288,20 +304,20 @@ public final class AgentCompanions {
             return Commit.UNTOUCHED;
         }
         var agents = new TreeMap<>(data.agents); var dismissed = new ArrayList<>(data.dismissed);
-        var pending = new ArrayList<>(data.pendingCreations);
+        var guarded = new ArrayList<>(data.guardedRemovals); var pending = new ArrayList<>(data.pendingCreations);
         change.run();
         try {
             var durability = persistence.replace(file, rosterBytes(), keepPrevious, policy == Save.CREATION);
             rosterEstablished = true;
-            if (durability == HelperPersistence.Durability.PROVEN) { provenRemoved = new HashSet<>(data.dismissed); return Commit.PROVEN; }
+            if (durability == HelperPersistence.Durability.PROVEN) { provenRemoved = new HashSet<>(data.guardedRemovals); return Commit.PROVEN; }
             // Proofs present in both the earlier and the new roster stay proven.
-            provenRemoved.retainAll(data.dismissed);
+            provenRemoved.retainAll(data.guardedRemovals);
             if (policy == Save.ORDINARY) return Commit.UNPROVEN;
-            restore(agents, dismissed, pending);
+            restore(agents, dismissed, guarded, pending);
             freeze("a guarded removal was saved but could not be proven durable", null);
             return Commit.UNCERTAIN;
         } catch (HelperPersistence.Failure failure) {
-            restore(agents, dismissed, pending);
+            restore(agents, dismissed, guarded, pending);
             if (failure.mayHaveChanged) rosterEstablished = true;
             if (failure.mayHaveChanged || policy == Save.GUARDED)
                 freeze(failure.mayHaveChanged ? "the saved roster may or may not hold the last change" : "a guarded removal could not be saved", failure);
@@ -327,9 +343,10 @@ public final class AgentCompanions {
         try { persistence.endGuard(file); return true; }
         catch (HelperPersistence.Failure failure) { freeze("the removal marker could not be retired", failure); return false; }
     }
-    private void restore(Map<String, Agent> agents, List<String> dismissed, List<String> pending) {
+    private void restore(Map<String, Agent> agents, List<String> dismissed, List<String> guarded, List<String> pending) {
         data.agents.clear(); data.agents.putAll(agents);
         data.dismissed.clear(); data.dismissed.addAll(dismissed);
+        data.guardedRemovals.clear(); data.guardedRemovals.addAll(guarded);
         data.pendingCreations.clear(); data.pendingCreations.addAll(pending);
     }
     private void freeze(String reason, Exception failure) {
@@ -345,7 +362,8 @@ public final class AgentCompanions {
     /** Forgetting the oldest proof only downgrades a stale copy from removal to inert retention. */
     void rememberRemoved(String id) {
         data.dismissed.remove(id); data.dismissed.add(id);
-        while (data.dismissed.size() > DISMISSED_LIMIT) data.dismissed.removeFirst();
+        data.guardedRemovals.remove(id); data.guardedRemovals.add(id);
+        while (data.dismissed.size() > DISMISSED_LIMIT) data.guardedRemovals.remove(data.dismissed.removeFirst());
     }
     static boolean validName(String name) { return name != null && name.matches("[a-z0-9_-]{1,24}"); }
     static boolean operator(CommandSourceStack source) { return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS)); }

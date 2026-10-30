@@ -443,9 +443,10 @@ public class AgentGameTests {
             data.agents.put(id, new AgentCompanions.Agent(owner, "legacy", AgentCompanions.Mode.GUARD, "minecraft:overworld", 0, 64, 0));
             var json = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(data)).getAsJsonObject();
             json.getAsJsonObject("agents").getAsJsonObject(id).remove("profile");
+            json.remove("guardedRemovals");
             String original = json.toString(); Files.writeString(file, original);
             var migrated = AgentCompanions.read(file);
-            c.assertValueEqual(migrated.format, 2, "Legacy schema upgrades in memory");
+            c.assertValueEqual(migrated.format, 3, "Legacy schema upgrades in memory");
             c.assertValueEqual(migrated.agents.get(id).profile(), AgentCompanions.Profile.REGULAR, "Legacy helpers keep their regular combat behavior");
             c.assertValueEqual(migrated.agents.get(id).mode(), AgentCompanions.Mode.GUARD, "Migration retains guard movement");
             c.assertValueEqual(Files.readString(file), original, "A read does not overwrite a legacy roster");

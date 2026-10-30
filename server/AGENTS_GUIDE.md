@@ -181,7 +181,7 @@ An active player order lasts at most five minutes while the target stays within 
 
 Use `/agent ceasefire` or the **Ceasefire** button in the AI Helpers menu to clear your chosen mob order, player order and queued target proposals immediately. This only affects your squad. The menu compass shows your current target status; Stay also pauses a helper's combat. Shared targeting is deterministic golem coordination. This live Codex chat reviews orders when you ask; it does not watch the queue in the background. The separate in-game Codex answer connection does not activate orders or replace that review.
 
-The roster is saved as format 2 in the world's `infinity-agents.json`. Existing format-1 helpers upgrade with the Regular profile. Restore the whole matching world backup, including ordinary entity data. Dismissing an unloaded helper frees its roster slot immediately and removes its entity when its chunk next loads.
+The roster is saved as format 3 in the world's `infinity-agents.json`. Existing format-1 helpers upgrade with the Regular profile; older removal entries are kept ambiguous because earlier builds also recorded deaths there. A saved body with such an old entry is retained inert for host review rather than automatically deleted. A new, explicitly guarded dismissal records its provenance; a later saved copy is removed when storage can prove the roster and ownership is not frozen, and otherwise it is retained for host review. A helper that dies naturally keeps its roster slot until the owner deliberately dismisses it or the host resolves the uncertainty. Older server builds cannot read format 3; use a matching verified whole-world backup for a rollback, including ordinary entity data.
 
 ## Reviewed code changes
 

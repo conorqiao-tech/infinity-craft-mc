@@ -79,6 +79,22 @@ class HelperMigrationTests(unittest.TestCase):
         for secret in (str(uuid.UUID(bytes=struct.pack(">iiii", *original["UUID"]))), "buddy", "Saved named spear", "12.5", "73.0"):
             self.assertNotIn(secret, encoded)
 
+    def test_provenance_roster_acceptance_and_invalid_records_fail_closed(self):
+        original, old = self.fixture()
+        converted = self.expected(original)
+        newer = copy.deepcopy(old)
+        removed = str(uuid.uuid4())
+        newer.update(format=3, dismissed=[removed], guardedRemovals=[removed], pendingCreations=[])
+        self.assertEqual(self.verify(original, converted, newer), self.verify(original, converted, old))
+        bad = [dict(newer, guardedRemovals=None), dict(newer, guardedRemovals=[removed, removed]),
+               dict(newer, guardedRemovals=[str(uuid.uuid4())]), dict(newer, dismissed=[]),
+               dict(newer, format=2), dict(newer, pendingCreations=None),
+               dict(newer, pendingCreations=[str(uuid.uuid4())]),
+               {key: value for key, value in newer.items() if key != 'guardedRemovals'}]
+        for record in bad:
+            with self.subTest(record=record), self.assertRaises(ValueError):
+                self.verify(original, converted, record)
+
     def test_saved_override_even_at_vanilla_base_is_never_upgraded(self):
         original, registration = self.fixture()
         original["InfinityAdminStats"]["minecraft:attack_damage"] = {"original": 15.0, "expanded": 1}
