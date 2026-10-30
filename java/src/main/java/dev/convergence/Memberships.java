@@ -81,9 +81,14 @@ final class Memberships {
     static final long ADMIN_CODE_GLOBAL_WINDOW_MS=15*60_000L;
     static final class Data {
         int format=1; Map<String,Account> accounts=new TreeMap<>();
-        // Shared across accounts, persisted with the existing membership state.
+        // Legacy fixed-window count; migrated into the rolling list and then kept at zero.
         int adminCodeGlobalFailures=0;
-        long adminCodeGlobalWindowStarted=0, adminCodeGlobalLockedUntil=0;
+        long adminCodeGlobalWindowStarted=0;
+        // Shared across accounts. Only failure times are stored, never codes or hashes of guesses.
+        // At most the latest ADMIN_CODE_GLOBAL_FAILURE_LIMIT times are kept, ascending.
+        List<Long> adminCodeFailureTimes=new ArrayList<>();
+        // High-water marks: a clock earlier than either one is treated as rolled back.
+        long adminCodeLastFailureAt=0, adminCodeGlobalLockedUntil=0;
     }
     static final class Config {
         boolean adminCodeEnabled=false;
@@ -103,6 +108,7 @@ final class Memberships {
                 if(data==null||data.format!=1||data.accounts==null
                     ||data.adminCodeGlobalFailures<0||data.adminCodeGlobalFailures>ADMIN_CODE_GLOBAL_FAILURE_LIMIT
                     ||data.adminCodeGlobalWindowStarted<0||data.adminCodeGlobalLockedUntil<0)throw new IllegalArgumentException("Invalid member data");
+                validateFailureTimes(data);migrateLegacyFailures(data);
                 for(var entry:data.accounts.entrySet()) {
                     UUID.fromString(entry.getKey());var a=entry.getValue();
                     if(a==null||a.tier==null||a.expires<0||a.attempts<0)throw new IllegalArgumentException("Invalid member");
@@ -352,23 +358,22 @@ final class Memberships {
     }
     boolean redeem(UUID id,String code,long now) {
         if(!config.adminCodeEnabled||adminCodeStorageFailed||id==null||code==null||code.length()>128||now<0)return false;
-        // A backwards clock never shortens the active window. Denial after ten
-        // incorrect guesses applies to every account, including correct codes.
-        if(data.adminCodeGlobalLockedUntil>now)return false;
-        if(data.adminCodeGlobalFailures>0 && now>=data.adminCodeGlobalWindowStarted
-            && now-data.adminCodeGlobalWindowStarted>=ADMIN_CODE_GLOBAL_WINDOW_MS) {
-            data.adminCodeGlobalFailures=0;data.adminCodeGlobalWindowStarted=0;data.adminCodeGlobalLockedUntil=0;
-        }
-        if(data.adminCodeGlobalFailures>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)return false;
+        // Denial after ten incorrect guesses within any rolling window applies
+        // to every account, including correct codes. A backwards clock fails closed.
+        if(data.adminCodeGlobalLockedUntil>now||now<data.adminCodeLastFailureAt)return false;
+        var times=data.adminCodeFailureTimes;
+        // A failure at f counts while now-f < window; t>=0 and now>=t, so this cannot overflow.
+        times.removeIf(t->now-t>=ADMIN_CODE_GLOBAL_WINDOW_MS);
+        if(times.size()>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)return false;
         var a=account(id);
         if(a.lockedUntil>now)return false;
         if(a.lockedUntil!=0){if(a.attempts>=3)a.attempts=0;a.lockedUntil=0;}
         boolean matches=MessageDigest.isEqual(hash(code).getBytes(StandardCharsets.US_ASCII),config.adminCodeSha256.getBytes(StandardCharsets.US_ASCII));
         if(matches)return grantAdmin(id);
-        if(data.adminCodeGlobalFailures==0)data.adminCodeGlobalWindowStarted=now;
-        data.adminCodeGlobalFailures++;
-        if(data.adminCodeGlobalFailures>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)
-            data.adminCodeGlobalLockedUntil=addDelay(now,ADMIN_CODE_GLOBAL_WINDOW_MS);
+        times.add(now);data.adminCodeLastFailureAt=now;
+        while(times.size()>ADMIN_CODE_GLOBAL_FAILURE_LIMIT)times.remove(0);
+        if(times.size()>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT)
+            data.adminCodeGlobalLockedUntil=Math.max(data.adminCodeGlobalLockedUntil,addDelay(now,ADMIN_CODE_GLOBAL_WINDOW_MS));
         a.attempts++;a.lockedUntil=addDelay(now,a.attempts>=3?15*60_000:10_000);
         try {save();} catch(IllegalStateException failure) {
             // Never let another code through this process when a failed guess
@@ -378,6 +383,39 @@ final class Memberships {
         return false;
     }
     private static long addDelay(long now,long delay) {return now>Long.MAX_VALUE-delay?Long.MAX_VALUE:now+delay;}
+    private static void validateFailureTimes(Data d) {
+        var times=d.adminCodeFailureTimes;
+        if(times==null||times.size()>ADMIN_CODE_GLOBAL_FAILURE_LIMIT||d.adminCodeLastFailureAt<0)throw new IllegalArgumentException("Invalid Admin code failures");
+        long previous=0;
+        for(Long t:times) {
+            if(t==null||t<previous||t>d.adminCodeLastFailureAt)throw new IllegalArgumentException("Invalid Admin code failures");
+            previous=t;
+        }
+    }
+    /**
+     * Legacy counts record only the window start, so later failures are placed at the latest time the
+     * fixed window allows. This never consults the clock: the rollback check then fails closed until it
+     * passes that time, and a later save cannot persist an earlier, weaker placement.
+     */
+    private static void migrateLegacyFailures(Data d) {
+        int legacy=d.adminCodeGlobalFailures;
+        if(legacy==0)return;
+        long started=d.adminCodeGlobalWindowStarted, locked=d.adminCodeGlobalLockedUntil;
+        // The legacy window counted failures at started..started+window-1; saturate rather than overflow.
+        long latest=addDelay(started,ADMIN_CODE_GLOBAL_WINDOW_MS-1);
+        // A legacy lock was set exactly window after the tenth failure. Use it only when it is consistent
+        // and not saturated; otherwise keep the window-end bound.
+        long tenth=locked-ADMIN_CODE_GLOBAL_WINDOW_MS;
+        if(legacy>=ADMIN_CODE_GLOBAL_FAILURE_LIMIT&&locked<Long.MAX_VALUE&&tenth>=started&&tenth<=latest)latest=tenth;
+        var times=d.adminCodeFailureTimes;
+        // The old code set the start at the first failure, so one failure is exactly there.
+        times.add(started);
+        for(int i=1;i<legacy;i++)times.add(latest);
+        times.sort(null);
+        while(times.size()>ADMIN_CODE_GLOBAL_FAILURE_LIMIT)times.remove(0);
+        d.adminCodeLastFailureAt=Math.max(d.adminCodeLastFailureAt,legacy>1?latest:started);
+        d.adminCodeGlobalFailures=0;d.adminCodeGlobalWindowStarted=0;
+    }
     static boolean owner(CommandSourceStack source) {return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS));}
     static boolean operator(ServerPlayer player) {return owner(player.createCommandSourceStack());}
     static boolean admin(CommandSourceStack source) {return owner(source)||(source.getEntity() instanceof ServerPlayer p&&get(source.getServer()).account(p.getUUID()).admin);}
