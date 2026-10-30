@@ -100,7 +100,8 @@
   ],
   "custom": {
     "infinity-opt-in-gametests": [
-      "dev.convergence.HelperPerformanceBenchmark"
+      "dev.convergence.HelperPerformanceBenchmark",
+      "dev.convergence.PublicLoadDiagnostic"
     ],
     "infinity-isolated-gametests": [
       "dev.convergence.ClientVitalsRefreshGameTests",
