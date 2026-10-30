@@ -150,6 +150,11 @@ public class HelperBatchGameTests {
                     AgentCompanions.Profile.REGULAR, c.getLevel().dimension().identifier().toString(), feet.getX(), feet.getY(), feet.getZ()));
             helpers.save();
         }
+        /** Simulates a legacy roster entry that predates creation-pending tracking. */
+        void legacy(String id) {
+            c.assertTrue(helpers.data.pendingCreations.remove(id), "A new test helper starts pending");
+            helpers.save();
+        }
         Path marker() { return HelperPersistence.recoveryMarker(helpers.file); }
         Path previousFile() { return HelperPersistence.previousFile(helpers.file); }
         /** A fresh runtime over the same files, as after a restart. Never registered as the live instance. */
@@ -680,6 +685,7 @@ public class HelperBatchGameTests {
             try (var f = new Fixture(c, io)) {
                 f.helpers.spawn(f.owner, "doomed"); var entry = f.helpers.owned(f.owner, "doomed"); String id = entry.getKey(); var record = entry.getValue();
                 var entity = f.helpers.loaded.get(UUID.fromString(id));
+                f.legacy(id);
                 io.arm(fault.getKey(), fault.getValue());
                 c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(),
                     "A real native death occurs and its callback does not throw: " + label);
@@ -708,6 +714,7 @@ public class HelperBatchGameTests {
         try (var f = new Fixture(c, io)) {
             c.assertValueEqual(f.helpers.spawn(f.owner, "near"), 1, "Single creation is saved durably");
             c.assertValueEqual(f.helpers.spawnBatch(f.owner, 2, AgentCompanions.Profile.REGULAR), 2, "Batch creation is saved durably");
+            f.legacy(f.helpers.owned(f.owner, "helper-1").getKey());
             io.noDirectorySync = true;
             c.assertValueEqual(f.helpers.mode(f.owner, "near", AgentCompanions.Mode.GUARD), 1, "Movement changes save");
             c.assertValueEqual(f.helpers.profile(f.owner, "near", AgentCompanions.Profile.DEBUG), 1, "Profile changes save");
@@ -796,6 +803,7 @@ public class HelperBatchGameTests {
             String away = f.helpers.owned(f.owner, "away-1").getKey(), stay = f.helpers.owned(f.owner, "away-2").getKey();
             f.helpers.spawn(f.owner, "near"); String near = f.helpers.owned(f.owner, "near").getKey();
             var nearEntity = f.helpers.loaded.get(UUID.fromString(near));
+            f.legacy(near);
             c.assertValueEqual(f.helpers.dismiss(f.owner, "away-1"), 1, "An unloaded helper can still be dismissed");
             c.assertTrue(nearEntity.hurtServer(c.getLevel(), nearEntity.damageSources().genericKill(), 10000) && !nearEntity.isAlive(), "A real native death occurs");
             var saved = AgentCompanions.read(f.helpers.file);
@@ -912,6 +920,7 @@ public class HelperBatchGameTests {
         var io = new FaultyIo();
         try (var f = new Fixture(c, io)) {
             f.helpers.spawn(f.owner, "doomed"); String id = f.helpers.owned(f.owner, "doomed").getKey(); var entity = f.helpers.loaded.get(UUID.fromString(id));
+            f.legacy(id);
             io.arm("write:agents.json.recovery-required.tmp", false);
             c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(), "A real native death occurs");
             var saved = AgentCompanions.read(f.helpers.file);
@@ -926,6 +935,7 @@ public class HelperBatchGameTests {
         io = new FaultyIo();
         try (var f = new Fixture(c, io)) {
             f.helpers.spawn(f.owner, "doomed"); var entry = f.helpers.owned(f.owner, "doomed"); var entity = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
+            f.legacy(entry.getKey());
             byte[] roster = Files.readAllBytes(f.helpers.file);
             io.arm("move:agents.json.recovery-required", true);
             c.assertTrue(entity.hurtServer(c.getLevel(), entity.damageSources().genericKill(), 10000) && !entity.isAlive(), "A real native death occurs");

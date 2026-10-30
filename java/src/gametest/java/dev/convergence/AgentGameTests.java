@@ -159,6 +159,7 @@ public class AgentGameTests {
             c.assertTrue(owner.teleport(target) == owner, "Actual OP4 owner moves to another mode");
             acknowledgeLoadedPlayer(owner);
             helpers.recall(owner, "traveler");
+            c.assertFalse(helpers.creationRecoveryRequired, "A real permitted cross-dimension recall does not trigger collision recovery");
             var moved = helpers.loaded.get(id);
             c.assertTrue(moved != null && moved != helper && moved.level() == destination, "Native inter-mode transfer rebinds the destination entity");
             c.assertValueEqual(moved.getHealth(), 280f, "Current health survives recall");
@@ -412,6 +413,9 @@ public class AgentGameTests {
             s.mode(p, "patient", AgentCompanions.Mode.GUARD); var guard = s.owned(p, "patient").getValue();
             golem.setPos(golem.position().add(5, 0, 0)); s.control(golem, guard, 40);
             c.assertFalse(golem.getNavigation().isDone(), "Guard navigates back toward its saved anchor");
+            // Model a legacy helper whose roster predates pending-creation tracking.
+            c.assertTrue(s.data.pendingCreations.remove(golem.getStringUUID()), "New test helper begins with pending creation");
+            s.save();
             golem.hurtServer(c.getLevel(), golem.damageSources().genericKill(), 10000);
             c.assertValueEqual(s.count(p), 0, "Helper death removes ownership record and frees slot");
           } finally { cleanup(s, p); }
