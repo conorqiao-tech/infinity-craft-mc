@@ -53,7 +53,9 @@ def read_json(path):
     with path.open("rb") as stream:
         body = stream.read(8 * 1024 * 1024 + 1)
     require(len(body) <= 8 * 1024 * 1024, "evidence exceeded bounded read")
-    data = json.loads(body, object_pairs_hook=unique)
+    def invalid_constant(value):
+        raise ValueError("Snapshot integration: invalid JSON number " + value)
+    data = json.loads(body, object_pairs_hook=unique, parse_constant=invalid_constant)
     require(isinstance(data, dict), "evidence must be an object")
     return data
 
@@ -111,6 +113,48 @@ def same_native_value(first, second):
     return first == second
 
 
+def validate_helper_registrations(registrations):
+    """Accept old rosters or the provenance-aware format without weakening helper checks."""
+    require(isinstance(registrations, dict) and type(registrations.get("format")) is int
+            and registrations["format"] in (2, 3) and isinstance(registrations.get("agents"), dict),
+            "invalid saved helper registration document")
+    for identity in registrations["agents"]:
+        try:
+            canonical = isinstance(identity, str) and str(uuid.UUID(identity)) == identity
+        except (ValueError, AttributeError):
+            canonical = False
+        require(canonical, "noncanonical registered helper identity")
+    if registrations["format"] == 2:
+        require("guardedRemovals" not in registrations, "old helper roster cannot assert new removal provenance")
+        return
+    dismissed = registrations.get("dismissed")
+    guarded = registrations.get("guardedRemovals")
+    require(isinstance(dismissed, list) and isinstance(guarded, list)
+            and len(dismissed) <= 256 and len(guarded) <= 256, "invalid removal provenance lists")
+    def identities(values):
+        result = set()
+        for value in values:
+            try:
+                valid = isinstance(value, str) and str(uuid.UUID(value)) == value
+            except (ValueError, AttributeError):
+                valid = False
+            require(valid and value not in result and value not in registrations["agents"], "invalid removal provenance identity")
+            result.add(value)
+        return result
+    reserved, proven = identities(dismissed), identities(guarded)
+    require(proven <= reserved, "unreserved guarded removal provenance")
+    pending = registrations.get("pendingCreations")
+    require(isinstance(pending, list) and len(pending) <= 50, "invalid pending helper identities")
+    seen = set()
+    for value in pending:
+        try:
+            valid = isinstance(value, str) and str(uuid.UUID(value)) == value
+        except (ValueError, AttributeError):
+            valid = False
+        require(valid and value not in seen and value in registrations["agents"], "invalid pending helper identity")
+        seen.add(value)
+
+
 def verify_saved_helper(original, converted, dimension, registrations, version=VERSION):
     """Derive exactly one authorized migration from native NBT and registration.
 
@@ -121,9 +165,7 @@ def verify_saved_helper(original, converted, dimension, registrations, version=V
     require(isinstance(original, dict) and isinstance(converted, dict), "invalid helper NBT")
     identity = native_helper_uuid(original)
     require(native_helper_uuid(converted) == identity, "copied helper UUID changed")
-    require(isinstance(registrations, dict) and type(registrations.get("format")) is int
-            and registrations["format"] == 2 and isinstance(registrations.get("agents"), dict),
-            "invalid saved helper registration document")
+    validate_helper_registrations(registrations)
     agent = registrations["agents"].get(identity)
     require(isinstance(agent, dict), "native helper is not registered")
     owner = agent.get("owner")
@@ -233,8 +275,7 @@ def native_world(root, base, label, evidence):
     require("infinity-agents.json" in mods and "infinity-agents.json" in originals,
             "missing actual saved helper registrations")
     registrations = read_json(before / "infinity-agents.json")
-    require(type(registrations.get("format")) is int and registrations["format"] == 2
-            and isinstance(registrations.get("agents"), dict), "invalid actual saved helper registrations")
+    validate_helper_registrations(registrations)
     old_level = storage.saved_nbt(before / "level.dat")["Data"]
     new_level = storage.saved_nbt(after / "level.dat")["Data"]
     require(result["source_data_version"] == old_level["DataVersion"]

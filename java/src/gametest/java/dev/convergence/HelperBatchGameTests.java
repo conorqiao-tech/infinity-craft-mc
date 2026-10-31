@@ -651,8 +651,9 @@ public class HelperBatchGameTests {
                 io.arm(fault.getKey(), fault.getValue());
                 c.assertValueEqual(f.helpers.dismiss(f.owner, name), 0, "A dismissal whose save fails never reports success: " + label);
                 c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()), "Every failed removal save freezes and leaves a marker: " + label);
-                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id) && !f.helpers.provenRemoved.contains(id),
-                    "Memory keeps the exact record and holds no unsaved removal proof: " + label);
+                c.assertTrue(f.helpers.data.agents.get(id) == record && !f.helpers.data.dismissed.contains(id)
+                    && !f.helpers.data.guardedRemovals.contains(id) && !f.helpers.provenRemoved.contains(id),
+                    "Memory keeps the exact record and restores both removal lists after failure: " + label);
                 if (live != null) c.assertTrue(f.helpers.loaded.get(live.getUUID()) == live && live.isAlive() && c.getLevel().getEntity(live.getUUID()) == live,
                     "The loaded helper is kept in the world and registered: " + label);
                 f.helpers.controlLoaded();
@@ -662,14 +663,19 @@ public class HelperBatchGameTests {
                 if (live != null) f.helpers.loaded.put(live.getUUID(), live); else f.helpers.loaded.remove(copy.getUUID(), copy);
                 copy.discard();
                 boolean renamed = fault.getValue();
-                c.assertValueEqual(AgentCompanions.read(f.helpers.file).agents.containsKey(id), !renamed,
+                var disk = AgentCompanions.read(f.helpers.file);
+                c.assertValueEqual(disk.agents.containsKey(id), !renamed,
                     "Disk holds exactly one of the two complete rosters, the new one only if the rename happened: " + label);
+                c.assertTrue(disk.dismissed.contains(id) == renamed && disk.guardedRemovals.contains(id) == renamed,
+                    "Both disk removal lists agree with the exact roster version: " + label);
                 var restarted = f.restart(); var later = f.saved(UUID.fromString(id)); restarted.load(later);
-                c.assertTrue(restarted.creationRecoveryRequired && !later.isRemoved(), "Restart stays frozen by the marker and keeps the saved copy: " + label);
+                c.assertTrue(restarted.creationRecoveryRequired && !restarted.provenRemoved.contains(id) && !later.isRemoved(),
+                    "Restart stays frozen by the marker and keeps the saved copy without trusting the proof: " + label);
                 later.discard();
                 // Removing the marker is the host's explicit decision; the durable roster then decides alone.
                 Files.delete(f.marker());
                 var resolved = f.restart(); var resolvedCopy = f.saved(UUID.fromString(id)); resolved.load(resolvedCopy);
+                c.assertValueEqual(resolved.provenRemoved.contains(id), renamed, "Only the verified on-disk version supplies a removal proof: " + label);
                 c.assertValueEqual(resolvedCopy.isRemoved(), renamed,
                     "After the host clears the marker, a copy is retired only if the dismissal had durably reached disk: " + label);
                 resolvedCopy.discard();
@@ -852,6 +858,138 @@ public class HelperBatchGameTests {
             var frozenCopy = f.saved(UUID.fromString(away)); var frozen = f.restart(); frozen.load(frozenCopy);
             c.assertTrue(frozen.creationRecoveryRequired && !frozenCopy.isRemoved(), "While recovery is required, even proven removals are retained rather than discarded");
             frozenCopy.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void legacyTombstonesRemainAmbiguousAcrossSaveAndRestart(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "kept-");
+            String existing = f.helpers.owned(f.owner, "kept-1").getKey();
+            String ambiguous = UUID.randomUUID().toString();
+            var old = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(f.helpers.data)).getAsJsonObject();
+            old.addProperty("format", 2);
+            old.remove("guardedRemovals");
+            old.getAsJsonArray("dismissed").add(ambiguous);
+            Path path = f.directory.resolve("old-roster.json");
+            Files.writeString(path, old.toString());
+            var runtime = new AgentCompanions(f.helpers.server, path);
+            c.assertTrue(runtime.data.agents.containsKey(existing) && runtime.data.dismissed.contains(ambiguous)
+                && runtime.data.guardedRemovals.isEmpty() && !runtime.provenRemoved.contains(ambiguous),
+                "A legacy tombstone is reserved but never treated as proof of dismissal");
+            var first = f.saved(UUID.fromString(ambiguous));
+            first.setHealth(37); first.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            runtime.load(first);
+            c.assertTrue(!first.isRemoved() && !runtime.loaded.containsKey(first.getUUID())
+                && ((AgentGoalAccess) first).infinity$getTargetSelector().getAvailableGoals().isEmpty()
+                && first.getHealth() == 37 && first.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "An old ambiguous saved helper and its edited stats remain inert instead of being deleted");
+            first.discard();
+            runtime.save();
+            var saved = AgentCompanions.read(path);
+            c.assertTrue(saved.format == 3 && saved.agents.containsKey(existing) && saved.dismissed.contains(ambiguous) && saved.guardedRemovals.isEmpty(),
+                "An ordinary save keeps the existing record and does not promote old tombstones");
+            var restarted = new AgentCompanions(f.helpers.server, path);
+            var second = f.saved(UUID.fromString(ambiguous)); restarted.load(second);
+            c.assertTrue(!restarted.creationRecoveryRequired && !restarted.provenRemoved.contains(ambiguous)
+                && !second.isRemoved() && !restarted.loaded.containsKey(second.getUUID()),
+                "A later runtime still retains the ambiguous body without registering or deleting it");
+            second.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void guardedRemovalProvenanceRoundTripsAndRejectsMalformedRecords(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "dismissed"), 1, "A new helper exists");
+            String id = f.helpers.owned(f.owner, "dismissed").getKey();
+            c.assertValueEqual(f.helpers.dismiss(f.owner, "dismissed"), 1, "Owner explicitly dismisses this helper");
+            var saved = AgentCompanions.read(f.helpers.file);
+            c.assertTrue(saved.dismissed.contains(id) && saved.guardedRemovals.contains(id),
+                "The proven guarded removal records both its reserved identity and its provenance");
+            var restarted = f.restart(); var copy = f.saved(UUID.fromString(id)); restarted.load(copy);
+            c.assertTrue(restarted.provenRemoved.contains(id) && copy.isRemoved(), "The explicit guarded dismissal survives a fresh runtime");
+            var json = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(saved)).getAsJsonObject();
+            Path invalid = f.directory.resolve("invalid-provenance.json");
+            json.remove("guardedRemovals"); Files.writeString(invalid, json.toString());
+            boolean missing = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { missing = true; }
+            c.assertTrue(missing, "The new format refuses a missing provenance field");
+            for (String field : List.of("agents", "dismissed", "pendingCreations")) {
+                var incomplete = com.google.gson.JsonParser.parseString(CommunityServer.GSON.toJson(saved)).getAsJsonObject();
+                incomplete.remove(field); Files.writeString(invalid, incomplete.toString());
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected, "The new format refuses a missing " + field + " field");
+            }
+            json.addProperty("format", 2); json.add("guardedRemovals", com.google.gson.JsonParser.parseString("[\"" + id + "\"]"));
+            Files.writeString(invalid, json.toString());
+            boolean oldWithProvenance = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { oldWithProvenance = true; }
+            c.assertTrue(oldWithProvenance, "An old-format file cannot claim newer removal provenance");
+            json.addProperty("format", 3);
+            String canonical = "abcdef01-2222-4333-8444-555555555555";
+            var malformed = new AgentCompanions.Data();
+            malformed.agents.put(canonical.toUpperCase(java.util.Locale.ROOT), new AgentCompanions.Agent(f.owner.getStringUUID(), "case", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0));
+            malformed.dismissed.add(canonical); malformed.guardedRemovals.add(canonical);
+            byte[] ambiguousBytes = CommunityServer.GSON.toJson(malformed).getBytes(StandardCharsets.UTF_8); Files.write(invalid, ambiguousBytes);
+            boolean collisionRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) {
+                collisionRejected = expected.getMessage().contains("matching whole-world backup") && !expected.getMessage().contains("Restore its .previous");
+            }
+            c.assertTrue(collisionRejected && Arrays.equals(ambiguousBytes, Files.readAllBytes(invalid)),
+                "A noncanonical owner key cannot coexist with a canonical removal proof for the same UUID");
+            malformed.agents.clear(); malformed.dismissed.clear(); malformed.guardedRemovals.clear();
+            malformed.agents.put("1-1-1-1-1", new AgentCompanions.Agent(f.owner.getStringUUID(), "short", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0)); Files.writeString(invalid, CommunityServer.GSON.toJson(malformed));
+            boolean shortRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { shortRejected = true; }
+            c.assertTrue(shortRejected, "A shortened agent UUID is rejected");
+            malformed.agents.clear();
+            malformed.agents.put(canonical, new AgentCompanions.Agent("ABCDEF01-2222-4333-8444-555555555555", "owner-case", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0)); Files.writeString(invalid, CommunityServer.GSON.toJson(malformed));
+            boolean ownerRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { ownerRejected = true; }
+            c.assertTrue(ownerRejected, "A noncanonical owner UUID is rejected");
+            for (String text : List.of(
+                "{\"format\":3,\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3,\"agents\":{},\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{format:3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{/*comment*/\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3.0,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":3e0,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":\"3\",\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                "{\"format\":4,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}")) {
+                byte[] badBytes = text.getBytes(StandardCharsets.UTF_8); Files.write(invalid, badBytes);
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected && Arrays.equals(badBytes, Files.readAllBytes(invalid)), "Duplicate or lenient JSON is rejected without rewriting it");
+            }
+            String validAgent = CommunityServer.GSON.toJson(new AgentCompanions.Agent(f.owner.getStringUUID(), "duplicate", AgentCompanions.Mode.STAY,
+                "minecraft:overworld", 0, 64, 0));
+            String duplicatedOwner = "{\"owner\":\"" + f.owner.getStringUUID() + "\"," + validAgent.substring(1);
+            String nestedDuplicate = "{\"format\":3,\"agents\":{\"" + canonical + "\":" + duplicatedOwner
+                + "},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}";
+            Files.writeString(invalid, nestedDuplicate); boolean nestedRejected = false;
+            try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { nestedRejected = true; }
+            c.assertTrue(nestedRejected && Files.readString(invalid).equals(nestedDuplicate), "A duplicated nested owner field is rejected without rewriting it");
+            String nested = "{\"x\":".repeat(66) + "null" + "}".repeat(66);
+            Files.writeString(invalid, nested); boolean deepRejected = false;
+            try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { deepRejected = true; }
+            c.assertTrue(deepRejected && Files.readString(invalid).equals(nested), "Excessive nesting is rejected without rewriting it");
+            byte[] invalidUtf8 = new byte[]{'{', (byte) 0xc3, (byte) 0x28, '}'}; Files.write(invalid, invalidUtf8);
+            boolean encodingRejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { encodingRejected = true; }
+            c.assertTrue(encodingRejected && Arrays.equals(invalidUtf8, Files.readAllBytes(invalid)), "Malformed UTF-8 is rejected without rewriting it");
+            for (String bad : List.of("null", "[\"" + id + "\",\"" + id + "\"]", "[\"" + UUID.randomUUID() + "\"]", "[null]")) {
+                json.add("guardedRemovals", com.google.gson.JsonParser.parseString(bad)); Files.writeString(invalid, json.toString());
+                boolean rejected = false; try { AgentCompanions.read(invalid); } catch (IllegalStateException expected) { rejected = true; }
+                c.assertTrue(rejected, "Malformed, duplicate or unrelated removal provenance fails closed: " + bad);
+            }
+            var oldest = UUID.randomUUID().toString(); var firstGuarded = UUID.randomUUID().toString();
+            f.helpers.data.dismissed.clear(); f.helpers.data.guardedRemovals.clear();
+            f.helpers.data.dismissed.add(oldest); f.helpers.rememberRemoved(firstGuarded);
+            for (int n=1; n<AgentCompanions.DISMISSED_LIMIT; n++) f.helpers.rememberRemoved(UUID.randomUUID().toString());
+            c.assertTrue(!f.helpers.data.dismissed.contains(oldest) && f.helpers.data.guardedRemovals.contains(firstGuarded),
+                "Evicting an older ambiguous tombstone does not evict an unrelated guarded removal");
+            f.helpers.rememberRemoved(UUID.randomUUID().toString());
+            c.assertTrue(!f.helpers.data.dismissed.contains(firstGuarded) && !f.helpers.data.guardedRemovals.contains(firstGuarded)
+                && f.helpers.data.dismissed.containsAll(f.helpers.data.guardedRemovals), "Evicting a guarded identity also drops its provenance");
         }
         c.succeed();
     }

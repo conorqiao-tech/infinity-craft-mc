@@ -31,6 +31,7 @@ final class AgentMenu {
     static final int BATCH_CREATE = 7;
     static final int GPT_PLAN = 25;
     static final String ASK_QUESTION = "Explain my helper's current state and suggest what I should do next.";
+    static final String DISMISS_WARNING = "Dismiss removes this helper's identity. Any saved copy, even one you cannot see, may be deleted with its edited stats. Choose Keep to cancel.";
     enum Page { ROSTER, HELPER, DISMISS }
 
     private AgentMenu() {}
@@ -192,6 +193,7 @@ final class AgentMenu {
             icon(view, 4, Items.IRON_INGOT, selected.name() + " • " + selected.profile().label());
             if (page == Page.DISMISS) {
                 icon(view, CONFIRM, Items.DYE.red(), "Confirm dismiss " + selected.name());
+                description(view, CONFIRM, DISMISS_WARNING);
                 icon(view, CANCEL, Items.DYE.lime(), "Keep this helper");
             } else {
                 profileChoices(view, selected);

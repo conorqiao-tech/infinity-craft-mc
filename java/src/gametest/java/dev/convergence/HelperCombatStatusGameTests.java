@@ -69,8 +69,8 @@ public class HelperCombatStatusGameTests {
             var record = arena.record(arena.golem);
             arena.helpers.loaded.remove(id);
             try {
-                c.assertTrue(summary(arena).contains("Paused: unloaded") && summary(arena).contains("Visit its saved area"),
-                    "Saved ownership does not claim the helper is loaded or teleportable");
+                c.assertTrue(summary(arena).contains("Paused: unloaded") && summary(arena).contains("Visit its saved area")
+                    && summary(arena).contains("otherwise ask the host"), "Saved ownership does not claim an unavailable helper is alive or teleportable");
             } finally { arena.helpers.loaded.put(id, arena.golem); }
             var otherWorld = GameModes.world(arena.helpers.server, GameModes.Mode.HARDCORE);
             var elsewhere = EntityTypes.IRON_GOLEM.create(otherWorld, EntitySpawnReason.COMMAND);

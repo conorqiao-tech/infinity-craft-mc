@@ -25,7 +25,7 @@ final class HelperCombatStatus {
             .append(agent.mode().name().toLowerCase(Locale.ROOT)).append('\n');
         if (pause != null) {
             text.append("Paused: ").append(pause).append('.');
-            if (golem == null) text.append(" Visit its saved area; Bring here cannot load distant chunks.");
+            if (golem == null) text.append(" Visit its saved area if it may still exist; otherwise ask the host to inspect it. Bring here cannot load distant chunks.");
             else if (agent.mode() == AgentCompanions.Mode.STAY) text.append(" Choose Follow or Guard to resume.");
             else if (owner.level() != golem.level() || golem.distanceToSqr(owner) > 48 * 48)
                 text.append(" Bring here can recall an already loaded helper to clear ground.");
