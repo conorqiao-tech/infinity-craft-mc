@@ -304,6 +304,21 @@ final class BedrockAgentMenu {
         return HelperForms.show(owner, agent.name() + " • Profiles", content.toString(), choices, () -> current(owner, id, agent, captured), sender);
     }
 
+    /** {@code /agent dismiss <name>} opens the same exact-identity review; nothing is removed until Confirm. */
+    static int confirmDismiss(ServerPlayer owner, String name) { return confirmDismiss(owner, name, HelperForms.sender(owner)); }
+    static int confirmDismiss(ServerPlayer owner, String name, Predicate<Form> sender) {
+        if (!AgentMenu.allowed(owner) || !HelperForms.emptyScreen(owner)) {
+            HelperForms.message(owner, "Close other screens before using helpers. A living OP4 owner is required. Nothing was dismissed.");
+            return 0;
+        }
+        var entry = AgentCompanions.validName(name) ? helpers(owner).owned(owner, name) : null;
+        if (entry == null) {
+            HelperForms.message(owner, "No helper named " + name + " belongs to you. Nothing was dismissed.");
+            return 0;
+        }
+        return dismiss(owner, entry.getKey(), sender);
+    }
+
     private static int dismiss(ServerPlayer owner, String id, Predicate<Form> sender) {
         var helpers = helpers(owner); var agent = helpers.data.agents.get(id);
         if (agent == null || !agent.owner().equals(owner.getStringUUID())) return roster(owner, "Choose your helper again.", sender);

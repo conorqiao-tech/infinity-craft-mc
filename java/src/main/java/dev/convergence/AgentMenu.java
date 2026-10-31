@@ -107,6 +107,29 @@ final class AgentMenu {
 
     static int open(ServerPlayer player) { return open(player, Page.ROSTER, null); }
 
+    /**
+     * {@code /agent dismiss <name>}: opens the edition's confirmation for the
+     * caller's exact current helper. Nothing is removed until Confirm; the
+     * confirmation screen rechecks that same record and loaded body.
+     */
+    static int confirmDismiss(ServerPlayer player, String name) {
+        if (!allowed(player)) {
+            player.sendSystemMessage(Component.literal("Helper controls require a living, non-spectator OP4 owner. Nothing was dismissed."));
+            return 0;
+        }
+        if (CrossplaySupport.bedrock(player)) return BedrockAgentMenu.confirmDismiss(player, name);
+        if (player.containerMenu != player.inventoryMenu || !player.containerMenu.getCarried().isEmpty()) {
+            player.sendSystemMessage(Component.literal("Close your current screen and empty the cursor before dismissing a helper. Nothing was dismissed."));
+            return 0;
+        }
+        var entry = AgentCompanions.validName(name) ? AgentCompanions.get(player.level().getServer()).owned(player, name) : null;
+        if (entry == null) {
+            player.sendSystemMessage(Component.literal("No helper named " + name + " belongs to you. Nothing was dismissed."));
+            return 0;
+        }
+        return open(player, Page.DISMISS, entry.getKey(), 0);
+    }
+
     private static int open(ServerPlayer player, Page page, String helperId) {
         return open(player, page, helperId, 0);
     }

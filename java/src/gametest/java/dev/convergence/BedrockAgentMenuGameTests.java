@@ -187,6 +187,58 @@ public class BedrockAgentMenuGameTests {
         c.succeed();
     }
 
+    @GameTest public void dismissCommandEntryOpensExactTouchReviewAndRejectsStaleIdentity(GameTestHelper c) {
+        var owner = player(c, "touch-dismiss-command"); var other = player(c, "touch-dismiss-foreign");
+        var helpers = AgentCompanions.get(owner.level().getServer()); var forms = new Capture();
+        try {
+            helpers.spawn(owner, "kept"); helpers.spawn(other, "foreign");
+            var oldId = helpers.owned(owner, "kept").getKey(); var foreign = helpers.owned(other, "foreign").getKey();
+            var body = helpers.loaded.get(UUID.fromString(oldId)); body.setHealth(37);
+            c.assertValueEqual(BedrockAgentMenu.confirmDismiss(owner, "missing", forms), 0, "An unknown name opens nothing");
+            c.assertValueEqual(BedrockAgentMenu.confirmDismiss(owner, "foreign", forms), 0, "Another owner's helper name opens nothing");
+            c.assertTrue(forms.forms.isEmpty() && helpers.data.agents.containsKey(foreign), "No misleading review is sent and the foreign helper is untouched");
+
+            c.assertValueEqual(BedrockAgentMenu.confirmDismiss(owner, "kept", forms), 1, "The command entry sends a native review");
+            c.assertValueEqual(forms.last().title(), "Dismiss kept?", "The review names the exact helper");
+            c.assertTrue(forms.last().content().contains("saved copy") && forms.last().content().contains("cannot see")
+                && forms.last().content().contains("edited stats"), "The command review warns about unseen copies and edited stats");
+            c.assertTrue(helpers.data.agents.containsKey(oldId) && !body.isRemoved() && body.getHealth() == 37, "Nothing is removed before Confirm");
+            forms.click("Keep this helper");
+            c.assertTrue(helpers.data.agents.containsKey(oldId) && !body.isRemoved() && forms.last().content().contains("Nothing was removed"),
+                "Keep preserves the exact helper");
+
+            BedrockAgentMenu.confirmDismiss(owner, "kept", forms); var oldReview = forms.last();
+            helpers.dismiss(owner, "kept"); helpers.spawn(owner, "kept");
+            var replacement = helpers.owned(owner, "kept").getKey();
+            reply(oldReview, "0");
+            c.assertTrue(!replacement.equals(oldId) && helpers.data.agents.containsKey(replacement)
+                && forms.last().title().equals("Helper or order changed"), "A command review cannot dismiss a same-name replacement");
+
+            var replacementBody = helpers.loaded.get(UUID.fromString(replacement));
+            BedrockAgentMenu.confirmDismiss(owner, "kept", forms); var bodyReview = forms.last();
+            helpers.unload(replacementBody); reply(bodyReview, "0");
+            c.assertTrue(helpers.data.agents.containsKey(replacement) && !replacementBody.isRemoved(), "A changed loaded body invalidates the review");
+            helpers.load(replacementBody);
+
+            operator(owner, LevelBasedPermissionSet.ADMIN);
+            c.assertValueEqual(BedrockAgentMenu.confirmDismiss(owner, "kept", forms), 0, "OP3 cannot open the review");
+            operator(owner, LevelBasedPermissionSet.OWNER);
+            owner.inventoryMenu.setCarried(new ItemStack(Items.DIAMOND));
+            c.assertValueEqual(BedrockAgentMenu.confirmDismiss(owner, "kept", forms), 0, "An occupied cursor refuses the review");
+            owner.inventoryMenu.setCarried(ItemStack.EMPTY);
+            BedrockAgentMenu.confirmDismiss(owner, "kept", forms);
+            operator(owner, LevelBasedPermissionSet.ADMIN); forms.click("Confirm dismiss");
+            c.assertTrue(helpers.data.agents.containsKey(replacement), "Revoking OP4 after the review blocks Confirm");
+            operator(owner, LevelBasedPermissionSet.OWNER);
+
+            BedrockAgentMenu.confirmDismiss(owner, "kept", forms); forms.click("Confirm dismiss");
+            c.assertTrue(!helpers.data.agents.containsKey(replacement) && replacementBody.isRemoved() && helpers.count(owner) == 0
+                && forms.last().content().contains("was dismissed"), "Explicit Confirm dismisses exactly the reviewed helper");
+            c.assertTrue(helpers.data.agents.containsKey(foreign), "Another owner's helper is untouched");
+        } finally { cleanup(owner); cleanup(other); }
+        c.succeed();
+    }
+
     @GameTest public void staleProfileIdentityAndOtherOwnersCannotBeChangedThroughOldForms(GameTestHelper c) {
         var owner = player(c, "touch-identity"); var other = player(c, "touch-other");
         var helpers = AgentCompanions.get(owner.level().getServer()); var forms = new Capture();

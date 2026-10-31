@@ -66,7 +66,7 @@ HELPERS AND FULL OPERATOR ACCESS
 Infinity Menu > AI Helpers > Create your first helper makes a named golem appear nearby on clear ground. Existing helpers appear in your roster.
 In the stopped-world panel, the host can connect their installed, signed-in native Codex CLI 0.155.1. Ask Codex then sends explicit questions plus limited game facts to OpenAI using that host account. No API key is required for this provider; account usage limits still apply.
 /ai help always answers locally. Ordinary players retain built-in server guidance.
-Level-4 operators: /agent spawn buddy, /agent follow buddy, /agent guard buddy, /agent stay buddy, /agent dismiss buddy, /agent list.
+Level-4 operators: /agent spawn buddy, /agent follow buddy, /agent guard buddy, /agent stay buddy, /agent dismiss buddy (opens a confirmation; nothing is removed until you confirm), /agent list.
 Separate OP4 helper action queue: /agent suggest set day; /agent pending; /agent approve <id>. No action runs until a live Codex session reviews and approves the exact proposal from the local console. The six fixed requests are day, night, clear weather, rain, list players, and save world. See AGENTS_GUIDE.md.
 Operators can use any power/cosmetic without earning it and switch modes immediately.
 Helper menu: /agent menu. Six named helpers per OP4 owner; six AI profiles; /agent ask <name> <question>; /agent squad follow|guard|stay. CLI code-change requests require in-game owner approval and live Codex source review/testing. API asks send a limited Minecraft snapshot; /agent data <name> previews it. More details: AGENTS_GUIDE.md.

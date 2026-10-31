@@ -337,6 +337,92 @@ public class AgentMenuGameTests {
         c.succeed();
     }
 
+    /** Dispatches through the registered Brigadier tree; a refused requirement reports -1. */
+    private int command(net.minecraft.commands.CommandSourceStack source, String text) {
+        try { return source.getServer().getCommands().getDispatcher().execute(text, source); }
+        catch (com.mojang.brigadier.exceptions.CommandSyntaxException refused) { return -1; }
+    }
+
+    @GameTest public void dismissCommandOpensExactConfirmationAndRemovesOnlyAfterConfirm(GameTestHelper c) {
+        var owner = player(c, "menu-dismiss-command");
+        var other = player(c, "menu-dismiss-foreign");
+        var helpers = AgentCompanions.get(c.getLevel().getServer());
+        try {
+            helpers.spawn(owner, "keeper"); helpers.spawn(other, "foreign");
+            String id = helpers.owned(owner, "keeper").getKey(); String foreign = helpers.owned(other, "foreign").getKey();
+            var body = helpers.loaded.get(UUID.fromString(id)); body.setHealth(37);
+            c.assertValueEqual(command(owner.createCommandSourceStack(), "agent dismiss keeper"), 1, "The actual command opens a confirmation");
+            c.assertTrue(menu(owner).page == AgentMenu.Page.DISMISS && id.equals(menu(owner).helperId),
+                "The confirmation captures the caller's exact current helper identity");
+            String warning = menu(owner).view.getItem(AgentMenu.CONFIRM).get(DataComponents.LORE).lines().stream()
+                .map(Component::getString).collect(java.util.stream.Collectors.joining(" "));
+            c.assertTrue(warning.contains("saved copy") && warning.contains("cannot see") && warning.contains("edited stats"),
+                "The command shows the same unseen-copy warning as the menu");
+            c.assertTrue(helpers.data.agents.containsKey(id) && !body.isRemoved() && body.getHealth() == 37,
+                "Nothing is removed before Confirm");
+            click(owner, AgentMenu.CANCEL);
+            c.assertTrue(helpers.data.agents.containsKey(id) && !body.isRemoved() && menu(owner).page == AgentMenu.Page.HELPER,
+                "Keep preserves the helper and returns to its controls");
+
+            c.assertValueEqual(command(owner.createCommandSourceStack(), "agent dismiss keeper"), 0, "An open screen refuses the command");
+            c.assertTrue(menu(owner).page == AgentMenu.Page.HELPER, "The existing screen is left alone");
+            owner.closeContainer();
+            for (String name : new String[]{"missing", "foreign"}) {
+                c.assertValueEqual(command(owner.createCommandSourceStack(), "agent dismiss " + name), 0, "An unknown or foreign name fails: " + name);
+                c.assertTrue(owner.containerMenu == owner.inventoryMenu, "No misleading confirmation opens: " + name);
+            }
+            c.assertTrue(helpers.data.agents.containsKey(foreign) && helpers.data.agents.containsKey(id), "No owner can reach another owner's helper");
+
+            command(owner.createCommandSourceStack(), "agent dismiss keeper");
+            AbstractContainerMenu stale = owner.containerMenu;
+            helpers.dismiss(owner, "keeper"); helpers.spawn(owner, "keeper");
+            String replacement = helpers.owned(owner, "keeper").getKey();
+            click(owner, AgentMenu.CONFIRM);
+            c.assertTrue(!replacement.equals(id) && helpers.data.agents.containsKey(replacement) && menu(owner).page == AgentMenu.Page.ROSTER,
+                "A command-opened confirmation cannot dismiss a same-name replacement");
+            stale.clicked(AgentMenu.CONFIRM, 0, ContainerInput.PICKUP, owner);
+            c.assertTrue(helpers.data.agents.containsKey(replacement), "A delayed old-window confirm cannot touch the replacement");
+            owner.closeContainer();
+
+            var replacementBody = helpers.loaded.get(UUID.fromString(replacement));
+            command(owner.createCommandSourceStack(), "agent dismiss keeper");
+            helpers.unload(replacementBody);
+            click(owner, AgentMenu.CONFIRM);
+            c.assertTrue(helpers.data.agents.containsKey(replacement) && !replacementBody.isRemoved(),
+                "A changed loaded body invalidates the confirmation");
+            helpers.load(replacementBody); owner.closeContainer();
+
+            operator(owner, LevelBasedPermissionSet.ADMIN);
+            c.assertTrue(command(owner.createCommandSourceStack(), "agent dismiss keeper") <= 0, "OP3 cannot use the command");
+            c.assertValueEqual(command(helpers.server.createCommandSourceStack().withEntity(owner), "agent dismiss keeper"), 0,
+                "Console execute-as cannot lend OP4 to the player");
+            c.assertTrue(owner.containerMenu == owner.inventoryMenu && helpers.data.agents.containsKey(replacement), "Refused permission opens nothing");
+            operator(owner, LevelBasedPermissionSet.OWNER);
+            owner.setGameMode(GameType.SPECTATOR);
+            c.assertValueEqual(command(owner.createCommandSourceStack(), "agent dismiss keeper"), 0, "A spectator cannot open the confirmation");
+            owner.setGameMode(GameType.SURVIVAL);
+            command(owner.createCommandSourceStack(), "agent dismiss keeper");
+            operator(owner, LevelBasedPermissionSet.ADMIN);
+            click(owner, AgentMenu.CONFIRM);
+            c.assertTrue(helpers.data.agents.containsKey(replacement) && owner.containerMenu == owner.inventoryMenu,
+                "Revoking OP4 after the command closes the confirmation without removing the helper");
+            operator(owner, LevelBasedPermissionSet.OWNER);
+
+            command(owner.createCommandSourceStack(), "agent dismiss keeper");
+            ((AbstractContainerMenu) menu(owner)).clicked(AgentMenu.CONFIRM, 0, ContainerInput.PICKUP, other);
+            c.assertTrue(helpers.data.agents.containsKey(replacement), "Another player cannot confirm the owner's dismissal");
+            click(owner, AgentMenu.CONFIRM);
+            c.assertTrue(!helpers.data.agents.containsKey(replacement) && replacementBody.isRemoved() && helpers.count(owner) == 0,
+                "Explicit Confirm dismisses exactly the reviewed helper");
+            c.assertTrue(helpers.data.agents.containsKey(foreign), "Another owner's helper is untouched");
+        } catch (RuntimeException | Error failure) {
+            System.err.println("[Infinity helper-menu test] dismiss command confirmation failed");
+            failure.printStackTrace();
+            throw failure;
+        } finally { cleanup(helpers, owner); cleanup(helpers, other); }
+        c.succeed();
+    }
+
     @GameTest public void helperMenuRosterSnapshotCannotSelectAReplacement(GameTestHelper c) {
         var owner = player(c, "menu-snapshot");
         var helpers = AgentCompanions.get(c.getLevel().getServer());
