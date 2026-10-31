@@ -13,6 +13,7 @@
       "dev.convergence.SpawnSafetyGameTests",
       "dev.convergence.StatusWriterGameTests",
       "dev.convergence.ModeGameTests",
+      "dev.convergence.AdminCodeRateLimitGameTests",
       "dev.convergence.LobbyGameTests",
       "dev.convergence.RewardGameTests",
       "dev.convergence.TradeGameTests",
