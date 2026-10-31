@@ -159,6 +159,7 @@ public class AgentGameTests {
             c.assertTrue(owner.teleport(target) == owner, "Actual OP4 owner moves to another mode");
             acknowledgeLoadedPlayer(owner);
             helpers.recall(owner, "traveler");
+            c.assertFalse(helpers.creationRecoveryRequired, "A real permitted cross-dimension recall does not trigger collision recovery");
             var moved = helpers.loaded.get(id);
             c.assertTrue(moved != null && moved != helper && moved.level() == destination, "Native inter-mode transfer rebinds the destination entity");
             c.assertValueEqual(moved.getHealth(), 280f, "Current health survives recall");
@@ -412,8 +413,15 @@ public class AgentGameTests {
             s.mode(p, "patient", AgentCompanions.Mode.GUARD); var guard = s.owned(p, "patient").getValue();
             golem.setPos(golem.position().add(5, 0, 0)); s.control(golem, guard, 40);
             c.assertFalse(golem.getNavigation().isDone(), "Guard navigates back toward its saved anchor");
+            // Model a legacy helper whose roster predates pending-creation tracking.
+            c.assertTrue(s.data.pendingCreations.remove(golem.getStringUUID()), "New test helper begins with pending creation");
+            s.save();
+            var record = s.data.agents.get(golem.getStringUUID());
             golem.hurtServer(c.getLevel(), golem.damageSources().genericKill(), 10000);
-            c.assertValueEqual(s.count(p), 0, "Helper death removes ownership record and frees slot");
+            c.assertFalse(golem.isAlive(), "A real native helper death occurs");
+            c.assertTrue(s.data.agents.get(golem.getStringUUID()) == record && !s.data.dismissed.contains(golem.getStringUUID())
+                && !s.loaded.containsKey(golem.getUUID()), "Natural death keeps the exact ownership record without removal proof");
+            c.assertValueEqual(s.count(p), 1, "The dead identity still occupies its slot pending host review");
           } finally { cleanup(s, p); }
           c.succeed();
         });

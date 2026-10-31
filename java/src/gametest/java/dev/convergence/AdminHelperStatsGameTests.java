@@ -103,7 +103,16 @@ public class AdminHelperStatsGameTests {
             c.assertValueEqual(helper.getHealth(), 120f, "Lower maximum immediately clamps actual helper health");
             set(c, owner, helper, "health", 0);
             c.assertFalse(helper.isAlive(), "Zero health performs an explicit helper death");
-            c.assertFalse(agents.data.agents.containsKey(helper.getStringUUID()), "Helper death removes roster ownership through the normal death event");
+            String id=helper.getStringUUID();
+            c.assertTrue(agents.data.agents.containsKey(id) && agents.data.pendingCreations.contains(id),
+                "Death of an unverified creation keeps its roster identity and pending slot for review");
+            c.assertValueEqual(agents.count(owner),1,"The unverified identity still occupies its owner's helper slot");
+            c.assertFalse(agents.data.dismissed.contains(id) || agents.loaded.containsKey(helper.getUUID()),
+                "Native death removes the dead loaded body without recording a removal proof");
+            c.assertFalse(agents.creationRecoveryRequired, "Exact pending death does not freeze unrelated helper controls");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.MAX_HEALTH),120d, "Death does not overwrite edited maximum health");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.ATTACK_DAMAGE),80d, "Death does not overwrite edited attack damage");
+            c.assertValueEqual(helper.getAttributeBaseValue(Attributes.MOVEMENT_SPEED),.75d, "Death does not overwrite edited movement speed");
         } finally { cleanup(owner); }
         c.succeed();
     }

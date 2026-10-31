@@ -72,7 +72,7 @@ public final class AgentCompanions {
     /** Removal proofs known to be durable on disk; only these may authorize deleting a saved entity. */
     Set<String> provenRemoved = new HashSet<>();
     static final int DISMISSED_LIMIT = 256;
-    static final String FROZEN = "Helper ownership is frozen after a failed, unproven or missing roster save. Ask the host to inspect the roster, its .previous copy and its .recovery-required note.";
+    static final String FROZEN = "Helper ownership is frozen for host review. Ask the host to inspect the roster, its .previous copy and its .recovery-required note.";
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
@@ -159,7 +159,10 @@ public final class AgentCompanions {
     static final class Data {
         int format = 2;
         Map<String, Agent> agents = new TreeMap<>();
-        /** Durable proof that a saved helper copy was dismissed, died or was rolled back; oldest first. */
+        /**
+         * Durable proof that a saved helper copy was dismissed or rolled back; oldest
+         * first. Rosters written by earlier builds may also hold deaths here.
+         */
         List<String> dismissed = new ArrayList<>();
         /** Created identities awaiting a future independent on-disk entity verification. */
         List<String> pendingCreations = new ArrayList<>();
@@ -481,6 +484,19 @@ public final class AgentCompanions {
         var golem = (IronGolem) entity;
         Agent agent = data.agents.get(golem.getStringUUID());
         if (agent == null) { retireStale(golem); return; }
+        var prior = loaded.get(golem.getUUID());
+        if (prior != null && prior != golem && !prior.isRemoved()) {
+            // Two live objects claiming one identity cannot establish which
+            // persisted body is authoritative. Preserve the original mapping,
+            // both bodies and the roster; do not send UUID-scoped avatar removals.
+            if (!creationRecoveryRequired) freeze("multiple live helper bodies claim one identity", null);
+            halt(prior);
+            APPROVED_TARGETS.remove(golem); golem.removeFreeWill();
+            ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
+            golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistenceRequired(); golem.getNavigation().stop();
+            notifyRecoveryOwner(golem.getStringUUID(), "Multiple helper bodies have the same identity. Both were kept and the identity still uses a helper slot; ask the host to inspect them. " + FROZEN);
+            return;
+        }
         prepare(golem); tags(golem, agent); loaded.put(golem.getUUID(), golem);
     }
     /** A tagged helper without a record is removed only with proven durable removal proof while not frozen. */
@@ -679,6 +695,10 @@ public final class AgentCompanions {
         if (!(moved instanceof IronGolem recalled) || !recalled.getUUID().equals(id)
             || recalled.level() != owner.level() || !recalled.isAlive() || recalled.isRemoved())
             return reply(owner, "The helper could not move here. Its roster is preserved; check its status and try again.");
+        // A native load callback can freeze ownership during the transfer.
+        // Never overwrite the registration chosen by that collision handler.
+        if (creationRecoveryRequired)
+            return refuse(owner, name + " may have moved, but helper ownership became uncertain. Its roster was kept. " + FROZEN);
         // Native transfer copies the saved entity (including UUID, health, attributes and admin metadata).
         // Rebind only after it succeeds; an old-world unload cannot remove this new loaded identity.
         String key = entry.getKey(); var agent = entry.getValue().mode(Mode.FOLLOW, recalled);
@@ -739,6 +759,12 @@ public final class AgentCompanions {
             for (var entry : staged.entrySet()) {
                 var golem = entry.getKey(); tags(golem, entry.getValue()); HelperPowerDefaults.fillNewSpawn(golem);
                 if (!world.addFreshEntity(golem)) throw new IllegalStateException("Native helper insertion was refused");
+                if (creationRecoveryRequired) throw new IllegalStateException("Helper ownership froze during native insertion");
+                var registered = loaded.get(golem.getUUID());
+                if (registered != null && registered != golem) {
+                    freeze("another helper body claimed an identity during creation", null);
+                    throw new IllegalStateException("Another helper body claimed the creation identity");
+                }
                 loaded.put(golem.getUUID(), golem);
             }
         } catch (RuntimeException failure) { refused = failure; }
@@ -770,7 +796,7 @@ public final class AgentCompanions {
                 // Proven removal with its marker kept: unregister, keep inert. Otherwise
                 // memory still owns the staged helper, as the creation save did.
                 if (rollback == Commit.PROVEN) { loaded.remove(golem.getUUID(), golem); retireStale(golem); }
-                else loaded.put(golem.getUUID(), golem);
+                else loaded.putIfAbsent(golem.getUUID(), golem);
             } catch (RuntimeException unexpected) {
                 org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Could not settle helper {} after a failed creation; it was not removed", golem.getUUID(), unexpected);
             }
@@ -958,16 +984,44 @@ public final class AgentCompanions {
         return reply(owner, name + " dismissed." + (golem == null ? " Its saved entity will be removed when the area next loads." : ""));
     }
     /**
-     * Native death already removed the entity; this never throws out of the
-     * callback. With a durable marker the record becomes removal proof. Without
-     * one only the record is removed: a stale copy that loads later is kept
-     * inert, never deleted. Any failure keeps the record and freezes.
+     * Native death already removed the exact registered body; this never throws
+     * out of the callback and never writes the roster. Death proves only what
+     * happened to that one body: an unseen saved copy may still exist, and
+     * asynchronous entity storage gives no proof either way. So every rostered
+     * identity, pending or not, keeps its record, pending status and slot, gains
+     * no removal proof, and nothing is recreated or moved. Only an explicit owner
+     * dismissal removes an identity.
      */
     void recordDeath(String id) {
-        if (creationRecoveryRequired || !data.agents.containsKey(id)) return;
-        if (guard("recording the death of helper " + id) == null) {
-            if (commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); rememberRemoved(id); }, Save.GUARDED, true) == Commit.PROVEN) unguard();
-        } else if (!creationRecoveryRequired) commit(() -> { data.agents.remove(id); data.pendingCreations.remove(id); }, Save.ORDINARY, true);
+        var agent = data.agents.get(id);
+        if (agent == null) return;
+        boolean pending = data.pendingCreations.contains(id);
+        org.slf4j.LoggerFactory.getLogger("Infinity helpers").warn("Helper {} ({}) died; its {}roster identity was kept unchanged for host review.",
+            id, agent.name, pending ? "pending " : "");
+        notifyRecoveryOwner(id, (pending ? "Unverified helper " : "Helper ") + agent.name + " died. Its saved identity remains reserved and still uses a helper slot; ask the host to inspect it. Nothing was recreated or moved, and your other helpers are unaffected.");
+    }
+    private void notifyRecoveryOwner(String id, String notice) {
+        var agent = data.agents.get(id);
+        if (agent == null) return;
+        var owner = server.getPlayerList().getPlayer(UUID.fromString(agent.owner));
+        if (owner != null) reply(owner, notice);
+    }
+    /** The exact loaded object, not merely its UUID, owns the death callback. */
+    void handleDeath(IronGolem golem) {
+        UUID id = golem.getUUID(); String key = golem.getStringUUID();
+        if (loaded.get(id) != golem) {
+            // An unloaded or different same-UUID body is not proof that the
+            // registered helper died. Never touch its UUID-scoped state.
+            if (data.agents.containsKey(key)) {
+                if (!creationRecoveryRequired) freeze("a different or unregistered helper body died; its identity is uncertain", null);
+                notifyRecoveryOwner(key, "A different or unregistered helper body died. The helper's saved identity remains reserved and still uses a helper slot; ask the host to inspect it. " + FROZEN);
+            }
+            return;
+        }
+        AgentAvatars.remove(golem);
+        APPROVED_TARGETS.remove(golem);
+        loaded.remove(id, golem); lastAttack.remove(id); nextLeap.remove(id); aerial.remove(id); combatFeedback.remove(id);
+        recordDeath(key);
     }
     /**
      * A pending identity is not evidence that a saved helper is absent. It stays
@@ -1537,9 +1591,7 @@ public final class AgentCompanions {
             if (entity instanceof ServerPlayer player) get(player.level().getServer()).invalidatePlayer(player);
             if (isAgent(entity) && entity.level() instanceof ServerLevel world) {
                 var helpers = get(world.getServer());
-                AgentAvatars.remove((IronGolem)entity);
-                helpers.loaded.remove(entity.getUUID()); helpers.lastAttack.remove(entity.getUUID()); helpers.nextLeap.remove(entity.getUUID()); helpers.aerial.remove(entity.getUUID()); helpers.combatFeedback.remove(entity.getUUID());
-                helpers.recordDeath(entity.getStringUUID());
+                helpers.handleDeath((IronGolem) entity);
             }
         });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> allowIncomingDamage(entity, source));
