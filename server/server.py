@@ -687,7 +687,8 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         properties(root / "fabric/eula.txt")
         # Recover first so the startup ZIP represents the complete stopped save,
         # rather than a partially archived world from an interrupted refresh.
-        world_refresh.recover(root)
+        # Recovery only completes that earlier transaction; it never starts one.
+        world_refresh.recover(root, emit)
         backup_name = community.backup(root, startup_properties, locked=True)
         if backup_name and community.DIRECTORY_SYNC:
             emit("World backed up before startup: backups/" + backup_name)
@@ -705,8 +706,9 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         accept_eula(args.accept_eula, root)
         configure(args, root)
         join_rules = owner_rules.load(root)
-        world_refresh.maybe_refresh(root, properties(root / "fabric/server.properties").get("level-name", "world"),
-                                    backup_name, emit)
+        # Existing worlds, regions, POI, entities and player/mod data are kept
+        # as saved; a legacy refresh policy is reported but not acted on.
+        world_refresh.startup_check(root, emit)
         if stop_requested.is_set():
             return
         for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
