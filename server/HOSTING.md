@@ -5,7 +5,7 @@ The package now has the player features of a small survival community server. In
 ## Set up the community
 
 1. Extract the server ZIP into a permanent folder and open the normal double-click launcher. Set the **server name**, **rules**, **player slots**, and **difficulty** in Server settings. The default slot limit is 32; begin with a few players and measure performance before increasing it.
-2. Start the world after accepting the EULA if you agree. Join as Java 26.3 or a Bedrock version supported by the pinned bridge.
+2. Start the world after accepting the EULA if you agree. Join with the Java version specified by the exact server package or the owner, or a Bedrock version supported by its pinned bridge.
 3. In the host-command box, run `op YourPlayerName` for the trusted owner. A Bedrock name normally begins with a dot, such as `.YourName`. This gives broad administrative powers; ordinary players should remain non-operators.
 4. In Minecraft, find an empty, reasonably flat **25×25 grassy area** and run `/community buildspawn`. This reshapes grass/dirt/snow and clears that area to make a lit plaza. It refuses other blocks, water, trees, and containers. Alternatively, build your own welcome area and use `/community setspawn` while standing on solid ground.
 5. Walk to places such as a market or arena and run `/community setwarp market` or `/community setwarp arena`. Players use `/warps` and `/warp market`.
@@ -21,7 +21,7 @@ On an Apple Silicon Mac, keep the normal world launcher running, then open **Sta
 
 Alternatively, for home hosting, configure your router and firewall to direct **TCP 25565** and **UDP 19132** to this computer (or your chosen ports). Share the router's public address with invited players. Java uses the Java port; Bedrock uses the Bedrock port. A custom DNS name can point to the same public address. Keep the computer awake and the launcher open. If your ISP uses carrier-grade NAT, normal router port forwarding may not be available; use a host that provides a reachable address and both TCP and UDP ports.
 
-For an always-on server, use a Linux computer or a hosting service that supports **custom Fabric 26.3 plus a separate Geyser Java process**, Java 25, enough RAM for both processes, and the two protocol ports. Paper-only plugin hosting will not load the Infinity Fabric mod. The Geyser [standalone setup guide](https://geysermc.org/wiki/geyser/setup/) explains the bridge model; this package configures its local connection and Floodgate key automatically.
+For an always-on server, use a Linux computer or a hosting service that supports **the package's exact custom Fabric/Minecraft version plus a separate Geyser Java process**, Java 25, enough RAM for both processes, and the two protocol ports. Paper-only plugin hosting will not load the Infinity Fabric mod. The Geyser [standalone setup guide](https://geysermc.org/wiki/geyser/setup/) explains the bridge model; this package configures its local connection and Floodgate key automatically.
 
 ### When the Mac is closed or off
 

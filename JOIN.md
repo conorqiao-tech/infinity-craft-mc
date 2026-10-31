@@ -1,33 +1,19 @@
 # Join Infinity Craft
 
-You need Minecraft on the device you will play on. The server supplies the Infinity resource pack when you join.
+You need Minecraft on the device you will play on. Ask the owner for the current server address, port, supported client version and opening status. Accept the Infinity resource pack offered when you join.
 
 ## Java
 
-Use **Minecraft Java 26.3**. Open **Multiplayer → Add Server** and enter:
-
-`infinity-craft.remotewire.net:25565`
-
-Save, join, and accept the offered resource pack. A separate Infinity mod installation is not required.
+Use the Minecraft Java version specified by the owner for the running server. The last recorded installation used **26.4 Snapshot 5**; a later update can change that requirement. Open **Multiplayer → Add Server**, enter the current Java address and port, and accept the resource pack. A separate Infinity client mod is not required for the server package described here.
 
 ## Bedrock / iPad
 
-Open **Play → Servers → Add Server**:
-
-- Server name: **Infinity Craft**
-- Server address: **infinity-craft.remotewire.net**
-- Port: **19132**
-
-Enter the port in its separate field. Save, join, and accept the offered resource pack. Use your normal Microsoft/Xbox sign-in with multiplayer enabled; joining does not require a Dynu account.
-
-If Minecraft reports a version mismatch, tell the owner the Minecraft version shown on your device. The server's advertised version alone does not confirm that your device can join.
+Open **Play → Servers → Add Server**. Enter the current Bedrock address and port in their separate fields. Use your normal Microsoft/Xbox sign-in with multiplayer enabled, join, and accept the resource pack. Check the supported Bedrock version with the owner; the server's advertised version alone does not confirm that your device can join.
 
 ## Availability and checks
 
-This fixed hostname stays the same when the home's public IP changes. DNS updates automatically, but a changed IP may take several minutes to reach everyone. The host computer must stay awake, online, and running the Minecraft server while people play. Continued availability also depends on the home connection and Dynu account; no provider can guarantee a hostname forever.
+The host computer must be awake, online and running the world. A LAN address only works on the local network. A fixed hostname or temporary tunnel works only while its current networking setup is active; ask the owner for the current address instead of assuming an old one still works. If the public address fails from the host's Wi-Fi, ask the owner for the LAN address.
 
-Checked **October 2, 2026**: the owner reported a successful iPad/Bedrock join using these connection details. Public DNS, an external Java TCP port check, and local Java and Bedrock status checks also passed. A full authenticated Java player join still needs verification. The TCP check alone does not verify Bedrock's UDP connection.
-
-If the name fails from the host's own Wi-Fi, ask the owner for the LAN address. Some routers cannot connect back through their public hostname. If joining stops after a router restart, ask the owner to recheck the server's local address and both game-port forwarding rules.
+A local status probe or Java TCP check does not prove an authenticated player can join or that Bedrock UDP works. Before inviting players, verify a Java login and a Bedrock/iPad login from outside the host network using the exact installed version.
 
 To host a separate world yourself, follow the [hosting instructions](README.md#host-your-own-world).
