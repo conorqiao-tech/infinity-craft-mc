@@ -89,7 +89,8 @@ final class BedrockAgentMenu {
         for (var entry : entries.subList(Math.min(first, entries.size()), Math.min(first + AgentMenu.ROSTER_PAGE_SIZE, entries.size()))) {
             String id = entry.getKey(); var agent = entry.getValue();
             choices.add(new HelperForms.Choice(agent.name() + " • " + agent.profile().label()
-                + (live(helpers, id) == null ? " • unloaded" : " • " + agent.mode().name().toLowerCase(java.util.Locale.ROOT)),
+                + (live(helpers, id) == null ? " • unloaded" : " • " + agent.mode().name().toLowerCase(java.util.Locale.ROOT))
+                + (helpers.unresolvedCreation(id) ? " • creation unverified" : ""),
                 () -> detail(owner, id, "", sender)));
         }
         if (page > 0) choices.add(new HelperForms.Choice("Previous page • " + page + "/" + pages,
@@ -101,7 +102,9 @@ final class BedrockAgentMenu {
         choices.add(new HelperForms.Choice("Ask GPT for a squad plan", () -> GptSquadMenu.openBedrock(owner,sender,GptSquadPlanner::request)));
         choices.add(new HelperForms.Choice("Back to Infinity Menu", () -> ServerMenu.open(owner)));
         String content = "Your helpers: " + saved.size() + "/" + AgentCompanions.LIMIT + ". Page " + (page + 1) + " of " + pages + ".\n"
-            + (saved.isEmpty() ? free > 0
+            + (saved.isEmpty() ? helpers.creationRecoveryRequired
+                ? "Helper creation is unavailable while ownership is frozen for host review."
+                : free > 0
                 ? "No helpers yet. Create one, then choose its profile. Nothing spawns just by opening this screen."
                 : "The server's helper capacity is full, including saved unloaded helpers."
                 : "Choose a named helper for its live status and controls. Unloaded helpers stay saved; these menus never load distant chunks.")
@@ -183,13 +186,31 @@ final class BedrockAgentMenu {
         if (helpers.data.agents.size() >= AgentCompanions.GLOBAL_LIMIT) {
             create(owner, "The server's helper slots are full, including unloaded helpers. Nothing was created.", sender); return;
         }
-        helpers.spawn(owner, name);
+        boolean unresolvedBefore = helpers.creationUnresolved, frozenBefore = helpers.creationRecoveryRequired;
+        int created = helpers.spawn(owner, name);
         var entry = helpers.owned(owner, name);
+        if (created != 1 && !unresolvedBefore && helpers.creationUnresolved) {
+            // Neither the roster record nor its absence shows whether a helper appeared.
+            roster(owner, AgentCompanions.UNRESOLVED_CREATION + name + " may have appeared and was kept; its ownership needs host review. "
+                + AgentCompanions.FROZEN, sender);
+            return;
+        }
+        // Storage and frozen-ownership failures (spawn returns 0, or ownership
+        // froze) are not fixed by moving; the chat notice gives the roster detail.
+        if (entry == null && (created != 1 || helpers.creationRecoveryRequired)) {
+            roster(owner, helpers.creationRecoveryRequired
+                ? (frozenBefore ? "Helper creation is blocked. " : "No helper entity spawned. ") + AgentCompanions.FROZEN
+                : "Could not save helper ownership. Nothing spawned. Ask the host to check server storage before retrying.", sender);
+            return;
+        }
         if (entry == null || live(helpers, entry.getKey()) == null) {
             create(owner, "No helper appeared. Move onto clear solid ground with open space around you and try again. No existing helper was replaced.", sender); return;
         }
-        helpers.profile(owner, name, profile);
-        var message = Component.literal(name + " appeared beside you • " + profile.label() + ". Reopen AI Helpers to give orders.");
+        int profileResult = helpers.profile(owner, name, profile);
+        var saved = helpers.data.agents.get(entry.getKey());
+        String selected = profileResult == 1 && saved != null && saved.profile() == profile
+            ? profile.label() : (saved == null ? "profile unavailable" : saved.profile().label() + "; selected profile was not confirmed");
+        var message = Component.literal(name + " appeared beside you • " + selected + ". Reopen AI Helpers to give orders.");
         owner.sendSystemMessage(message);
         owner.sendOverlayMessage(message);
         // The form response already closes the native form. Do not immediately
@@ -227,13 +248,19 @@ final class BedrockAgentMenu {
         if (golem != null && golem.level() == owner.level()) {
             for (var mode : AgentCompanions.Mode.values()) choices.add(new HelperForms.Choice(
                 switch (mode) { case FOLLOW -> "Follow me"; case GUARD -> "Guard this helper's current area"; case STAY -> "Stay / pause"; },
-                () -> { helpers.mode(owner, agent.name(), mode); detail(owner, id, "Movement updated: " + mode.name().toLowerCase(java.util.Locale.ROOT) + ".", sender); }));
+                () -> {
+                    int result = helpers.mode(owner, agent.name(), mode);
+                    var after = helpers.data.agents.get(id);
+                    boolean applied = result == 1 && after != null && after != agent && after.mode() == mode;
+                    detail(owner, id, applied ? "Movement updated: " + mode.name().toLowerCase(java.util.Locale.ROOT) + "."
+                        : "Movement change was not confirmed. Check the in-game notice before retrying.", sender);
+                }));
         }
         choices.add(new HelperForms.Choice("Choose profile • " + agent.profile().label(), () -> profiles(owner, id, sender)));
         if (golem != null) choices.add(new HelperForms.Choice("Bring this helper here • then follow", () -> {
             helpers.recall(owner, agent.name());
             if (helpers.data.agents.get(id) == agent)
-                detail(owner, id, "Bring here could not move this helper. Make room on solid ground, remove passengers, then try again. Its saved roster and stats were kept.", sender);
+                detail(owner, id, "Bring here could not be confirmed. The helper may have moved; check the in-game notice and its current status before retrying.", sender);
             else owner.sendOverlayMessage(Component.literal(agent.name() + " is beside you and following. Health, stats and profile were kept."));
         }));
         choices.add(new HelperForms.Choice("Refresh live status", () -> detail(owner, id, "Status refreshed.", sender)));
@@ -266,7 +293,11 @@ final class BedrockAgentMenu {
         for (var profile : creationProfiles()) {
             content.append("\n").append(profile.label()).append(": ").append(profile.description());
             choices.add(new HelperForms.Choice("Choose: " + profile.label(), () -> {
-                helpers.profile(owner, agent.name(), profile); detail(owner, id, "Profile updated: " + profile.label() + ".", sender);
+                int result = helpers.profile(owner, agent.name(), profile);
+                var after = helpers.data.agents.get(id);
+                boolean applied = result == 1 && after != null && after != agent && after.profile() == profile;
+                detail(owner, id, applied ? "Profile updated: " + profile.label() + "."
+                    : "Profile change was not confirmed. Check the in-game notice before retrying.", sender);
             }));
         }
         choices.add(new HelperForms.Choice("Back to helper", () -> detail(owner, id, "", sender)));
@@ -279,9 +310,13 @@ final class BedrockAgentMenu {
         var captured = helpers.loaded.get(UUID.fromString(id));
         int returnPage = pageFor(owner, id);
         return HelperForms.show(owner, "Dismiss " + agent.name() + "?",
-            "This removes this exact helper, including its saved identity and edited stats. It does not merely pause it. Unloaded entities are removed when their area next loads. Choose Keep to cancel.",
+            "This removes this exact helper, including its saved identity and edited stats. It does not merely pause it. A saved unloaded copy is removed later only when its safe removal is verified. Choose Keep to cancel.",
             List.of(new HelperForms.Choice("Confirm dismiss " + agent.name(), () -> {
-                helpers.dismiss(owner, agent.name()); roster(owner, agent.name() + " was dismissed.", sender, returnPage);
+                int result = helpers.dismiss(owner, agent.name());
+                boolean removed = result == 1 && !helpers.data.agents.containsKey(id);
+                roster(owner, removed
+                    ? agent.name() + (helpers.creationRecoveryRequired ? " was dismissed, but its recovery note needs attention." : " was dismissed.")
+                    : "Dismissal was not confirmed. Check the in-game notice before retrying.", sender, returnPage);
             }), new HelperForms.Choice("Keep this helper", () -> detail(owner, id, "Kept this helper. Nothing was removed.", sender))),
             () -> current(owner, id, agent, captured), sender);
     }
@@ -294,11 +329,30 @@ final class BedrockAgentMenu {
         long sameWorld = saved.keySet().stream().map(id -> live(helpers, id)).filter(g -> g != null && g.level() == owner.level()).count();
         if (sameWorld > 0) for (var mode : AgentCompanions.Mode.values()) choices.add(new HelperForms.Choice(
             "Squad: " + mode.name().toLowerCase(java.util.Locale.ROOT), () -> {
-                helpers.squad(owner, mode); squad(owner, "Requested " + mode.name().toLowerCase(java.util.Locale.ROOT) + " for loaded helpers in this world. Unloaded and other-world helpers were skipped.", sender);
+                var before = snapshot(owner);
+                var eligible = new LinkedHashMap<String, AgentCompanions.Agent>();
+                before.forEach((id, record) -> {
+                    var helper = live(helpers, id);
+                    if (helper != null && helper.level() == owner.level()) eligible.put(id, record);
+                });
+                int result = helpers.squad(owner, mode);
+                boolean applied = result == 1 && !eligible.isEmpty() && eligible.entrySet().stream().allMatch(entry -> {
+                    var after = helpers.data.agents.get(entry.getKey());
+                    return after != null && after != entry.getValue() && after.mode() == mode;
+                });
+                squad(owner, applied ? "Requested " + mode.name().toLowerCase(java.util.Locale.ROOT) + " for loaded helpers in this world. Unloaded and other-world helpers were skipped."
+                    : "Squad movement change was not confirmed. Check the in-game notice before retrying.", sender);
             }));
         for (var profile : List.of(AgentCompanions.Profile.PRIMITIVE, AgentCompanions.Profile.REGULAR, AgentCompanions.Profile.ULTIMATE_FINALS))
             choices.add(new HelperForms.Choice("Squad profile: " + profile.label(), () -> {
-                helpers.squadProfile(owner, profile); squad(owner, "Saved squad profile: " + profile.label() + ". Movement and edited stats are kept.", sender);
+                var before = snapshot(owner);
+                int result = helpers.squadProfile(owner, profile);
+                boolean applied = result == 1 && before.entrySet().stream().allMatch(entry -> {
+                    var after = helpers.data.agents.get(entry.getKey());
+                    return after != null && after.profile() == profile && (entry.getValue().profile() == profile || after != entry.getValue());
+                });
+                squad(owner, applied ? "Saved squad profile: " + profile.label() + ". Movement and edited stats are kept."
+                    : "Squad profile change was not confirmed. Check the in-game notice before retrying.", sender);
             }));
         if (loaded > 0) choices.add(new HelperForms.Choice("Bring loaded squad here", () -> {
             helpers.recallSquad(owner);
