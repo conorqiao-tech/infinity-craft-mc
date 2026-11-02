@@ -101,6 +101,7 @@ public class HelperBatchGameTests {
         private String last = "";
         boolean noDirectorySync;
         boolean blockMarkerWrites, blockRosterWrites, replaceGuardAfterRosterSync, addRetirementAfterRosterSync;
+        boolean addRosterTempAfterRetirementSync;
         boolean blockMarkerWritesAfterGuardDelete;
         Runnable afterRosterMove;
         private interface Step { void run() throws IOException; }
@@ -149,6 +150,10 @@ public class HelperBatchGameTests {
             if (addRetirementAfterRosterSync && previous.equals("move:agents.json")) {
                 addRetirementAfterRosterSync = false;
                 Files.writeString(directory.resolve("agents.json.recovery-retiring"), "competing retirement evidence");
+            }
+            if (addRosterTempAfterRetirementSync && previous.equals("move:agents.json.recovery-retiring")) {
+                addRosterTempAfterRetirementSync = false;
+                Files.writeString(directory.resolve("agents.json.tmp"), "competing roster evidence");
             }
         }
     }
@@ -232,6 +237,116 @@ public class HelperBatchGameTests {
                 for (var path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
             }
         }
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void existingRosterWithUnfinishedTemporaryWriteFreezesOnRestart(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            String id = f.helpers.owned(f.owner, "older-1").getKey();
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            byte[] evidence = "interrupted roster write".getBytes(StandardCharsets.UTF_8);
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            Files.write(temp, evidence);
+            var restarted = f.restart();
+            var copy = f.saved(UUID.fromString(id));
+            copy.setHealth(37); copy.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            restarted.load(copy);
+            c.assertTrue(restarted.creationRecoveryRequired && !copy.isRemoved(),
+                "An unfinished roster write freezes a restart and retains the saved helper");
+            boolean refused = false;
+            try { restarted.save(); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && Arrays.equals(evidence, Files.readAllBytes(temp))
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile()))
+                    && copy.getHealth() == 37 && copy.getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue() == .31,
+                "Restarted saves preserve the temporary evidence, roster, backup and edited helper fields");
+            copy.discard();
+            Files.delete(temp); Files.createDirectory(temp);
+            c.assertTrue(f.restart().creationRecoveryRequired, "A directory at the temporary roster path also freezes");
+            Files.delete(temp);
+            try {
+                Files.createSymbolicLink(temp, temp.resolveSibling("missing-roster-target"));
+                c.assertTrue(f.restart().creationRecoveryRequired, "A dangling temporary roster link also freezes");
+            } catch (UnsupportedOperationException | IOException unsupported) {
+                // The local storage may not support symbolic links.
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void rosterTemporaryEvidenceAppearingDuringRuntimeIsNotOverwritten(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            byte[] evidence = "unexpected temporary roster".getBytes(StandardCharsets.UTF_8);
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            Files.write(temp, evidence);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A new save refuses when roster temporary evidence is already present");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Arrays.equals(evidence, Files.readAllBytes(temp))
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The running server freezes without replacing the temporary evidence, roster or backup");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void failedTemporaryRosterWriteRemainsFrozenAndPreserved(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file);
+            io.arm("write:agents.json.tmp", true);
+            io.arm("write:agents.json.recovery-required.tmp", false);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "An interrupted temporary roster write does not report success");
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            byte[] evidence = Files.readAllBytes(temp);
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired && Files.notExists(f.marker())
+                    && Arrays.equals(evidence, Files.readAllBytes(temp))
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
+                "Even when a recovery note cannot be written, both runtimes freeze and retain the interrupted roster bytes");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void rosterTemporaryEvidencePreventsGuardRetirement(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            var persistence = new HelperPersistence(HelperPersistence.NATIVE);
+            persistence.beginGuard(f.helpers.file, "private test guard");
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            byte[] evidence = "unfinished roster before retirement".getBytes(StandardCharsets.UTF_8);
+            Files.write(temp, evidence);
+            boolean refused = false;
+            try { persistence.endGuard(f.helpers.file); } catch (HelperPersistence.Failure expected) { refused = true; }
+            c.assertTrue(refused && Files.exists(f.marker()) && Arrays.equals(evidence, Files.readAllBytes(temp))
+                    && f.restart().creationRecoveryRequired,
+                "An unfinished roster write prevents guard retirement and keeps both recovery notes");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void rosterTemporaryEvidenceAppearingDuringRetirementPreservesBothNotes(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            var persistence = new HelperPersistence(io);
+            persistence.beginGuard(f.helpers.file, "private test guard");
+            io.addRosterTempAfterRetirementSync = true;
+            boolean refused = false;
+            try { persistence.endGuard(f.helpers.file); } catch (HelperPersistence.Failure expected) { refused = true; }
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            c.assertTrue(refused && Files.exists(f.marker()) && Files.exists(HelperPersistence.retirementMarker(f.helpers.file))
+                    && Files.readString(temp).equals("competing roster evidence") && f.restart().creationRecoveryRequired,
+                "A temporary roster appearing during retirement keeps the original guard and retirement witness");
+        }
+        c.succeed();
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
@@ -321,34 +436,37 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
-    public void actualAtomicOwnershipSaveFailureSpawnsNothingAndRetryDoesNotDuplicate(GameTestHelper c) throws Exception {
+    public void existingTemporaryPathFreezesBatchCreationAndPreservesHelpers(GameTestHelper c) throws Exception {
         try (var f = new Fixture(c)) {
             f.helpers.spawn(f.owner, "kept"); var old = f.helpers.owned(f.owner, "kept");
             var entity = f.helpers.loaded.get(UUID.fromString(old.getKey())); entity.setHealth(29);
             var before = Map.copyOf(f.helpers.data.agents); byte[] bytes = Files.readAllBytes(f.helpers.file);
             Path blocked = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".tmp");
             Files.createDirectory(blocked); Files.writeString(blocked.resolve("block-write"), "real filesystem failure");
-            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.ULTIMATE_FINALS), 0, "The real native ownership writer fails before any entity is added");
+            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.ULTIMATE_FINALS), 0, "Existing temporary evidence blocks creation before any entity is added");
             c.assertTrue(f.helpers.data.agents.equals(before) && f.helpers.loaded.size() == 1 && f.helpers.loaded.get(entity.getUUID()) == entity && entity.getHealth() == 29,
                 "Failed save rolls back only staged identities and preserves the existing helper");
             c.assertTrue(Arrays.equals(bytes, Files.readAllBytes(f.helpers.file)), "Atomic writer failure retains the original ownership file byte for byte");
-            Files.delete(blocked.resolve("block-write")); Files.delete(blocked);
-            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.ULTIMATE_FINALS), 3, "An explicit retry after storage repair creates exactly three helpers");
-            c.assertValueEqual(f.helpers.count(f.owner), 4, "The failed attempt reserved no phantom duplicate names or slots");
-            c.assertTrue(f.helpers.owned(f.owner, "helper-1") != null && f.helpers.owned(f.owner, "helper-3") != null && f.helpers.owned(f.owner, "helper-4") == null,
-                "Retry starts from the original free names without missing or duplicate identities");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.isDirectory(blocked) && Files.readString(blocked.resolve("block-write")).equals("real filesystem failure"),
+                "The current runtime and restart freeze while the temporary evidence remains intact");
+            c.assertValueEqual(f.helpers.spawnBatch(f.owner, 3, AgentCompanions.Profile.ULTIMATE_FINALS), 0,
+                "A retry cannot create helpers before the host reviews the evidence");
+            c.assertTrue(f.helpers.owned(f.owner, "helper-1") == null && f.helpers.data.agents.equals(before),
+                "The blocked attempts do not reserve new helper identities");
         }
         c.succeed();
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
-    public void singleSpawnOwnershipSaveFailureLeavesNoGhostForLaterSaves(GameTestHelper c) throws Exception {
+    public void existingTemporaryPathFreezesSingleCreationAndPreservesBackup(GameTestHelper c) throws Exception {
         try (var f = new Fixture(c)) {
             f.unloaded(f.owner.getUUID(), 24, "own-"); f.unloaded(UUID.randomUUID(), 24, "other-");
             f.helpers.spawn(f.owner, "kept"); var kept = f.helpers.owned(f.owner, "kept");
             var entity = f.helpers.loaded.get(UUID.fromString(kept.getKey())); entity.setHealth(33);
             var before = Map.copyOf(f.helpers.data.agents); byte[] bytes = Files.readAllBytes(f.helpers.file);
             Path previous = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".previous");
+            byte[] backup = Files.readAllBytes(previous);
             c.assertValueEqual(f.helpers.remaining(f.owner), 1, "Exactly one server slot remains before the failing create");
             Path blocked = f.helpers.file.resolveSibling(f.helpers.file.getFileName()+".tmp");
             Files.createDirectory(blocked); Files.writeString(blocked.resolve("block-write"), "real filesystem failure");
@@ -357,25 +475,15 @@ public class HelperBatchGameTests {
             c.assertTrue(before.entrySet().stream().allMatch(e -> f.helpers.data.agents.get(e.getKey()) == e.getValue()), "Every existing record object, loaded or unloaded, is kept");
             c.assertTrue(f.helpers.loaded.size() == 1 && f.helpers.loaded.get(entity.getUUID()) == entity && entity.isAlive() && entity.getHealth() == 33,
                 "No native entity is added and the existing helper is untouched");
-            c.assertTrue(Arrays.equals(bytes, Files.readAllBytes(f.helpers.file)) && Arrays.equals(bytes, Files.readAllBytes(previous)),
-                "The roster file is unchanged and .previous holds the last good roster, never the failed identity");
-            c.assertValueEqual(f.helpers.remaining(f.owner), 1, "The failed attempt reserves no server slot");
-            c.assertFalse(f.helpers.creationRecoveryRequired, "A clean synchronous failure leaves nothing on disk that needs manual recovery");
-            Files.delete(blocked.resolve("block-write")); Files.delete(blocked);
-            c.assertValueEqual(f.helpers.profile(f.owner, "kept", AgentCompanions.Profile.DEBUG), 1, "An unrelated roster change saves after storage repair");
-            c.assertValueEqual(AgentCompanions.read(f.helpers.file).agents.keySet(), before.keySet(), "A later successful save persists only the existing identities");
-            OperatorGameTests.level(f.owner, LevelBasedPermissionSet.ADMIN);
-            f.helpers.spawn(f.owner, "retry");
-            c.assertTrue(f.helpers.owned(f.owner, "retry") == null && f.helpers.data.agents.keySet().equals(before.keySet()), "OP3 still cannot create a helper after the failure");
-            OperatorGameTests.level(f.owner, LevelBasedPermissionSet.OWNER);
-            c.assertValueEqual(f.helpers.spawn(f.owner, "retry"), 1, "Retry reuses the failed name and the last server slot");
-            var retry = f.helpers.owned(f.owner, "retry"); var retried = f.helpers.loaded.get(UUID.fromString(retry.getKey()));
-            c.assertTrue(retried != null && c.getLevel().getEntity(retried.getUUID()) == retried, "The retried identity belongs to a real native entity");
-            c.assertTrue(f.helpers.data.agents.size() == 50 && f.helpers.remaining(f.owner) == 0, "The server reaches exactly fifty without a phantom entry");
-            var saved = AgentCompanions.read(f.helpers.file).agents;
-            c.assertValueEqual(saved, f.helpers.data.agents, "The saved roster matches memory after the successful retry");
-            c.assertTrue(saved.keySet().stream().filter(id -> !before.containsKey(id)).toList().equals(java.util.List.of(retry.getKey())),
-                "The only new saved identity is the retried helper");
+            c.assertTrue(Arrays.equals(bytes, Files.readAllBytes(f.helpers.file)) && Arrays.equals(backup, Files.readAllBytes(previous)),
+                "The roster and prior backup remain byte-for-byte unchanged");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired && f.helpers.remaining(f.owner) == 0
+                    && Files.isDirectory(blocked) && Files.readString(blocked.resolve("block-write")).equals("real filesystem failure"),
+                "The current runtime and restart freeze without replacing temporary evidence");
+            c.assertValueEqual(f.helpers.profile(f.owner, "kept", AgentCompanions.Profile.DEBUG), 0,
+                "Unrelated roster changes stay blocked pending host review");
+            c.assertTrue(f.helpers.owned(f.owner, "retry") == null && f.helpers.data.agents.equals(before),
+                "A blocked retry does not add a ghost identity");
         }
         c.succeed();
     }
