@@ -790,10 +790,25 @@ public final class AgentCompanions {
         String key = entry.getKey(); var agent = entry.getValue().mode(Mode.FOLLOW, recalled);
         var result = commit(() -> data.agents.put(key, agent), Save.ORDINARY, true);
         // The native move already happened; keep the moved entity registered under whichever record stands.
+        // A failed save may have frozen ownership. Do not apply defaults or
+        // retag the uncertain body, even when the save was provably untouched.
+        if (!saved(result)) {
+            var registered = loaded.get(id);
+            if (registered != null && registered != recalled && !registered.isRemoved()) {
+                if (!creationRecoveryRequired) freeze("another live helper body registered during a failed recall save", null);
+                halt(registered);
+            } else loaded.put(id, recalled);
+            halt(recalled);
+            if (creationRecoveryRequired) {
+                recalled.removeFreeWill();
+                ((AgentGoalAccess) recalled).infinity$getTargetSelector().removeAllGoals(goal -> true);
+                recalled.setPersistenceRequired();
+            }
+            return refuse(owner, name + " moved beside you, but its new follow order did not save cleanly. " + unsaved(result));
+        }
         var record = data.agents.get(key);
         prepare(recalled); tags(recalled, record); halt(recalled);
         loaded.put(id, recalled);
-        if (!saved(result)) return refuse(owner, name + " moved beside you, but its new follow order did not save cleanly. " + unsaved(result));
         return reply(owner, name + " is beside you and following. Its health, stats and profile were kept; mob and player-target orders were cleared.");
     }
     int spawn(ServerPlayer owner, String name) {
