@@ -604,7 +604,7 @@ class NativeWorldPassengerTests(unittest.TestCase):
 
     def test_unresolved_helper_recovery_notes_in_either_world_block_conversion_evidence(self):
         suffixes = (".recovery-required", ".recovery-required.tmp", ".recovery-retiring",
-                    ".recovery-retiring.tmp", ".tmp")
+                    ".recovery-retiring.tmp", ".tmp", ".previous.tmp", ".previous.publish.tmp")
         for suffix in suffixes:
             for where in ("before", "after", "both"):
                 with self.subTest(suffix=suffix, where=where):
@@ -622,16 +622,17 @@ class NativeWorldPassengerTests(unittest.TestCase):
                     self.assert_rejected(self.world(), self.world(), "helper recovery evidence")
 
     def test_recovery_note_directories_and_dangling_links_also_block_evidence(self):
-        for kind in ("directory", "dangling link"):
-            for where in ("before", "after"):
-                with self.subTest(kind=kind, where=where):
-                    self.prepare()
-                    path = getattr(self, where) / "infinity-agents.json.recovery-retiring"
-                    if kind == "directory":
-                        path.mkdir()
-                    else:
-                        path.symlink_to("missing-synthetic-target")
-                    self.assert_rejected(self.world(), self.world(), "helper recovery evidence")
+        for suffix in (".recovery-retiring", ".previous.tmp", ".previous.publish.tmp"):
+            for kind in ("directory", "dangling link"):
+                for where in ("before", "after"):
+                    with self.subTest(suffix=suffix, kind=kind, where=where):
+                        self.prepare()
+                        path = getattr(self, where) / ("infinity-agents.json" + suffix)
+                        if kind == "directory":
+                            path.mkdir()
+                        else:
+                            path.symlink_to("missing-synthetic-target")
+                        self.assert_rejected(self.world(), self.world(), "helper recovery evidence")
 
     def test_helper_previous_roster_must_be_byte_identical_across_conversion(self):
         name = "infinity-agents.json.previous"

@@ -39,7 +39,7 @@ HELPER_POWER_DEFAULTS = {
 }
 HELPER_ROSTER = "infinity-agents.json"
 HELPER_RECOVERY_SUFFIXES = (".recovery-required", ".recovery-required.tmp", ".recovery-retiring",
-                            ".recovery-retiring.tmp", ".tmp")
+                            ".recovery-retiring.tmp", ".tmp", ".previous.tmp", ".previous.publish.tmp")
 HELPER_BACKUP_LIMIT = 8 * 1024 * 1024
 
 
@@ -788,7 +788,7 @@ def collect(root=ROOT):
         "bridge_integration": digest(base / "upstream-bridge/integration-proof.json"), "translated_play": digest(positive_path),
         "app_run": digest(base / "snapshot5-crossplay-lab/final-app-run.json"), "ack_result": digest(base / "viafabric-ack-runtime/result-final.json"), "ack_report": digest(ack_xml)})
     world = native_world(root, base, mods, evidence)
-    return {"format_version": 4, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
+    return {"format_version": 5, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
             "snapshot5_inputs": inputs, "source_hashes": {name: digest(root / name) for name in SOURCE_FILES},
             "dependency_lock_sha256": digest(root / "server/dependencies.lock.json"), "runtime_mod_sha256": mods,
             "native_tests": len(native_names), "codec_tests": len(names),
