@@ -72,7 +72,7 @@ public final class AgentCompanions {
     /** Explicit guarded dismissals completed in this runtime; historical format-3 entries are ambiguous. */
     Set<String> provenRemoved = new HashSet<>();
     static final int DISMISSED_LIMIT = 256;
-    static final String FROZEN = "Helper ownership is frozen for host review. Ask the host to preserve the roster, its .previous copy and any roster .tmp, .recovery-required, .recovery-retiring or temporary note.";
+    static final String FROZEN = "Helper ownership is frozen for host review. Ask the host to preserve the roster, its .previous copy, any roster .tmp, .previous.tmp or .previous.publish.tmp, and any .recovery-required, .recovery-retiring or temporary note.";
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
@@ -189,8 +189,8 @@ public final class AgentCompanions {
             org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen: {}. Nothing was restored, replaced or removed; preserve {}, its .previous copy and any .recovery-required, .recovery-retiring or temporary note for investigation.",
                 absent, file);
         else if (creationRecoveryRequired)
-            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by recovery evidence beside {}. Preserve the roster, its .previous copy, {}, {}, {}, {} and {}; investigate the matching whole-world data or restore a verified matching whole-world backup before any recovery.",
-                file, HelperPersistence.temporaryFile(file), HelperPersistence.recoveryMarker(file), HelperPersistence.recoveryTemporary(file),
+            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by recovery evidence beside {}. Preserve the roster, its .previous copy, {}, {}, {}, {}, {}, {} and {}; investigate the matching whole-world data or restore a verified matching whole-world backup before any recovery.",
+                file, HelperPersistence.temporaryFile(file), HelperPersistence.previousTemporaryFile(file), HelperPersistence.previousPublishTemporaryFile(file), HelperPersistence.recoveryMarker(file), HelperPersistence.recoveryTemporary(file),
                 HelperPersistence.retirementMarker(file), HelperPersistence.retirementTemporary(file));
         // Format 3 used guardedRemovals for both explicit dismissals and
         // failed-creation rollbacks. Preserve them, but do not infer which
@@ -340,11 +340,15 @@ public final class AgentCompanions {
      */
     Commit commit(Runnable change, Save policy, boolean keepPrevious) {
         if (creationRecoveryRequired) return Commit.BLOCKED;
-        if (HelperPersistence.unfinishedRosterWrite(file)) {
-            freeze("an unfinished temporary roster must be preserved for review", null);
+        if (HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file)) {
+            freeze("unfinished or invalid previous-roster evidence must be preserved for review", null);
             return Commit.BLOCKED;
         }
-        if (policy == Save.GUARDED && !HelperPersistence.guardIntact(file)) {
+        if (policy == Save.ORDINARY && HelperPersistence.recoveryRequired(file)) {
+            freeze("recovery evidence appeared before a roster write", null);
+            return Commit.BLOCKED;
+        }
+        if (policy != Save.ORDINARY && !HelperPersistence.guardIntact(file)) {
             freeze("a guarded write lost or conflicted with its recovery note", null);
             return Commit.BLOCKED;
         }
@@ -372,10 +376,10 @@ public final class AgentCompanions {
         } catch (HelperPersistence.Failure failure) {
             restore(agents, dismissed, guarded, pending);
             if (failure.mayHaveChanged) rosterEstablished = true;
-            boolean unfinished = HelperPersistence.unfinishedRosterWrite(file);
+            boolean unfinished = HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file);
             if (failure.mayHaveChanged || policy == Save.GUARDED || unfinished)
                 freeze(failure.mayHaveChanged ? "the saved roster may or may not hold the last change"
-                    : unfinished ? "an unfinished temporary roster must be preserved for review" : "a guarded removal could not be saved", failure);
+                    : unfinished ? "unfinished or invalid previous-roster evidence must be preserved for review" : "a guarded removal could not be saved", failure);
             return failure.mayHaveChanged ? Commit.UNCERTAIN : Commit.UNTOUCHED;
         }
     }
