@@ -591,6 +591,8 @@ class NativeWorldPassengerTests(unittest.TestCase):
         self.assertEqual(summary["helpers"], 1)
         self.assertTrue(summary["helper_decoded_fields_preserved"])
         self.assertTrue(summary["helper_native_nbt_tag_kinds_verified"])
+        self.assertTrue(summary["helper_recovery_notes_absent"])
+        self.assertEqual(summary["helper_roster_backup"], "absent in both copies")
         self.assertNotIn("helper_stable_fields_preserved", summary)
         self.assertEqual(self.parsed, ["before", "after"])
         inspected = [call.args[0] for call in traversal.call_args_list]
@@ -599,6 +601,88 @@ class NativeWorldPassengerTests(unittest.TestCase):
             self.assertTrue(any(entity is seen for seen in inspected))
         self.assertTrue(all(call.args[1] == {self.identity} for call in traversal.call_args_list))
         self.assertEqual((before, after), saved)  # Read-only: nothing removed or rewritten.
+
+    def test_unresolved_helper_recovery_notes_in_either_world_block_conversion_evidence(self):
+        suffixes = (".recovery-required", ".recovery-required.tmp", ".recovery-retiring",
+                    ".recovery-retiring.tmp", ".tmp")
+        for suffix in suffixes:
+            for where in ("before", "after", "both"):
+                with self.subTest(suffix=suffix, where=where):
+                    self.prepare()
+                    name = "infinity-agents.json" + suffix
+                    if where in ("before", "both"):
+                        (self.before / name).write_bytes(b"synthetic unresolved recovery evidence")
+                        def add(result, manifest):
+                            manifest["original_fixture_files"][name] = gate.digest(self.before / name)
+                            result["input_file_count"] += 1
+                            manifest["input_file_count"] += 1
+                        self.edit_evidence(add)
+                    if where in ("after", "both"):
+                        (self.after / name).write_bytes(b"synthetic unresolved recovery evidence")
+                    self.assert_rejected(self.world(), self.world(), "helper recovery evidence")
+
+    def test_recovery_note_directories_and_dangling_links_also_block_evidence(self):
+        for kind in ("directory", "dangling link"):
+            for where in ("before", "after"):
+                with self.subTest(kind=kind, where=where):
+                    self.prepare()
+                    path = getattr(self, where) / "infinity-agents.json.recovery-retiring"
+                    if kind == "directory":
+                        path.mkdir()
+                    else:
+                        path.symlink_to("missing-synthetic-target")
+                    self.assert_rejected(self.world(), self.world(), "helper recovery evidence")
+
+    def test_helper_previous_roster_must_be_byte_identical_across_conversion(self):
+        name = "infinity-agents.json.previous"
+        for after in (None, b"changed synthetic backup", b"previous synthetic roster"):
+            with self.subTest(after=after):
+                self.prepare()
+                (self.before / name).write_bytes(b"previous synthetic roster")
+                def add(result, manifest):
+                    manifest["original_fixture_files"][name] = gate.digest(self.before / name)
+                    result["input_file_count"] += 1
+                    manifest["input_file_count"] += 1
+                self.edit_evidence(add)
+                if after is not None:
+                    (self.after / name).write_bytes(after)
+                if after == b"previous synthetic roster":
+                    summary = self.run_world(self.world(), self.world())[0]
+                    self.assertEqual(summary["helpers"], 1)
+                    self.assertEqual(summary["helper_roster_backup"], "byte-identical")
+                else:
+                    self.assert_rejected(self.world(), self.world(), "helper roster backup")
+
+    def test_unlisted_or_unexpected_helper_previous_roster_fails(self):
+        name = "infinity-agents.json.previous"
+        for where in ("both unlisted", "after only"):
+            with self.subTest(where=where):
+                self.prepare()
+                if where == "both unlisted":
+                    (self.before / name).write_bytes(b"synthetic backup")
+                (self.after / name).write_bytes(b"synthetic backup")
+                self.assert_rejected(self.world(), self.world(), "helper roster backup")
+
+    def test_helper_previous_roster_rejects_directories_and_links(self):
+        for kind in ("directory", "dangling link"):
+            for where in ("before", "after"):
+                with self.subTest(kind=kind, where=where):
+                    self.prepare()
+                    path = getattr(self, where) / "infinity-agents.json.previous"
+                    if kind == "directory":
+                        path.mkdir()
+                    else:
+                        path.symlink_to("missing-synthetic-target")
+                    self.assert_rejected(self.world(), self.world(), "helper roster backup")
+
+    def test_inaccessible_helper_recovery_evidence_fails_closed(self):
+        original = Path.lstat
+        def denied(path, *args, **kwargs):
+            if path.name == "infinity-agents.json.recovery-required":
+                raise PermissionError("private synthetic path")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(Path, "lstat", denied):
+            self.assert_rejected(self.world(), self.world(), "could not inspect helper recovery evidence")
 
     def test_top_level_duplicate_and_unregistered_helpers_still_fail(self):
         self.assert_rejected(self.world(copy.deepcopy(self.helper)), self.world(), "duplicate helper UUID")
