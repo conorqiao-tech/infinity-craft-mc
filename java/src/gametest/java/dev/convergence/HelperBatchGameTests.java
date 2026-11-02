@@ -100,7 +100,8 @@ public class HelperBatchGameTests {
         private final Map<String, Fault> armed = new HashMap<>();
         private String last = "";
         boolean noDirectorySync;
-        boolean blockMarkerWrites, blockRosterWrites, replaceGuardAfterRosterSync;
+        boolean blockMarkerWrites, blockRosterWrites, replaceGuardAfterRosterSync, addRetirementAfterRosterSync;
+        boolean blockMarkerWritesAfterGuardDelete;
         private interface Step { void run() throws IOException; }
         void arm(String step, boolean afterEffect) { armLater(step, afterEffect, 0); }
         /** Fails the step's occurrence after {@code skip} successful ones. */
@@ -129,11 +130,17 @@ public class HelperBatchGameTests {
         @Override public void syncDirectory(Path directory) throws IOException {
             if (noDirectorySync) throw new IOException("Directory sync is unsupported on this storage");
             String previous = last;
+            if (blockMarkerWritesAfterGuardDelete && previous.equals("delete:agents.json.recovery-required"))
+                blockMarkerWrites = true;
             step("sync-after:" + last, true, () -> HelperPersistence.NATIVE.syncDirectory(directory));
             if (replaceGuardAfterRosterSync && previous.equals("move:agents.json")) {
                 replaceGuardAfterRosterSync = false;
                 Files.delete(directory.resolve("agents.json.recovery-required"));
                 Files.writeString(directory.resolve("agents.json.recovery-required.tmp"), "competing evidence");
+            }
+            if (addRetirementAfterRosterSync && previous.equals("move:agents.json")) {
+                addRetirementAfterRosterSync = false;
+                Files.writeString(directory.resolve("agents.json.recovery-retiring"), "competing retirement evidence");
             }
         }
     }
@@ -837,25 +844,120 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
-    public void creationKeepsPendingIdentityWhenGuardDeletionAndFollowupNoteFail(GameTestHelper c) throws Exception {
+    public void creationGuardDeletionSyncFailureKeepsRetirementEvidence(GameTestHelper c) throws Exception {
         var io = new FaultyIo(); var wire = new NativePlayConnection(c.getLevel().registryAccess());
         try (var f = new Fixture(c, io, wire)) {
             f.unloaded(f.owner.getUUID(), 1, "older-"); var older = f.helpers.owned(f.owner, "older-1");
             io.arm("sync-after:delete:agents.json.recovery-required", true);
-            io.armLater("write:agents.json.recovery-required.tmp", false, 1); wire.drain();
+            io.blockMarkerWritesAfterGuardDelete = true; wire.drain();
             c.assertValueEqual(f.helpers.spawn(f.owner, "guarded"), 0,
                 "An unproven guard retirement reports creation as unresolved");
             var record = f.helpers.owned(f.owner, "guarded");
+            var witness = f.directory.resolve("agents.json.recovery-retiring");
             c.assertTrue(record != null && f.helpers.creationUnresolved && f.helpers.creationRecoveryRequired
-                && Files.notExists(f.marker()) && Files.notExists(HelperPersistence.recoveryTemporary(f.helpers.file)),
-                "This runtime freezes even when neither recovery note survives");
-            assertUnresolvedNotice(c, chat(wire), "guard deletion and followup note failed");
+                && Files.notExists(f.marker()) && Files.exists(witness) && io.blockMarkerWrites,
+                "An uncertain marker deletion keeps independent retirement evidence");
+            assertUnresolvedNotice(c, chat(wire), "guard deletion sync failed with later note writes refused");
             var restarted = f.restart();
-            c.assertTrue(!restarted.creationRecoveryRequired && restarted.unresolvedCreation(record.getKey())
+            c.assertTrue(restarted.creationRecoveryRequired && restarted.unresolvedCreation(record.getKey())
                 && restarted.data.agents.containsKey(older.getKey()),
-                "Known limit: restart need not freeze without a note, but both the uncertain and older identities remain reserved");
+                "Restart stays frozen and both uncertain and older identities remain reserved");
             var copy = f.saved(UUID.fromString(older.getKey())); restarted.load(copy);
             c.assertFalse(copy.isRemoved(), "The older unloaded helper is retained"); copy.discard();
+        } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void retirementEvidenceFreezesEvenWithoutTheOriginalMarkerOrRoster(GameTestHelper c) throws Exception {
+        for (String suffix : List.of(".recovery-retiring", ".recovery-retiring.tmp")) {
+            try (var f = new Fixture(c)) {
+                f.unloaded(f.owner.getUUID(), 1, "older-");
+                var older = f.helpers.owned(f.owner, "older-1");
+                var evidence = f.directory.resolve("agents.json" + suffix);
+                Files.writeString(evidence, "unresolved retirement evidence");
+                byte[] roster = Files.readAllBytes(f.helpers.file);
+                var restarted = f.restart();
+                c.assertTrue(restarted.creationRecoveryRequired && restarted.remaining(f.owner) == 0,
+                    "Either retirement file freezes a readable roster: " + suffix);
+                var copy = f.saved(UUID.fromString(older.getKey()));
+                copy.setHealth(37); copy.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+                restarted.load(copy);
+                c.assertTrue(!copy.isRemoved() && copy.getHealth() == 37
+                    && copy.getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue() == .31,
+                    "A previously unloaded helper and its edited stats remain: " + suffix);
+                c.assertTrue(Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Files.readString(evidence).equals("unresolved retirement evidence"),
+                    "Neither the roster nor retirement evidence is rewritten: " + suffix);
+                copy.discard();
+                Path missing = f.directory.resolve("missing.json");
+                Path missingEvidence = f.directory.resolve("missing.json" + suffix);
+                Files.writeString(missingEvidence, "missing-roster evidence");
+                var absent = new AgentCompanions(f.helpers.server, missing);
+                c.assertTrue(absent.creationRecoveryRequired && Files.notExists(missing)
+                    && Files.readString(missingEvidence).equals("missing-roster evidence"),
+                    "Retirement evidence prevents a missing roster from looking fresh: " + suffix);
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void retirementWitnessWriteFailuresKeepTheOriginalGuard(GameTestHelper c) throws Exception {
+        for (var fault : List.of(Map.entry("write:agents.json.recovery-retiring.tmp", false),
+                Map.entry("write:agents.json.recovery-retiring.tmp", true),
+                Map.entry("move:agents.json.recovery-retiring", false),
+                Map.entry("move:agents.json.recovery-retiring", true),
+                Map.entry("sync-after:move:agents.json.recovery-retiring", false),
+                Map.entry("sync-after:move:agents.json.recovery-retiring", true))) {
+            var io = new FaultyIo();
+            try (var f = new Fixture(c, io)) {
+                f.helpers.spawn(f.owner, "near"); var entry = f.helpers.owned(f.owner, "near");
+                var live = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
+                io.arm(fault.getKey(), fault.getValue());
+                c.assertValueEqual(f.helpers.dismiss(f.owner, "near"), 1, "The already-saved dismissal is reported: " + fault);
+                c.assertTrue(Files.exists(f.marker()) && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired,
+                    "The original guard survives incomplete witness creation: " + fault);
+                c.assertFalse(live.isRemoved(), "The loaded body is kept inert for review: " + fault);
+                live.discard();
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void competingRetirementNoteIsNotOverwrittenDuringDismissal(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.helpers.spawn(f.owner, "near"); var entry = f.helpers.owned(f.owner, "near");
+            var live = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
+            io.addRetirementAfterRosterSync = true;
+            c.assertValueEqual(f.helpers.dismiss(f.owner, "near"), 1, "The saved dismissal is still reported");
+            var competing = f.directory.resolve("agents.json.recovery-retiring");
+            c.assertTrue(Files.readString(competing).equals("competing retirement evidence")
+                && Files.exists(f.marker()) && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired,
+                "A competing retirement note stays untouched and prevents guard removal");
+            c.assertFalse(live.isRemoved(), "The body is retained rather than discarded");
+            live.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void failedRetirementCleanupStillKeepsPendingCreation(GameTestHelper c) throws Exception {
+        var io = new FaultyIo(); var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, io, wire)) {
+            io.arm("sync-after:delete:agents.json.recovery-retiring", true);
+            io.armLater("write:agents.json.recovery-required.tmp", false, 1); wire.drain();
+            c.assertValueEqual(f.helpers.spawn(f.owner, "guarded"), 0, "Uncertain witness cleanup is reported for review");
+            var entry = f.helpers.owned(f.owner, "guarded");
+            c.assertTrue(entry != null && f.helpers.creationRecoveryRequired && f.helpers.creationUnresolved
+                && Files.notExists(f.marker()) && Files.notExists(f.directory.resolve("agents.json.recovery-retiring")),
+                "The runtime freezes even if cleanup and the replacement note leave no evidence");
+            var restarted = f.restart();
+            c.assertTrue(!restarted.creationRecoveryRequired && restarted.unresolvedCreation(entry.getKey()),
+                "The original guard's deletion was synced first; the pending identity remains reserved");
+            assertUnresolvedNotice(c, chat(wire), "retirement witness cleanup");
         } finally { wire.channel.finishAndReleaseAll(); }
         c.succeed();
     }
@@ -1371,16 +1473,15 @@ public class HelperBatchGameTests {
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=400)
     public void failedMarkerRetirementAfterAProvenDismissalIsSafeOnRestart(GameTestHelper c) throws Exception {
-        record Case(String name, boolean secondNoteFails, boolean frozenAfterRestart) {}
-        for (var test : List.of(new Case("delete refused", false, true), new Case("delete unsynced, note rewritten", false, true),
-                new Case("delete unsynced, note lost", true, false))) {
+        record Case(String name, boolean refuseLaterNotes) {}
+        for (var test : List.of(new Case("delete refused", false), new Case("delete unsynced", false),
+                new Case("delete unsynced, later notes refused", true))) {
             var io = new FaultyIo();
             try (var f = new Fixture(c, io)) {
                 f.helpers.spawn(f.owner, "near"); String id = f.helpers.owned(f.owner, "near").getKey(); var live = f.helpers.loaded.get(UUID.fromString(id));
                 if (test.name.startsWith("delete refused")) io.arm("delete:agents.json.recovery-required", false);
                 else io.arm("sync-after:delete:agents.json.recovery-required", true);
-                // Skip the guard's own marker write; fail only the note freeze() tries to rewrite.
-                if (test.secondNoteFails) io.armLater("write:agents.json.recovery-required.tmp", false, 1);
+                if (test.refuseLaterNotes) io.blockMarkerWritesAfterGuardDelete = true;
                 c.assertValueEqual(f.helpers.dismiss(f.owner, "near"), 1, "The dismissal itself was proven durable, so it is reported: " + test.name);
                 var saved = AgentCompanions.read(f.helpers.file);
                 c.assertTrue(!saved.agents.containsKey(id) && saved.dismissed.contains(id), "The saved roster durably records the dismissal: " + test.name);
@@ -1389,8 +1490,8 @@ public class HelperBatchGameTests {
                 f.helpers.controlLoaded();
                 c.assertFalse(live.isRemoved(), "A tick pass does not delete it: " + test.name);
                 var restarted = f.restart(); var copy = f.saved(UUID.fromString(id)); restarted.load(copy);
-                c.assertValueEqual(restarted.creationRecoveryRequired, test.frozenAfterRestart, "Restart is frozen exactly while a marker exists: " + test.name);
-                c.assertFalse(copy.isRemoved(), "After restart the copy is kept even if a failed note leaves ownership unfrozen: " + test.name);
+                c.assertTrue(restarted.creationRecoveryRequired, "Retirement evidence keeps restart frozen: " + test.name);
+                c.assertFalse(copy.isRemoved(), "After restart the copy remains available for review: " + test.name);
                 copy.discard(); live.discard();
             }
         }

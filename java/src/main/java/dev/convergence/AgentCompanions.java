@@ -72,7 +72,7 @@ public final class AgentCompanions {
     /** Explicit guarded dismissals completed in this runtime; historical format-3 entries are ambiguous. */
     Set<String> provenRemoved = new HashSet<>();
     static final int DISMISSED_LIMIT = 256;
-    static final String FROZEN = "Helper ownership is frozen for host review. Ask the host to preserve the roster, its .previous copy and any .recovery-required or temporary note.";
+    static final String FROZEN = "Helper ownership is frozen for host review. Ask the host to preserve the roster, its .previous copy and any .recovery-required, .recovery-retiring or temporary note.";
     final Map<UUID, IronGolem> loaded = new HashMap<>();
     final Map<UUID, Integer> lastAttack = new HashMap<>();
     final Map<UUID, PlayerTarget> playerTargets = new HashMap<>();
@@ -186,11 +186,12 @@ public final class AgentCompanions {
         // ownership frozen. Nothing here may resolve it automatically.
         creationRecoveryRequired = absent != null || HelperPersistence.recoveryRequired(file);
         if (absent != null)
-            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen: {}. Nothing was restored, replaced or removed; preserve {}, its .previous copy and any .recovery-required or temporary note for investigation.",
+            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen: {}. Nothing was restored, replaced or removed; preserve {}, its .previous copy and any .recovery-required, .recovery-retiring or temporary note for investigation.",
                 absent, file);
         else if (creationRecoveryRequired)
-            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by recovery evidence beside {}. Preserve the roster, its .previous copy, {} and {}; investigate the matching whole-world data or restore a verified matching whole-world backup before any recovery.",
-                file, HelperPersistence.recoveryMarker(file), HelperPersistence.recoveryTemporary(file));
+            org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by recovery evidence beside {}. Preserve the roster, its .previous copy, {}, {}, {} and {}; investigate the matching whole-world data or restore a verified matching whole-world backup before any recovery.",
+                file, HelperPersistence.recoveryMarker(file), HelperPersistence.recoveryTemporary(file),
+                HelperPersistence.retirementMarker(file), HelperPersistence.retirementTemporary(file));
         // Format 3 used guardedRemovals for both explicit dismissals and
         // failed-creation rollbacks. Preserve them, but do not infer which
         // historical entries authorize disposal of an unseen saved body.
