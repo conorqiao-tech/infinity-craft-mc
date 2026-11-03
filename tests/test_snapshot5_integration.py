@@ -1339,6 +1339,37 @@ class NativeWorldTagKindIntegrationTests(unittest.TestCase):
         self.assertTrue(summary["helper_native_nbt_tag_kinds_verified"])
         self.assertIn("movement values", summary["helper_tag_kind_scope"])
 
+    def test_equal_but_nonnative_movement_tag_kinds_are_rejected(self):
+        helper = copy.deepcopy(self.fixture.helper)
+        raw = self.encode(helper)
+        for field in ("Pos", "Motion"):
+            values = helper[field]
+            original = b"\x09" + nbt_text(field) + b"\x06" + struct.pack(">i3d", 3, *values)
+            wrong = b"\x09" + nbt_text(field) + b"\x05" + struct.pack(">i3f", 3, *values)
+            changed = self.replace_one(raw, original, wrong)
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "native.*movement"):
+                self.run_raw(changed, changed)
+
+    def test_invalid_motion_values_and_shapes_are_not_treated_as_preserved(self):
+        for motion in ([11.0, 0.0, 0.0], [-10.01, 0.0, 0.0], [0.0, 0.0], [0, 0, 0], 0.0, None):
+            with self.subTest(motion=motion):
+                old = copy.deepcopy(self.fixture.helper)
+                new = copy.deepcopy(old)
+                if motion is None:
+                    old.pop("Motion"); new.pop("Motion")
+                else:
+                    old["Motion"] = motion; new["Motion"] = motion
+                with self.assertRaisesRegex(ValueError, "(?:native.*movement|invalid.*motion)"):
+                    self.run_raw(self.encode(old), self.encode(new))
+
+    def test_motion_can_change_at_the_native_boundary(self):
+        old = copy.deepcopy(self.fixture.helper)
+        new = copy.deepcopy(old)
+        old["Motion"] = [10.0, -10.0, 0.0]
+        new["Motion"] = [-10.0, 10.0, 0.0]
+        summary = self.run_raw(self.encode(old), self.encode(new))
+        self.assertIn("bounded motion", summary["helper_tag_kind_scope"])
+
     def test_equal_decoded_values_with_different_types_fail_both_copies(self):
         helper = copy.deepcopy(self.fixture.helper)
         helper["synthetic_empty"] = []

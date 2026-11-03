@@ -29,6 +29,8 @@ PUBLIC = Path("research/integration/snapshot5-integration.json")
 PRIVATE = Path("research/snapshot5-compatibility")
 SOURCE_FILES = ("tools/verify_snapshot5_integration.py", "tools/typed_nbt.py", "tools/package_crossplay.py", "server/terrain_storage.py")
 HELPER_POWER_MARKER = "infinity_helper_power_defaults"
+# Snapshot 5's native Entity.load zeroes a motion component beyond this limit.
+NATIVE_MOTION_LIMIT = 10.0
 # Exact Snapshot5 IronGolem native bases and explore.51's five finite defaults.
 # This independent expectation is deliberately not imported from production code
 # or taken from a conversion receipt's declared changes.
@@ -605,7 +607,11 @@ def verify_saved_helper(original, converted, dimension, registrations, version=V
     require(isinstance(old_pos, list) and isinstance(new_pos, list) and len(old_pos) == len(new_pos) == 3
             and all(type(value) in (int, float) and math.isfinite(value) for value in [*old_pos, *new_pos])
             and sum((a - b) ** 2 for a, b in zip(old_pos, new_pos)) <= 1, "unexplained copied helper displacement")
-    expected.pop("Motion", None); actual.pop("Motion", None)
+    old_motion, new_motion = expected.pop("Motion", None), actual.pop("Motion", None)
+    require(all(isinstance(values, list) and len(values) == 3
+                and all(type(value) in (int, float) and math.isfinite(value)
+                        and abs(value) <= NATIVE_MOTION_LIMIT for value in values)
+                for values in (old_motion, new_motion)), "invalid saved helper motion")
     for entity in (expected, actual):
         rows = entity.get("attributes")
         require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get("id"), str) for row in rows)
@@ -619,8 +625,9 @@ def verify_saved_helper(original, converted, dimension, registrations, version=V
 def verify_saved_helper_tag_kinds(original, converted, migration):
     """Verify native kinds and stable bytes for the same decoded helper comparison.
 
-    Position and motion values retain their existing separate allowance, but
-    their native kinds and shapes must match. Existing attributes may reorder;
+    Position may move at most one block, and finite motion may vary within the
+    native load limit. Both vectors must be native three-double lists.
+    Existing attributes may reorder;
     only the exact defaults migration already derived by verify_saved_helper
     may change a base value or add a double-valued attribute or int marker.
     """
@@ -641,9 +648,12 @@ def verify_saved_helper_tag_kinds(original, converted, migration):
             "saved helper stable field bytes or native tag kinds changed")
 
     for key in (b"Pos", b"Motion"):
-        require((key in before) == (key in after), "saved helper movement field presence changed")
-        if key in before:
-            require(typed_nbt.same_shape(before[key], after[key]), "saved helper movement field tag kinds changed")
+        for entity in (before, after):
+            value = entity.get(key)
+            require(isinstance(value, typed_nbt.Tag) and value.kind == 9
+                    and value.payload[0] == 6 and len(value.payload[1]) == 3
+                    and all(part.kind == 6 for part in value.payload[1]),
+                    "saved helper native movement must use three doubles")
 
     def attributes(entity):
         group = entity.get(b"attributes")
@@ -831,7 +841,7 @@ def native_world(root, base, label, evidence):
             "input_files": len(originals), "offline_player_files": len(players), "mod_state_files": len(mods),
             "helpers": len(wanted), "offline_player_bytes_preserved": True, "mod_state_preserved": True,
             "helper_decoded_fields_preserved": True, "helper_native_nbt_tag_kinds_verified": True,
-            "helper_tag_kind_scope": "registered helper fields; movement values have separate allowances, tag shapes and authorized defaults migration checked",
+            "helper_tag_kind_scope": "registered helper fields; movement values use native three-double vectors, bounded motion and the separate position allowance; authorized defaults migration checked",
             "helper_recovery_notes_absent": True,
             "helper_roster_backup": "byte-identical" if helper_backup_present else "absent in both copies",
             "terrain_helper_evidence": terrain,
@@ -925,7 +935,7 @@ def collect(root=ROOT):
         "bridge_integration": digest(base / "upstream-bridge/integration-proof.json"), "translated_play": digest(positive_path),
         "app_run": digest(base / "snapshot5-crossplay-lab/final-app-run.json"), "ack_result": digest(base / "viafabric-ack-runtime/result-final.json"), "ack_report": digest(ack_xml)})
     world = native_world(root, base, mods, evidence)
-    return {"format_version": 6, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
+    return {"format_version": 7, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
             "snapshot5_inputs": inputs, "source_hashes": {name: digest(root / name) for name in SOURCE_FILES},
             "dependency_lock_sha256": digest(root / "server/dependencies.lock.json"), "runtime_mod_sha256": mods,
             "native_tests": len(native_names), "codec_tests": len(names),
