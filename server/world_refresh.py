@@ -140,7 +140,18 @@ def recover(root, emit=None):
 
 def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock):
     if record["state"] == "moving":
-        for relative in reversed(record["moved_paths"]):
+        moved_paths = record.get("moved_paths")
+        if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
+            raise ValueError("Invalid terrain refresh recovery paths")
+        # Validate all entries before any move: an old or damaged journal must
+        # never be allowed to replace the inode whose lock guards recovery.
+        for relative in moved_paths:
+            parts = PurePosixPath(relative).parts
+            if parts and parts[0].casefold() == "session.lock":
+                raise ValueError("Terrain recovery cannot move the Minecraft world lock")
+            inside(world, relative)
+            inside(rollback / "terrain", relative)
+        for relative in reversed(moved_paths):
             community.verify_world_session_lock(world, session_lock)
             source = inside(world, relative)
             saved = inside(rollback / "terrain", relative)

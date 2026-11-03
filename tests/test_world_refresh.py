@@ -403,6 +403,36 @@ class TerrainRefreshTests(unittest.TestCase):
         self.assertEqual(old_lock.read_bytes(), b"native session lock")
         self.assertEqual(lock.read_bytes(), b"unexpected replacement")
 
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_recovery_rejects_a_journal_that_targets_the_session_lock(self):
+        self.policy(refresh_next_start=True)
+        self.interrupt_move()
+        journal_path = self.root / refresh.JOURNAL
+        journal = json.loads(journal_path.read_text())
+        lock = self.world / "session.lock"
+        saved = self.root / "backups" / journal["rollback"] / "terrain/session.lock"
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(b"untrusted saved lock")
+        original_path = journal["moved_paths"][0]
+        # Recovery visits paths in reverse; the ordinary terrain move would
+        # otherwise run before the invalid lock path is noticed.
+        journal["moved_paths"] = ["session.lock", original_path]
+        journal["kept_files"] = {"session.lock": hashlib.sha256(lock.read_bytes()).hexdigest()}
+        journal_path.write_text(json.dumps(journal))
+        before = journal_path.read_bytes()
+        before_world = self.snapshot()
+        original_saved = self.root / "backups" / journal["rollback"] / "terrain" / original_path
+        self.assertTrue(original_saved.exists())
+        inode = lock.stat().st_ino
+        with self.assertRaisesRegex(ValueError, "lock"):
+            refresh.recover(self.root)
+        self.assertEqual(lock.stat().st_ino, inode)
+        self.assertEqual(lock.read_bytes(), b"native session lock")
+        self.assertEqual(saved.read_bytes(), b"untrusted saved lock")
+        self.assertEqual(journal_path.read_bytes(), before)
+        self.assertEqual(self.snapshot(), before_world)
+        self.assertTrue(original_saved.exists())
+
     def test_interrupted_move_is_rolled_back_before_backup_and_never_relaunched(self):
         self.policy(refresh_next_start=True)
         self.interrupt_move()
