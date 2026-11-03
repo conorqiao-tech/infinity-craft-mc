@@ -1,5 +1,7 @@
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import time
@@ -67,6 +69,120 @@ class CommunityTests(unittest.TestCase):
             community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual((self.root / "launcher.lock").read_text(), "running")
         self.assertFalse((self.root / "backups").exists())
+
+    def test_backup_refuses_when_native_world_lock_cannot_be_checked(self):
+        with patch.object(community, "SESSION_LOCK_AVAILABLE", False):
+            with self.assertRaisesRegex(ValueError, "cannot safely check"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertFalse((self.root / "backups").exists())
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_backup_initializes_missing_native_lock_without_changing_world_data(self):
+        before = {p.relative_to(self.world).as_posix(): p.read_bytes()
+                  for p in self.world.rglob("*") if p.is_file()}
+        self.assertNotIn("session.lock", before)
+        name = community.backup(self.root, {"level-name": "my-world"})
+        after = {p.relative_to(self.world).as_posix(): p.read_bytes()
+                 for p in self.world.rglob("*") if p.is_file()}
+        self.assertEqual(after.pop("session.lock"), b"")
+        self.assertEqual(after, before)
+        with zipfile.ZipFile(self.root / "backups" / name) as archive:
+            self.assertNotIn("my-world/session.lock", archive.namelist())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX no-follow lock test requires symlinks")
+    def test_backup_does_not_follow_a_world_lock_symlink(self):
+        victim = self.root / "unrelated-file"
+        victim.write_bytes(b"preserve this file")
+        (self.world / "session.lock").symlink_to(victim)
+        with self.assertRaisesRegex(ValueError, "world lock"):
+            community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(victim.read_bytes(), b"preserve this file")
+        self.assertTrue((self.world / "session.lock").is_symlink())
+        self.assertFalse((self.root / "backups").exists())
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_backup_refuses_a_separately_locked_minecraft_world_even_when_launcher_is_locked(self):
+        lock = self.world / "session.lock"
+        lock.write_bytes(b"native lock")
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB); print('LOCKED',flush=True); sys.stdin.read(1)")
+        holder = subprocess.Popen([sys.executable, "-c", code, str(lock)], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), "LOCKED")
+            for already_locked in (False, True):
+                with self.subTest(already_locked=already_locked):
+                    with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
+                        community.backup(self.root, {"level-name": "my-world"}, locked=already_locked)
+                    self.assertFalse((self.root / "backups").exists())
+                    self.assertFalse((self.root / "launcher.lock").exists())
+        finally:
+            holder.stdin.write("\n"); holder.stdin.flush()
+            _, errors = holder.communicate(timeout=10)
+            self.assertEqual(holder.returncode, 0, errors)
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_backup_holds_minecraft_lock_until_the_archive_is_written(self):
+        lock = self.world / "session.lock"
+        lock.write_bytes(b"native lock")
+        real_write = zipfile.ZipFile.write
+        attempts = []
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: sys.exit(42)\nelse: sys.exit(0)")
+        def probe(archive, *args, **kwargs):
+            attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
+            return real_write(archive, *args, **kwargs)
+        with patch.object(zipfile.ZipFile, "write", probe):
+            name = community.backup(self.root, {"level-name": "my-world"})
+        self.assertTrue(attempts)
+        self.assertEqual(set(attempts), {42})
+        self.assertEqual(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode, 0)
+        self.assertTrue((self.root / "backups" / name).is_file())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_backup_does_not_publish_if_native_lock_path_is_replaced_while_writing(self):
+        lock = self.world / "session.lock"
+        lock.write_bytes(b"original lock")
+        saved = self.world / "session.lock.renamed"
+        real_write = zipfile.ZipFile.write
+        replaced = False
+        def replace_lock(archive, *args, **kwargs):
+            nonlocal replaced
+            if not replaced:
+                replaced = True
+                lock.rename(saved)
+                lock.write_bytes(b"replacement lock")
+            return real_write(archive, *args, **kwargs)
+        with patch.object(zipfile.ZipFile, "write", replace_lock):
+            with self.assertRaisesRegex(ValueError, "lock.*changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertTrue(replaced)
+        self.assertEqual(saved.read_bytes(), b"original lock")
+        self.assertEqual(lock.read_bytes(), b"replacement lock")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assertFalse((self.root / "launcher.lock").exists())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_backup_releases_locks_even_when_partial_archive_cleanup_fails(self):
+        lock = self.world / "session.lock"
+        lock.write_bytes(b"native lock")
+        real_unlink = Path.unlink
+        def refuse_partial(path, *args, **kwargs):
+            if path.suffix == ".partial":
+                raise PermissionError("injected partial cleanup failure")
+            return real_unlink(path, *args, **kwargs)
+        with patch.object(community, "sync_file", side_effect=OSError("injected archive flush failure")):
+            with patch.object(Path, "unlink", refuse_partial):
+                with self.assertRaisesRegex(PermissionError, "partial cleanup"):
+                    community.backup(self.root, {"level-name": "my-world"})
+        self.assertFalse((self.root / "launcher.lock").exists())
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)")
+        self.assertEqual(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode, 0)
+        self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
 
     def test_backup_rejects_path_escape_and_symlinks_without_partial_archives(self):
         with self.assertRaisesRegex(ValueError, "inside"):

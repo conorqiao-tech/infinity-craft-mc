@@ -359,6 +359,8 @@ This build adds the familiar survival-server features for both editions:
 
 Every start of an existing world makes a backup before loading it. **Back up stopped world** makes another copy manually. Backups are kept under `backups/`; copy important ones to another disk and manage disk space. There is no automatic deletion or scheduled live backup.
 
+Stopped-world backup holds Minecraft's advisory world lock on macOS and Linux and refuses if another cooperating Minecraft process is using it. If a restored world has no `session.lock`, backup creates that empty operational file; it leaves saved world data unchanged and excludes the lock from the archive. Other programs that ignore the lock can still change the world, so close them too; a successful backup is not proof that every writer was excluded. This check has been tested on macOS only. Windows cannot yet verify the lock, so backup and the automatic pre-start backup for an existing world are refused there until support is tested.
+
 For public access, 24/7 hosting, initial staff setup, spawn protection limits, and restoring backups, read **HOSTING.md**. The package is not already hosted on the Internet. It includes fixed item exchanges, but does not include land claims, anti-cheat, player shops, a currency economy, or large-network matchmaking.
 
 ## Join the same world
