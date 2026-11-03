@@ -11,6 +11,7 @@ import types
 import unittest
 from unittest import mock
 import uuid
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -388,6 +389,30 @@ def encode_player_save(player):
     return gzip.compress(b"\x0a" + nbt_text("") + nbt_body(player), mtime=0)
 
 
+def synthetic_region_from_nbt(raw, external=False):
+    """Synthetic Anvil region with one chunk; external payload is optional."""
+    compressed = zlib.compress(raw)
+    record = (struct.pack(">I", 1) + b"\x82" if external else
+              struct.pack(">I", len(compressed) + 1) + b"\x02" + compressed)
+    sectors = (len(record) + 4095) // 4096
+    assert 0 < sectors < 256
+    header = bytearray(8192)
+    header[:4] = ((2 << 8) | sectors).to_bytes(4, "big")
+    return bytes(header) + record.ljust(sectors * 4096, b"\x00"), compressed if external else None
+
+
+def synthetic_terrain_nbt(entities, **changes):
+    """Test-only NBT; this is not native Minecraft-produced terrain."""
+    chunk = {"DataVersion": 5125, "status": "minecraft:full", "xPos": 0, "zPos": 0,
+             "entities": entities}
+    chunk.update(changes)
+    return b"\x0a" + nbt_text("") + nbt_body(chunk)
+
+
+def synthetic_terrain_region(entities):
+    return synthetic_region_from_nbt(synthetic_terrain_nbt(entities))[0]
+
+
 def mounted(entity, attach=None):
     return {"RootVehicle": {"Attach": attach or list(entity["UUID"]), "Entity": entity}}
 
@@ -419,6 +444,115 @@ class NestedPassengerTraversalTests(unittest.TestCase):
         saved = copy.deepcopy(vehicle)
         gate.verify_nested_passengers(vehicle, self.REGISTERED)
         self.assertEqual(vehicle, saved)
+
+
+class TerrainEvidenceTests(unittest.TestCase):
+    """Synthetic native-format region bytes exercise the real bounded reader."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.world = Path(temp.name) / "world"
+        self.world.mkdir()
+        self.flagged = str(uuid.uuid4())
+
+    def region(self, raw, *, external=False, directory="region"):
+        folder = self.world / directory
+        folder.mkdir(parents=True, exist_ok=True)
+        region, payload = synthetic_region_from_nbt(raw, external)
+        (folder / "r.0.0.mca").write_bytes(region)
+        if external:
+            (folder / "c.0.0.mcc").write_bytes(payload)
+
+    def scan(self):
+        return gate.verify_terrain_helper_evidence(real_storage, self.world, {self.flagged})
+
+    def test_unrelated_entities_and_nested_riders_are_accepted(self):
+        entity = rider("minecraft:oak_boat", passengers=[rider("minecraft:chicken", tags=["unrelated"])])
+        self.region(synthetic_terrain_nbt([entity]))
+        self.assertEqual(self.scan(), {"regions": 1, "chunks": 1, "supported_data_version": 5125})
+
+    def test_tagged_or_registered_terrain_entities_and_passengers_are_rejected(self):
+        cases = [rider("minecraft:iron_golem", tags=["infinity_agent"]),
+                 rider("minecraft:iron_golem", identity=self.flagged),
+                 rider("minecraft:oak_boat", passengers=[rider(identity=self.flagged)]),
+                 rider("minecraft:oak_boat", passengers=[rider(tags=["infinity_agent"])])]
+        for entity in cases:
+            with self.subTest(entity=entity):
+                self.region(synthetic_terrain_nbt([entity]))
+                with self.assertRaisesRegex(ValueError, "terrain.*helper"):
+                    self.scan()
+
+    def test_unsupported_versions_statuses_and_positions_fail_closed(self):
+        for changes in ({"DataVersion": 3953}, {"status": "minecraft:features"},
+                        {"xPos": 1}, {"Entities": []}, {"Level": {}}):
+            with self.subTest(changes=changes):
+                self.region(synthetic_terrain_nbt([], **changes))
+                with self.assertRaises(ValueError):
+                    self.scan()
+
+    def test_same_numeric_data_version_with_wrong_native_type_is_rejected(self):
+        raw = synthetic_terrain_nbt([])
+        before = b"\x03" + nbt_text("DataVersion") + struct.pack(">i", 5125)
+        after = b"\x04" + nbt_text("DataVersion") + struct.pack(">q", 5125)
+        self.assertEqual(raw.count(before), 1)
+        self.region(raw.replace(before, after))
+        with self.assertRaisesRegex(ValueError, "terrain schema or version"):
+            self.scan()
+
+    def test_uuid_list_with_same_decoded_words_is_not_a_native_uuid(self):
+        entity = rider(identity=self.flagged)
+        raw = synthetic_terrain_nbt([entity])
+        words = b"".join(struct.pack(">i", value) for value in entity["UUID"])
+        native = b"\x0b" + nbt_text("UUID") + struct.pack(">i", 4) + words
+        wrong_kind = b"\x09" + nbt_text("UUID") + b"\x03" + struct.pack(">i", 4) + words
+        self.assertEqual(raw.count(native), 1)
+        self.region(raw.replace(native, wrong_kind))
+        with self.assertRaisesRegex(ValueError, "malformed terrain entity identity"):
+            self.scan()
+
+    def test_bad_or_missing_external_chunk_is_not_treated_as_absent(self):
+        self.region(synthetic_terrain_nbt([]), external=True)
+        (self.world / "region/c.0.0.mcc").unlink()
+        with self.assertRaises(ValueError):
+            self.scan()
+        (self.world / "region/c.0.0.mcc").write_bytes(b"not a zlib stream")
+        with self.assertRaisesRegex(ValueError, "could not read copied terrain"):
+            self.scan()
+
+    def test_external_payload_is_scanned_and_orphans_are_rejected(self):
+        self.region(synthetic_terrain_nbt([rider(tags=["infinity_agent"])]), external=True)
+        with self.assertRaisesRegex(ValueError, "terrain.*helper"):
+            self.scan()
+        self.region(synthetic_terrain_nbt([]), external=True)
+        self.assertEqual(self.scan()["chunks"], 1)
+        (self.world / "region/c.1.1.mcc").write_bytes(b"orphaned evidence")
+        with self.assertRaisesRegex(ValueError, "orphan"):
+            self.scan()
+
+    def test_malformed_entries_links_and_limits_fail_closed(self):
+        self.region(synthetic_terrain_nbt([]))
+        for limit in ("TERRAIN_FILE_LIMIT", "TERRAIN_CHUNK_LIMIT", "TERRAIN_DECODED_LIMIT"):
+            with self.subTest(limit=limit), mock.patch.object(gate, limit, 0), self.assertRaises(ValueError):
+                self.scan()
+        (self.world / "region/r.bad.mca").write_bytes(b"unexpected")
+        with self.assertRaisesRegex(ValueError, "unsupported terrain region entry"):
+            self.scan()
+        (self.world / "region/r.bad.mca").unlink()
+        try:
+            (self.world / "linked").symlink_to(self.world / "region", target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable")
+        with self.assertRaisesRegex(ValueError, "linked copied-world directory"):
+            self.scan()
+
+    def test_supported_dimension_paths_and_unsupported_path(self):
+        for directory in ("DIM-1/region", "DIM1/region", "dimensions/convergence/arena/region"):
+            with self.subTest(directory=directory):
+                self.region(synthetic_terrain_nbt([]), directory=directory)
+                self.assertGreaterEqual(self.scan()["regions"], 1)
+        self.region(synthetic_terrain_nbt([]), directory="unknown/region")
+        with self.assertRaisesRegex(ValueError, "unsupported saved helper native level path"):
+            self.scan()
 
 
 class NativeWorldPassengerTests(unittest.TestCase):
@@ -522,9 +656,13 @@ class NativeWorldPassengerTests(unittest.TestCase):
         parsed = self.parsed
 
         def region_records(path):
+            if Path(path).parent.name == "region":
+                return real_storage.region_records(path)
             return [(0, 0, 0, 0, worlds[Path(path).parents[1]], 3)]
 
         def unpack(data, compression):
+            if isinstance(data, bytes):
+                return real_storage.unpack(data, compression)
             self.assertEqual(compression, 3)
             return data
 
@@ -533,6 +671,8 @@ class NativeWorldPassengerTests(unittest.TestCase):
                 inner.data = data
 
             def parse(inner):
+                if isinstance(inner.data, bytes):
+                    return real_storage.NBT(inner.data).parse()
                 parsed.append(inner.data)
                 return decoded[inner.data]
 
@@ -560,6 +700,8 @@ class NativeWorldPassengerTests(unittest.TestCase):
         # to the real typed reader; separate integration tests use real region bytes.
         parse = gate.typed_nbt.parse
         def typed_fixture(label):
+            if isinstance(label, bytes):
+                return parse(label)
             values = before_entities if label == "before" else after_entities
             return parse(b"\x0a" + nbt_text("") + nbt_body({"Entities": values}))
         with mock.patch.dict(sys.modules, {"terrain_storage": stub}), \
@@ -571,6 +713,26 @@ class NativeWorldPassengerTests(unittest.TestCase):
 
     def world(self, *extra):
         return [copy.deepcopy(self.helper), *extra]
+
+    def put_terrain(self, before, after):
+        relative = "region/r.0.0.mca"
+        for world, values in ((self.before, before), (self.after, after)):
+            path = world / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(synthetic_terrain_region(values))
+        def update(result, manifest):
+            manifest["original_fixture_files"][relative] = gate.digest(self.before / relative)
+            result["input_file_count"] += 1
+            manifest["input_file_count"] += 1
+        self.edit_evidence(update)
+
+    def test_registered_helper_duplicate_in_terrain_fails_closed(self):
+        for before, after in ((True, False), (False, True), (True, True)):
+            with self.subTest(before=before, after=after):
+                self.prepare()
+                self.put_terrain([copy.deepcopy(self.helper)] if before else [],
+                                 [copy.deepcopy(self.helper)] if after else [])
+                self.assert_rejected(self.world(), self.world(), "terrain.*helper")
 
     def assert_rejected(self, before, after, pattern):
         with self.assertRaisesRegex(ValueError, pattern) as caught:
