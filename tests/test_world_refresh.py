@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -298,6 +300,108 @@ class TerrainRefreshTests(unittest.TestCase):
             with self.assertRaises(KeyboardInterrupt):
                 self.transaction()
         self.assertTrue((self.root / refresh.JOURNAL).exists())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_interrupted_recovery_refuses_to_move_terrain_while_native_world_is_locked(self):
+        self.policy(refresh_next_start=True)
+        self.interrupt_move()
+        before = self.snapshot()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
+        folders = self.refresh_folders()
+        saved = {p.relative_to(folders[0]).as_posix(): p.read_bytes()
+                 for p in folders[0].rglob("*") if p.is_file()}
+        lock = self.world / "session.lock"
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB); print('LOCKED',flush=True); sys.stdin.read(1)")
+        holder = subprocess.Popen([sys.executable, "-c", code, str(lock)], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), "LOCKED")
+            with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
+                refresh.recover(self.root)
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+            self.assertEqual({p.relative_to(folders[0]).as_posix(): p.read_bytes()
+                              for p in folders[0].rglob("*") if p.is_file()}, saved)
+        finally:
+            holder.stdin.write("\n"); holder.stdin.flush()
+            _, errors = holder.communicate(timeout=10)
+            self.assertEqual(holder.returncode, 0, errors)
+        refresh.recover(self.root)
+        self.assert_original()
+        self.assertFalse((self.root / refresh.JOURNAL).exists())
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_interrupted_recovery_holds_native_lock_while_moving_saved_terrain(self):
+        self.policy(refresh_next_start=True)
+        self.interrupt_move()
+        lock = self.world / "session.lock"
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: sys.exit(42)\nelse: sys.exit(0)")
+        real_move = refresh.move
+        attempts = []
+        def observe(source, target):
+            attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
+            return real_move(source, target)
+        with patch.object(refresh, "move", observe):
+            refresh.recover(self.root)
+        self.assertTrue(attempts)
+        self.assertEqual(set(attempts), {42})
+        self.assertEqual(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode, 0)
+        self.assert_original()
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_launcher_stops_before_backup_when_recovery_world_is_locked(self):
+        self.policy(refresh_next_start=True)
+        self.interrupt_move()
+        before = self.snapshot()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
+        lock = self.world / "session.lock"
+        code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
+                "fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB); print('LOCKED',flush=True); sys.stdin.read(1)")
+        holder = subprocess.Popen([sys.executable, "-c", code, str(lock)], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), "LOCKED")
+            (self.root / "launcher.lock").unlink()
+            import server as launcher
+            with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+                 patch.object(community, "backup") as backup:
+                with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
+                    launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+            backup.assert_not_called()
+            self.assertFalse((self.root / "launcher.lock").exists())
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+        finally:
+            holder.stdin.write("\n"); holder.stdin.flush()
+            _, errors = holder.communicate(timeout=10)
+            self.assertEqual(holder.returncode, 0, errors)
+
+    @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
+    def test_recovery_keeps_journal_if_world_lock_path_changes_during_restore(self):
+        self.policy(refresh_next_start=True)
+        self.interrupt_move()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
+        lock = self.world / "session.lock"
+        old_lock = self.world / "session.lock.replaced"
+        real_move = refresh.move
+        replaced = False
+        def move_and_replace(source, target):
+            nonlocal replaced
+            real_move(source, target)
+            if not replaced:
+                replaced = True
+                lock.rename(old_lock)
+                lock.write_bytes(b"unexpected replacement")
+        with patch.object(refresh, "move", move_and_replace):
+            with self.assertRaisesRegex(ValueError, "lock.*changed"):
+                refresh.recover(self.root)
+        self.assertTrue(replaced)
+        self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+        self.assertEqual(old_lock.read_bytes(), b"native session lock")
+        self.assertEqual(lock.read_bytes(), b"unexpected replacement")
 
     def test_interrupted_move_is_rolled_back_before_backup_and_never_relaunched(self):
         self.policy(refresh_next_start=True)
