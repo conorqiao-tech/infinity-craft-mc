@@ -105,6 +105,9 @@ public class HelperBatchGameTests {
         boolean addRecoveryAfterPreviousFileSync;
         boolean blockMarkerWritesAfterGuardDelete;
         Runnable afterRosterMove;
+        String competingWrite;
+        boolean competingWriteSymlink;
+        Path competingWriteVictim;
         private interface Step { void run() throws IOException; }
         void arm(String step, boolean afterEffect) { armLater(step, afterEffect, 0); }
         /** Fails the step's occurrence after {@code skip} successful ones. */
@@ -139,6 +142,13 @@ public class HelperBatchGameTests {
             String name = path.getFileName().toString();
             if ((blockMarkerWrites && name.equals("agents.json.recovery-required.tmp"))
                 || (blockRosterWrites && name.equals("agents.json.tmp"))) throw new IOException("Injected continuing write refusal");
+            // Introduce the competing entry after all caller presence checks,
+            // immediately before the real native file open.
+            if (name.equals(competingWrite)) {
+                competingWrite = null;
+                if (competingWriteSymlink) Files.createSymbolicLink(path, competingWriteVictim);
+                else Files.writeString(path, "concurrent staging evidence", java.nio.file.StandardOpenOption.CREATE_NEW);
+            }
             step("write:" + name, false, () -> HelperPersistence.NATIVE.writeDurably(path, bytes));
         }
         @Override public void atomicMove(Path from, Path to) throws IOException {
@@ -478,6 +488,94 @@ public class HelperBatchGameTests {
                     && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
                     && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
                 "The running server freezes without replacing the temporary evidence, roster or backup");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void rosterStagingEntryAppearingAtOpenIsPreserved(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            String id = f.helpers.owned(f.owner, "older-1").getKey();
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            io.competingWrite = "agents.json.tmp";
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A competing staging entry appearing after the checks refuses the save");
+            Path temp = HelperPersistence.temporaryFile(f.helpers.file);
+            var restarted = f.restart();
+            var copy = f.saved(UUID.fromString(id));
+            copy.setHealth(37); copy.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            restarted.load(copy);
+            c.assertTrue(f.helpers.creationRecoveryRequired && restarted.creationRecoveryRequired
+                    && Files.readString(temp).equals("concurrent staging evidence")
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile()))
+                    && !copy.isRemoved() && copy.getHealth() == 37
+                    && copy.getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue() == .31,
+                "Both runtimes freeze while the evidence, saved roster, backup and edited helper survive");
+            copy.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void guardStagingEntryAppearingAtOpenRefusesCreation(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            io.competingWrite = "agents.json.recovery-required.tmp";
+            c.assertValueEqual(f.helpers.spawn(f.owner, "contested"), 0,
+                "Creation refuses when a competing guard staging entry appears at open");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && f.helpers.owned(f.owner, "contested") == null && f.helpers.loaded.isEmpty()
+                    && Files.readString(HelperPersistence.recoveryTemporary(f.helpers.file)).equals("concurrent staging evidence")
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "No helper is inserted and competing guard evidence and existing ownership are preserved");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void retirementStagingEntryAppearingAtOpenRetainsGuardAndHelper(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            io.competingWrite = "agents.json.recovery-retiring.tmp";
+            c.assertValueEqual(f.helpers.spawn(f.owner, "contested"), 0,
+                "An interrupted guard retirement reports unresolved creation");
+            var created = f.helpers.owned(f.owner, "contested");
+            c.assertTrue(created != null && f.helpers.unresolvedCreation(created.getKey())
+                    && f.helpers.loaded.containsKey(UUID.fromString(created.getKey()))
+                    && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.isRegularFile(f.marker())
+                    && Files.readString(HelperPersistence.retirementTemporary(f.helpers.file)).equals("concurrent staging evidence"),
+                "The helper, pending identity, original guard and competing retirement evidence remain for review");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void symlinkAppearingAtStagingOpenDoesNotModifyItsTarget(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path victim = f.directory.resolve("unrelated-synthetic-file");
+            Files.writeString(victim, "preserve this file");
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            io.competingWrite = "agents.json.tmp";
+            io.competingWriteSymlink = true;
+            io.competingWriteVictim = victim;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A staging symlink appearing after the checks refuses the save");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.isSymbolicLink(HelperPersistence.temporaryFile(f.helpers.file))
+                    && Files.readString(victim).equals("preserve this file")
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The symlink, its target, roster and backup are preserved and both runtimes freeze");
         }
         c.succeed();
     }
