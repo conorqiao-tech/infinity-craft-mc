@@ -19,7 +19,7 @@ import org.geysermc.cumulus.form.SimpleForm;
 
 /** One action model drives real Java chests and Bedrock native forms, including exact delivery reviews. */
 final class CommonsMenu {
-    enum Page { HOME, BUILDER, HARVEST, DELIVERY, ATLAS, PACK }
+    enum Page { HOME, BUILDER, HARVEST, UNITY, DELIVERY, ATLAS, PACK }
     record Choice(Item icon,String label,Runnable run) {}
     record View(Page page,String title,String content,List<Choice> choices,List<ItemStack> arrangement) {}
     record Ticket(UUID nonce,ServerPlayer player,ServerGamePacketListenerImpl connection,ServerLevel world,GameModes.Mode mode,int expires) {
@@ -40,6 +40,7 @@ final class CommonsMenu {
             content="Builder Exchange: invent a powered circuit and prove a real hopper delivery. Harvest Together: share crops and complete the village pantry.\nProgress is permanent. There is no daily timer or paid entry.";
             choices.add(new Choice(Items.REDSTONE_LAMP,"Builder Exchange • Creative workshop",()->open(p,Page.BUILDER)));
             choices.add(new Choice(Items.WHEAT,"Harvest Together • Survival deliveries",()->open(p,Page.HARVEST)));
+            choices.add(new Choice(Items.BANNER.white(),"Infinity Together • community milestone",()->open(p,Page.UNITY)));
             choices.add(new Choice(Items.FILLED_MAP,"Permanent feature • Expedition Atlas",()->open(p,Page.ATLAS)));
             choices.add(new Choice(Items.BUNDLE,"Permanent feature • Pack Organizer",()->open(p,Page.PACK)));
         }else if(page==Page.BUILDER){
@@ -66,6 +67,12 @@ final class CommonsMenu {
             choices.add(new Choice(Items.DIAMOND_HOE,"Claim Harvest Guardian gift • "+gift(p,2),()->result(p,CommonsEvents.claim(p,2),Page.HARVEST)));
             choices.add(new Choice(Items.NAME_TAG,"Wear Harvest Guardian title + garden motes",()->{CommonsEvents.title(p,2);open(p,Page.HARVEST);}));
             choices.add(new Choice(Items.FLOWERING_AZALEA,"Review lantern garden • Creative, aim at ground",()->{if(CommonsEvents.preview(p,true)==0){fail(p);open(p,Page.HARVEST);}}));
+        }else if(page==Page.UNITY){
+            title="Infinity Together";
+            content="Help the village pantry with other players. Deliver at least 16 food items yourself in Survival or Hardcore; at least two distinct players must have contributed any food. Earlier saved pantry deliveries count.\nYour contribution: "+CommonsEvents.contribution(p)+"/16 • contributors: "+CommonsEvents.pantry(p).contributors()+"/2.\nClaim an original Unity Lantern banner and Unity Builder title once. One empty inventory slot is needed. No timer, rank or permissions change.\nGift: "+gift(p,4);
+            choices.add(new Choice(Items.BANNER.white(),"Claim Unity Lantern • "+gift(p,4),()->result(p,CommonsEvents.claim(p,4),Page.UNITY)));
+            choices.add(new Choice(Items.NAME_TAG,"Wear Unity Builder title + lantern motes",()->{CommonsEvents.title(p,4);open(p,Page.UNITY);}));
+            choices.add(new Choice(Items.WHEAT,"Open pantry delivery reviews",()->open(p,Page.HARVEST)));
         }else if(page==Page.ATLAS){
             title="Expedition Atlas";var text=new StringBuilder("A permanent exploration challenge, independent of holidays. Visit each biome family in Survival or Hardcore, then stamp your current location here.\n");
             for(int i=0;i<PlayerWorkshop.BIOMES.size();i++)text.append(PlayerWorkshop.BIOMES.get(i)).append(": ").append(CommonsEvents.state(p).getStringOr("atlas_"+i,"Undiscovered")).append('\n');

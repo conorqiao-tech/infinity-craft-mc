@@ -35,6 +35,12 @@ After at least sixty-four personally donated items **and** all village categorie
 
 The optional **lantern garden blueprint** is a Creative Studio build with original green mosaics, moonstone supports, warm lights, four real crop plots and center irrigation. Aim at clear ground, review and confirm. It does not grant free food in Survival or silently replace existing farms.
 
+## Infinity Together
+
+Open **Infinity Menu → Commons → Infinity Together**. Help the existing Harvest Together pantry in Survival or Hardcore. Once you have personally delivered at least sixteen food items and at least two distinct players have delivered any food, claim an original Unity Lantern banner and the **Unity Builder** title. Earlier saved pantry contributions count. The gift is personal, requires one empty inventory slot and can be claimed once; it changes no rank or permissions. The shared pantry index records player UUIDs and contribution counts, not inventories. The same native action model serves the Java menu and Bedrock forms.
+
+This is a permanent small cooperative milestone inspired by the unbuilt Infinity Together proposal, not an automatic event schedule, bridge assessment or full community-hall feature. Other proposed activities remain unbuilt. As with the existing pantry, player saves and its derived global index are not a single power-loss transaction.
+
 ## Expedition Atlas
 
 Open **Infinity Menu → Expedition Atlas & Pack Organizer**. Visit each of eight biome families in Survival or Hardcore and press **Stamp the biome I am actually in**. The server reads your loaded biome and saves its identifier and coordinates. Repeating a family does not count again; Creative cannot stamp progress.

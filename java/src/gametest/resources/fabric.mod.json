@@ -7,6 +7,7 @@
   "entrypoints": {
     "fabric-gametest": [
       "dev.convergence.CommonsGameTests",
+      "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityGameTests",
       "dev.convergence.CommunityGameTests",
       "dev.convergence.PlayerPersistenceGameTests",
@@ -110,6 +111,7 @@
       "dev.convergence.NativeArmorRefreshGameTests"
     ],
     "infinity-exclusive-gametests": [
+      "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.MenuSessionGameTests",
       "dev.convergence.AgentSessionGameTests",
       "dev.convergence.TradeSessionGameTests",
