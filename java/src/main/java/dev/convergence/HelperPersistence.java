@@ -28,12 +28,40 @@ final class HelperPersistence {
         void syncFile(Path path) throws IOException;
         void syncDirectory(Path directory) throws IOException;
     }
+    /** Preserve existing POSIX mode bits, or use owner-only mode for a new target. */
+    private static java.nio.file.attribute.FileAttribute<?>[] stagingAttributes(Path temporary) throws IOException {
+        Path parent = temporary.toAbsolutePath().getParent();
+        if (Files.getFileAttributeView(parent, java.nio.file.attribute.PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS) == null)
+            return new java.nio.file.attribute.FileAttribute<?>[0];
+        var permissions = java.nio.file.attribute.PosixFilePermissions.fromString("rw-------");
+        String name = temporary.getFileName().toString();
+        if (name.endsWith(".tmp")) {
+            Path target = temporary.resolveSibling(name.substring(0, name.length()-4));
+            try {
+                var view = Files.getFileAttributeView(target, java.nio.file.attribute.PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+                if (view != null) {
+                    var attributes = view.readAttributes();
+                    if (attributes.isRegularFile()) permissions = attributes.permissions();
+                }
+            } catch (java.nio.file.NoSuchFileException absent) {
+                // A genuinely new roster or marker starts owner-only on POSIX.
+            }
+        }
+        return new java.nio.file.attribute.FileAttribute<?>[]{java.nio.file.attribute.PosixFilePermissions.asFileAttribute(permissions)};
+    }
     static final Io NATIVE = new Io() {
         // Never follow a linked source or truncate a pre-existing destination.
         // This bounded protection does not exclude later replacement by another writer.
         @Override public void copy(Path from, Path to) throws IOException {
-            try (var input = Files.newInputStream(from, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
-                Files.copy(input, to);
+            var basic = Files.readAttributes(from, java.nio.file.attribute.BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            if (!basic.isRegularFile()) throw new IOException("Helper copy source is not a regular file");
+            var posix = Files.getFileAttributeView(from, java.nio.file.attribute.PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            java.nio.file.attribute.FileAttribute<?>[] attributes = posix == null ? new java.nio.file.attribute.FileAttribute<?>[0]
+                : new java.nio.file.attribute.FileAttribute<?>[]{java.nio.file.attribute.PosixFilePermissions.asFileAttribute(posix.readAttributes().permissions())};
+            try (var input = Files.newInputStream(from, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
+                 var output = java.nio.channels.Channels.newOutputStream(Files.newByteChannel(to,
+                     java.util.Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), attributes))) {
+                input.transferTo(output);
             }
         }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
@@ -41,7 +69,7 @@ final class HelperPersistence {
             // create evidence or a symlink before this open. CREATE_NEW makes
             // absence and creation one operation and never follows an existing
             // symlink. It does not prevent a later swap before atomicMove.
-            try (var channel = FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            try (var channel = FileChannel.open(path, java.util.Set.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE), stagingAttributes(path))) {
                 var buffer = ByteBuffer.wrap(bytes);
                 while (buffer.hasRemaining()) channel.write(buffer);
                 channel.force(true);

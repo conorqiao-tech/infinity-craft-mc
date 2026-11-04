@@ -629,6 +629,44 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void copiedPrivateRosterDoesNotGainPosixPermissions(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path source=f.directory.resolve("private-roster"), copy=f.directory.resolve("private-copy");
+            Files.writeString(source,"synthetic private roster");
+            var view=Files.getFileAttributeView(source,java.nio.file.attribute.PosixFileAttributeView.class);
+            if(view!=null){
+                var allowed=java.nio.file.attribute.PosixFilePermissions.fromString("rw-------");
+                Files.setPosixFilePermissions(source,allowed);HelperPersistence.NATIVE.copy(source,copy);
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(copy))
+                        && Files.readString(copy).equals("synthetic private roster"),
+                    "A staged roster copy must not gain permissions beyond its source");
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void replacingPrivateRosterDoesNotGainPosixPermissions(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            var view=Files.getFileAttributeView(f.helpers.file,java.nio.file.attribute.PosixFileAttributeView.class);
+            if(view!=null){
+                var allowed=java.nio.file.attribute.PosixFilePermissions.fromString("rw-------");
+                Files.setPosixFilePermissions(f.helpers.file,allowed);Files.setPosixFilePermissions(f.previousFile(),allowed);
+                c.assertValueEqual(f.helpers.profile(f.owner,"older-1",AgentCompanions.Profile.PRIMITIVE),1,"A normal private roster save succeeds");
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(f.helpers.file))
+                        && allowed.containsAll(Files.getPosixFilePermissions(f.previousFile())),
+                    "Replacing and rotating a private roster must not grant broader mode bits");
+                Path fresh=f.directory.resolve("fresh-roster.json");
+                new HelperPersistence(HelperPersistence.NATIVE).replace(fresh,"new synthetic roster".getBytes(StandardCharsets.UTF_8),false,false);
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(fresh)),
+                    "A new roster starts owner-only on POSIX");
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void failedTemporaryRosterWriteRemainsFrozenAndPreserved(GameTestHelper c) throws Exception {
         var io = new FaultyIo();
         try (var f = new Fixture(c, io)) {
