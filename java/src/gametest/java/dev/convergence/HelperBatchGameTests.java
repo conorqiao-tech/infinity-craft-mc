@@ -581,6 +581,54 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedRosterIsNotReadAsAuthoritativeOwnership(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path original = f.directory.resolve("original-roster"), other = f.directory.resolve("other-roster");
+            byte[] bytes = Files.readAllBytes(f.helpers.file);
+            Files.move(f.helpers.file, original); Files.write(other, bytes); Files.createSymbolicLink(f.helpers.file, other);
+            boolean refused = false;
+            try { AgentCompanions.read(f.helpers.file); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && Files.isSymbolicLink(f.helpers.file) && Arrays.equals(bytes, Files.readAllBytes(original))
+                    && Arrays.equals(bytes, Files.readAllBytes(other)),
+                "A linked roster must not be read as authority or changed");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedRosterAppearingBeforeSavePreservesEvidence(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path original = f.directory.resolve("original-roster"), other = f.directory.resolve("other-roster");
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            Files.move(f.helpers.file, original); Files.write(other, roster); Files.createSymbolicLink(f.helpers.file, other);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A roster link appearing after load cannot authorize a save");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.isSymbolicLink(f.helpers.file)
+                    && Arrays.equals(roster, Files.readAllBytes(original)) && Arrays.equals(roster, Files.readAllBytes(other))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The linked path, both roster copies and prior backup remain for review");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedCopySourceIsNotFollowedOrSynced(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path other = f.directory.resolve("other-file"), link = f.directory.resolve("linked-file"), out = f.directory.resolve("copy-file");
+            Files.writeString(other, "preserve synthetic data"); Files.createSymbolicLink(link, other);
+            boolean copyRefused=false, syncRefused=false;
+            try { HelperPersistence.NATIVE.copy(link, out); } catch (IOException expected) { copyRefused=true; }
+            try { HelperPersistence.NATIVE.syncFile(link); } catch (IOException expected) { syncRefused=true; }
+            c.assertTrue(copyRefused && syncRefused && Files.notExists(out) && Files.isSymbolicLink(link)
+                    && Files.readString(other).equals("preserve synthetic data"),
+                "A symbolic-link source is never copied or synced as a regular roster");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void failedTemporaryRosterWriteRemainsFrozenAndPreserved(GameTestHelper c) throws Exception {
         var io = new FaultyIo();
         try (var f = new Fixture(c, io)) {

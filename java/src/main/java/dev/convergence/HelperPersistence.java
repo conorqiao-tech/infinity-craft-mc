@@ -29,8 +29,13 @@ final class HelperPersistence {
         void syncDirectory(Path directory) throws IOException;
     }
     static final Io NATIVE = new Io() {
-        // The destination is a new staging file. Never truncate pre-existing evidence.
-        @Override public void copy(Path from, Path to) throws IOException { Files.copy(from, to); }
+        // Never follow a linked source or truncate a pre-existing destination.
+        // This bounded protection does not exclude later replacement by another writer.
+        @Override public void copy(Path from, Path to) throws IOException {
+            try (var input = Files.newInputStream(from, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                Files.copy(input, to);
+            }
+        }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
             // The earlier presence checks are not a lock: another writer may
             // create evidence or a symlink before this open. CREATE_NEW makes
@@ -48,7 +53,7 @@ final class HelperPersistence {
         }
         @Override public void delete(Path path) throws IOException { Files.delete(path); }
         @Override public void syncFile(Path path) throws IOException {
-            try (var channel = FileChannel.open(path, StandardOpenOption.READ)) { channel.force(true); }
+            try (var channel = FileChannel.open(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) { channel.force(true); }
         }
         // Supported on Linux and macOS; Windows refuses to open a directory this way.
         @Override public void syncDirectory(Path directory) throws IOException {
