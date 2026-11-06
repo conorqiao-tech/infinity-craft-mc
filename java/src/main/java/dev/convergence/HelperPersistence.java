@@ -10,15 +10,22 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Helper ownership files. A replacement writes and fsyncs a temporary file,
  * then renames it atomically. Durability is PROVEN only when the directory is
  * also synced; where directory sync is unavailable the replacement still
  * happens but stays UNPROVEN, and callers must not let it authorize deletion.
- * A failure reports whether the target may have changed.
+ * Byte checks detect some substitutions, but do not exclude another writer or
+ * prove that a roster was unchanged before the first check. PROVEN describes
+ * this low-level storage sequence under the trusted-writer assumption only.
+ * A failure reports whether this operation may have changed the target.
  */
 final class HelperPersistence {
+    // The roster parser uses the same bound; never hash an unbounded file.
+    static final int MAX_EVIDENCE_BYTES = 65_536;
     /** Filesystem steps. Production uses NATIVE; tests may fail one exact real step. */
     interface Io {
         void copy(Path from, Path to) throws IOException;
@@ -99,6 +106,30 @@ final class HelperPersistence {
     final Io io;
     HelperPersistence(Io io) { this.io = io; }
 
+    private static MessageDigest sha256() throws IOException {
+        try { return MessageDigest.getInstance("SHA-256"); }
+        catch (NoSuchAlgorithmException e) { throw new IOException("SHA-256 is unavailable", e); }
+    }
+
+    /** Detect changed regular-file bytes; this cannot exclude a concurrent writer. */
+    private static byte[] digest(Path file) throws IOException {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Helper evidence is not a regular file");
+        var hash = sha256();
+        try (var input = Files.newInputStream(file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            byte[] buffer = new byte[8192]; int count, total = 0;
+            while ((count = input.read(buffer)) != -1) {
+                total += count;
+                if (total > MAX_EVIDENCE_BYTES) throw new IOException("Helper evidence exceeds the roster size limit");
+                hash.update(buffer, 0, count);
+            }
+        }
+        return hash.digest();
+    }
+
+    private static void requireDigest(Path file, byte[] expected) throws IOException {
+        if (!MessageDigest.isEqual(digest(file), expected)) throw new IOException("Helper evidence bytes changed");
+    }
+
     static Path previousFile(Path target) { return target.resolveSibling(target.getFileName() + ".previous"); }
     static Path temporaryFile(Path target) { return target.resolveSibling(target.getFileName() + ".tmp"); }
     static Path previousTemporaryFile(Path target) { return temporaryFile(previousFile(target)); }
@@ -119,7 +150,10 @@ final class HelperPersistence {
         Path directory = target.toAbsolutePath().getParent();
         Path temporary = temporaryFile(target);
         boolean backupStaged = false, backupNeeded, guardPresent = false;
+        byte[] intendedDigest, previousDigest = null;
         try {
+            if (bytes.length > MAX_EVIDENCE_BYTES) throw new IOException("Helper evidence exceeds the roster size limit");
+            intendedDigest = sha256().digest(bytes);
             Files.createDirectories(directory);
             boolean exists = keepPrevious && Files.exists(target, LinkOption.NOFOLLOW_LINKS);
             if (keepPrevious && !exists && !Files.notExists(target, LinkOption.NOFOLLOW_LINKS))
@@ -147,7 +181,13 @@ final class HelperPersistence {
         }
         if (backupNeeded) {
             Path backupTemporary = previousTemporaryFile(target);
-            try { io.copy(target, backupTemporary); io.syncFile(backupTemporary); backupStaged = true; }
+            try {
+                previousDigest = digest(target);
+                io.copy(target, backupTemporary); io.syncFile(backupTemporary);
+                requireDigest(backupTemporary, previousDigest);
+                requireDigest(target, previousDigest);
+                backupStaged = true;
+            }
             catch (IOException | RuntimeException e) {
                 throw new Failure("Could not stage the previous roster; the roster and prior backup were not replaced", false, e);
             }
@@ -162,11 +202,26 @@ final class HelperPersistence {
         }
         if (keepPrevious && guardEvidenceChanged(target, guardPresent))
             throw new Failure("Recovery evidence changed before the roster was replaced", false, null);
+        try {
+            requireDigest(temporary, intendedDigest);
+            if (backupStaged) {
+                requireDigest(target, previousDigest);
+                requireDigest(previousTemporaryFile(target), previousDigest);
+            }
+        } catch (IOException | RuntimeException e) {
+            throw new Failure("Staged helper evidence changed before replacement", false, e);
+        }
         try { io.atomicMove(temporary, target); }
         catch (AtomicMoveNotSupportedException e) {
             throw new Failure("Atomic rename is unavailable for " + target.getFileName() + "; it was not touched", false, e);
         } catch (IOException | RuntimeException e) {
             throw new Failure("Could not prove whether " + target.getFileName() + " was replaced", true, e);
+        }
+        try {
+            requireDigest(target, intendedDigest);
+            if (backupStaged) requireDigest(previousTemporaryFile(target), previousDigest);
+        } catch (IOException | RuntimeException e) {
+            throw new Failure("Published helper evidence changed during replacement", true, e);
         }
         if (provable) {
             try { io.syncDirectory(directory); }
@@ -181,7 +236,10 @@ final class HelperPersistence {
             if (competingBackupEvidence(target, false, guardPresent))
                 throw new Failure("The roster was replaced but backup evidence changed before promotion", true, null);
             if (!provable) {
-                try { io.atomicMove(previousTemporaryFile(target), previousFile(target)); }
+                try {
+                    io.atomicMove(previousTemporaryFile(target), previousFile(target));
+                    requireDigest(target, intendedDigest); requireDigest(previousFile(target), previousDigest);
+                }
                 catch (IOException | RuntimeException e) {
                     throw new Failure("The roster was replaced but its previous copy could not be proven", true, e);
                 }
@@ -192,15 +250,26 @@ final class HelperPersistence {
             try {
                 io.copy(previousTemporaryFile(target), previousPublishTemporaryFile(target));
                 io.syncFile(previousPublishTemporaryFile(target)); io.syncDirectory(directory);
+                requireDigest(previousTemporaryFile(target), previousDigest);
+                requireDigest(previousPublishTemporaryFile(target), previousDigest);
                 if (competingBackupEvidence(target, true, guardPresent))
                     throw new IOException("Backup evidence changed during promotion");
                 io.atomicMove(previousPublishTemporaryFile(target), previousFile(target)); io.syncDirectory(directory);
+                requireDigest(target, intendedDigest);
+                requireDigest(previousTemporaryFile(target), previousDigest);
+                requireDigest(previousFile(target), previousDigest);
                 if (competingBackupEvidence(target, false, guardPresent))
                     throw new IOException("Backup evidence changed after promotion");
                 io.delete(previousTemporaryFile(target)); io.syncDirectory(directory);
             } catch (IOException | RuntimeException e) {
                 throw new Failure("The roster was replaced but its previous copy could not be proven", true, e);
             }
+        }
+        try {
+            requireDigest(target, intendedDigest);
+            if (backupStaged) requireDigest(previousFile(target), previousDigest);
+        } catch (IOException | RuntimeException e) {
+            throw new Failure("Published helper evidence changed before completion", true, e);
         }
         return provable ? Durability.PROVEN : Durability.UNPROVEN;
     }
