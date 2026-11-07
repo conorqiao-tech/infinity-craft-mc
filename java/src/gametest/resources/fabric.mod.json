@@ -7,7 +7,6 @@
   "entrypoints": {
     "fabric-gametest": [
       "dev.convergence.CommonsGameTests",
-      "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityGameTests",
       "dev.convergence.CommunityGameTests",
       "dev.convergence.PlayerPersistenceGameTests",
@@ -89,7 +88,8 @@
       "dev.convergence.GptSquadPlannerGameTests",
       "dev.convergence.GptSquadActionsGameTests",
       "dev.convergence.GptSquadRosterFailureGameTests",
-      "dev.convergence.GptSquadMenuGameTests"
+      "dev.convergence.GptSquadMenuGameTests",
+      "dev.convergence.UnityCommonsGameTests"
     ]
   },
   "mixins": [
@@ -112,7 +112,6 @@
       "dev.convergence.NativeArmorRefreshGameTests"
     ],
     "infinity-exclusive-gametests": [
-      "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.MenuSessionGameTests",
       "dev.convergence.AgentSessionGameTests",
       "dev.convergence.TradeSessionGameTests",
@@ -151,7 +150,8 @@
       "dev.convergence.GptSquadPlannerGameTests",
       "dev.convergence.GptSquadActionsGameTests",
       "dev.convergence.GptSquadRosterFailureGameTests",
-      "dev.convergence.GptSquadMenuGameTests"
+      "dev.convergence.GptSquadMenuGameTests",
+      "dev.convergence.UnityCommonsGameTests"
     ]
   },
   "depends": {
