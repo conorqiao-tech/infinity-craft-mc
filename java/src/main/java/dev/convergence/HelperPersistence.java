@@ -32,7 +32,11 @@ final class HelperPersistence {
         // The destination is a new staging file. Never truncate pre-existing evidence.
         @Override public void copy(Path from, Path to) throws IOException { Files.copy(from, to); }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
-            try (var channel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            // The earlier presence checks are not a lock: another writer may
+            // create evidence or a symlink before this open. CREATE_NEW makes
+            // absence and creation one operation and never follows an existing
+            // symlink. It does not prevent a later swap before atomicMove.
+            try (var channel = FileChannel.open(path, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
                 var buffer = ByteBuffer.wrap(bytes);
                 while (buffer.hasRemaining()) channel.write(buffer);
                 channel.force(true);
