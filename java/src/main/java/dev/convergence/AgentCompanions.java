@@ -252,9 +252,10 @@ public final class AgentCompanions {
     private record LoadedRoster(Data data, HelperPersistence.ExpectedRoster expected, boolean established) {}
     static Data read(Path file) { return readLoaded(file).data(); }
     /**
-     * Refuse to rotate the only known active identity out of the previous
-     * roster. This bounded comparison cannot exclude a concurrent writer and
-     * does not decide whether a reserved removal was intentional.
+     * Refuse to rotate an unrepresented previous active identity or explicit
+     * owner/name disagreement out of the previous roster. Mode, profile and
+     * position can legitimately change. This bounded comparison cannot exclude
+     * a concurrent writer and does not decide whether a reserved removal was intentional.
      */
     private String previousIdentityProblem() {
         Path previous = HelperPersistence.previousFile(file);
@@ -263,9 +264,15 @@ public final class AgentCompanions {
             if (!java.nio.file.Files.isRegularFile(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS))
                 return "the previous helper roster is not a readable regular file";
             Data older = read(previous);
-            for (String id : older.agents.keySet())
-                if (!data.agents.containsKey(id) && !data.dismissed.contains(id))
+            for (var entry : older.agents.entrySet()) {
+                String id = entry.getKey();
+                Agent current = data.agents.get(id), previousAgent = entry.getValue();
+                if (current == null && !data.dismissed.contains(id))
                     return "a previous active helper identity is absent from the current roster and removal records";
+                if (current != null && (!Objects.equals(current.owner(), previousAgent.owner())
+                        || !Objects.equals(current.name(), previousAgent.name())))
+                    return "a previous helper owner or name conflicts with the current roster";
+            }
             return null;
         } catch (RuntimeException failure) {
             return "the previous helper roster cannot be read safely";

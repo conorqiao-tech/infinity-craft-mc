@@ -85,6 +85,63 @@ public class HelperPreviousIdentityGameTests {
     }
 
     @GameTest(maxTicks=180)
+    public void sameIdentityWithDifferentPreviousOwnerKeepsBothGenerations(GameTestHelper c) throws Exception {
+        Path dir=directory();
+        try {
+            var roster=dir.resolve("agents.json"); var previous=HelperPersistence.previousFile(roster);
+            String id=UUID.randomUUID().toString(); var older=empty(); add(older,id);
+            var priorAgent=older.agents.get(id); var current=empty();
+            current.agents.put(id, new AgentCompanions.Agent(UUID.randomUUID().toString(), priorAgent.name(),
+                    priorAgent.mode(), priorAgent.profile(), priorAgent.dimension(), priorAgent.x(), priorAgent.y(), priorAgent.z()));
+            byte[] now=bytes(current,false), prior=bytes(older,false); Files.write(roster,now); Files.write(previous,prior);
+            var helpers=runtime(c,roster);
+            boolean refused=false; try { helpers.save(); } catch (IllegalStateException expected) { refused=true; }
+            c.assertTrue(refused && helpers.creationRecoveryRequired && Arrays.equals(now,Files.readAllBytes(roster))
+                    && Arrays.equals(prior,Files.readAllBytes(previous)),
+                    "A conflicting previous owner freezes and preserves both synthetic roster generations; refused=" + refused
+                    + ", frozen=" + helpers.creationRecoveryRequired + ", previous preserved=" + Arrays.equals(prior,Files.readAllBytes(previous)));
+        } finally { cleanup(dir); }
+        c.succeed();
+    }
+
+    @GameTest(maxTicks=180)
+    public void sameIdentityWithDifferentPreviousNameBlocksNextCommit(GameTestHelper c) throws Exception {
+        Path dir=directory();
+        try {
+            var roster=dir.resolve("agents.json"); var previous=HelperPersistence.previousFile(roster);
+            String id=UUID.randomUUID().toString(); var current=empty(); add(current,id);
+            byte[] now=bytes(current,false); Files.write(roster,now); var helpers=runtime(c,roster);
+            c.assertFalse(helpers.creationRecoveryRequired, "A single current roster starts unfrozen");
+            var agent=current.agents.get(id); var older=empty();
+            older.agents.put(id, new AgentCompanions.Agent(agent.owner(), "different", agent.mode(), agent.profile(),
+                    agent.dimension(), agent.x(), agent.y(), agent.z()));
+            byte[] prior=bytes(older,false); Files.write(previous,prior); var invoked=new AtomicBoolean();
+            var result=helpers.commit(() -> invoked.set(true),AgentCompanions.Save.ORDINARY,true);
+            c.assertTrue(result==AgentCompanions.Commit.BLOCKED && !invoked.get() && helpers.creationRecoveryRequired
+                    && Arrays.equals(now,Files.readAllBytes(roster)) && Arrays.equals(prior,Files.readAllBytes(previous)),
+                    "A conflicting previous name blocks mutation and retains both synthetic roster generations; result=" + result
+                    + ", mutation invoked=" + invoked.get() + ", previous preserved=" + Arrays.equals(prior,Files.readAllBytes(previous)));
+        } finally { cleanup(dir); }
+        c.succeed();
+    }
+
+    @GameTest(maxTicks=180)
+    public void ordinaryModeProfileAndPositionDifferencesDoNotFreeze(GameTestHelper c) throws Exception {
+        Path dir=directory();
+        try {
+            var roster=dir.resolve("agents.json"); var previous=HelperPersistence.previousFile(roster);
+            String id=UUID.randomUUID().toString(); var older=empty(); add(older,id); var agent=older.agents.get(id);
+            var current=empty(); current.agents.put(id,new AgentCompanions.Agent(agent.owner(),agent.name(),
+                    AgentCompanions.Mode.FOLLOW,AgentCompanions.Profile.PRIMITIVE,"minecraft:the_nether",12,70,-4));
+            Files.write(roster,bytes(current,false)); Files.write(previous,bytes(older,false));
+            var helpers=runtime(c,roster); c.assertFalse(helpers.creationRecoveryRequired,
+                    "Normal nonidentity changes across generations do not freeze");
+            helpers.save(); c.assertFalse(helpers.creationRecoveryRequired,"Ordinary save remains available");
+        } finally { cleanup(dir); }
+        c.succeed();
+    }
+
+    @GameTest(maxTicks=180)
     public void unreadablePreviousRosterIsRetainedAndFreezes(GameTestHelper c) throws Exception {
         Path dir=directory();
         try {
