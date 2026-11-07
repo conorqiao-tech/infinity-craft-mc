@@ -74,8 +74,12 @@ the supported legacy `entities` lists of terrain chunks in both copies. Terrain
 chunks must have native data version 5125, `minecraft:full` status and matching
 region coordinates; older or unsupported chunks require manual review. Orphan
 external chunk files, unexpected region entries, links, unreadable data and
-exceeded scan limits also require review. Receipt format 6 records these bounded
-checks; earlier receipts must be regenerated. An absent `.previous` file does
+exceeded scan limits also require review. Saved helper position and motion must
+be three native doubles; motion components must be finite and at most 10 in
+absolute value. Position may change by up to one block, and motion values may
+change within that bound, so the receipt does not assert identical movement.
+Receipt format 7 records these bounded checks; earlier receipts must be
+regenerated. An absent `.previous` file does
 not establish that a backup exists. These checks do not inspect every possible
 entity-bearing container, resolve pending helpers, or prove native entity
 durability, complete world identity or exclusive access to the world.
