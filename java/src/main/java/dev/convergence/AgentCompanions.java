@@ -246,9 +246,11 @@ public final class AgentCompanions {
         // undeterminable entry fails below rather than reading as a fresh roster.
         if (java.nio.file.Files.notExists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return new Data();
         try {
-            if (java.nio.file.Files.size(file) > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
+            var attributes = java.nio.file.Files.readAttributes(file, java.nio.file.attribute.BasicFileAttributes.class, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            if (!attributes.isRegularFile()) throw new IllegalArgumentException("Helper roster is not a regular file");
+            if (attributes.size() > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
             byte[] bytes;
-            try (var input = java.nio.file.Files.newInputStream(file)) { bytes = input.readNBytes(MAX_BYTES + 1); }
+            try (var input = java.nio.file.Files.newInputStream(file, java.nio.file.StandardOpenOption.READ, java.nio.file.LinkOption.NOFOLLOW_LINKS)) { bytes = input.readNBytes(MAX_BYTES + 1); }
             if (bytes.length > MAX_BYTES) throw new IllegalArgumentException("Helper roster exceeds " + MAX_BYTES + " bytes");
             var json = strictUniqueJson(bytes);
             if (!json.isJsonObject() || !json.getAsJsonObject().has("format") || !json.getAsJsonObject().get("format").isJsonPrimitive()

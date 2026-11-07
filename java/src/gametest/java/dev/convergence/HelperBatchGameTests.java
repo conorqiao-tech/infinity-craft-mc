@@ -581,6 +581,92 @@ public class HelperBatchGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedRosterIsNotReadAsAuthoritativeOwnership(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path original = f.directory.resolve("original-roster"), other = f.directory.resolve("other-roster");
+            byte[] bytes = Files.readAllBytes(f.helpers.file);
+            Files.move(f.helpers.file, original); Files.write(other, bytes); Files.createSymbolicLink(f.helpers.file, other);
+            boolean refused = false;
+            try { AgentCompanions.read(f.helpers.file); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && Files.isSymbolicLink(f.helpers.file) && Arrays.equals(bytes, Files.readAllBytes(original))
+                    && Arrays.equals(bytes, Files.readAllBytes(other)),
+                "A linked roster must not be read as authority or changed");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedRosterAppearingBeforeSavePreservesEvidence(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            Path original = f.directory.resolve("original-roster"), other = f.directory.resolve("other-roster");
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            Files.move(f.helpers.file, original); Files.write(other, roster); Files.createSymbolicLink(f.helpers.file, other);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A roster link appearing after load cannot authorize a save");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.isSymbolicLink(f.helpers.file)
+                    && Arrays.equals(roster, Files.readAllBytes(original)) && Arrays.equals(roster, Files.readAllBytes(other))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The linked path, both roster copies and prior backup remain for review");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void linkedCopySourceIsNotFollowedOrSynced(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path other = f.directory.resolve("other-file"), link = f.directory.resolve("linked-file"), out = f.directory.resolve("copy-file");
+            Files.writeString(other, "preserve synthetic data"); Files.createSymbolicLink(link, other);
+            boolean copyRefused=false, syncRefused=false;
+            try { HelperPersistence.NATIVE.copy(link, out); } catch (IOException expected) { copyRefused=true; }
+            try { HelperPersistence.NATIVE.syncFile(link); } catch (IOException expected) { syncRefused=true; }
+            c.assertTrue(copyRefused && syncRefused && Files.notExists(out) && Files.isSymbolicLink(link)
+                    && Files.readString(other).equals("preserve synthetic data"),
+                "A symbolic-link source is never copied or synced as a regular roster");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void copiedPrivateRosterDoesNotGainPosixPermissions(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path source=f.directory.resolve("private-roster"), copy=f.directory.resolve("private-copy");
+            Files.writeString(source,"synthetic private roster");
+            var view=Files.getFileAttributeView(source,java.nio.file.attribute.PosixFileAttributeView.class);
+            if(view!=null){
+                var allowed=java.nio.file.attribute.PosixFilePermissions.fromString("rw-------");
+                Files.setPosixFilePermissions(source,allowed);HelperPersistence.NATIVE.copy(source,copy);
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(copy))
+                        && Files.readString(copy).equals("synthetic private roster"),
+                    "A staged roster copy must not gain permissions beyond its source");
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void replacingPrivateRosterDoesNotGainPosixPermissions(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            var view=Files.getFileAttributeView(f.helpers.file,java.nio.file.attribute.PosixFileAttributeView.class);
+            if(view!=null){
+                var allowed=java.nio.file.attribute.PosixFilePermissions.fromString("rw-------");
+                Files.setPosixFilePermissions(f.helpers.file,allowed);Files.setPosixFilePermissions(f.previousFile(),allowed);
+                c.assertValueEqual(f.helpers.profile(f.owner,"older-1",AgentCompanions.Profile.PRIMITIVE),1,"A normal private roster save succeeds");
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(f.helpers.file))
+                        && allowed.containsAll(Files.getPosixFilePermissions(f.previousFile())),
+                    "Replacing and rotating a private roster must not grant broader mode bits");
+                Path fresh=f.directory.resolve("fresh-roster.json");
+                new HelperPersistence(HelperPersistence.NATIVE).replace(fresh,"new synthetic roster".getBytes(StandardCharsets.UTF_8),false,false);
+                c.assertTrue(allowed.containsAll(Files.getPosixFilePermissions(fresh)),
+                    "A new roster starts owner-only on POSIX");
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void failedTemporaryRosterWriteRemainsFrozenAndPreserved(GameTestHelper c) throws Exception {
         var io = new FaultyIo();
         try (var f = new Fixture(c, io)) {
