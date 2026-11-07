@@ -102,6 +102,7 @@ public class HelperBatchGameTests {
         boolean noDirectorySync;
         boolean blockMarkerWrites, blockRosterWrites, replaceGuardAfterRosterSync, addRetirementAfterRosterSync;
         boolean blockMarkerWritesAfterGuardDelete;
+        Runnable afterRosterMove;
         private interface Step { void run() throws IOException; }
         void arm(String step, boolean afterEffect) { armLater(step, afterEffect, 0); }
         /** Fails the step's occurrence after {@code skip} successful ones. */
@@ -124,7 +125,14 @@ public class HelperBatchGameTests {
                 || (blockRosterWrites && name.equals("agents.json.tmp"))) throw new IOException("Injected continuing write refusal");
             step("write:" + name, false, () -> HelperPersistence.NATIVE.writeDurably(path, bytes));
         }
-        @Override public void atomicMove(Path from, Path to) throws IOException { step("move:" + to.getFileName(), false, () -> HelperPersistence.NATIVE.atomicMove(from, to)); }
+        @Override public void atomicMove(Path from, Path to) throws IOException {
+            step("move:" + to.getFileName(), false, () -> {
+                HelperPersistence.NATIVE.atomicMove(from, to);
+                if (afterRosterMove != null && to.getFileName().toString().equals("agents.json")) {
+                    var callback = afterRosterMove; afterRosterMove = null; callback.run();
+                }
+            });
+        }
         @Override public void delete(Path path) throws IOException { step("delete:" + path.getFileName(), false, () -> HelperPersistence.NATIVE.delete(path)); }
         @Override public void syncFile(Path path) throws IOException { step("fsync:" + path.getFileName(), true, () -> HelperPersistence.NATIVE.syncFile(path)); }
         @Override public void syncDirectory(Path directory) throws IOException {
@@ -979,6 +987,105 @@ public class HelperBatchGameTests {
             var prior = f.saved(UUID.fromString(older.getKey())); restarted.load(prior);
             c.assertTrue(!prior.isRemoved(), "A genuine older unloaded helper is not deleted during recovery");
             prior.discard();
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void recallWithFailedRosterSaveKeepsTheMovedBodyUnchanged(GameTestHelper c) throws Exception {
+        for (var fault : List.of(Map.entry("write:agents.json.tmp", false), Map.entry("move:agents.json", true),
+                Map.entry("sync-after:move:agents.json", true))) {
+          var io = new FaultyIo();
+          try (var f = new Fixture(c, io)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "recall-test"), 1, "A helper is present for a real native recall");
+            var entry = f.helpers.owned(f.owner, "recall-test"); var id = UUID.fromString(entry.getKey());
+            var body = f.helpers.loaded.get(id);
+            body.setCustomName(Component.literal("Synthetic edited name"));
+            body.setHealth(37); body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            body.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(15);
+            var stats = ((AdminStatEntity) body).infinity$adminStats();
+            stats.remove(HelperPowerDefaults.MARKER); stats.putInt("synthetic_edit", 77);
+            ((AdminStatEntity) body).infinity$adminStats(stats);
+            var tags = Set.copyOf(body.entityTags());
+            io.arm(fault.getKey(), fault.getValue());
+            c.assertValueEqual(f.helpers.recall(f.owner, "recall-test"), 0, "A failed follow-order save is reported as unresolved: " + fault);
+            var moved = f.helpers.loaded.get(id);
+            c.assertTrue(f.helpers.creationRecoveryRequired == !fault.getKey().startsWith("write:") && moved != null && !moved.isRemoved(),
+                "Only an ambiguous save freezes, and the moved body remains registered: " + fault);
+            var after = ((AdminStatEntity) moved).infinity$adminStats();
+            String observed = " name=" + moved.getCustomName().getString() + " tagsMatch=" + tags.equals(moved.entityTags())
+                + " health=" + moved.getHealth() + " speed=" + moved.getAttributeBaseValue(Attributes.MOVEMENT_SPEED)
+                + " attack=" + moved.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) + " defaultMarker=" + after.contains(HelperPowerDefaults.MARKER);
+            c.assertTrue(moved.getCustomName().getString().equals("Synthetic edited name") && tags.equals(moved.entityTags())
+                && moved.getHealth() == 37 && moved.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31
+                && moved.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) == 15,
+                "The moved body keeps its name, tags, health and edited attributes after " + fault + ":" + observed);
+            c.assertTrue(after.getIntOr("synthetic_edit",0) == 77 && !after.contains(HelperPowerDefaults.MARKER),
+                "No stat-default migration or marker is applied after a failed save: " + fault);
+          }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void crossDimensionRecallWithAmbiguousSaveKeepsTheMovedBodyUnchanged(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            var destination = GameModes.world(f.helpers.server, GameModes.Mode.HARDCORE);
+            var arrival = net.minecraft.world.level.ChunkPos.containing(f.owner.blockPosition());
+            try {
+                destination.setChunkForced(arrival.x(), arrival.z(), true);
+                c.assertValueEqual(f.helpers.spawn(f.owner, "cross-recall"), 1, "A helper is present for cross-dimension recall");
+                var id = UUID.fromString(f.helpers.owned(f.owner, "cross-recall").getKey());
+                var body = f.helpers.loaded.get(id);
+                body.setCustomName(Component.literal("Synthetic edited name")); body.setHealth(37);
+                body.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+                body.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(15);
+                var stats = ((AdminStatEntity) body).infinity$adminStats();
+                stats.remove(HelperPowerDefaults.MARKER); stats.putInt("synthetic_edit", 77);
+                ((AdminStatEntity) body).infinity$adminStats(stats);
+                var tags = Set.copyOf(body.entityTags());
+                for (var p : BlockPos.betweenClosed(f.feet.offset(-17,-1,-17), f.feet.offset(17,3,17)))
+                    destination.setBlockAndUpdate(p, p.getY()==f.feet.getY()-1 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState());
+                var target = new net.minecraft.world.level.portal.TeleportTransition(destination, f.owner.position(), Vec3.ZERO, 0, 0,
+                    net.minecraft.world.level.portal.TeleportTransition.DO_NOTHING);
+                c.assertTrue(f.owner.teleport(target) == f.owner, "The synthetic owner moves to the destination dimension");
+                f.owner.hasChangedDimension();
+                f.owner.connection.handleAcceptPlayerLoad(new net.minecraft.network.protocol.game.ServerboundPlayerLoadedPacket());
+                io.arm("move:agents.json", true);
+                c.assertValueEqual(f.helpers.recall(f.owner, "cross-recall"), 0, "An ambiguous follow-order save reports failure");
+                var moved = f.helpers.loaded.get(id);
+                c.assertTrue(f.helpers.creationRecoveryRequired && moved != null && moved != body
+                    && moved.level() == destination && !moved.isRemoved(), "The transferred body remains registered and ownership is frozen");
+                var observed = ((AdminStatEntity) moved).infinity$adminStats();
+                c.assertTrue(moved.getCustomName().getString().equals("Synthetic edited name") && tags.equals(moved.entityTags())
+                    && moved.getHealth() == 37 && moved.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31
+                    && moved.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) == 15
+                    && observed.getIntOr("synthetic_edit", 0) == 77 && !observed.contains(HelperPowerDefaults.MARKER),
+                    "The transferred body keeps its name, tags, health and edited stat metadata");
+            } finally { destination.setChunkForced(arrival.x(), arrival.z(), false); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void failedRecallDoesNotReplaceAnotherBodyRegisteredDuringSave(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "recall-race"), 1, "A helper is present for recall");
+            var id = UUID.fromString(f.helpers.owned(f.owner, "recall-race").getKey());
+            var original = f.helpers.loaded.get(id); var competing = f.saved(id);
+            competing.setHealth(23); competing.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.42);
+            io.afterRosterMove = () -> f.helpers.loaded.put(id, competing);
+            io.arm("move:agents.json", true);
+            try {
+                c.assertValueEqual(f.helpers.recall(f.owner, "recall-race"), 0, "The ambiguous save reports failure");
+                c.assertTrue(f.helpers.creationRecoveryRequired && f.helpers.loaded.get(id) == competing,
+                    "A different live body registered during the save retains the mapping");
+                c.assertTrue(!original.isRemoved() && !competing.isRemoved() && competing.getHealth() == 23
+                    && competing.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .42,
+                    "Both bodies and the competing body's edited values remain");
+            } finally { original.discard(); }
         }
         c.succeed();
     }
