@@ -68,12 +68,17 @@ saved settings before touching the live world.
 
 The copied-world evidence gate refuses unresolved helper recovery or temporary
 notes, including unfinished roster `.previous.tmp` and `.previous.publish.tmp`
-files, in either copy and checks
-that any existing helper roster `.previous` backup has identical bytes in both.
-Receipt format 5 records these bounded
+files, in either copy and checks that any existing helper roster `.previous`
+backup has identical bytes in both. It also rejects helper-like entities in
+the supported legacy `entities` lists of terrain chunks in both copies. Terrain
+chunks must have native data version 5125, `minecraft:full` status and matching
+region coordinates; older or unsupported chunks require manual review. Orphan
+external chunk files, unexpected region entries, links, unreadable data and
+exceeded scan limits also require review. Receipt format 6 records these bounded
 checks; earlier receipts must be regenerated. An absent `.previous` file does
-not establish that a backup exists, and these checks do not resolve pending
-helpers or prove native entity durability or exclusive access to the world.
+not establish that a backup exists. These checks do not inspect every possible
+entity-bearing container, resolve pending helpers, or prove native entity
+durability, complete world identity or exclusive access to the world.
 
 A test connection using Geyser's codec and synthetic fresh-key identity is not an
 Xbox-authenticated Bedrock client. Actual iPad joining, menus, armor motion and

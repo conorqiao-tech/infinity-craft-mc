@@ -9,6 +9,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import stat
@@ -17,6 +18,7 @@ import sys
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 
 import typed_nbt
 from prepare_crossplay import VERSION, expected_native_tests
@@ -41,6 +43,13 @@ HELPER_ROSTER = "infinity-agents.json"
 HELPER_RECOVERY_SUFFIXES = (".recovery-required", ".recovery-required.tmp", ".recovery-retiring",
                             ".recovery-retiring.tmp", ".tmp", ".previous.tmp", ".previous.publish.tmp")
 HELPER_BACKUP_LIMIT = 8 * 1024 * 1024
+TERRAIN_DATA_VERSION = 5125
+TERRAIN_FILE_LIMIT = 4096
+TERRAIN_PATH_LIMIT = 200_000
+TERRAIN_CHUNK_LIMIT = 100_000
+TERRAIN_COMPRESSED_LIMIT = 8 * 1024 * 1024 * 1024
+TERRAIN_DECODED_LIMIT = 2 * 1024 * 1024 * 1024
+TERRAIN_COORDINATE = r"(?:0|-?[1-9][0-9]*)"
 
 
 def require(condition, message):
@@ -355,6 +364,129 @@ def reserved_helper_identities(registrations):
     return set(registrations.get("dismissed", [])) | set(registrations.get("guardedRemovals", []))
 
 
+def terrain_region_files(world):
+    """Enumerate bounded native terrain storage without following links.
+
+    A link or unsupported region entry could hide data. Reject it rather than
+    treating a partial traversal as evidence that a helper is absent. This is
+    not an exclusive-writer or ancestor-identity guarantee.
+    """
+    regions, external = [], set()
+    visited = 0
+    total = 0
+    def unreadable(_):
+        raise ValueError("Snapshot integration: could not inspect copied terrain")
+    try:
+        require(world.is_dir() and not world.is_symlink(), "invalid copied terrain root")
+        for directory, dirs, files in os.walk(world, topdown=True, followlinks=False, onerror=unreadable):
+            parent = Path(directory)
+            visited += len(dirs) + len(files) + 1
+            require(visited <= TERRAIN_PATH_LIMIT, "copied terrain path limit exceeded")
+            for name in dirs:
+                require(not (parent / name).is_symlink(), "linked copied-world directory requires manual review")
+            for name in files:
+                require(not (parent / name).is_symlink(), "linked copied-world file requires manual review")
+            if parent.name != "region":
+                continue
+            # Reuse the existing native dimension-path validator for region dirs.
+            parts = list((parent / "placeholder.mca").relative_to(world).parts)
+            parts[-2] = "entities"
+            native_entity_dimension(Path(*parts))
+            require(not dirs, "unexpected terrain region subdirectory")
+            for name in files:
+                path = parent / name
+                metadata = path.lstat()
+                require(stat.S_ISREG(metadata.st_mode), "unexpected terrain region entry")
+                is_region = re.fullmatch(r"r\." + TERRAIN_COORDINATE + r"\." + TERRAIN_COORDINATE + r"\.mca", name)
+                is_external = re.fullmatch(r"c\." + TERRAIN_COORDINATE + r"\." + TERRAIN_COORDINATE + r"\.mcc", name)
+                require(is_region or is_external, "unsupported terrain region entry")
+                total += metadata.st_size
+                require(total <= TERRAIN_COMPRESSED_LIMIT, "copied terrain byte limit exceeded")
+                if is_region:
+                    regions.append(path)
+                    require(len(regions) <= TERRAIN_FILE_LIMIT, "too many copied terrain regions")
+                else:
+                    external.add(path)
+    except OSError:
+        raise ValueError("Snapshot integration: could not inspect copied terrain") from None
+    return sorted(regions), external
+
+
+def reject_terrain_helper(node, flagged, depth, count):
+    """Reject helper-like native entity trees; malformed types remain unresolved."""
+    count[0] += 1
+    require(depth <= NESTED_PASSENGER_DEPTH_LIMIT and count[0] <= NESTED_PASSENGER_NODE_LIMIT,
+            "terrain entity nesting or count exceeds verifier limit")
+    require(isinstance(node, typed_nbt.Tag) and node.kind == 10, "malformed terrain entity")
+    fields = node.payload
+    require(not any(key in fields for key in (b"uuid", b"UUIDMost", b"UUIDLeast")), "ambiguous terrain entity identity")
+    kind, identity = fields.get(b"id"), fields.get(b"UUID")
+    require(isinstance(kind, typed_nbt.Tag) and kind.kind == 8 and bool(kind.payload)
+            and isinstance(identity, typed_nbt.Tag) and identity.kind == 11 and len(identity.payload) == 16,
+            "malformed terrain entity identity")
+    tags = fields.get(b"Tags")
+    if tags is not None:
+        require(tags.kind == 9, "malformed terrain entity tags")
+        child, values = tags.payload
+        require(child == 8 or (not values and child == 0), "malformed terrain entity tags")
+        require(all(value.kind == 8 for value in values), "malformed terrain entity tags")
+        require(all(value.payload != b"infinity_agent" for value in values), "terrain entity is or may be a helper")
+    require(str(uuid.UUID(bytes=identity.payload)) not in flagged, "terrain entity is or may be a helper")
+    passengers = fields.get(b"Passengers")
+    if passengers is not None:
+        require(passengers.kind == 9, "malformed terrain passenger list")
+        child, values = passengers.payload
+        require(child == 10 or (not values and child == 0), "malformed terrain passenger list")
+        for rider in values:
+            reject_terrain_helper(rider, flagged, depth + 1, count)
+
+
+def verify_terrain_helper_evidence(storage, world, flagged):
+    """Reject helper-like entities in supported current-version terrain chunks.
+
+    Older/data-fix-dependent or non-full terrain chunks require manual review.
+    Reading copied bytes does not prove world completeness or disk durability.
+    """
+    regions, external = terrain_region_files(world)
+    used_external, chunks, decoded_bytes = set(), 0, 0
+    try:
+        for path in regions:
+            for record in storage.region_records(path):
+                chunks += 1
+                require(chunks <= TERRAIN_CHUNK_LIMIT, "too many copied terrain chunks")
+                if record[6] is not None:
+                    used_external.add(record[6])
+                raw = storage.unpack(record[4], record[5])
+                decoded_bytes += len(raw)
+                require(decoded_bytes <= TERRAIN_DECODED_LIMIT, "decoded terrain byte limit exceeded")
+                chunk = typed_nbt.parse(raw)
+                require(chunk.kind == 10, "malformed terrain chunk")
+                fields = chunk.payload
+                version, status = fields.get(b"DataVersion"), fields.get(b"status")
+                require(isinstance(version, typed_nbt.Tag) and version.kind == 3
+                        and typed_nbt.plain(version) == TERRAIN_DATA_VERSION
+                        and isinstance(status, typed_nbt.Tag) and status.kind == 8
+                        and status.payload == b"minecraft:full"
+                        and b"Level" not in fields and b"Entities" not in fields,
+                        "terrain schema or version requires manual review")
+                for key, expected in zip((b"xPos", b"zPos"), record[1]):
+                    value = fields.get(key)
+                    require(isinstance(value, typed_nbt.Tag) and value.kind == 3
+                            and typed_nbt.plain(value) == expected, "terrain chunk position differs from its region slot")
+                entities = fields.get(b"entities")
+                if entities is not None:
+                    require(entities.kind == 9, "malformed terrain entity list")
+                    child, values = entities.payload
+                    require(child == 10 or (not values and child == 0), "malformed terrain entity list")
+                    count = [0]
+                    for entity in values:
+                        reject_terrain_helper(entity, flagged, 0, count)
+        require(used_external == external, "orphan or unlisted external terrain chunk requires manual review")
+    except (OSError, zlib.error):
+        raise ValueError("Snapshot integration: could not read copied terrain") from None
+    return {"regions": len(regions), "chunks": chunks, "supported_data_version": TERRAIN_DATA_VERSION}
+
+
 def validate_helper_registrations(registrations):
     """Accept old rosters or the provenance-aware format without weakening helper checks."""
     require(isinstance(registrations, dict) and type(registrations.get("format")) is int
@@ -649,6 +781,10 @@ def native_world(root, base, label, evidence):
         require(isinstance(level, dict), "malformed level data")
         if "Player" in level:
             verify_offline_player_save(level["Player"], flagged)
+    # Native chunk loading can also revive entities from legacy terrain data.
+    # Never mistake an entity-region match for a complete identity inventory.
+    terrain = {"before": verify_terrain_helper_evidence(storage, before, flagged),
+               "after": verify_terrain_helper_evidence(storage, after, flagged)}
     def entities(world):
         found = {}
         for file in world.rglob("entities/r.*.mca"):
@@ -698,6 +834,7 @@ def native_world(root, base, label, evidence):
             "helper_tag_kind_scope": "registered helper fields; movement values have separate allowances, tag shapes and authorized defaults migration checked",
             "helper_recovery_notes_absent": True,
             "helper_roster_backup": "byte-identical" if helper_backup_present else "absent in both copies",
+            "terrain_helper_evidence": terrain,
             "difficulty_preserved": True,
             "original_copy_unchanged": True, "no_player_logins": True, "terrain_refreshed": False,
             "helper_default_migration": {
@@ -788,7 +925,7 @@ def collect(root=ROOT):
         "bridge_integration": digest(base / "upstream-bridge/integration-proof.json"), "translated_play": digest(positive_path),
         "app_run": digest(base / "snapshot5-crossplay-lab/final-app-run.json"), "ack_result": digest(base / "viafabric-ack-runtime/result-final.json"), "ack_report": digest(ack_xml)})
     world = native_world(root, base, mods, evidence)
-    return {"format_version": 5, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
+    return {"format_version": 6, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
             "snapshot5_inputs": inputs, "source_hashes": {name: digest(root / name) for name in SOURCE_FILES},
             "dependency_lock_sha256": digest(root / "server/dependencies.lock.json"), "runtime_mod_sha256": mods,
             "native_tests": len(native_names), "codec_tests": len(names),
