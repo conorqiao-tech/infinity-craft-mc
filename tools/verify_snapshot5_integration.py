@@ -11,6 +11,7 @@ import json
 import math
 from pathlib import Path
 import re
+import stat
 import struct
 import sys
 import uuid
@@ -36,6 +37,10 @@ HELPER_POWER_DEFAULTS = {
     "minecraft:armor_toughness": (0.0, 20.0),
     "minecraft:knockback_resistance": (1.0, 1.0),
 }
+HELPER_ROSTER = "infinity-agents.json"
+HELPER_RECOVERY_SUFFIXES = (".recovery-required", ".recovery-required.tmp", ".recovery-retiring",
+                            ".recovery-retiring.tmp", ".tmp")
+HELPER_BACKUP_LIMIT = 8 * 1024 * 1024
 
 
 def require(condition, message):
@@ -59,6 +64,47 @@ def read_json(path):
     data = json.loads(body, object_pairs_hook=unique, parse_constant=invalid_constant)
     require(isinstance(data, dict), "evidence must be an object")
     return data
+
+
+def helper_recovery_state(before, after, originals):
+    """Fail closed on unresolved helper notes and preserve an existing roster backup.
+
+    These are private copied-world checks, not proof of exclusive writers,
+    native entity persistence, a complete identity inventory or live safety.
+    """
+    backup_name = HELPER_ROSTER + ".previous"
+    backups = []
+    for world in (before, after):
+        for suffix in HELPER_RECOVERY_SUFFIXES:
+            try:
+                (world / (HELPER_ROSTER + suffix)).lstat()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                require(False, "could not inspect helper recovery evidence")
+            require(False, "unresolved helper recovery evidence requires manual review")
+        path = world / backup_name
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            backups.append(None)
+            continue
+        except OSError:
+            require(False, "could not inspect helper roster backup")
+        require(stat.S_ISREG(metadata.st_mode) and 0 < metadata.st_size <= HELPER_BACKUP_LIMIT,
+                "invalid helper roster backup")
+        try:
+            with path.open("rb") as stream:
+                body = stream.read(HELPER_BACKUP_LIMIT + 1)
+        except OSError:
+            require(False, "could not read helper roster backup")
+        require(0 < len(body) <= HELPER_BACKUP_LIMIT, "invalid helper roster backup")
+        backups.append(hashlib.sha256(body).hexdigest())
+    require(backups[0] == backups[1], "helper roster backup changed across copied worlds")
+    require((backup_name in originals) == (backups[0] is not None), "helper roster backup omitted from copy inventory")
+    if backups[0] is not None:
+        require(originals[backup_name] == backups[0], "helper roster backup does not match copy inventory")
+    return backups[0] is not None
 
 
 def private_path(root, value):
@@ -547,6 +593,7 @@ def native_world(root, base, label, evidence):
     originals = manifest["original_fixture_files"]
     require(len(originals) == manifest["input_file_count"] == result["input_file_count"] and len(originals) > 0,
             "conversion input file count changed")
+    helper_backup_present = helper_recovery_state(before, after, originals)
     # Actual on-disk player-save inventory of BOTH worlds must equal the manifest's
     # (checked before hashing so a missing save fails with a generic message).
     player_saves = {name for name in originals if name.startswith(PLAYER_DATA_DIRECTORY)}
@@ -649,6 +696,8 @@ def native_world(root, base, label, evidence):
             "helpers": len(wanted), "offline_player_bytes_preserved": True, "mod_state_preserved": True,
             "helper_decoded_fields_preserved": True, "helper_native_nbt_tag_kinds_verified": True,
             "helper_tag_kind_scope": "registered helper fields; movement values have separate allowances, tag shapes and authorized defaults migration checked",
+            "helper_recovery_notes_absent": True,
+            "helper_roster_backup": "byte-identical" if helper_backup_present else "absent in both copies",
             "difficulty_preserved": True,
             "original_copy_unchanged": True, "no_player_logins": True, "terrain_refreshed": False,
             "helper_default_migration": {
@@ -739,7 +788,7 @@ def collect(root=ROOT):
         "bridge_integration": digest(base / "upstream-bridge/integration-proof.json"), "translated_play": digest(positive_path),
         "app_run": digest(base / "snapshot5-crossplay-lab/final-app-run.json"), "ack_result": digest(base / "viafabric-ack-runtime/result-final.json"), "ack_report": digest(ack_xml)})
     world = native_world(root, base, mods, evidence)
-    return {"format_version": 3, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
+    return {"format_version": 4, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
             "snapshot5_inputs": inputs, "source_hashes": {name: digest(root / name) for name in SOURCE_FILES},
             "dependency_lock_sha256": digest(root / "server/dependencies.lock.json"), "runtime_mod_sha256": mods,
             "native_tests": len(native_names), "codec_tests": len(names),
