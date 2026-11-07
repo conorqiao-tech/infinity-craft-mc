@@ -325,7 +325,7 @@ def java_command(explicit, root=ROOT, install=False):
 
 
 class Service:
-    def __init__(self, name, command, cwd, ready_text, stop_command="stop", join_rules=None):
+    def __init__(self, name, command, cwd, ready_text, stop_command="stop", join_rules=None, lease_fd=None):
         self.name = name
         self.stop_command = stop_command
         self.join_rules = join_rules
@@ -335,9 +335,12 @@ class Service:
         self.log = (cwd / "launcher.log").open("w", encoding="utf-8")
         self.process = None
         try:
+            # On POSIX, keep the cooperative launcher lease alive if this
+            # parent exits before a child has bound its ports or world lock.
+            inherited = {"pass_fds": (lease_fd,)} if os.name == "posix" and lease_fd is not None else {}
             self.process = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", bufsize=1,
-                start_new_session=(os.name != "nt"))
+                start_new_session=(os.name != "nt"), **inherited)
             self.thread = threading.Thread(target=self.read_output, args=(ready_text,), daemon=True)
             self.thread.start()
         except BaseException:
@@ -616,11 +619,25 @@ def join_addresses(args):
             "local_only": args.bind == "127.0.0.1"}
 
 
+def create_launcher_lock(path):
+    descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        if os.name == "posix":
+            import fcntl
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return descriptor
+    except BaseException:
+        # Leave the created entry for review rather than expose an unguarded
+        # replacement when the platform cannot establish this lease.
+        os.close(descriptor)
+        raise
+
+
 def acquire_launcher_lock(args, root):
     """Recover a crashed POSIX launcher only when its PID is gone and ports are free."""
     path = root / "launcher.lock"
     try:
-        return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        return create_launcher_lock(path)
     except FileExistsError:
         return inspect_stale_launcher_lock(args, root, replace=True)
 
@@ -661,7 +678,7 @@ def inspect_stale_launcher_lock(args, root, *, replace):
         if not replace:
             return None  # The real start repeats these checks before acquiring its lease.
         path.unlink()
-        return os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        return create_launcher_lock(path)
     except (OSError, UnicodeError, ValueError) as error:
         raise RuntimeError("launcher.lock could not be safely recovered. Close the other launcher and check the game ports.") from error
     finally:
@@ -676,8 +693,9 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     lock_fd = acquire_launcher_lock(args, root)
     services = []
     try:
-        with os.fdopen(lock_fd, "w") as file:
-            file.write(str(os.getpid()))
+        pid = str(os.getpid()).encode("ascii")
+        if os.write(lock_fd, pid) != len(pid):
+            raise OSError("Could not write the complete launcher lock owner")
         check_ports(args)
         # Interpret both Java properties files before recovery, backup or setup
         # changes anything, so a malformed file cannot select the wrong world.
@@ -715,13 +733,13 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
             "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
-            join_rules=join_rules)
+            join_rules=join_rules, lease_fd=lock_fd)
         services.append(fabric)
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)
         clear_creative_receipt(root)
         geyser = Service("Bedrock", [java, "-Xms128M", "-Xmx512M", "-jar", "Geyser-Standalone.jar", "--nogui"],
-            root / "geyser", "Started Geyser on", stop_command="geyser stop")
+            root / "geyser", "Started Geyser on", stop_command="geyser stop", lease_fd=lock_fd)
         services.append(geyser)
         geyser.wait_ready(120, cancel=stop_requested)
         wait_creative_ready(geyser, root, stop_requested)
@@ -756,9 +774,20 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     except InterruptedError:
         emit("Startup cancelled; stopping any running services...")
     finally:
-        for service in reversed(services):
-            service.stop()
-        lock_path.unlink(missing_ok=True)
+        try:
+            for service in reversed(services):
+                service.stop()
+            # Preserve an entry that no longer refers to our open lease.
+            try:
+                current = lock_path.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                held = os.fstat(lock_fd)
+                if (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino):
+                    lock_path.unlink()
+        finally:
+            os.close(lock_fd)
 
 
 def main(argv=None):
