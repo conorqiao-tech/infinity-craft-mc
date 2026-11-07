@@ -65,6 +65,15 @@ public final class CommonsEvents {
         Pantry(){this(new CompoundTag());} Pantry(CompoundTag data){this.data=data;}
         int total(int i){return Math.clamp(data.getIntOr("total_"+i,0),0,FOODS.get(i).goal());}
         boolean complete(){for(int i=0;i<FOODS.size();i++)if(total(i)<FOODS.get(i).goal())return false;return true;}
+        int contributors(){
+            int count=0;
+            for(String key:data.keySet()){
+                try{if(!UUID.fromString(key).toString().equals(key))continue;}catch(IllegalArgumentException ignored){continue;}
+                var person=data.getCompoundOrEmpty(key);
+                for(int i=0;i<FOODS.size();i++)if(Math.clamp(person.getIntOr("food_"+i,0),0,FOODS.get(i).goal())>0){count++;break;}
+            }
+            return count;
+        }
         void sync(ServerPlayer p){
             String key=p.getStringUUID();var previous=data.getCompoundOrEmpty(key);boolean changed=false;
             for(int i=0;i<FOODS.size();i++){
@@ -181,31 +190,42 @@ public final class CommonsEvents {
             .add(reg.getOrThrow(BannerPatterns.RHOMBUS_MIDDLE),harvest?DyeColor.YELLOW:DyeColor.WHITE)
             .add(reg.getOrThrow(BannerPatterns.STRIPE_CENTER),harvest?DyeColor.LIME:DyeColor.CYAN).build());return stack;
     }
+    static ItemStack unityBanner(ServerPlayer p){
+        var stack=named(Items.BANNER.white(),1,"Commons • Unity Lantern","An original Circuit Keepers' design, earned together.");
+        var reg=p.registryAccess().lookupOrThrow(Registries.BANNER_PATTERN);
+        stack.set(DataComponents.BANNER_PATTERNS,new BannerPatternLayers.Builder()
+            .add(reg.getOrThrow(BannerPatterns.STRIPE_BOTTOM),DyeColor.BLUE)
+            .add(reg.getOrThrow(BannerPatterns.RHOMBUS_MIDDLE),DyeColor.YELLOW)
+            .add(reg.getOrThrow(BannerPatterns.STRIPE_CENTER),DyeColor.LIGHT_BLUE).build());return stack;
+    }
     static boolean earned(ServerPlayer p,int gift){return switch(gift){
         case 0->state(p).getBooleanOr("signal",false)&&state(p).getBooleanOr("delivery",false);
         case 1->contribution(p)>=16;
         case 2->contribution(p)>=64&&pantry(p).complete();
-        case 3->PlayerWorkshop.stamps(p)==8;default->false;};}
+        case 3->PlayerWorkshop.stamps(p)==8;
+        case 4->contribution(p)>=16&&pantry(p).contributors()>=2;default->false;};}
     static List<ItemStack> reward(ServerPlayer p,int gift){return switch(gift){
         case 0->List.of(banner(p,false),named(Items.DIAMOND_PICKAXE,1,"Exchange Engineer's Pickaxe"),new ItemStack(Items.REDSTONE,16));
         case 1->List.of(named(Items.IRON_HOE,1,"Commons Field Hoe"),new ItemStack(Items.BONE_MEAL,16),jar(p));
         case 2->List.of(banner(p,true),named(Items.DIAMOND_HOE,1,"Harvest Guardian's Hoe"),new ItemStack(Items.GOLDEN_CARROT,16));
         case 3->List.of(named(Items.COMPASS,1,"Wayfinder's Compass","Native compass: points to world spawn in the Overworld."),banner(p,false),new ItemStack(Items.SPYGLASS));
+        case 4->List.of(unityBanner(p));
         default->List.of();};}
     static int claim(ServerPlayer p,int gift){
-        if(!emptyScreen(p)||gift<0||gift>3||!earned(p,gift)||state(p).getBooleanOr("gift_"+gift,false)
+        if(!emptyScreen(p)||gift<0||gift>4||!earned(p,gift)||state(p).getBooleanOr("gift_"+gift,false)
             ||(gift==0?!CreativeStudio.allowed(p):!harvestAllowed(p)))return 0;
         var items=reward(p,gift);var slots=new ArrayList<Integer>();for(int i=0;i<36;i++)if(p.getInventory().getItem(i).isEmpty())slots.add(i);
         if(slots.size()<items.size()){say(p,"Clear "+items.size()+" inventory slots; your gift remains unclaimed.");return 0;}
         for(int i=0;i<items.size();i++)p.getInventory().setItem(slots.get(i),items.get(i).copy());
-        state(p).putBoolean("gift_"+gift,true);if(gift!=1)state(p).putInt("title",gift==0?1:gift==2?2:3);
+        state(p).putBoolean("gift_"+gift,true);if(gift!=1)state(p).putInt("title",gift==0?1:gift==2?2:gift==3?3:4);
         PlayerPersistence.save(p);p.inventoryMenu.sendAllDataToRemote();refreshTitle(p);
         say(p,"Commons gift saved! Your earned title can be worn from the event menu.");return items.size();
     }
     static String title(ServerPlayer p){return switch(state(p).getIntOr("title",0)){
         case 1->state(p).getBooleanOr("gift_0",false)?"DevDay Builder":"";
         case 2->state(p).getBooleanOr("gift_2",false)?"Harvest Guardian":"";
-        case 3->state(p).getBooleanOr("gift_3",false)?"Wayfinder":"";default->"";};}
+        case 3->state(p).getBooleanOr("gift_3",false)?"Wayfinder":"";
+        case 4->state(p).getBooleanOr("gift_4",false)?"Unity Builder":"";default->"";};}
     public static Component tabName(ServerPlayer p,Component previous){
         String earned=title(p),supporter=SupporterEffects.title(p);
         if(earned.isEmpty()&&supporter.isEmpty())return previous;
@@ -225,7 +245,7 @@ public final class CommonsEvents {
     }
     static void title(ServerPlayer p,int title){
         if(!emptyScreen(p))return;
-        if(title<0||title>3||title==1&&!state(p).getBooleanOr("gift_0",false)||title==2&&!state(p).getBooleanOr("gift_2",false)||title==3&&!state(p).getBooleanOr("gift_3",false)){
+        if(title<0||title>4||title==1&&!state(p).getBooleanOr("gift_0",false)||title==2&&!state(p).getBooleanOr("gift_2",false)||title==3&&!state(p).getBooleanOr("gift_3",false)||title==4&&!state(p).getBooleanOr("gift_4",false)){
             say(p,"Claim the matching event or Atlas gift before wearing that title.");return;
         }
         state(p).putInt("title",title);PlayerPersistence.save(p);refreshTitle(p);
