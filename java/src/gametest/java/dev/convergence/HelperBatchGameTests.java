@@ -105,6 +105,7 @@ public class HelperBatchGameTests {
         boolean addRecoveryAfterPreviousFileSync;
         boolean blockMarkerWritesAfterGuardDelete;
         boolean swapRosterBeforeMove, swapPreviousAfterRosterMove, swapPreviousAfterCopy;
+        boolean swapCurrentAfterStaging;
         Runnable afterRosterMove;
         String competingWrite;
         boolean competingWriteSymlink;
@@ -157,6 +158,10 @@ public class HelperBatchGameTests {
                 else Files.writeString(path, "concurrent staging evidence", java.nio.file.StandardOpenOption.CREATE_NEW);
             }
             step("write:" + name, false, () -> HelperPersistence.NATIVE.writeDurably(path, bytes));
+            if (swapCurrentAfterStaging && name.equals("agents.json.tmp")) {
+                swapCurrentAfterStaging = false;
+                replaceStagedForTest(path.resolveSibling("agents.json"));
+            }
         }
         @Override public void atomicMove(Path from, Path to) throws IOException {
             step("move:" + to.getFileName(), false, () -> {
@@ -2758,6 +2763,83 @@ public class HelperBatchGameTests {
                 && told.stream().noneMatch(text -> text.contains("appeared beside you")),
                 "The touch form reports frozen ownership rather than placement or success");
         } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void changedRosterBeforeSaveFreezesWithoutReplacingThePriorBackup(GameTestHelper c) throws Exception {
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A helper is created");
+            var kept = f.helpers.owned(f.owner, "kept"); String keptId = kept.getKey(); var keptRecord = kept.getValue();
+            var live = f.helpers.loaded.get(UUID.fromString(keptId)); live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            f.unloaded(f.owner.getUUID(), 1, "away-"); var away = f.helpers.owned(f.owner, "away-1");
+            String awayId = away.getKey(); var awayRecord = away.getValue(); byte[] previous = Files.readAllBytes(f.previousFile());
+            byte[] competing = "{\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}".getBytes(StandardCharsets.UTF_8);
+            Files.write(f.helpers.file, competing);
+            wire.drain();
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0, "A roster changed since the last save is not accepted");
+            var told = chat(wire);
+            c.assertTrue(told.stream().anyMatch(text -> text.contains("This request did not replace the saved roster") && text.contains("host review")),
+                "The player is told what this request did and that the changed roster needs review: " + told);
+            c.assertFalse(told.stream().anyMatch(text -> text.contains("The saved roster was not changed")),
+                "The player is not told that a roster changed by another writer was unchanged: " + told);
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()) && f.restart().creationRecoveryRequired
+                    && Arrays.equals(competing, Files.readAllBytes(f.helpers.file)) && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The changed roster and previous backup stay intact while runtime and restart freeze");
+            c.assertTrue(f.helpers.data.agents.get(keptId) == keptRecord && f.helpers.data.agents.get(awayId) == awayRecord
+                    && f.helpers.loaded.get(live.getUUID()) == live && live.isAlive() && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "Loaded and unloaded records and the edited live body are retained");
+        } finally { wire.channel.finishAndReleaseAll(); }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
+    public void changedRosterAfterStagingCannotBecomeThePriorBackup(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A helper is created");
+            var kept = f.helpers.owned(f.owner, "kept"); String id = kept.getKey(); var record = kept.getValue();
+            var live = f.helpers.loaded.get(UUID.fromString(id)); live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            f.unloaded(f.owner.getUUID(), 1, "away-"); byte[] previous = Files.readAllBytes(f.previousFile());
+            io.swapCurrentAfterStaging = true;
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0, "A late replacement is not reported as saved");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()) && f.restart().creationRecoveryRequired
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile())) && Files.exists(HelperPersistence.temporaryFile(f.helpers.file)),
+                "The previous backup and staged roster evidence remain while ownership freezes");
+            c.assertTrue(f.helpers.data.agents.get(id) == record && f.helpers.loaded.get(live.getUUID()) == live
+                    && live.isAlive() && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "The saved record and edited live body are retained in memory");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void rosterAppearingAfterFreshStartupIsPreservedForReview(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path target = f.directory.resolve("fresh").resolve("agents.json"); Files.createDirectories(target.getParent());
+            var fresh = new AgentCompanions(f.helpers.server, target);
+            byte[] competing = "{\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}".getBytes(StandardCharsets.UTF_8);
+            Files.write(target, competing);
+            boolean refused = false;
+            try { fresh.save(); } catch (IllegalStateException expected) { refused = true; }
+            c.assertTrue(refused && fresh.creationRecoveryRequired && Files.exists(HelperPersistence.recoveryMarker(target))
+                    && Files.notExists(HelperPersistence.previousFile(target)) && Arrays.equals(competing, Files.readAllBytes(target)),
+                "An unexpected first roster is not replaced or rotated into a backup");
+            c.assertTrue(new AgentCompanions(f.helpers.server, target).creationRecoveryRequired, "The recovery note freezes the restart");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void legacyRosterEvidenceUsesTheExactLoadedBytes(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path target = f.directory.resolve("legacy-raw.json");
+            byte[] legacy = "{  \"format\": 2,  \"agents\": {}  }\n".getBytes(StandardCharsets.UTF_8); Files.write(target, legacy);
+            var migrated = new AgentCompanions(f.helpers.server, target); migrated.save();
+            c.assertTrue(!migrated.creationRecoveryRequired && Arrays.equals(legacy, Files.readAllBytes(HelperPersistence.previousFile(target)))
+                    && AgentCompanions.read(target).format == 3, "A legitimate legacy migration retains the exact loaded bytes as its previous copy");
+        }
         c.succeed();
     }
 

@@ -65,6 +65,7 @@ public final class AgentCompanions {
     // a later change silently overwrite its unresolved saved roster or evidence,
     // and never delete a helper entity while it is set.
     boolean creationRecoveryRequired;
+    private HelperPersistence.ExpectedRoster expectedRoster;
     /** True once a roster was read at startup or this runtime may have written one; only a genuine first boot starts false. */
     boolean rosterEstablished;
     /** Set once a creation in this runtime ended UNRESOLVED; its helpers may be in the world whatever memory lists. */
@@ -179,8 +180,10 @@ public final class AgentCompanions {
         // empty in-memory view and freeze, so no save creates a new roster that
         // a later save would rotate over that .previous evidence.
         String absent = HelperPersistence.absentRosterProblem(file);
-        this.data = absent == null ? read(file) : new Data();
-        rosterEstablished = absent == null && java.nio.file.Files.exists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        var loadedRoster = absent == null ? readLoaded(file) : new LoadedRoster(new Data(), HelperPersistence.ExpectedRoster.absent(), false);
+        this.data = loadedRoster.data();
+        this.expectedRoster = loadedRoster.expected();
+        rosterEstablished = loadedRoster.established();
         this.pendingAtStartup = Set.copyOf(data.pendingCreations);
         // A marker or unfinished roster write, even an unreadable one, keeps
         // ownership frozen. Nothing here may resolve it automatically.
@@ -241,10 +244,13 @@ public final class AgentCompanions {
         }
     }
 
-    static Data read(Path file) {
+    private record LoadedRoster(Data data, HelperPersistence.ExpectedRoster expected, boolean established) {}
+    static Data read(Path file) { return readLoaded(file).data(); }
+    private static LoadedRoster readLoaded(Path file) {
         // Only a provably absent path is empty; a dangling link or an
         // undeterminable entry fails below rather than reading as a fresh roster.
-        if (java.nio.file.Files.notExists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return new Data();
+        if (java.nio.file.Files.notExists(file, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+            return new LoadedRoster(new Data(), HelperPersistence.ExpectedRoster.absent(), false);
         try {
             var attributes = java.nio.file.Files.readAttributes(file, java.nio.file.attribute.BasicFileAttributes.class, java.nio.file.LinkOption.NOFOLLOW_LINKS);
             if (!attributes.isRegularFile()) throw new IllegalArgumentException("Helper roster is not a regular file");
@@ -306,7 +312,7 @@ public final class AgentCompanions {
             for (String id : data.pendingCreations)
                 if (id == null || !UUID.fromString(id).toString().equals(id) || !data.agents.containsKey(id))
                     throw new IllegalArgumentException("Invalid pending helper creation identity");
-            return data;
+            return new LoadedRoster(data, HelperPersistence.ExpectedRoster.fromBytes(bytes), true);
         } catch (Exception e) { throw new IllegalStateException("Cannot read " + file + ". Stop and inspect the roster and a matching whole-world backup; the original was not overwritten.", e); }
     }
     /** Saves the current roster; never claims success while frozen or after a failed write. */
@@ -314,7 +320,7 @@ public final class AgentCompanions {
         var result = commit(() -> {}, Save.ORDINARY, true);
         if (!saved(result)) throw new IllegalStateException(unsaved(result));
     }
-    /** UNTOUCHED: the saved roster provably did not change. UNCERTAIN: it may or may not have. BLOCKED: already frozen. */
+    /** UNTOUCHED: this operation did not replace the roster; other writers are not excluded. UNCERTAIN: it may have. BLOCKED: already frozen. */
     enum Commit { PROVEN, UNPROVEN, UNTOUCHED, UNCERTAIN, BLOCKED }
     enum Save {
         /** Adds no removal proof. A provably untouched roster stays writable; an ambiguous one freezes. */
@@ -328,8 +334,8 @@ public final class AgentCompanions {
     String unsaved(Commit result) {
         return switch (result) {
             case UNCERTAIN -> "This change may or may not have reached the saved roster. " + FROZEN;
-            case BLOCKED -> "Nothing was changed. " + FROZEN;
-            default -> "The saved roster was not changed. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying.");
+            case BLOCKED -> "This request did not change helper ownership. " + FROZEN;
+            default -> "This request did not replace the saved roster. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying.");
         };
     }
     /**
@@ -365,13 +371,15 @@ public final class AgentCompanions {
         var guarded = new ArrayList<>(data.guardedRemovals); var pending = new ArrayList<>(data.pendingCreations);
         change.run();
         try {
-            var durability = persistence.replace(file, rosterBytes(), keepPrevious, policy == Save.CREATION);
+            byte[] bytes = rosterBytes();
+            var nextExpected = HelperPersistence.ExpectedRoster.fromBytes(bytes);
+            var durability = persistence.replace(file, bytes, keepPrevious, policy == Save.CREATION, expectedRoster);
             rosterEstablished = true;
             // A saved legacy entry does not become explicit merely because it
             // was written again. Keep only this runtime's still-present proofs.
             provenRemoved.retainAll(data.guardedRemovals);
-            if (durability == HelperPersistence.Durability.PROVEN) return Commit.PROVEN;
-            if (policy == Save.ORDINARY) return Commit.UNPROVEN;
+            if (durability == HelperPersistence.Durability.PROVEN) { expectedRoster = nextExpected; return Commit.PROVEN; }
+            if (policy == Save.ORDINARY) { expectedRoster = nextExpected; return Commit.UNPROVEN; }
             restore(agents, dismissed, guarded, pending);
             freeze("a guarded removal was saved but could not be proven durable", null);
             return Commit.UNCERTAIN;
@@ -379,8 +387,9 @@ public final class AgentCompanions {
             restore(agents, dismissed, guarded, pending);
             if (failure.mayHaveChanged) rosterEstablished = true;
             boolean unfinished = HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file);
-            if (failure.mayHaveChanged || policy == Save.GUARDED || unfinished)
+            if (failure.mayHaveChanged || failure.requiresReview || policy == Save.GUARDED || unfinished)
                 freeze(failure.mayHaveChanged ? "the saved roster may or may not hold the last change"
+                    : failure.requiresReview ? "the roster differs from the bytes this runtime loaded or last saved"
                     : unfinished ? "unfinished or invalid previous-roster evidence must be preserved for review" : "a guarded removal could not be saved", failure);
             return failure.mayHaveChanged ? Commit.UNCERTAIN : Commit.UNTOUCHED;
         }

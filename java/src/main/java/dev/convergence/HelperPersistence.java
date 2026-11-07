@@ -97,10 +97,25 @@ final class HelperPersistence {
     };
 
     enum Durability { PROVEN, UNPROVEN }
-    /** {@code mayHaveChanged} is false only when the target path was never touched. */
+    /** {@code mayHaveChanged} concerns this operation, not changes made by another writer. */
     static final class Failure extends IOException {
         final boolean mayHaveChanged;
-        Failure(String message, boolean mayHaveChanged, Throwable cause) { super(message, cause); this.mayHaveChanged = mayHaveChanged; }
+        final boolean requiresReview;
+        Failure(String message, boolean mayHaveChanged, Throwable cause) { this(message, mayHaveChanged, false, cause); }
+        Failure(String message, boolean mayHaveChanged, boolean requiresReview, Throwable cause) {
+            super(message, cause); this.mayHaveChanged = mayHaveChanged; this.requiresReview = requiresReview;
+        }
+    }
+
+    /** Bytes actually read or last accepted by this runtime; null means absent. */
+    static final class ExpectedRoster {
+        private final byte[] digest;
+        private ExpectedRoster(byte[] digest) { this.digest = digest == null ? null : digest.clone(); }
+        static ExpectedRoster absent() { return new ExpectedRoster(null); }
+        static ExpectedRoster fromBytes(byte[] bytes) throws Failure {
+            try { return new ExpectedRoster(sha256().digest(bytes)); }
+            catch (IOException e) { throw new Failure("Cannot hash helper roster evidence", false, e); }
+        }
     }
 
     final Io io;
@@ -130,6 +145,20 @@ final class HelperPersistence {
         if (!MessageDigest.isEqual(digest(file), expected)) throw new IOException("Helper evidence bytes changed");
     }
 
+    private static void requireExpectedRoster(Path target, ExpectedRoster expected) throws IOException {
+        if (expected.digest == null) {
+            if (!Files.notExists(target, LinkOption.NOFOLLOW_LINKS)) throw new IOException("An unexpected roster may exist");
+        } else requireDigest(target, expected.digest);
+    }
+
+    private static void checkExpectedRoster(Path target, ExpectedRoster expected) throws Failure {
+        if (expected == null) return;
+        try { requireExpectedRoster(target, expected); }
+        catch (IOException | RuntimeException e) {
+            throw new Failure("The roster differs from the bytes this runtime loaded or last saved", false, true, e);
+        }
+    }
+
     static Path previousFile(Path target) { return target.resolveSibling(target.getFileName() + ".previous"); }
     static Path temporaryFile(Path target) { return target.resolveSibling(target.getFileName() + ".tmp"); }
     static Path previousTemporaryFile(Path target) { return temporaryFile(previousFile(target)); }
@@ -147,6 +176,11 @@ final class HelperPersistence {
 
     /** With {@code requireProof}, storage that cannot sync its directory refuses before the rename. */
     Durability replace(Path target, byte[] bytes, boolean keepPrevious, boolean requireProof) throws Failure {
+        return replace(target, bytes, keepPrevious, requireProof, null);
+    }
+    /** An expected roster detects some changes; it is not exclusive writer ownership. */
+    Durability replace(Path target, byte[] bytes, boolean keepPrevious, boolean requireProof, ExpectedRoster expected) throws Failure {
+        if (expected != null && !keepPrevious) throw new IllegalArgumentException("Roster evidence requires previous-copy protection");
         Path directory = target.toAbsolutePath().getParent();
         Path temporary = temporaryFile(target);
         boolean backupStaged = false, backupNeeded, guardPresent = false;
@@ -158,7 +192,9 @@ final class HelperPersistence {
             boolean exists = keepPrevious && Files.exists(target, LinkOption.NOFOLLOW_LINKS);
             if (keepPrevious && !exists && !Files.notExists(target, LinkOption.NOFOLLOW_LINKS))
                 throw new IOException("Whether the roster exists cannot be determined");
-            backupNeeded = keepPrevious && exists;
+            // The parsed/last-saved expectation, not a separate earlier
+            // existence check, determines whether a prior copy is required.
+            backupNeeded = expected == null ? keepPrevious && exists : expected.digest != null;
             if (keepPrevious) {
                 Path marker = recoveryMarker(target);
                 guardPresent = Files.exists(marker, LinkOption.NOFOLLOW_LINKS);
@@ -171,6 +207,7 @@ final class HelperPersistence {
         } catch (IOException | RuntimeException e) {
             throw new Failure("Could not prepare " + target.getFileName() + "; it was not touched", false, e);
         }
+        checkExpectedRoster(target, expected);
         if (backupNeeded) {
             if (unfinishedPreviousCopy(target) || unsafePreviousFile(target))
                 throw new Failure("Previous roster evidence requires inspection", false, null);
@@ -179,10 +216,11 @@ final class HelperPersistence {
         catch (IOException | RuntimeException e) {
             throw new Failure("Could not prepare " + target.getFileName() + "; it was not touched", false, e);
         }
+        checkExpectedRoster(target, expected);
         if (backupNeeded) {
             Path backupTemporary = previousTemporaryFile(target);
             try {
-                previousDigest = digest(target);
+                previousDigest = expected == null ? digest(target) : expected.digest.clone();
                 io.copy(target, backupTemporary); io.syncFile(backupTemporary);
                 requireDigest(backupTemporary, previousDigest);
                 requireDigest(target, previousDigest);
@@ -202,6 +240,7 @@ final class HelperPersistence {
         }
         if (keepPrevious && guardEvidenceChanged(target, guardPresent))
             throw new Failure("Recovery evidence changed before the roster was replaced", false, null);
+        checkExpectedRoster(target, expected);
         try {
             requireDigest(temporary, intendedDigest);
             if (backupStaged) {
