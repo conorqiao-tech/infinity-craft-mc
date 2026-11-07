@@ -67,8 +67,10 @@ private verified world copy and verify player inventory, progression, helpers an
 saved settings before touching the live world.
 
 The copied-world evidence gate refuses unresolved helper recovery or temporary
-notes in either copy and checks that any existing helper roster `.previous`
-backup has identical bytes in both. Receipt format 4 records these bounded
+notes, including unfinished roster `.previous.tmp` and `.previous.publish.tmp`
+files, in either copy and checks
+that any existing helper roster `.previous` backup has identical bytes in both.
+Receipt format 5 records these bounded
 checks; earlier receipts must be regenerated. An absent `.previous` file does
 not establish that a backup exists, and these checks do not resolve pending
 helpers or prove native entity durability or exclusive access to the world.
