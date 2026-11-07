@@ -1,5 +1,6 @@
 """Community server settings and stopped-world backups."""
 from datetime import datetime, timezone
+from dataclasses import dataclass
 import errno
 import json
 import hashlib
@@ -9,6 +10,7 @@ from pathlib import Path
 import re
 import stat
 import sys
+import time
 import uuid
 import zipfile
 
@@ -291,35 +293,157 @@ def confirm_backup_durable(root, name):
     sync_directory(root)
 
 
+@dataclass(frozen=True)
+class BackupFile:
+    root: Path
+    parts: tuple
+    root_identity: tuple
+    parent_identities: tuple
+    snapshot: os.stat_result
+
+
+def backup_directory_identity(info):
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError("A backup directory changed; no archive was published.")
+    return (info.st_dev, info.st_ino)
+
+
+def backup_file_identity(info):
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("A non-regular backup entry cannot be included safely; no archive was published.")
+    if info.st_nlink != 1:
+        raise ValueError("A hard-linked backup entry cannot be included safely; no archive was published.")
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink, info.st_size,
+            info.st_mtime_ns, info.st_ctime_ns)
+
+
+def open_backup_directory(path, dir_fd=None):
+    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dir_fd)
+
+
 def backup_world_files(world):
-    """List world files without silently skipping unreadable directories.
+    """List files through directory descriptors, retaining identities for the copy.
 
-    This is a completeness check under the stopped-world/cooperating-writer
-    assumption, not a filesystem snapshot or exclusion of unrelated writers.
+    These checks detect some substitutions but cannot exclude another writer
+    or turn a stopped-world backup into a filesystem snapshot.
     """
-    def unreadable(error):
-        raise ValueError("Cannot read every world directory; no backup was published.") from error
-
     files = []
-    for directory, directories, names in os.walk(world, topdown=True, onerror=unreadable, followlinks=False):
-        for name in directories + names:
-            path = Path(directory) / name
-            if path == world / "session.lock":
-                continue  # The native lock is operational, not saved-world data.
-            try:
-                mode = path.lstat().st_mode
-            except OSError as error:
-                raise ValueError("Cannot read a world entry; no backup was published.") from error
-            if stat.S_ISLNK(mode):
+
+    def walk(directory, parts, root_identity, parents):
+        for name in sorted(os.listdir(directory)):
+            if not parts and name == "session.lock":
+                continue  # Do not reopen the native record lock in this process.
+            info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            if stat.S_ISLNK(info.st_mode):
                 raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
-            if name in directories:
-                if not stat.S_ISDIR(mode):
-                    raise ValueError("A world directory changed while preparing the backup; no archive was published.")
-            elif stat.S_ISREG(mode):
-                files.append(path)
+            if stat.S_ISDIR(info.st_mode):
+                identity = backup_directory_identity(info)
+                child = open_backup_directory(name, dir_fd=directory)
+                try:
+                    if backup_directory_identity(os.fstat(child)) != identity:
+                        raise ValueError("A world directory changed while preparing the backup; no archive was published.")
+                    walk(child, parts + (name,), root_identity, parents + (identity,))
+                finally:
+                    os.close(child)
             else:
-                raise ValueError("A non-regular world entry cannot be included safely; no backup was published.")
+                backup_file_identity(info)
+                files.append(BackupFile(world, parts + (name,), root_identity, parents, info))
+
+    try:
+        directory = open_backup_directory(world)
+        try:
+            root_identity = backup_directory_identity(os.fstat(directory))
+            walk(directory, (), root_identity, ())
+        finally:
+            os.close(directory)
+    except OSError as error:
+        raise ValueError("Cannot read every world directory safely; no backup was published.") from error
     return files
+
+
+def backup_server_files(fabric):
+    """Capture the optional, explicitly allowed accompanying server files."""
+    files = []
+    try:
+        directory = open_backup_directory(fabric)
+        try:
+            identity = backup_directory_identity(os.fstat(directory))
+            for name in ("server.properties", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json"):
+                try:
+                    info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if stat.S_ISLNK(info.st_mode):
+                    raise ValueError("A symbolic link was found in the server backup entries; no archive was published.")
+                backup_file_identity(info)
+                files.append(BackupFile(fabric, (name,), identity, (), info))
+        finally:
+            os.close(directory)
+    except OSError as error:
+        raise ValueError("Cannot read a server backup entry safely; no backup was published.") from error
+    return files
+
+
+def backup_inventory(files):
+    return [(entry.root, entry.parts, entry.root_identity, entry.parent_identities,
+             backup_file_identity(entry.snapshot)) for entry in files]
+
+
+def open_backup_parent(entry):
+    """Reopen each recorded parent without following links and compare identities."""
+    directory = open_backup_directory(entry.root)
+    try:
+        if backup_directory_identity(os.fstat(directory)) != entry.root_identity:
+            raise ValueError("A backup directory changed; no archive was published.")
+        for name, expected in zip(entry.parts[:-1], entry.parent_identities):
+            child = open_backup_directory(name, dir_fd=directory)
+            os.close(directory)
+            directory = child
+            if backup_directory_identity(os.fstat(directory)) != expected:
+                raise ValueError("A backup directory changed; no archive was published.")
+        return directory
+    except BaseException:
+        os.close(directory)
+        raise
+
+
+def write_backup_file(output, entry, fabric):
+    """Copy from a checked descriptor; reject observed replacement or mutation."""
+    expected = backup_file_identity(entry.snapshot)
+    try:
+        parent = open_backup_parent(entry)
+        try:
+            descriptor = os.open(entry.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            with os.fdopen(descriptor, "rb") as source:
+                if backup_file_identity(os.fstat(source.fileno())) != expected:
+                    raise ValueError("A backup file changed before it could be copied; no archive was published.")
+                archive_name = entry.root.joinpath(*entry.parts).relative_to(fabric).as_posix()
+                info = zipfile.ZipInfo(archive_name, time.localtime(entry.snapshot.st_mtime)[:6])
+                info.external_attr = (entry.snapshot.st_mode & 0xFFFF) << 16
+                info.compress_type = output.compression
+                info._compresslevel = output.compresslevel
+                info.file_size = entry.snapshot.st_size
+                copied = 0
+                with output.open(info, "w") as target:
+                    while chunk := source.read(1024 * 1024):
+                        target.write(chunk)
+                        copied += len(chunk)
+                if copied != entry.snapshot.st_size or backup_file_identity(os.fstat(source.fileno())) != expected:
+                    raise ValueError("A backup file changed while it was copied; no archive was published.")
+                if backup_file_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
+                    raise ValueError("A backup file changed while it was copied; no archive was published.")
+        finally:
+            os.close(parent)
+        # Reopen the path after copying, including parents, to detect an observed
+        # move of a directory that was held open during the read.
+        parent = open_backup_parent(entry)
+        try:
+            if backup_file_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
+                raise ValueError("A backup file changed while it was copied; no archive was published.")
+        finally:
+            os.close(parent)
+    except OSError as error:
+        raise ValueError("A backup path changed or could not be read; no archive was published.") from error
 
 
 def backup(root, props, locked=False):
@@ -361,26 +485,17 @@ def backup(root, props, locked=False):
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         destination = folder / ("Infinity-World-" + stamp + "-" + uuid.uuid4().hex[:6] + ".zip")
         temporary = destination.with_suffix(".partial")
-        files = backup_world_files(world)
-        for name in ("server.properties", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json"):
-            file = fabric / name
-            try:
-                mode = file.lstat().st_mode
-            except FileNotFoundError:
-                continue  # These accompanying files are optional.
-            except OSError as error:
-                raise ValueError("Cannot read a server backup entry; no backup was published.") from error
-            if stat.S_ISLNK(mode):
-                raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
-            if not stat.S_ISREG(mode):
-                raise ValueError("A non-regular server entry cannot be included safely; no backup was published.")
-            files.append(file)
+        files = backup_world_files(world) + backup_server_files(fabric)
+        inventory = backup_inventory(files)
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         with os.fdopen(descriptor, "wb") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
                 for file in files:
-                    output.write(file, file.relative_to(fabric).as_posix())
+                    write_backup_file(output, file, fabric)
                 output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
+            verify_world_session_lock(world, session_lock)
+            if backup_inventory(backup_world_files(world) + backup_server_files(fabric)) != inventory:
+                raise ValueError("The world or server files changed during backup; no archive was published.")
             # Closing the archive wrote its central directory; persist the
             # complete ZIP before its final name becomes visible.
             temporary.chmod(0o600)

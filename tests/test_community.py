@@ -106,6 +106,147 @@ class CommunityTests(unittest.TestCase):
         self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
         self.assertFalse((self.root / "launcher.lock").exists())
 
+    @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
+    def test_backup_rejects_file_link_substituted_after_listing(self):
+        target = self.world / "region/r.0.0.mca"
+        retained = self.root / "retained-region"
+        outside = self.root / "outside-data"
+        outside.write_bytes(b"unrelated synthetic data")
+        real_list = community.backup_world_files
+
+        def swap_after_listing(world):
+            files = real_list(world)
+            target.rename(retained)
+            target.symlink_to(outside)
+            return files
+
+        with patch.object(community, "backup_world_files", swap_after_listing):
+            with self.assertRaisesRegex(ValueError, "changed|symbolic link"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(retained.read_bytes(), b"test region bytes")
+        self.assertEqual(outside.read_bytes(), b"unrelated synthetic data")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
+    def test_backup_rejects_directory_link_substituted_after_listing(self):
+        region = self.world / "region"
+        retained = self.root / "retained-directory"
+        outside = self.root / "outside-directory"
+        outside.mkdir()
+        (outside / "r.0.0.mca").write_bytes(b"unrelated synthetic data")
+        real_list = community.backup_world_files
+
+        def swap_after_listing(world):
+            files = real_list(world)
+            region.rename(retained)
+            region.symlink_to(outside, target_is_directory=True)
+            return files
+
+        with patch.object(community, "backup_world_files", swap_after_listing):
+            with self.assertRaisesRegex(ValueError, "changed|symbolic link"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual((retained / "r.0.0.mca").read_bytes(), b"test region bytes")
+        self.assertEqual((outside / "r.0.0.mca").read_bytes(), b"unrelated synthetic data")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "requires stable POSIX file identities")
+    def test_backup_rejects_regular_file_substituted_after_listing(self):
+        target = self.world / "region/r.0.0.mca"
+        retained = self.root / "retained-region"
+        real_list = community.backup_world_files
+
+        def swap_after_listing(world):
+            files = real_list(world)
+            target.rename(retained)
+            target.write_bytes(b"replacement synthetic data")
+            return files
+
+        with patch.object(community, "backup_world_files", swap_after_listing):
+            with self.assertRaisesRegex(ValueError, "changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(retained.read_bytes(), b"test region bytes")
+        self.assertEqual(target.read_bytes(), b"replacement synthetic data")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX hard links")
+    def test_backup_rejects_hard_link_to_an_outside_file(self):
+        outside = self.root / "outside-data"
+        outside.write_bytes(b"unrelated synthetic data")
+        os.link(outside, self.world / "hard-linked-data")
+        with self.assertRaisesRegex(ValueError, "hard-linked"):
+            community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(outside.read_bytes(), b"unrelated synthetic data")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    def test_backup_rejects_file_changed_after_opening(self):
+        target = self.world / "region/r.0.0.mca"
+        real_open = zipfile.ZipFile.open
+        changed = False
+
+        def mutate(archive, name, mode="r", *args, **kwargs):
+            nonlocal changed
+            if mode == "w" and getattr(name, "filename", "").endswith("/region/r.0.0.mca"):
+                target.write_bytes(b"replacement bytes")
+                changed = True
+            return real_open(archive, name, mode, *args, **kwargs)
+
+        with patch.object(zipfile.ZipFile, "open", mutate):
+            with self.assertRaisesRegex(ValueError, "changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertTrue(changed)
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    def test_backup_rejects_new_file_after_initial_listing(self):
+        added = self.world / "region/r.1.0.mca"
+        real_write = zipfile.ZipFile.writestr
+
+        def add_before_inventory(archive, name, data, *args, **kwargs):
+            if name == "BACKUP_INFO.json":
+                added.write_bytes(b"new synthetic region")
+            return real_write(archive, name, data, *args, **kwargs)
+
+        with patch.object(zipfile.ZipFile, "writestr", add_before_inventory):
+            with self.assertRaisesRegex(ValueError, "changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(added.read_bytes(), b"new synthetic region")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    def test_backup_rejects_change_to_an_already_copied_file(self):
+        target = self.world / "region/r.0.0.mca"
+        real_write = zipfile.ZipFile.writestr
+
+        def change_before_inventory(archive, name, data, *args, **kwargs):
+            if name == "BACKUP_INFO.json":
+                target.write_bytes(b"changed synthetic region")
+            return real_write(archive, name, data, *args, **kwargs)
+
+        with patch.object(zipfile.ZipFile, "writestr", change_before_inventory):
+            with self.assertRaisesRegex(ValueError, "changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(target.read_bytes(), b"changed synthetic region")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
+    def test_backup_rejects_accompanying_file_substitution(self):
+        target = self.root / "fabric/server.properties"
+        retained = self.root / "retained-properties"
+        outside = self.root / "outside-data"
+        outside.write_bytes(b"unrelated synthetic data")
+        real_list = community.backup_server_files
+
+        def swap_after_listing(fabric):
+            files = real_list(fabric)
+            target.rename(retained)
+            target.symlink_to(outside)
+            return files
+
+        with patch.object(community, "backup_server_files", swap_after_listing):
+            with self.assertRaisesRegex(ValueError, "changed|symbolic link"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(retained.read_text(), "level-name=my-world\n")
+        self.assertEqual(outside.read_bytes(), b"unrelated synthetic data")
+        self.assertEqual(list((self.root / "backups").iterdir()), [])
+
     def test_backup_never_runs_under_an_active_world_lock(self):
         (self.root / "launcher.lock").write_text("running")
         with self.assertRaisesRegex(ValueError, "Stop"):
@@ -170,7 +311,7 @@ class CommunityTests(unittest.TestCase):
     def test_backup_holds_minecraft_lock_until_the_archive_is_written(self):
         lock = self.world / "session.lock"
         lock.write_bytes(b"native lock")
-        real_write = zipfile.ZipFile.write
+        real_write = community.write_backup_file
         attempts = []
         code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
                 "\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
@@ -178,7 +319,7 @@ class CommunityTests(unittest.TestCase):
         def probe(archive, *args, **kwargs):
             attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
             return real_write(archive, *args, **kwargs)
-        with patch.object(zipfile.ZipFile, "write", probe):
+        with patch.object(community, "write_backup_file", probe):
             name = community.backup(self.root, {"level-name": "my-world"})
         self.assertTrue(attempts)
         self.assertEqual(set(attempts), {42})
@@ -190,7 +331,7 @@ class CommunityTests(unittest.TestCase):
         lock = self.world / "session.lock"
         lock.write_bytes(b"original lock")
         saved = self.world / "session.lock.renamed"
-        real_write = zipfile.ZipFile.write
+        real_write = community.write_backup_file
         replaced = False
         def replace_lock(archive, *args, **kwargs):
             nonlocal replaced
@@ -199,7 +340,7 @@ class CommunityTests(unittest.TestCase):
                 lock.rename(saved)
                 lock.write_bytes(b"replacement lock")
             return real_write(archive, *args, **kwargs)
-        with patch.object(zipfile.ZipFile, "write", replace_lock):
+        with patch.object(community, "write_backup_file", replace_lock):
             with self.assertRaisesRegex(ValueError, "lock.*changed"):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertTrue(replaced)
