@@ -124,24 +124,6 @@ public class GptSquadActionsGameTests {
         } c.succeed();
     }
 
-    @GameTest public void failedNativeRosterWriteLeavesActionDurablyConsumed(GameTestHelper c) throws Exception {
-        try (var f = new AgentActionsGameTests().new Fixture(c, "gptNativeDisk")) {
-            String id = propose(f); f.queue.ownerApprove(f.owner, id); var original = f.core.owned(f.owner, "fighter").getValue();
-            var shape = AgentCompanions.formation(f.owner); Path blocker = f.core.file.resolveSibling(f.core.file.getFileName() + ".tmp");
-            c.assertFalse(Files.exists(blocker), "Native temp boundary starts clear");
-            Files.createDirectory(blocker); Files.writeString(blocker.resolve("keep"), "block actual atomic write");
-            try {
-                f.queue.codexApprove(f.core.server.createCommandSourceStack(), id);
-                c.assertValueEqual(AgentActions.read(f.queue.file).proposals.get(id).state, AgentActions.State.DISPATCHED, "Durable consumption precedes failing native roster write");
-                c.assertTrue(f.core.owned(f.owner, "fighter").getValue() == original, "Native save failure restores existing record");
-                c.assertValueEqual(AgentCompanions.formation(f.owner), shape, "Formation unchanged after failed roster write");
-            } finally { Files.delete(blocker.resolve("keep")); Files.delete(blocker); }
-            f.queue.codexApprove(f.core.server.createCommandSourceStack(), id);
-            c.assertTrue(f.core.owned(f.owner, "fighter").getValue() == original, "Storage repair cannot replay the terminal action");
-            c.assertTrue(f.commands.isEmpty(), "No fallback to null or arbitrary command");
-        } c.succeed();
-    }
-
     private AgentActions.Proposal validProposal() {
         var p = new AgentActions.Proposal(UUID.randomUUID().toString(), AgentActions.Action.SQUAD_PLAN, 1);
         p.helperIds = List.of(UUID.randomUUID().toString()); p.helperMode = "FOLLOW"; p.helperProfile = "REGULAR";

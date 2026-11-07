@@ -133,8 +133,14 @@ final class HelperPersistence {
         return null;
     }
 
+    /** A leftover temporary roster may contain an interrupted write; never overwrite it. */
+    static boolean unfinishedRosterWrite(Path roster) {
+        try { return !Files.notExists(temporaryFile(roster), LinkOption.NOFOLLOW_LINKS); }
+        catch (SecurityException denied) { return true; }
+    }
+
     /** An unfinished marker write is evidence too. Never overwrite or ignore it. */
-    static boolean recoveryRequired(Path roster) {
+    private static boolean recoveryNotePresent(Path roster) {
         try {
             return !Files.notExists(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
                 || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
@@ -143,10 +149,15 @@ final class HelperPersistence {
         } catch (SecurityException denied) { return true; }
     }
 
+    static boolean recoveryRequired(Path roster) {
+        return unfinishedRosterWrite(roster) || recoveryNotePresent(roster);
+    }
+
     /** Check for a regular marker and no competing temporary note; this is not a writer-exclusion proof. */
     static boolean guardIntact(Path roster) {
         try {
-            return Files.isRegularFile(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
+            return !unfinishedRosterWrite(roster)
+                && Files.isRegularFile(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
                 && Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
                 && Files.notExists(retirementMarker(roster), LinkOption.NOFOLLOW_LINKS)
                 && Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS);
@@ -155,7 +166,7 @@ final class HelperPersistence {
 
     /** Best-effort note after a failure; never overwrites an existing marker. */
     void markRecoveryRequired(Path roster, String reason) throws Failure {
-        if (recoveryRequired(roster)) return;
+        if (recoveryNotePresent(roster)) return;
         replace(recoveryMarker(roster), (reason + "\n").getBytes(StandardCharsets.UTF_8), false, false);
     }
 
@@ -181,7 +192,8 @@ final class HelperPersistence {
         try {
             if (!guardIntact(roster)) throw new IOException("Recovery guard is missing or has competing temporary evidence");
             replace(retiring, "Guard retirement is in progress; preserve the roster and matching world for review.\n".getBytes(StandardCharsets.UTF_8), false, true);
-            if (!Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)
+            if (unfinishedRosterWrite(roster)
+                || !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)
                 || !Files.isRegularFile(retiring, LinkOption.NOFOLLOW_LINKS)
                 || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
                 || !Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS))

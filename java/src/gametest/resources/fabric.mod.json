@@ -87,6 +87,7 @@
       "dev.convergence.HelperFormationGameTests",
       "dev.convergence.GptSquadPlannerGameTests",
       "dev.convergence.GptSquadActionsGameTests",
+      "dev.convergence.GptSquadRosterFailureGameTests",
       "dev.convergence.GptSquadMenuGameTests"
     ]
   },
@@ -147,6 +148,7 @@
       "dev.convergence.HelperFormationGameTests",
       "dev.convergence.GptSquadPlannerGameTests",
       "dev.convergence.GptSquadActionsGameTests",
+      "dev.convergence.GptSquadRosterFailureGameTests",
       "dev.convergence.GptSquadMenuGameTests"
     ]
   },
