@@ -7,6 +7,7 @@ import math
 import os
 from pathlib import Path
 import re
+import stat
 import sys
 import uuid
 import zipfile
@@ -177,6 +178,47 @@ def world_folder(root, props):
     return fabric, world
 
 
+SESSION_LOCK_AVAILABLE = sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
+
+
+def verify_world_session_lock(world, descriptor):
+    """Reject an observed lock-path swap; this cannot exclude noncooperating writers."""
+    try:
+        held = os.fstat(descriptor)
+        current = os.stat(world / "session.lock", follow_symlinks=False)
+        if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
+                or held.st_nlink != 1 or current.st_nlink != 1
+                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+            raise ValueError("The Minecraft world lock changed while preparing the backup; no archive was published.")
+    except OSError as error:
+        raise ValueError("The Minecraft world lock changed or became unreadable; no archive was published.") from error
+
+
+def acquire_world_session_lock(world):
+    """Hold Minecraft's advisory lock for a stopped-world backup on supported POSIX hosts."""
+    if not SESSION_LOCK_AVAILABLE:
+        raise ValueError("This system cannot safely check the Minecraft world lock; use macOS or Linux to back up this world.")
+    import fcntl
+    try:
+        descriptor = os.open(world / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    except OSError as error:
+        raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.") from error
+    try:
+        verify_world_session_lock(world, descriptor)
+        try:
+            # Java's FileChannel.tryLock and POSIX lockf use the same advisory
+            # record lock on the tested local macOS filesystem. Hold it for the
+            # full archive operation; it cannot constrain unrelated writers.
+            fcntl.lockf(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            raise ValueError("Another Minecraft server may be using this world; stop it before backing up.") from error
+        verify_world_session_lock(world, descriptor)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 class DurabilityError(RuntimeError):
     """A backup could not be confirmed on stable storage, so it must not be relied upon."""
 
@@ -262,6 +304,7 @@ def backup(root, props, locked=False):
         except FileExistsError as error:
             raise ValueError("Save & Stop the server before backing up the world.") from error
     temporary = None
+    session_lock = None
     try:
         fabric, world = world_folder(root, props)
         if not world.exists():
@@ -272,6 +315,10 @@ def backup(root, props, locked=False):
         # level.dat_old), so only an empty folder counts as a new world.
         if not (world / "level.dat").is_file() and all(p.name == "session.lock" for p in world.iterdir()):
             return None
+        # launcher.lock only coordinates this launcher. A separately started
+        # Minecraft server also holds the world's session.lock, including when
+        # the caller already owns launcher.lock (locked=True).
+        session_lock = acquire_world_session_lock(world)
         folder = root / "backups"
         try:
             folder.mkdir()
@@ -298,6 +345,7 @@ def backup(root, props, locked=False):
             # complete ZIP before its final name becomes visible.
             temporary.chmod(0o600)
             sync_file(stream)
+        verify_world_session_lock(world, session_lock)
         os.replace(temporary, destination)
         # Where possible the backup only counts once its folder entry is durable;
         # real sync failures propagate.
@@ -305,11 +353,19 @@ def backup(root, props, locked=False):
             sync_directory(folder)
         return destination.name
     finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-        if fd is not None:
-            os.close(fd)
-            lockfile.unlink(missing_ok=True)
+        try:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        finally:
+            try:
+                if session_lock is not None:
+                    os.close(session_lock)
+            finally:
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    finally:
+                        lockfile.unlink(missing_ok=True)
 
 
 ROSTER_MAX_BYTES = 256 * 1024

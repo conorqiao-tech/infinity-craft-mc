@@ -18,7 +18,9 @@ class TerrainRefreshTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.world = self.root / "fabric/world"
         self.world.mkdir(parents=True)
-        files = {"level.dat": b"level", "players/data/player.dat": b"inventory-stats-backpack",
+        # A previously opened world has Minecraft's operational session lock;
+        # its bytes are included in the exact preservation assertions below.
+        files = {"session.lock": b"native session lock", "level.dat": b"level", "players/data/player.dat": b"inventory-stats-backpack",
                  "players/stats/player.json": b"stats", "players/advancements/player.json": b"advancements",
                  "infinity-agents.json": b"helper roster", "infinity-memberships.json": b"ranks",
                  "data/minecraft/scoreboard.dat": b"scores", "data/minecraft/world_gen_settings.dat": b"seed"}
