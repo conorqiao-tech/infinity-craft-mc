@@ -79,6 +79,7 @@
       "dev.convergence.AgentInfinityWeaponsGameTests",
       "dev.convergence.AgentFollowGroundGameTests",
       "dev.convergence.HelperBatchGameTests",
+      "dev.convergence.HelperPreviousIdentityGameTests",
       "dev.convergence.HelperDeathIdentityGameTests",
       "dev.convergence.HelperBatchMenuGameTests",
       "dev.convergence.PlayerStatBatchGameTests",
@@ -112,6 +113,9 @@
       "dev.convergence.NativeArmorRefreshGameTests"
     ],
     "infinity-exclusive-gametests": [
+      "dev.convergence.AssistantGameTests",
+      "dev.convergence.AgentCodeGameTests",
+      "dev.convergence.MenuTrackingGameTests",
       "dev.convergence.MenuSessionGameTests",
       "dev.convergence.AgentSessionGameTests",
       "dev.convergence.TradeSessionGameTests",
@@ -141,6 +145,7 @@
       "dev.convergence.AgentInfinityWeaponsGameTests",
       "dev.convergence.AgentFollowGroundGameTests",
       "dev.convergence.HelperBatchGameTests",
+      "dev.convergence.HelperPreviousIdentityGameTests",
       "dev.convergence.HelperDeathIdentityGameTests",
       "dev.convergence.HelperBatchMenuGameTests",
       "dev.convergence.PlayerStatBatchGameTests",

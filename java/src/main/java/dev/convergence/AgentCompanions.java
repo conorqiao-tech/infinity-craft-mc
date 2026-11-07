@@ -188,10 +188,15 @@ public final class AgentCompanions {
         // A marker or unfinished roster write, even an unreadable one, keeps
         // ownership frozen. Nothing here may resolve it automatically.
         creationRecoveryRequired = absent != null || HelperPersistence.recoveryRequired(file);
+        // A previous generation can be the only surviving record of an active
+        // identity. Do not rotate it over with a current roster that represents
+        // neither that identity nor a reserved removal.
+        String previousProblem = creationRecoveryRequired ? null : previousIdentityProblem();
+        if (previousProblem != null) freeze(previousProblem, null);
         if (absent != null)
             org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen: {}. Nothing was restored, replaced or removed; preserve {}, its .previous copy and any .recovery-required, .recovery-retiring or temporary note for investigation.",
                 absent, file);
-        else if (creationRecoveryRequired)
+        else if (creationRecoveryRequired && previousProblem == null)
             org.slf4j.LoggerFactory.getLogger("Infinity helpers").error("Helper ownership is frozen by recovery evidence beside {}. Preserve the roster, its .previous copy, {}, {}, {}, {}, {}, {} and {}; investigate the matching whole-world data or restore a verified matching whole-world backup before any recovery.",
                 file, HelperPersistence.temporaryFile(file), HelperPersistence.previousTemporaryFile(file), HelperPersistence.previousPublishTemporaryFile(file), HelperPersistence.recoveryMarker(file), HelperPersistence.recoveryTemporary(file),
                 HelperPersistence.retirementMarker(file), HelperPersistence.retirementTemporary(file));
@@ -246,6 +251,26 @@ public final class AgentCompanions {
 
     private record LoadedRoster(Data data, HelperPersistence.ExpectedRoster expected, boolean established) {}
     static Data read(Path file) { return readLoaded(file).data(); }
+    /**
+     * Refuse to rotate the only known active identity out of the previous
+     * roster. This bounded comparison cannot exclude a concurrent writer and
+     * does not decide whether a reserved removal was intentional.
+     */
+    private String previousIdentityProblem() {
+        Path previous = HelperPersistence.previousFile(file);
+        try {
+            if (java.nio.file.Files.notExists(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return null;
+            if (!java.nio.file.Files.isRegularFile(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+                return "the previous helper roster is not a readable regular file";
+            Data older = read(previous);
+            for (String id : older.agents.keySet())
+                if (!data.agents.containsKey(id) && !data.dismissed.contains(id))
+                    return "a previous active helper identity is absent from the current roster and removal records";
+            return null;
+        } catch (RuntimeException failure) {
+            return "the previous helper roster cannot be read safely";
+        }
+    }
     private static LoadedRoster readLoaded(Path file) {
         // Only a provably absent path is empty; a dangling link or an
         // undeterminable entry fails below rather than reading as a fresh roster.
@@ -350,6 +375,11 @@ public final class AgentCompanions {
         if (creationRecoveryRequired) return Commit.BLOCKED;
         if (HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file)) {
             freeze("unfinished or invalid previous-roster evidence must be preserved for review", null);
+            return Commit.BLOCKED;
+        }
+        String previousProblem = previousIdentityProblem();
+        if (previousProblem != null) {
+            freeze(previousProblem, null);
             return Commit.BLOCKED;
         }
         if (policy == Save.ORDINARY && HelperPersistence.recoveryRequired(file)) {
