@@ -291,6 +291,37 @@ def confirm_backup_durable(root, name):
     sync_directory(root)
 
 
+def backup_world_files(world):
+    """List world files without silently skipping unreadable directories.
+
+    This is a completeness check under the stopped-world/cooperating-writer
+    assumption, not a filesystem snapshot or exclusion of unrelated writers.
+    """
+    def unreadable(error):
+        raise ValueError("Cannot read every world directory; no backup was published.") from error
+
+    files = []
+    for directory, directories, names in os.walk(world, topdown=True, onerror=unreadable, followlinks=False):
+        for name in directories + names:
+            path = Path(directory) / name
+            if path == world / "session.lock":
+                continue  # The native lock is operational, not saved-world data.
+            try:
+                mode = path.lstat().st_mode
+            except OSError as error:
+                raise ValueError("Cannot read a world entry; no backup was published.") from error
+            if stat.S_ISLNK(mode):
+                raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
+            if name in directories:
+                if not stat.S_ISDIR(mode):
+                    raise ValueError("A world directory changed while preparing the backup; no archive was published.")
+            elif stat.S_ISREG(mode):
+                files.append(path)
+            else:
+                raise ValueError("A non-regular world entry cannot be included safely; no backup was published.")
+    return files
+
+
 def backup(root, props, locked=False):
     """Archive the stopped world; returns its name, or None for a genuinely new world.
 
@@ -330,16 +361,25 @@ def backup(root, props, locked=False):
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         destination = folder / ("Infinity-World-" + stamp + "-" + uuid.uuid4().hex[:6] + ".zip")
         temporary = destination.with_suffix(".partial")
-        files = list(world.rglob("*"))
-        files += [fabric / name for name in ("server.properties", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json")]
+        files = backup_world_files(world)
+        for name in ("server.properties", "ops.json", "whitelist.json", "banned-players.json", "banned-ips.json"):
+            file = fabric / name
+            try:
+                mode = file.lstat().st_mode
+            except FileNotFoundError:
+                continue  # These accompanying files are optional.
+            except OSError as error:
+                raise ValueError("Cannot read a server backup entry; no backup was published.") from error
+            if stat.S_ISLNK(mode):
+                raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
+            if not stat.S_ISREG(mode):
+                raise ValueError("A non-regular server entry cannot be included safely; no backup was published.")
+            files.append(file)
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         with os.fdopen(descriptor, "wb") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
                 for file in files:
-                    if file.is_symlink():
-                        raise ValueError("A symbolic link was found in the world. Back it up manually before continuing.")
-                    if file.is_file() and file.name != "session.lock":
-                        output.write(file, file.relative_to(fabric).as_posix())
+                    output.write(file, file.relative_to(fabric).as_posix())
                 output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
             # Closing the archive wrote its central directory; persist the
             # complete ZIP before its final name becomes visible.

@@ -63,6 +63,49 @@ class CommunityTests(unittest.TestCase):
                 self.assertEqual(backup.read("my-world/" + name), content)
                 self.assertEqual((self.world / name).read_bytes(), content)
 
+    @unittest.skipUnless(os.name == "posix", "requires POSIX directory permissions")
+    def test_backup_refuses_an_unreadable_world_directory_without_publishing(self):
+        region = self.world / "region"
+        region.chmod(0)
+        try:
+            if os.access(region, os.R_OK | os.X_OK):
+                self.skipTest("the current account bypasses directory mode restrictions")
+            with self.assertRaisesRegex(ValueError, "read.*world|world.*read"):
+                community.backup(self.root, {"level-name": "my-world"})
+            self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
+            self.assertFalse((self.root / "launcher.lock").exists())
+        finally:
+            region.chmod(0o700)
+        self.assertEqual((region / "r.0.0.mca").read_bytes(), b"test region bytes")
+
+    def test_backup_only_omits_the_root_native_session_lock(self):
+        data = self.world / "data"
+        data.mkdir()
+        (data / "session.lock").write_bytes(b"synthetic mod data")
+        (self.world / "session.lock").write_bytes(b"native lock")
+        name = community.backup(self.root, {"level-name": "my-world"})
+        with zipfile.ZipFile(self.root / "backups" / name) as archive:
+            self.assertNotIn("my-world/session.lock", archive.namelist())
+            self.assertEqual(archive.read("my-world/data/session.lock"), b"synthetic mod data")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks and FIFOs")
+    def test_backup_rejects_linked_directories_and_special_world_entries(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "private").write_bytes(b"outside data")
+        link = self.world / "linked-directory"
+        link.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "symbolic link"):
+            community.backup(self.root, {"level-name": "my-world"})
+        link.unlink()
+        fifo = self.world / "non-regular"
+        os.mkfifo(fifo)
+        with self.assertRaisesRegex(ValueError, "non-regular"):
+            community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual((outside / "private").read_bytes(), b"outside data")
+        self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
+        self.assertFalse((self.root / "launcher.lock").exists())
+
     def test_backup_never_runs_under_an_active_world_lock(self):
         (self.root / "launcher.lock").write_text("running")
         with self.assertRaisesRegex(ValueError, "Stop"):
