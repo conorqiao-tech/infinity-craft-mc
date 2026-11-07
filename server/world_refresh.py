@@ -127,8 +127,32 @@ def recover(root, emit=None):
     rollback = inside(root / "backups", record["rollback"])
     if not rollback.name.startswith("Terrain-Refresh-"):
         raise ValueError("Invalid terrain refresh recovery folder")
+    # Recovery can move or delete old terrain before the startup backup is
+    # created. The launcher lease alone does not stop another Minecraft server
+    # started outside this launcher. Lock the journal's world for the entire
+    # recovery; an advisory lock does not exclude noncooperating writers.
+    session_lock = community.acquire_world_session_lock(world)
+    try:
+        return _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock)
+    finally:
+        os.close(session_lock)
+
+
+def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock):
     if record["state"] == "moving":
-        for relative in reversed(record["moved_paths"]):
+        moved_paths = record.get("moved_paths")
+        if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
+            raise ValueError("Invalid terrain refresh recovery paths")
+        # Validate all entries before any move: an old or damaged journal must
+        # never be allowed to replace the inode whose lock guards recovery.
+        for relative in moved_paths:
+            parts = PurePosixPath(relative).parts
+            if parts and parts[0].casefold() == "session.lock":
+                raise ValueError("Terrain recovery cannot move the Minecraft world lock")
+            inside(world, relative)
+            inside(rollback / "terrain", relative)
+        for relative in reversed(moved_paths):
+            community.verify_world_session_lock(world, session_lock)
             source = inside(world, relative)
             saved = inside(rollback / "terrain", relative)
             if saved.exists():
@@ -156,12 +180,14 @@ def recover(root, emit=None):
                 raise ValueError("Old terrain is missing; restore the verified full backup manually")
         # The moving transaction has never written its new policy. Preserve
         # the owner's edits, especially a decision to disable refresh.
+        community.verify_world_session_lock(world, session_lock)
         record["state"] = "rolled_back"
         message = ("Rolled back an interrupted terrain refresh from an earlier start; original terrain restored. "
                    "Recovery record: backups/" + rollback.name)
     else:
         # This finishes the earlier, already-committed transaction only; it
         # records that transaction's result and never requests another refresh.
+        community.verify_world_session_lock(world, session_lock)
         current = read_policy(root)
         if current is not None:
             atomic_json(root / POLICY, dict(current,
@@ -169,6 +195,7 @@ def recover(root, emit=None):
         message = ("Finished recording a terrain refresh completed by an earlier start; "
                    + (POLICY + " was updated to clear its pending request. " if current is not None else "")
                    + "Recovery record: backups/" + rollback.name)
+    community.verify_world_session_lock(world, session_lock)
     atomic_json(rollback / "MANIFEST.json", record)
     path.unlink()
     sync_directory(root)
