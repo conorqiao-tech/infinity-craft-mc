@@ -97,7 +97,7 @@ final class HelperPersistence {
     };
 
     enum Durability { PROVEN, UNPROVEN }
-    /** {@code mayHaveChanged} is false only when the target path was never touched. */
+    /** {@code mayHaveChanged} concerns this operation, not changes made by another writer. */
     static final class Failure extends IOException {
         final boolean mayHaveChanged;
         final boolean requiresReview;

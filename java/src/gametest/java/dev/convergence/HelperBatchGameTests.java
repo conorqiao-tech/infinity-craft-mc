@@ -2768,7 +2768,8 @@ public class HelperBatchGameTests {
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=240)
     public void changedRosterBeforeSaveFreezesWithoutReplacingThePriorBackup(GameTestHelper c) throws Exception {
-        try (var f = new Fixture(c)) {
+        var wire = new NativePlayConnection(c.getLevel().registryAccess());
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, wire)) {
             c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A helper is created");
             var kept = f.helpers.owned(f.owner, "kept"); String keptId = kept.getKey(); var keptRecord = kept.getValue();
             var live = f.helpers.loaded.get(UUID.fromString(keptId)); live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
@@ -2776,14 +2777,20 @@ public class HelperBatchGameTests {
             String awayId = away.getKey(); var awayRecord = away.getValue(); byte[] previous = Files.readAllBytes(f.previousFile());
             byte[] competing = "{\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}".getBytes(StandardCharsets.UTF_8);
             Files.write(f.helpers.file, competing);
+            wire.drain();
             c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0, "A roster changed since the last save is not accepted");
+            var told = chat(wire);
+            c.assertTrue(told.stream().anyMatch(text -> text.contains("This request did not replace the saved roster") && text.contains("host review")),
+                "The player is told what this request did and that the changed roster needs review: " + told);
+            c.assertFalse(told.stream().anyMatch(text -> text.contains("The saved roster was not changed")),
+                "The player is not told that a roster changed by another writer was unchanged: " + told);
             c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker()) && f.restart().creationRecoveryRequired
                     && Arrays.equals(competing, Files.readAllBytes(f.helpers.file)) && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
                 "The changed roster and previous backup stay intact while runtime and restart freeze");
             c.assertTrue(f.helpers.data.agents.get(keptId) == keptRecord && f.helpers.data.agents.get(awayId) == awayRecord
                     && f.helpers.loaded.get(live.getUUID()) == live && live.isAlive() && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
                 "Loaded and unloaded records and the edited live body are retained");
-        }
+        } finally { wire.channel.finishAndReleaseAll(); }
         c.succeed();
     }
 

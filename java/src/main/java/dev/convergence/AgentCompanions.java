@@ -320,7 +320,7 @@ public final class AgentCompanions {
         var result = commit(() -> {}, Save.ORDINARY, true);
         if (!saved(result)) throw new IllegalStateException(unsaved(result));
     }
-    /** UNTOUCHED: the saved roster provably did not change. UNCERTAIN: it may or may not have. BLOCKED: already frozen. */
+    /** UNTOUCHED: this operation did not replace the roster; other writers are not excluded. UNCERTAIN: it may have. BLOCKED: already frozen. */
     enum Commit { PROVEN, UNPROVEN, UNTOUCHED, UNCERTAIN, BLOCKED }
     enum Save {
         /** Adds no removal proof. A provably untouched roster stays writable; an ambiguous one freezes. */
@@ -334,8 +334,8 @@ public final class AgentCompanions {
     String unsaved(Commit result) {
         return switch (result) {
             case UNCERTAIN -> "This change may or may not have reached the saved roster. " + FROZEN;
-            case BLOCKED -> "Nothing was changed. " + FROZEN;
-            default -> "The saved roster was not changed. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying.");
+            case BLOCKED -> "This request did not change helper ownership. " + FROZEN;
+            default -> "This request did not replace the saved roster. " + (creationRecoveryRequired ? FROZEN : "Check server storage before retrying.");
         };
     }
     /**
