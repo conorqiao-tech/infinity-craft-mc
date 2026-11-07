@@ -44,6 +44,9 @@ class CommunityTests(unittest.TestCase):
         evidence = {
             "infinity-agents.json": b"synthetic roster",
             "infinity-agents.json.previous": b"synthetic previous roster",
+            "infinity-agents.json.tmp": b"synthetic unfinished roster",
+            "infinity-agents.json.previous.tmp": b"synthetic unfinished previous roster",
+            "infinity-agents.json.previous.publish.tmp": b"synthetic unfinished previous publication",
             "infinity-agents.json.recovery-required": b"synthetic guard",
             "infinity-agents.json.recovery-required.tmp": b"synthetic unfinished guard",
             "infinity-agents.json.recovery-retiring": b"synthetic retirement witness",

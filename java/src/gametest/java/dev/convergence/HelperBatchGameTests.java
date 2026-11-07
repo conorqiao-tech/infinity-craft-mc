@@ -101,7 +101,8 @@ public class HelperBatchGameTests {
         private String last = "";
         boolean noDirectorySync;
         boolean blockMarkerWrites, blockRosterWrites, replaceGuardAfterRosterSync, addRetirementAfterRosterSync;
-        boolean addRosterTempAfterRetirementSync;
+        boolean addRosterTempAfterRetirementSync, partialBackupCopy, partialBackupPublishCopy, addRecoveryAfterRosterSync;
+        boolean addRecoveryAfterPreviousFileSync;
         boolean blockMarkerWritesAfterGuardDelete;
         Runnable afterRosterMove;
         private interface Step { void run() throws IOException; }
@@ -119,7 +120,21 @@ public class HelperBatchGameTests {
             last = sync ? "sync" : name;
             if (after != null) throw new IOException("Injected failure after " + name);
         }
-        @Override public void copy(Path from, Path to) throws IOException { step("copy:" + to.getFileName(), false, () -> HelperPersistence.NATIVE.copy(from, to)); }
+        @Override public void copy(Path from, Path to) throws IOException {
+            if (partialBackupPublishCopy && to.getFileName().toString().equals("agents.json.previous.publish.tmp")) {
+                partialBackupPublishCopy = false;
+                Files.writeString(to, "synthetic partial publication", java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+                throw new IOException("Injected interrupted backup publication copy");
+            }
+            if (partialBackupCopy) {
+                partialBackupCopy = false;
+                Files.writeString(to, "synthetic partial backup", java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+                throw new IOException("Injected interrupted backup copy after truncation");
+            }
+            step("copy:" + to.getFileName(), false, () -> HelperPersistence.NATIVE.copy(from, to));
+        }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
             String name = path.getFileName().toString();
             if ((blockMarkerWrites && name.equals("agents.json.recovery-required.tmp"))
@@ -135,7 +150,13 @@ public class HelperBatchGameTests {
             });
         }
         @Override public void delete(Path path) throws IOException { step("delete:" + path.getFileName(), false, () -> HelperPersistence.NATIVE.delete(path)); }
-        @Override public void syncFile(Path path) throws IOException { step("fsync:" + path.getFileName(), true, () -> HelperPersistence.NATIVE.syncFile(path)); }
+        @Override public void syncFile(Path path) throws IOException {
+            step("fsync:" + path.getFileName(), true, () -> HelperPersistence.NATIVE.syncFile(path));
+            if (addRecoveryAfterPreviousFileSync && path.getFileName().toString().equals("agents.json.previous.tmp")) {
+                addRecoveryAfterPreviousFileSync = false;
+                Files.writeString(path.resolveSibling("agents.json.recovery-required"), "competing early recovery evidence");
+            }
+        }
         @Override public void syncDirectory(Path directory) throws IOException {
             if (noDirectorySync) throw new IOException("Directory sync is unsupported on this storage");
             String previous = last;
@@ -146,6 +167,10 @@ public class HelperBatchGameTests {
                 replaceGuardAfterRosterSync = false;
                 Files.delete(directory.resolve("agents.json.recovery-required"));
                 Files.writeString(directory.resolve("agents.json.recovery-required.tmp"), "competing evidence");
+            }
+            if (addRecoveryAfterRosterSync && previous.equals("move:agents.json")) {
+                addRecoveryAfterRosterSync = false;
+                Files.writeString(directory.resolve("agents.json.recovery-required"), "competing recovery evidence");
             }
             if (addRetirementAfterRosterSync && previous.equals("move:agents.json")) {
                 addRetirementAfterRosterSync = false;
@@ -237,6 +262,170 @@ public class HelperBatchGameTests {
                 for (var path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
             }
         }
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void interruptedBackupCopyPreservesPreviousAndFreezesForReview(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), prior = Files.readAllBytes(f.previousFile());
+            io.partialBackupCopy = true;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "An interrupted backup copy does not report a saved roster change");
+            Path temporary = HelperPersistence.temporaryFile(f.previousFile());
+            c.assertTrue(Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(prior, Files.readAllBytes(f.previousFile()))
+                    && Files.readString(temporary).equals("synthetic partial backup")
+                    && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired,
+                "The prior backup remains byte-for-byte intact and interrupted copy evidence freezes both runtimes");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unfinishedPreviousBackupFreezesWithoutReplacingEvidence(GameTestHelper c) throws Exception {
+        for (String suffix : List.of(".previous.tmp", ".previous.publish.tmp")) try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
+            Path temporary = f.helpers.file.resolveSibling(f.helpers.file.getFileName() + suffix);
+            Files.writeString(temporary, "unfinished backup candidate");
+            var restarted = f.restart();
+            c.assertTrue(restarted.creationRecoveryRequired, "An unfinished previous-backup copy freezes startup");
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A running runtime refuses to overwrite competing previous-backup evidence");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(previous, Files.readAllBytes(f.previousFile()))
+                    && Files.readString(temporary).equals("unfinished backup candidate"),
+                "The roster, previous backup and unfinished copy remain intact");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void successfulBackupReplacementRetainsTheLastRoster(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-"); byte[] old = Files.readAllBytes(f.helpers.file);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 1,
+                "A healthy write succeeds");
+            c.assertTrue(Arrays.equals(old, Files.readAllBytes(f.previousFile()))
+                    && Files.notExists(HelperPersistence.temporaryFile(f.previousFile()))
+                    && Files.notExists(HelperPersistence.previousPublishTemporaryFile(f.helpers.file))
+                    && !f.helpers.creationRecoveryRequired,
+                "The completed backup is the prior roster, with no staging file left behind");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void nonregularPreviousBackupFreezesAndIsNotReplaced(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-"); byte[] roster = Files.readAllBytes(f.helpers.file);
+            Files.delete(f.previousFile()); Files.createDirectory(f.previousFile());
+            Files.writeString(f.previousFile().resolve("keep"), "synthetic evidence");
+            c.assertTrue(f.restart().creationRecoveryRequired, "A directory at the previous-roster path freezes startup");
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A running runtime refuses to replace a nonregular previous path");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Files.readString(f.previousFile().resolve("keep")).equals("synthetic evidence"),
+                "The roster and nonregular previous evidence remain intact");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void ambiguousBackupReplacementFreezesEvenWithoutASeparateNote(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-"); byte[] roster = Files.readAllBytes(f.helpers.file);
+            io.arm("sync-after:move:agents.json.previous", true);
+            io.arm("write:agents.json.recovery-required.tmp", false);
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "An ambiguous backup replacement never reports a saved roster change");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.notExists(f.marker())
+                    && Files.exists(HelperPersistence.temporaryFile(f.previousFile()))
+                    && !Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(roster, Files.readAllBytes(f.previousFile())),
+                "The staged prior roster remains after the backup replacement cannot be proven");
+            c.assertTrue(f.restart().creationRecoveryRequired,
+                "The surviving staged roster freezes a later runtime even without a separate note");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void partialBackupPublicationPreservesBothEarlierCopies(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), prior = Files.readAllBytes(f.previousFile());
+            io.partialBackupPublishCopy = true;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "An interrupted backup publication does not report success");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && !Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(prior, Files.readAllBytes(f.previousFile()))
+                    && Arrays.equals(roster, Files.readAllBytes(HelperPersistence.temporaryFile(f.previousFile())))
+                    && Files.readString(HelperPersistence.previousPublishTemporaryFile(f.helpers.file)).equals("synthetic partial publication"),
+                "The prior backup and staged roster survive a partial publication, while the runtime freezes");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void recoveryNoteAppearingBeforeBackupPromotionPreservesPreviousEvidence(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), prior = Files.readAllBytes(f.previousFile());
+            io.addRecoveryAfterRosterSync = true;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A competing recovery note prevents backup promotion and success");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.readString(f.marker()).equals("competing recovery evidence")
+                    && Arrays.equals(prior, Files.readAllBytes(f.previousFile()))
+                    && Arrays.equals(roster, Files.readAllBytes(HelperPersistence.temporaryFile(f.previousFile()))),
+                "The final note, prior backup and staged earlier roster remain intact");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void recoveryNoteAppearingBeforeOrdinarySaveBlocksTheWrite(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), prior = Files.readAllBytes(f.previousFile());
+            Files.writeString(f.marker(), "competing recovery evidence");
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A newly appeared recovery note blocks an ordinary roster save");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.readString(f.marker()).equals("competing recovery evidence")
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(prior, Files.readAllBytes(f.previousFile()))
+                    && Files.notExists(HelperPersistence.temporaryFile(f.helpers.file)),
+                "No roster, previous backup or competing note is overwritten");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void recoveryNoteAppearingBeforeRosterReplacementKeepsBothOlderFiles(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] roster = Files.readAllBytes(f.helpers.file), prior = Files.readAllBytes(f.previousFile());
+            io.addRecoveryAfterPreviousFileSync = true;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A competing note before roster replacement prevents success");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Files.readString(f.marker()).equals("competing early recovery evidence")
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(prior, Files.readAllBytes(f.previousFile()))
+                    && Arrays.equals(roster, Files.readAllBytes(HelperPersistence.temporaryFile(f.previousFile())))
+                    && Files.exists(HelperPersistence.temporaryFile(f.helpers.file)),
+                "The note, earlier files and staged roster evidence remain intact");
+        }
+        c.succeed();
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
@@ -1047,12 +1236,17 @@ public class HelperBatchGameTests {
         try (var f = new Fixture(c, io)) {
             f.helpers.spawn(f.owner, "near"); var entry = f.helpers.owned(f.owner, "near");
             var live = f.helpers.loaded.get(UUID.fromString(entry.getKey()));
+            byte[] before = Files.readAllBytes(f.helpers.file), previous = Files.readAllBytes(f.previousFile());
             io.addRetirementAfterRosterSync = true;
-            c.assertValueEqual(f.helpers.dismiss(f.owner, "near"), 1, "The saved dismissal is still reported");
+            c.assertValueEqual(f.helpers.dismiss(f.owner, "near"), 0, "A competing note makes the dismissal uncertain");
             var competing = f.directory.resolve("agents.json.recovery-retiring");
             c.assertTrue(Files.readString(competing).equals("competing retirement evidence")
-                && Files.exists(f.marker()) && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired,
-                "A competing retirement note stays untouched and prevents guard removal");
+                && Files.exists(f.marker()) && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                && f.helpers.data.agents.get(entry.getKey()) == entry.getValue()
+                && AgentCompanions.read(f.helpers.file).dismissed.contains(entry.getKey())
+                && Arrays.equals(before, Files.readAllBytes(HelperPersistence.temporaryFile(f.previousFile())))
+                && Arrays.equals(previous, Files.readAllBytes(f.previousFile())),
+                "The conflicting note, saved dismissal, in-memory record and both earlier rosters are retained");
             c.assertFalse(live.isRemoved(), "The body is retained rather than discarded");
             live.discard();
         }
@@ -1402,8 +1596,8 @@ public class HelperBatchGameTests {
             c.assertTrue(f.helpers.creationRecoveryRequired && Files.notExists(f.marker()), "This runtime is frozen even though its after-the-fact note could not be written");
             c.assertTrue(AgentCompanions.read(f.helpers.file).dismissed.isEmpty(), "An ordinary save never carries new removal proof");
             var restarted = f.restart(); var copy = f.saved(UUID.fromString(f.helpers.owned(f.owner, "kept").getKey())); restarted.load(copy);
-            c.assertTrue(!restarted.creationRecoveryRequired && !copy.isRemoved(),
-                "Known limit: without the note a restart is not frozen, but with no removal proof it can only keep the helper");
+            c.assertTrue(restarted.creationRecoveryRequired && Files.exists(HelperPersistence.temporaryFile(f.previousFile())) && !copy.isRemoved(),
+                "The staged previous roster freezes the restart even when the separate recovery note could not be written");
             restarted.loaded.remove(copy.getUUID(), copy); copy.discard();
         }
         io = new FaultyIo();
@@ -2251,10 +2445,13 @@ public class HelperBatchGameTests {
         try (var f = new Fixture(c, io, wire)) {
             var touch = new Touch(); BedrockAgentMenu.open(f.owner, touch); touch.click("Create your first helper");
             io.replaceGuardAfterRosterSync = true; wire.drain(); touch.click("Create: Regular");
-            var entry = f.helpers.owned(f.owner, "helper-1"); var shown = touch.last().content(); var told = chat(wire);
-            c.assertTrue(entry != null && f.helpers.unresolvedCreation(entry.getKey()) && f.helpers.loaded.isEmpty()
+            var saved = AgentCompanions.read(f.helpers.file);
+            var entry = saved.agents.entrySet().stream().filter(e -> e.getValue().name().equals("helper-1")).findFirst().orElseThrow();
+            var shown = touch.last().content(); var told = chat(wire);
+            c.assertTrue(saved.pendingCreations.contains(entry.getKey()) && f.helpers.owned(f.owner, "helper-1") == null
+                && f.helpers.loaded.isEmpty() && Files.exists(HelperPersistence.temporaryFile(f.previousFile()))
                 && f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired,
-                "A changed guard leaves pending ownership frozen before any native insertion");
+                "A changed guard retains the saved pending identity and earlier roster while freezing before insertion");
             c.assertTrue(shown.contains("No helper entity spawned") && shown.contains("frozen")
                 && !shown.contains("Move onto clear solid ground") && !shown.contains("appeared beside you")
                 && told.stream().noneMatch(text -> text.contains("appeared beside you")),

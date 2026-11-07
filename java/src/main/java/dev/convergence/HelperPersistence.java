@@ -29,7 +29,8 @@ final class HelperPersistence {
         void syncDirectory(Path directory) throws IOException;
     }
     static final Io NATIVE = new Io() {
-        @Override public void copy(Path from, Path to) throws IOException { Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING); }
+        // The destination is a new staging file. Never truncate pre-existing evidence.
+        @Override public void copy(Path from, Path to) throws IOException { Files.copy(from, to); }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
             try (var channel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
                 var buffer = ByteBuffer.wrap(bytes);
@@ -63,6 +64,8 @@ final class HelperPersistence {
 
     static Path previousFile(Path target) { return target.resolveSibling(target.getFileName() + ".previous"); }
     static Path temporaryFile(Path target) { return target.resolveSibling(target.getFileName() + ".tmp"); }
+    static Path previousTemporaryFile(Path target) { return temporaryFile(previousFile(target)); }
+    static Path previousPublishTemporaryFile(Path target) { return target.resolveSibling(target.getFileName() + ".previous.publish.tmp"); }
     /**
      * Present while a write that adds removal proof is in flight, and after any
      * failed or unproven ownership save. Never overwritten; removed only after
@@ -78,12 +81,39 @@ final class HelperPersistence {
     Durability replace(Path target, byte[] bytes, boolean keepPrevious, boolean requireProof) throws Failure {
         Path directory = target.toAbsolutePath().getParent();
         Path temporary = temporaryFile(target);
+        boolean backupStaged = false, backupNeeded, guardPresent = false;
         try {
             Files.createDirectories(directory);
-            if (keepPrevious && Files.exists(target)) io.copy(target, previousFile(target));
-            io.writeDurably(temporary, bytes);
+            boolean exists = keepPrevious && Files.exists(target, LinkOption.NOFOLLOW_LINKS);
+            if (keepPrevious && !exists && !Files.notExists(target, LinkOption.NOFOLLOW_LINKS))
+                throw new IOException("Whether the roster exists cannot be determined");
+            backupNeeded = keepPrevious && exists;
+            if (keepPrevious) {
+                Path marker = recoveryMarker(target);
+                guardPresent = Files.exists(marker, LinkOption.NOFOLLOW_LINKS);
+                if ((!guardPresent && !Files.notExists(marker, LinkOption.NOFOLLOW_LINKS))
+                    || (guardPresent && !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)))
+                    throw new IOException("Recovery guard state cannot be determined");
+                if (guardEvidenceChanged(target, guardPresent))
+                    throw new IOException("Competing recovery evidence requires inspection");
+            }
         } catch (IOException | RuntimeException e) {
             throw new Failure("Could not prepare " + target.getFileName() + "; it was not touched", false, e);
+        }
+        if (backupNeeded) {
+            if (unfinishedPreviousCopy(target) || unsafePreviousFile(target))
+                throw new Failure("Previous roster evidence requires inspection", false, null);
+        }
+        try { io.writeDurably(temporary, bytes); }
+        catch (IOException | RuntimeException e) {
+            throw new Failure("Could not prepare " + target.getFileName() + "; it was not touched", false, e);
+        }
+        if (backupNeeded) {
+            Path backupTemporary = previousTemporaryFile(target);
+            try { io.copy(target, backupTemporary); io.syncFile(backupTemporary); backupStaged = true; }
+            catch (IOException | RuntimeException e) {
+                throw new Failure("Could not stage the previous roster; the roster and prior backup were not replaced", false, e);
+            }
         }
         // Probe before touching the target, so an unsupported directory sync
         // is known before the rename rather than mistaken for a failed one.
@@ -93,18 +123,49 @@ final class HelperPersistence {
             if (requireProof) throw new Failure("Directory sync is unavailable for " + target.getFileName() + "; it was not touched", false, e);
             provable = false;
         }
+        if (keepPrevious && guardEvidenceChanged(target, guardPresent))
+            throw new Failure("Recovery evidence changed before the roster was replaced", false, null);
         try { io.atomicMove(temporary, target); }
         catch (AtomicMoveNotSupportedException e) {
             throw new Failure("Atomic rename is unavailable for " + target.getFileName() + "; it was not touched", false, e);
         } catch (IOException | RuntimeException e) {
             throw new Failure("Could not prove whether " + target.getFileName() + " was replaced", true, e);
         }
-        if (!provable) return Durability.UNPROVEN;
-        try { io.syncDirectory(directory); }
-        catch (IOException | RuntimeException e) {
-            throw new Failure(target.getFileName() + " was renamed but its directory could not be synced", true, e);
+        if (provable) {
+            try { io.syncDirectory(directory); }
+            catch (IOException | RuntimeException e) {
+                throw new Failure(target.getFileName() + " was renamed but its directory could not be synced", true, e);
+            }
         }
-        return Durability.PROVEN;
+        // Keep the prior .previous untouched until the roster was replaced.
+        // If backup promotion fails, the roster has already changed, so the
+        // caller must treat the entire operation as uncertain and freeze.
+        if (backupStaged) {
+            if (competingBackupEvidence(target, false, guardPresent))
+                throw new Failure("The roster was replaced but backup evidence changed before promotion", true, null);
+            if (!provable) {
+                try { io.atomicMove(previousTemporaryFile(target), previousFile(target)); }
+                catch (IOException | RuntimeException e) {
+                    throw new Failure("The roster was replaced but its previous copy could not be proven", true, e);
+                }
+                return Durability.UNPROVEN;
+            }
+            // Keep the staged prior roster as a witness while a separate copy
+            // is promoted and synced. A crash during promotion leaves a note.
+            try {
+                io.copy(previousTemporaryFile(target), previousPublishTemporaryFile(target));
+                io.syncFile(previousPublishTemporaryFile(target)); io.syncDirectory(directory);
+                if (competingBackupEvidence(target, true, guardPresent))
+                    throw new IOException("Backup evidence changed during promotion");
+                io.atomicMove(previousPublishTemporaryFile(target), previousFile(target)); io.syncDirectory(directory);
+                if (competingBackupEvidence(target, false, guardPresent))
+                    throw new IOException("Backup evidence changed after promotion");
+                io.delete(previousTemporaryFile(target)); io.syncDirectory(directory);
+            } catch (IOException | RuntimeException e) {
+                throw new Failure("The roster was replaced but its previous copy could not be proven", true, e);
+            }
+        }
+        return provable ? Durability.PROVEN : Durability.UNPROVEN;
     }
 
     /** Makes an already present roster durable as read, or reports that it cannot. */
@@ -127,7 +188,8 @@ final class HelperPersistence {
         if (!Files.notExists(roster, LinkOption.NOFOLLOW_LINKS))
             return "whether " + roster.getFileName() + " exists cannot be determined";
         for (Path evidence : new Path[]{previousFile(roster), recoveryMarker(roster), recoveryTemporary(roster),
-                retirementMarker(roster), retirementTemporary(roster), temporaryFile(roster)})
+                retirementMarker(roster), retirementTemporary(roster), temporaryFile(roster), previousTemporaryFile(roster),
+                previousPublishTemporaryFile(roster)})
             if (!Files.notExists(evidence, LinkOption.NOFOLLOW_LINKS))
                 return roster.getFileName() + " is missing but " + evidence.getFileName() + " may exist";
         return null;
@@ -135,8 +197,45 @@ final class HelperPersistence {
 
     /** A leftover temporary roster may contain an interrupted write; never overwrite it. */
     static boolean unfinishedRosterWrite(Path roster) {
-        try { return !Files.notExists(temporaryFile(roster), LinkOption.NOFOLLOW_LINKS); }
+        try { return !Files.notExists(temporaryFile(roster), LinkOption.NOFOLLOW_LINKS) || unfinishedPreviousCopy(roster); }
         catch (SecurityException denied) { return true; }
+    }
+
+    static boolean unfinishedPreviousCopy(Path roster) {
+        try { return !Files.notExists(previousTemporaryFile(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(previousPublishTemporaryFile(roster), LinkOption.NOFOLLOW_LINKS); }
+        catch (SecurityException denied) { return true; }
+    }
+
+    /** Bounded checks only; they do not exclude a concurrent or untrusted writer. */
+    private static boolean competingBackupEvidence(Path roster, boolean publishExpected, boolean guardPresent) {
+        try {
+            Path publish = previousPublishTemporaryFile(roster);
+            return !Files.isRegularFile(previousTemporaryFile(roster), LinkOption.NOFOLLOW_LINKS)
+                || (publishExpected ? !Files.isRegularFile(publish, LinkOption.NOFOLLOW_LINKS) : !Files.notExists(publish, LinkOption.NOFOLLOW_LINKS))
+                || !Files.notExists(temporaryFile(roster), LinkOption.NOFOLLOW_LINKS)
+                || guardEvidenceChanged(roster, guardPresent)
+                || unsafePreviousFile(roster);
+        } catch (SecurityException denied) { return true; }
+    }
+
+    /** Presence/type checks are not inode compare-and-swap or writer exclusion. */
+    private static boolean guardEvidenceChanged(Path roster, boolean guardPresent) {
+        try {
+            Path marker = recoveryMarker(roster);
+            return (guardPresent ? !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS) : !Files.notExists(marker, LinkOption.NOFOLLOW_LINKS))
+                || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(retirementMarker(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS);
+        } catch (SecurityException denied) { return true; }
+    }
+
+    static boolean unsafePreviousFile(Path roster) {
+        try {
+            Path previous = previousFile(roster);
+            return !Files.notExists(previous, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isRegularFile(previous, LinkOption.NOFOLLOW_LINKS);
+        } catch (SecurityException denied) { return true; }
     }
 
     /** An unfinished marker write is evidence too. Never overwrite or ignore it. */
@@ -150,13 +249,13 @@ final class HelperPersistence {
     }
 
     static boolean recoveryRequired(Path roster) {
-        return unfinishedRosterWrite(roster) || recoveryNotePresent(roster);
+        return unfinishedRosterWrite(roster) || unsafePreviousFile(roster) || recoveryNotePresent(roster);
     }
 
     /** Check for a regular marker and no competing temporary note; this is not a writer-exclusion proof. */
     static boolean guardIntact(Path roster) {
         try {
-            return !unfinishedRosterWrite(roster)
+            return !unfinishedRosterWrite(roster) && !unsafePreviousFile(roster)
                 && Files.isRegularFile(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
                 && Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
                 && Files.notExists(retirementMarker(roster), LinkOption.NOFOLLOW_LINKS)
@@ -192,7 +291,7 @@ final class HelperPersistence {
         try {
             if (!guardIntact(roster)) throw new IOException("Recovery guard is missing or has competing temporary evidence");
             replace(retiring, "Guard retirement is in progress; preserve the roster and matching world for review.\n".getBytes(StandardCharsets.UTF_8), false, true);
-            if (unfinishedRosterWrite(roster)
+            if (unfinishedRosterWrite(roster) || unsafePreviousFile(roster)
                 || !Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)
                 || !Files.isRegularFile(retiring, LinkOption.NOFOLLOW_LINKS)
                 || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
