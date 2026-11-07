@@ -66,6 +66,10 @@ public class AgentSessionGameTests {
             if (helperId != null) {
                 var tracked = AgentChat.TRACKING.get(server); if (tracked != null) tracked.remove(helperId);
                 var golem = helper(); core.data.agents.remove(helperId);
+                // This fixture removes only its own synthetic helper. Keep its
+                // identity reserved so a later test cannot rotate it away.
+                core.data.pendingCreations.remove(helperId); core.rememberRemoved(helperId);
+                core.data.guardedRemovals.remove(helperId);
                 if (golem != null) golem.discard();
                 core.loaded.remove(UUID.fromString(helperId)); core.save();
             }
