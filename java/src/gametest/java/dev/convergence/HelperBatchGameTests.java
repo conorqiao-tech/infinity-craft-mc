@@ -104,6 +104,7 @@ public class HelperBatchGameTests {
         boolean addRosterTempAfterRetirementSync, partialBackupCopy, partialBackupPublishCopy, addRecoveryAfterRosterSync;
         boolean addRecoveryAfterPreviousFileSync;
         boolean blockMarkerWritesAfterGuardDelete;
+        boolean swapRosterBeforeMove, swapPreviousAfterRosterMove, swapPreviousAfterCopy;
         Runnable afterRosterMove;
         String competingWrite;
         boolean competingWriteSymlink;
@@ -136,7 +137,13 @@ public class HelperBatchGameTests {
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
                 throw new IOException("Injected interrupted backup copy after truncation");
             }
-            step("copy:" + to.getFileName(), false, () -> HelperPersistence.NATIVE.copy(from, to));
+            step("copy:" + to.getFileName(), false, () -> {
+                HelperPersistence.NATIVE.copy(from, to);
+                if (swapPreviousAfterCopy && to.getFileName().toString().equals("agents.json.previous.tmp")) {
+                    swapPreviousAfterCopy = false;
+                    replaceStagedForTest(to);
+                }
+            });
         }
         @Override public void writeDurably(Path path, byte[] bytes) throws IOException {
             String name = path.getFileName().toString();
@@ -153,11 +160,25 @@ public class HelperBatchGameTests {
         }
         @Override public void atomicMove(Path from, Path to) throws IOException {
             step("move:" + to.getFileName(), false, () -> {
+                if (swapRosterBeforeMove && to.getFileName().toString().equals("agents.json")) {
+                    swapRosterBeforeMove = false;
+                    replaceStagedForTest(from);
+                }
                 HelperPersistence.NATIVE.atomicMove(from, to);
+                if (swapPreviousAfterRosterMove && to.getFileName().toString().equals("agents.json")) {
+                    swapPreviousAfterRosterMove = false;
+                    replaceStagedForTest(HelperPersistence.previousTemporaryFile(to));
+                }
                 if (afterRosterMove != null && to.getFileName().toString().equals("agents.json")) {
                     var callback = afterRosterMove; afterRosterMove = null; callback.run();
                 }
             });
+        }
+        private static void replaceStagedForTest(Path staged) throws IOException {
+            Path alternate = staged.resolveSibling(staged.getFileName() + ".competing-test");
+            Files.writeString(alternate, "{\"format\":3,\"agents\":{},\"dismissed\":[],\"guardedRemovals\":[],\"pendingCreations\":[]}",
+                java.nio.file.StandardOpenOption.CREATE_NEW);
+            Files.move(alternate, staged, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
         @Override public void delete(Path path) throws IOException { step("delete:" + path.getFileName(), false, () -> HelperPersistence.NATIVE.delete(path)); }
         @Override public void syncFile(Path path) throws IOException {
@@ -323,6 +344,102 @@ public class HelperBatchGameTests {
                     && Files.notExists(HelperPersistence.previousPublishTemporaryFile(f.helpers.file))
                     && !f.helpers.creationRecoveryRequired,
                 "The completed backup is the prior roster, with no staging file left behind");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void swappedRosterPublicationFreezesAndRetainsThePreviousWitness(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A real helper is created");
+            var kept = f.helpers.owned(f.owner, "kept"); var live = f.helpers.loaded.get(UUID.fromString(kept.getKey()));
+            String keptId = kept.getKey(); var keptRecord = kept.getValue();
+            live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            f.unloaded(f.owner.getUUID(), 1, "away-"); var away = f.helpers.owned(f.owner, "away-1");
+            String awayId = away.getKey(); var awayRecord = away.getValue();
+            byte[] oldRoster = Files.readAllBytes(f.helpers.file), oldPrevious = Files.readAllBytes(f.previousFile());
+            io.swapRosterBeforeMove = true;
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0,
+                "Publishing different roster bytes cannot report a successful change");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker())
+                    && Arrays.equals(oldRoster, Files.readAllBytes(HelperPersistence.previousTemporaryFile(f.helpers.file)))
+                    && Arrays.equals(oldPrevious, Files.readAllBytes(f.previousFile())) && f.restart().creationRecoveryRequired,
+                "The runtime and restart freeze while the earlier roster witness and prior backup remain");
+            c.assertTrue(f.helpers.data.agents.get(keptId) == keptRecord
+                    && f.helpers.data.agents.get(awayId) == awayRecord
+                    && f.helpers.loaded.get(live.getUUID()) == live && live.isAlive()
+                    && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "Loaded and unloaded records and the edited live helper remain in memory");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void swappedPreviousWitnessFreezesBeforeBackupPromotion(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            c.assertValueEqual(f.helpers.spawn(f.owner, "kept"), 1, "A real helper is created");
+            var kept = f.helpers.owned(f.owner, "kept"); var live = f.helpers.loaded.get(UUID.fromString(kept.getKey()));
+            String keptId = kept.getKey(); var keptRecord = kept.getValue();
+            live.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(.31);
+            f.unloaded(f.owner.getUUID(), 1, "away-"); var away = f.helpers.owned(f.owner, "away-1");
+            String awayId = away.getKey(); var awayRecord = away.getValue();
+            byte[] oldPrevious = Files.readAllBytes(f.previousFile());
+            io.swapPreviousAfterRosterMove = true;
+            c.assertValueEqual(f.helpers.mode(f.owner, "kept", AgentCompanions.Mode.STAY), 0,
+                "A substituted backup witness cannot report a successful change");
+            c.assertTrue(f.helpers.creationRecoveryRequired && Files.exists(f.marker())
+                    && Arrays.equals(oldPrevious, Files.readAllBytes(f.previousFile()))
+                    && Files.exists(HelperPersistence.previousTemporaryFile(f.helpers.file)) && f.restart().creationRecoveryRequired,
+                "The prior backup and substituted witness remain for review while both runtimes freeze");
+            c.assertTrue(f.helpers.data.agents.get(keptId) == keptRecord
+                    && f.helpers.data.agents.get(awayId) == awayRecord
+                    && f.helpers.loaded.get(live.getUUID()) == live && live.isAlive()
+                    && live.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31,
+                "Loaded and unloaded records and the edited live helper remain in memory");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void substitutedPreviousCopyBeforeItsDigestDoesNotReplaceTheRoster(GameTestHelper c) throws Exception {
+        var io = new FaultyIo();
+        try (var f = new Fixture(c, io)) {
+            f.unloaded(f.owner.getUUID(), 1, "older-");
+            byte[] oldRoster = Files.readAllBytes(f.helpers.file), oldPrevious = Files.readAllBytes(f.previousFile());
+            io.swapPreviousAfterCopy = true;
+            c.assertValueEqual(f.helpers.profile(f.owner, "older-1", AgentCompanions.Profile.PRIMITIVE), 0,
+                "A substituted previous copy cannot report a successful change");
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.restart().creationRecoveryRequired
+                    && Arrays.equals(oldRoster, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(oldPrevious, Files.readAllBytes(f.previousFile()))
+                    && Files.exists(HelperPersistence.previousTemporaryFile(f.helpers.file)),
+                "The roster and prior backup remain unchanged and the substituted copy is retained for review");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void oversizedRosterEvidenceIsRejectedWithoutReplacingTheRoster(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path directory = f.directory.resolve("oversized"); Files.createDirectory(directory);
+            Path roster = directory.resolve("agents.json"), previous = HelperPersistence.previousFile(roster);
+            byte[] large = new byte[AgentCompanions.MAX_BYTES + 1]; Arrays.fill(large, (byte) 'x');
+            Files.write(roster, large); Files.writeString(previous, "prior backup");
+            HelperPersistence.Failure observed = null;
+            try { new HelperPersistence(HelperPersistence.NATIVE).replace(roster, "{}".getBytes(StandardCharsets.UTF_8), true, true); }
+            catch (HelperPersistence.Failure failure) { observed = failure; }
+            c.assertTrue(observed != null && !observed.mayHaveChanged && Arrays.equals(large, Files.readAllBytes(roster))
+                    && Files.readString(previous).equals("prior backup") && Files.exists(HelperPersistence.temporaryFile(roster)),
+                "An oversized source is refused before roster or backup replacement and staging evidence is retained");
+
+            Path second = directory.resolve("new.json"); observed = null;
+            try { new HelperPersistence(HelperPersistence.NATIVE).replace(second, large, true, true); }
+            catch (HelperPersistence.Failure failure) { observed = failure; }
+            c.assertTrue(observed != null && !observed.mayHaveChanged && Files.notExists(second)
+                    && Files.notExists(HelperPersistence.temporaryFile(second)),
+                "An oversized intended write is refused before creating a target or temporary file");
         }
         c.succeed();
     }
