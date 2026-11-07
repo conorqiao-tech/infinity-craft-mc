@@ -446,6 +446,20 @@ def write_backup_file(output, entry, fabric):
         raise ValueError("A backup path changed or could not be read; no archive was published.") from error
 
 
+def unlink_backup_lease_entry(path, descriptor):
+    """Remove only an observed entry matching our lease; this is not writer exclusion."""
+    try:
+        current = path.lstat()
+    except FileNotFoundError:
+        return False
+    held = os.fstat(descriptor)
+    if (not stat.S_ISREG(current.st_mode) or not stat.S_ISREG(held.st_mode)
+            or (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino)):
+        return False
+    path.unlink()
+    return True
+
+
 def backup(root, props, locked=False):
     """Archive the stopped world; returns its name, or None for a genuinely new world.
 
@@ -453,14 +467,49 @@ def backup(root, props, locked=False):
     folder entry is unconfirmed; confirm_backup_durable reports that."""
     lockfile = root / "launcher.lock"
     fd = None
-    if not locked:
-        try:
-            fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError as error:
-            raise ValueError("Save & Stop the server before backing up the world.") from error
+    lease_temporary = None
+    owns_launcher_lock = False
     temporary = None
     session_lock = None
     try:
+        if not locked:
+            if os.name == "posix":
+                import fcntl
+                # Do not publish an empty launcher.lock: a process exit between
+                # creation and the PID write would leave an unrecoverable lock.
+                lease_temporary = root / (".launcher-lock-" + uuid.uuid4().hex + ".tmp")
+                fd = os.open(lease_temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                try:
+                    fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                    owns_launcher_lock = True
+                except FileExistsError as error:
+                    raise ValueError("Save & Stop the server before backing up the world.") from error
+            pid = str(os.getpid()).encode("ascii")
+            if os.write(fd, pid) != len(pid):
+                raise OSError("Could not write the complete launcher lock owner")
+            if lease_temporary is not None:
+                os.fsync(fd)
+                try:
+                    os.link(lease_temporary, lockfile, follow_symlinks=False)
+                    owns_launcher_lock = True
+                except FileExistsError as error:
+                    raise ValueError("Save & Stop the server before backing up the world.") from error
+                held = os.fstat(fd)
+                current = lockfile.lstat()
+                if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
+                        or held.st_nlink != 2 or current.st_nlink != 2
+                        or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+                    raise ValueError("The launcher lock changed before backup; no archive was published.")
+                if not unlink_backup_lease_entry(lease_temporary, fd):
+                    raise ValueError("The launcher lock staging entry changed; no archive was published.")
+                lease_temporary = None
+                held = os.fstat(fd)
+                current = lockfile.lstat()
+                if (not stat.S_ISREG(current.st_mode) or held.st_nlink != 1 or current.st_nlink != 1
+                        or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+                    raise ValueError("The launcher lock changed before backup; no archive was published.")
         fabric, world = world_folder(root, props)
         if not world.exists():
             return None  # A genuinely new world; Minecraft creates it on first start.
@@ -518,9 +567,14 @@ def backup(root, props, locked=False):
             finally:
                 if fd is not None:
                     try:
-                        os.close(fd)
+                        if owns_launcher_lock:
+                            unlink_backup_lease_entry(lockfile, fd)
                     finally:
-                        lockfile.unlink(missing_ok=True)
+                        try:
+                            if lease_temporary is not None:
+                                unlink_backup_lease_entry(lease_temporary, fd)
+                        finally:
+                            os.close(fd)
 
 
 ROSTER_MAX_BYTES = 256 * 1024

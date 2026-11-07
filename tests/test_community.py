@@ -252,7 +252,121 @@ class CommunityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Stop"):
             community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual((self.root / "launcher.lock").read_text(), "running")
+        self.assertEqual(list(self.root.glob(".launcher-lock-*.tmp")), [])
         self.assertFalse((self.root / "backups").exists())
+
+    @unittest.skipUnless(os.name == "posix", "requires the POSIX launcher lease")
+    def test_manual_backup_holds_launcher_lease_with_process_identity(self):
+        lock = self.root / "launcher.lock"
+        real_write = community.write_backup_file
+        attempts = []
+        code = ("import fcntl,sys; f=open(sys.argv[1],'rb'); "
+                "\ntry: fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: sys.exit(42)\nelse: sys.exit(0)")
+
+        def probe(archive, *args, **kwargs):
+            self.assertEqual(lock.read_text(), str(os.getpid()))
+            attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
+            return real_write(archive, *args, **kwargs)
+
+        with patch.object(community, "write_backup_file", probe):
+            name = community.backup(self.root, {"level-name": "my-world"})
+        self.assertTrue(attempts)
+        self.assertEqual(set(attempts), {42})
+        self.assertTrue((self.root / "backups" / name).is_file())
+        self.assertFalse(lock.exists())
+
+    @unittest.skipUnless(os.name == "posix", "requires the POSIX launcher lease")
+    def test_crashed_manual_backup_leaves_recoverable_launcher_identity(self):
+        from types import SimpleNamespace
+        code = (
+            "import os,sys; from pathlib import Path; "
+            "sys.path.insert(0,sys.argv[1]); import community; "
+            "actual=community.sync_file; "
+            "exec('def cut(stream):\\n actual(stream)\\n os._exit(86)'); "
+            "community.sync_file=cut; community.backup(Path(sys.argv[2]),{'level-name':'my-world'})"
+        )
+        source = Path(community.__file__).resolve().parent
+        child = subprocess.Popen([sys.executable, "-c", code, str(source), str(self.root)])
+        self.assertEqual(child.wait(timeout=20), 86)
+        lock = self.root / "launcher.lock"
+        self.assertEqual(lock.read_text(), str(child.pid))
+        args = SimpleNamespace(bind="127.0.0.1", java_port=0, bedrock_port=0)
+        launcher.check_launcher_lock(args, self.root)
+        self.assertEqual(lock.read_text(), str(child.pid))
+        self.assertEqual(len(list((self.root / "backups").glob("*.partial"))), 1)
+        self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
+        self.assertEqual((self.world / "level.dat").read_bytes(), b"test world header")
+        self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
+        lease = launcher.acquire_launcher_lock(args, self.root)
+        try:
+            self.assertTrue(lock.is_file())
+        finally:
+            os.close(lease)
+            lock.unlink()
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX hard links and launcher leases")
+    def test_manual_backup_lock_publication_survives_process_exit(self):
+        from types import SimpleNamespace
+        source = Path(community.__file__).resolve().parent
+        args = SimpleNamespace(bind="127.0.0.1", java_port=0, bedrock_port=0)
+        for cut in ("before-link", "after-link"):
+            with self.subTest(cut=cut), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                world = root / "fabric/world"
+                world.mkdir(parents=True)
+                (world / "level.dat").write_bytes(b"synthetic world")
+                code = (
+                    "import os,sys; from pathlib import Path; "
+                    "sys.path.insert(0,sys.argv[1]); import community; original=os.link; "
+                    "exec('def cut(src,dst,*a,**k):\\n if sys.argv[3] == \\\"after-link\\\": original(src,dst,*a,**k)\\n os._exit(86)'); "
+                    "community.os.link=cut; community.backup(Path(sys.argv[2]),{'level-name':'world'})"
+                )
+                child = subprocess.Popen([sys.executable, "-c", code, str(source), str(root), cut])
+                self.assertEqual(child.wait(timeout=20), 86)
+                staged = list(root.glob(".launcher-lock-*.tmp"))
+                self.assertEqual(len(staged), 1)
+                self.assertEqual(staged[0].read_text(), str(child.pid))
+                lock = root / "launcher.lock"
+                self.assertEqual(lock.exists(), cut == "after-link")
+                if lock.exists():
+                    self.assertEqual(lock.read_text(), str(child.pid))
+                    launcher.check_launcher_lock(args, root)
+                    lease = launcher.acquire_launcher_lock(args, root)
+                    os.close(lease)
+                    lock.unlink()
+                    self.assertTrue(staged[0].is_file())
+                self.assertFalse((root / "backups").exists())
+                self.assertEqual((world / "level.dat").read_bytes(), b"synthetic world")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX hard links and launcher leases")
+    def test_manual_backup_keeps_replaced_launcher_lock_for_review(self):
+        lock = self.root / "launcher.lock"
+        real_link = os.link
+        replacement = b"synthetic replacement"
+
+        def replace_lock(source, target, *args, **kwargs):
+            real_link(source, target, *args, **kwargs)
+            lock.unlink()
+            lock.write_bytes(replacement)
+
+        with patch.object(community.os, "link", replace_lock):
+            with self.assertRaisesRegex(ValueError, "launcher lock changed"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertEqual(lock.read_bytes(), replacement)
+        self.assertEqual(list(self.root.glob(".launcher-lock-*.tmp")), [])
+        self.assertFalse((self.root / "backups").exists())
+        self.assertEqual((self.world / "level.dat").read_bytes(), b"test world header")
+
+    @unittest.skipUnless(os.name == "posix", "requires POSIX launcher lease synchronization")
+    def test_manual_backup_does_not_publish_a_lock_when_lease_sync_fails(self):
+        with patch.object(community.os, "fsync", side_effect=OSError("injected lease sync failure")):
+            with self.assertRaisesRegex(OSError, "lease sync failure"):
+                community.backup(self.root, {"level-name": "my-world"})
+        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertEqual(list(self.root.glob(".launcher-lock-*.tmp")), [])
+        self.assertFalse((self.root / "backups").exists())
+        self.assertEqual((self.world / "level.dat").read_bytes(), b"test world header")
 
     def test_backup_refuses_when_native_world_lock_cannot_be_checked(self):
         with patch.object(community, "SESSION_LOCK_AVAILABLE", False):
