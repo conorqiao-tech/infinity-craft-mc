@@ -40,6 +40,24 @@ class CommunityTests(unittest.TestCase):
         self.assertFalse((self.root / "launcher.lock").exists())
         self.assertEqual(community.backups(self.root)[0]["name"], name)
 
+    def test_backup_keeps_helper_recovery_and_retirement_evidence(self):
+        evidence = {
+            "infinity-agents.json": b"synthetic roster",
+            "infinity-agents.json.previous": b"synthetic previous roster",
+            "infinity-agents.json.recovery-required": b"synthetic guard",
+            "infinity-agents.json.recovery-required.tmp": b"synthetic unfinished guard",
+            "infinity-agents.json.recovery-retiring": b"synthetic retirement witness",
+            "infinity-agents.json.recovery-retiring.tmp": b"synthetic unfinished witness",
+        }
+        for name, content in evidence.items():
+            (self.world / name).write_bytes(content)
+        archive = community.backup(self.root, {"level-name": "my-world"})
+        with zipfile.ZipFile(self.root / "backups" / archive) as backup:
+            self.assertIsNone(backup.testzip())
+            for name, content in evidence.items():
+                self.assertEqual(backup.read("my-world/" + name), content)
+                self.assertEqual((self.world / name).read_bytes(), content)
+
     def test_backup_never_runs_under_an_active_world_lock(self):
         (self.root / "launcher.lock").write_text("running")
         with self.assertRaisesRegex(ValueError, "Stop"):

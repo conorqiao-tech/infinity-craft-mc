@@ -70,6 +70,9 @@ final class HelperPersistence {
      */
     static Path recoveryMarker(Path roster) { return roster.resolveSibling(roster.getFileName() + ".recovery-required"); }
     static Path recoveryTemporary(Path roster) { return temporaryFile(recoveryMarker(roster)); }
+    /** Independent evidence retained until removal of the original guard is synced. */
+    static Path retirementMarker(Path roster) { return roster.resolveSibling(roster.getFileName() + ".recovery-retiring"); }
+    static Path retirementTemporary(Path roster) { return temporaryFile(retirementMarker(roster)); }
 
     /** With {@code requireProof}, storage that cannot sync its directory refuses before the rename. */
     Durability replace(Path target, byte[] bytes, boolean keepPrevious, boolean requireProof) throws Failure {
@@ -123,7 +126,8 @@ final class HelperPersistence {
         if (Files.exists(roster, LinkOption.NOFOLLOW_LINKS)) return null;
         if (!Files.notExists(roster, LinkOption.NOFOLLOW_LINKS))
             return "whether " + roster.getFileName() + " exists cannot be determined";
-        for (Path evidence : new Path[]{previousFile(roster), recoveryMarker(roster), recoveryTemporary(roster), temporaryFile(roster)})
+        for (Path evidence : new Path[]{previousFile(roster), recoveryMarker(roster), recoveryTemporary(roster),
+                retirementMarker(roster), retirementTemporary(roster), temporaryFile(roster)})
             if (!Files.notExists(evidence, LinkOption.NOFOLLOW_LINKS))
                 return roster.getFileName() + " is missing but " + evidence.getFileName() + " may exist";
         return null;
@@ -133,7 +137,9 @@ final class HelperPersistence {
     static boolean recoveryRequired(Path roster) {
         try {
             return !Files.notExists(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
-                || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS);
+                || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(retirementMarker(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS);
         } catch (SecurityException denied) { return true; }
     }
 
@@ -141,7 +147,9 @@ final class HelperPersistence {
     static boolean guardIntact(Path roster) {
         try {
             return Files.isRegularFile(recoveryMarker(roster), LinkOption.NOFOLLOW_LINKS)
-                && Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS);
+                && Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
+                && Files.notExists(retirementMarker(roster), LinkOption.NOFOLLOW_LINKS)
+                && Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS);
         } catch (SecurityException denied) { return false; }
     }
 
@@ -162,16 +170,25 @@ final class HelperPersistence {
     }
 
     /**
-     * Retires the marker; callers invoke this only after the guarded roster
-     * write was proven durable. If the deletion or its sync fails, the marker
-     * either remains (a restart stays frozen) or is gone after a proven roster.
+     * Retires the marker only after the guarded roster write was proven durable.
+     * Establish a second durable note before deleting the first. If the first
+     * deletion or its directory sync fails, that note remains for restart. Only
+     * after that sync succeeds may the second note be deleted. This does not
+     * establish exclusive writer ownership or native entity-save durability.
      */
     void endGuard(Path roster) throws Failure {
-        Path marker = recoveryMarker(roster), directory = marker.toAbsolutePath().getParent();
+        Path marker = recoveryMarker(roster), retiring = retirementMarker(roster), directory = marker.toAbsolutePath().getParent();
         try {
             if (!guardIntact(roster)) throw new IOException("Recovery guard is missing or has competing temporary evidence");
+            replace(retiring, "Guard retirement is in progress; preserve the roster and matching world for review.\n".getBytes(StandardCharsets.UTF_8), false, true);
+            if (!Files.isRegularFile(marker, LinkOption.NOFOLLOW_LINKS)
+                || !Files.isRegularFile(retiring, LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(recoveryTemporary(roster), LinkOption.NOFOLLOW_LINKS)
+                || !Files.notExists(retirementTemporary(roster), LinkOption.NOFOLLOW_LINKS))
+                throw new IOException("Recovery evidence changed during guard retirement");
             io.delete(marker); io.syncDirectory(directory);
+            io.delete(retiring); io.syncDirectory(directory);
         }
-        catch (IOException | RuntimeException e) { throw new Failure("Could not prove " + marker.getFileName() + " was removed", true, e); }
+        catch (IOException | RuntimeException e) { throw new Failure("Could not complete recovery guard retirement", true, e); }
     }
 }
