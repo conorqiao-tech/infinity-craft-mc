@@ -56,7 +56,14 @@ public class AgentCodeGameTests {
     }
 
     private void cleanup(AgentCompanions core, ServerPlayer player) {
-        core.data.agents.entrySet().removeIf(entry -> entry.getValue().owner().equals(player.getStringUUID()));
+        // These are test-only records. Keep their identities reserved when the
+        // shared test roster is saved, just as a removal-aware runtime would.
+        var ids = core.data.agents.entrySet().stream().filter(entry -> entry.getValue().owner().equals(player.getStringUUID()))
+                .map(java.util.Map.Entry::getKey).toList();
+        for (String id : ids) {
+            core.data.agents.remove(id); core.data.pendingCreations.remove(id);
+            core.rememberRemoved(id); core.data.guardedRemovals.remove(id);
+        }
         core.save();
         core.server.getPlayerList().deop(new net.minecraft.server.players.NameAndId(player.getGameProfile()));
         if (core.server.getPlayerList().getPlayer(player.getUUID()) == player) core.server.getPlayerList().remove(player);
@@ -204,7 +211,12 @@ public class AgentCodeGameTests {
             c.assertFalse(helperId.equals(replacement), "The same helper name can have a new roster UUID");
             queue.review(core.server.createCommandSourceStack(), id);
             c.assertValueEqual(queue.data.requests.get(id).state, AgentCodeRequests.State.OWNER_APPROVED, "A replacement helper cannot inherit an old request");
-            core.data.agents.remove(replacement); core.data.agents.put(helperId, original); core.save();
+            // Restore a synthetic identity for this authorization test; this is
+            // not a recovery procedure for a real saved helper.
+            core.data.agents.remove(replacement); core.data.pendingCreations.remove(replacement);
+            core.rememberRemoved(replacement); core.data.guardedRemovals.remove(replacement);
+            core.data.dismissed.remove(helperId); core.data.guardedRemovals.remove(helperId);
+            core.data.agents.put(helperId, original); core.save();
             queue.review(core.server.createCommandSourceStack(), id);
             core.data.agents.put(helperId, original.profile(AgentCompanions.Profile.API)); core.save();
             queue.complete(core.server.createCommandSourceStack(), id, SHA);

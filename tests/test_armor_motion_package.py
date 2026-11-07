@@ -23,7 +23,9 @@ def archive_bytes(entries):
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, data in entries.items():
-            archive.writestr(name, data)
+            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, data)
     return stream.getvalue()
 
 

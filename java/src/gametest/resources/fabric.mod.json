@@ -113,6 +113,9 @@
       "dev.convergence.NativeArmorRefreshGameTests"
     ],
     "infinity-exclusive-gametests": [
+      "dev.convergence.AssistantGameTests",
+      "dev.convergence.AgentCodeGameTests",
+      "dev.convergence.MenuTrackingGameTests",
       "dev.convergence.MenuSessionGameTests",
       "dev.convergence.AgentSessionGameTests",
       "dev.convergence.TradeSessionGameTests",
