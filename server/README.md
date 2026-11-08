@@ -220,7 +220,7 @@ Choose **Minigames** or **Adventure maps**, then tap a course icon to play. Each
 
 ## Restarting after a crash
 
-Press **Start server** in the dashboard. On this Mac, a leftover launcher lock can recover automatically only when its process is gone, the file belongs to you and both configured game ports are free. A live launcher or an unverifiable lock still blocks starting, before settings are changed. You do not need to delete lock files manually.
+Press **Start server** in the dashboard. An existing launcher lock blocks startup before settings are changed. If the launcher or a backup stopped unexpectedly, leave the world stopped and retain the lock for host review; a missing process or free game ports do not prove that a child has stopped or that world saves succeeded.
 
 ## Preserving worlds and historical Minecraft 26.3 upgrade
 
@@ -292,7 +292,7 @@ Automatic setup supports Mac Apple silicon/Intel, Windows x64, and Linux x64/arm
 - **A friend outside your home cannot connect:** on an Apple Silicon Mac, keep the world running and open `Start-Pinggy-Mac.command`. Share the latest separate Java and Bedrock addresses shown in the panel. These free addresses expire, so see [PINGGY_JOINING.md](PINGGY_JOINING.md) before sharing them.
 - **You want one fixed joining name:** use the optional [Dynu setup guide](DYNU_JOINING.md), reserve your own hostname, forward the two game ports, and open `Start-Dynu-Mac.command`. DNS updating requires an account and router setup; test both editions externally before sharing the name.
 - **Setup download fails:** read the error, check the internet connection, then start again. Completed verified downloads are reused.
-- **The launcher was forcibly closed:** make sure both Java processes have stopped before removing `launcher.lock`. A leftover `.runtime/bootstrap.lock` can be removed only after the Python setup process has stopped. Ordinary Save & Stop cleans up automatically.
+- **The launcher was forcibly closed:** keep the world stopped and retain `launcher.lock` for host review. A missing process or free game ports do not establish that the world saved successfully. An ordinary Save & Stop removes the launcher's own lock when its tracked processes exit successfully after receiving their stop commands; that alone does not prove that every world save succeeded.
 - **The panel was closed:** the world keeps running. Open the launcher again to return to the panel and stop it safely.
 - **Infinity Menu did not open:** close other inventory screens, put away any item on the cursor, and select the named recovery compass from your hotbar. A lobby's **INFINITY MENU** sign or the optional `/menu` shortcut also opens it. If the compass is missing, leave one inventory slot free for its replacement. Choose **Weapons, tools and blocks**, then tap an icon to equip an Infinity item. Gear requires Creative or OP2. After installing explore.37, Bedrock Creative players can also search the normal inventory for **Convergence** or **Aurora**; see [CREATIVE_INVENTORY.md](CREATIVE_INVENTORY.md) for Java client support.
 - **I cannot see an AI helper:** creating and controlling helpers requires OP level 4. Open **Infinity Menu → AI Helpers • open your squad**, then tap the green **Create your first helper** button. Stand in an open area with solid ground and room for a player-sized helper. The menu closes so you can see the named avatar or read why spawning failed. Existing helpers marked **Unloaded** need you to return nearby.
@@ -420,7 +420,7 @@ Do not share `.dashboard.json`, `fabric/config/floodgate/key.pem`, `geyser/key.p
 
 The panel is only reachable on this host (127.0.0.1) and protects its actions with a session token. The launcher manages its Geyser config, authentication mode and listener ports. Community settings selected in the panel also manage the name, slot limit, difficulty and allowlist on the next start. Edit other gameplay options in `fabric/server.properties` while stopped. Keep `online-mode=true`; Floodgate handles Bedrock authentication. `enforce-secure-profile=false` permits Bedrock's unsigned chat.
 
-If startup fails, read `fabric/launcher.log` and `geyser/launcher.log`. If the launcher was forcibly killed, first ensure both Java processes are stopped before removing `launcher.lock`. Add other server mods only after the base pack works; if additional mods change Polymer's block allocations, the launcher regenerates and copies the mappings before starting Geyser.
+If startup fails, read `fabric/launcher.log` and `geyser/launcher.log`. If the launcher stopped unexpectedly, keep the world stopped and retain `launcher.lock` for host review. Add other server mods only after the base pack works; if additional mods change Polymer's block allocations, the launcher regenerates and copies the mappings before starting Geyser.
 
 Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
 

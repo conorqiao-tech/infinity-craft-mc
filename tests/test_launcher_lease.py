@@ -46,6 +46,13 @@ else:
                                 check=True, capture_output=True, text=True, timeout=10)
         return result.stdout.strip()
 
+    def raw_lease_available(self):
+        code = ("import fcntl,sys; f=open(sys.argv[1],'rb'); "
+                "\ntry: fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
+                "\nexcept BlockingIOError: sys.exit(42)\nelse: sys.exit(0)")
+        return subprocess.run([sys.executable, "-c", code, str(self.root / "launcher.lock")],
+                              timeout=10).returncode == 0
+
     def test_new_lease_blocks_recovery_even_if_recorded_pid_appears_dead(self):
         descriptor = launcher.acquire_launcher_lock(self.args, self.root)
         try:
@@ -71,8 +78,10 @@ else:
             descriptor = None
             self.assertIsNone(service.process.poll())
             self.assertEqual(self.competing_recovery(), "refused")
+            self.assertFalse(self.raw_lease_available())
             service.stop()
-            self.assertEqual(self.competing_recovery(), "reclaimed")
+            self.assertTrue(self.raw_lease_available())
+            self.assertEqual(self.competing_recovery(), "refused")
         finally:
             if service is not None:
                 service.stop()
@@ -98,8 +107,10 @@ else:
             services[0].stop()
             self.assertIsNone(services[1].process.poll())
             self.assertEqual(self.competing_recovery(), "refused")
+            self.assertFalse(self.raw_lease_available())
             services[1].stop()
-            self.assertEqual(self.competing_recovery(), "reclaimed")
+            self.assertTrue(self.raw_lease_available())
+            self.assertEqual(self.competing_recovery(), "refused")
         finally:
             for service in services:
                 service.stop()
@@ -116,6 +127,7 @@ else:
                 os.fstat(descriptor)
                 descriptors.append(descriptor)
                 self.name = name
+                self.process = type("FakeProcess", (), {"poll": lambda self: 0})()
             def wait_ready(self, *args, **kwargs):
                 if len(descriptors) == 2:
                     stop.set()
