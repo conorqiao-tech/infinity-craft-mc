@@ -98,6 +98,7 @@ public class AgentGameTests {
         try {
             for(int i=0;i<3;i++) {
                 mobs[i]=EntityTypes.IRON_GOLEM.create(c.getLevel(),EntitySpawnReason.COMMAND);mobs[i].setUUID(ids[i]);
+                mobs[i].addTag(AgentCompanions.TAG); // These mapped bodies represent valid marked helpers.
                 isolated.loaded.put(ids[i],mobs[i]);
             }
             // Deliberately build a root with two children. TreeMap.remove changes

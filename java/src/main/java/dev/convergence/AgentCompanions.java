@@ -492,7 +492,10 @@ public final class AgentCompanions {
     private static boolean unmarkedRosterGolem(Entity entity) {
         if (!(entity instanceof IronGolem) || isAgent(entity) || !(entity.level() instanceof ServerLevel world)) return false;
         var companions = INSTANCES.get(world.getServer());
-        return companions != null && companions.data.agents.containsKey(entity.getStringUUID());
+        // A guarded dismissal removes the record in memory before its write
+        // finishes. Keep shielding the exact mapped body through that interval.
+        return companions != null && (companions.data.agents.containsKey(entity.getStringUUID())
+            || companions.loaded.get(entity.getUUID()) == entity);
     }
     public static boolean weaponCombat(Entity entity) {
         if(!isAgent(entity) || !(entity.level() instanceof ServerLevel world))return false;

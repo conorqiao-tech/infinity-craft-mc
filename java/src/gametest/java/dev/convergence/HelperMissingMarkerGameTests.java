@@ -147,9 +147,15 @@ public class HelperMissingMarkerGameTests {
             body.setCustomName(Component.literal("Synthetic dismissal edit"));
             body.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(15);
             byte[] roster = Files.readAllBytes(f.helpers.file);
-            io.roster = f.helpers.file; io.afterMove = () -> body.removeTag(AgentCompanions.TAG);
+            var victim = EntityTypes.PIG.create(c.getLevel(), EntitySpawnReason.LOAD);
+            boolean[] hurt = {false}, couldAttack = {false};
+            io.roster = f.helpers.file; io.afterMove = () -> {
+                body.removeTag(AgentCompanions.TAG);
+                hurt[0] = body.hurtServer(c.getLevel(), body.damageSources().generic(), 5);
+                couldAttack[0] = AgentCompanions.allowDamage(victim, body.damageSources().mobAttack(body));
+            };
             int result = f.helpers.dismiss(f.player, "kept");
-            c.assertTrue(result == 0 && f.helpers.creationRecoveryRequired && !body.isRemoved()
+            c.assertTrue(result == 0 && f.helpers.creationRecoveryRequired && !body.isRemoved() && !hurt[0] && !couldAttack[0]
                     && !AgentCompanions.isAgent(body) && f.helpers.loaded.get(id) == body
                     && body.getCustomName().getString().equals("Synthetic dismissal edit")
                     && body.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) == 15
@@ -158,7 +164,8 @@ public class HelperMissingMarkerGameTests {
                     && Files.exists(HelperPersistence.recoveryMarker(f.helpers.file))
                     && Arrays.equals(roster, Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file)))
                     && !Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
-                "An ambiguous guarded dismissal retains its body, previous roster, new on-disk roster and recovery guard");
+                "An ambiguous guarded dismissal shields and retains its body, previous roster, new on-disk roster and recovery guard; hurt="
+                    + hurt[0] + ", outgoing allowed=" + couldAttack[0]);
         }
         c.succeed();
     }
