@@ -41,7 +41,7 @@ final class AgentEntityTargetMenu {
                 && target.level() == world && owner.level() == world && world.getEntity(id) == target
                 && id.equals(target.getUUID()) && name.equals(plain(target.getName().getString()))
                 && type.equals(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString())
-                && !AgentCompanions.registeredHelper(target) && target != owner
+                && !AgentCompanions.potentialHelper(target) && target != owner
                 && owner.distanceToSqr(target) <= 48 * 48 && (player == null || player.valid());
         }
         String description() {
@@ -58,7 +58,7 @@ final class AgentEntityTargetMenu {
     static List<Selection> nearby(ServerPlayer owner) {
         return owner.level().getEntitiesOfClass(LivingEntity.class, owner.getBoundingBox().inflate(48), target ->
             target != owner && target.isAlive() && !target.isRemoved() && !target.isSpectator()
-                && !AgentCompanions.registeredHelper(target) && owner.distanceToSqr(target) <= 48 * 48).stream()
+                && !AgentCompanions.potentialHelper(target) && owner.distanceToSqr(target) <= 48 * 48).stream()
             .sorted(Comparator.comparingDouble((LivingEntity target) -> owner.distanceToSqr(target)).thenComparing(LivingEntity::getUUID))
             .limit(512).map(target -> new Selection(owner, target)).toList();
     }

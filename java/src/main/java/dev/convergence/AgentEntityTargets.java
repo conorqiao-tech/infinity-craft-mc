@@ -35,7 +35,7 @@ final class AgentEntityTargets {
         if (owner == null || !AgentMenu.allowed(owner)) return "A living, connected OP4 owner is required.";
         if (target == null || target instanceof ServerPlayer) return "Player targets use the separate two-approval player order.";
         if (!target.isAlive() || target.isRemoved() || target.isSpectator()) return "That target is no longer available.";
-        if (AgentCompanions.registeredHelper(target)) return "Registered helpers cannot be squad targets.";
+        if (AgentCompanions.potentialHelper(target)) return "A saved or uncertain helper cannot be a squad target.";
         if (target.level() != owner.level() || owner.level().getEntity(target.getUUID()) != target)
             return "The exact target must remain loaded in your current world.";
         if (owner.distanceToSqr(target) > 48 * 48) return "The target must remain within 48 blocks of you.";

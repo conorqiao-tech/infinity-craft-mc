@@ -65,6 +65,8 @@ public final class AgentCompanions {
     // a later change silently overwrite its unresolved saved roster or evidence,
     // and never delete a helper entity while it is set.
     boolean creationRecoveryRequired;
+    /** Identities observed in readable previous active or reserved-removal records. */
+    private Set<String> previousKnownIdentities = Set.of();
     private HelperPersistence.ExpectedRoster expectedRoster;
     /** True once a roster was read at startup or this runtime may have written one; only a genuine first boot starts false. */
     boolean rosterEstablished;
@@ -188,6 +190,7 @@ public final class AgentCompanions {
         // A marker or unfinished roster write, even an unreadable one, keeps
         // ownership frozen. Nothing here may resolve it automatically.
         creationRecoveryRequired = absent != null || HelperPersistence.recoveryRequired(file);
+        if (creationRecoveryRequired) rememberPreviousIdentities();
         // A previous generation can be the only surviving record of an active
         // identity. Do not rotate it over with a current roster that represents
         // neither that identity nor a reserved removal.
@@ -251,6 +254,28 @@ public final class AgentCompanions {
 
     private record LoadedRoster(Data data, HelperPersistence.ExpectedRoster expected, boolean established) {}
     static Data read(Path file) { return readLoaded(file).data(); }
+    private static Set<String> knownIdentities(Map<String, Agent> agents, List<String> dismissed) {
+        var identities = new HashSet<>(agents.keySet());
+        identities.addAll(dismissed);
+        return Set.copyOf(identities);
+    }
+    private void rememberPreviousIdentities() {
+        Path previous = HelperPersistence.previousFile(file);
+        try {
+            if (java.nio.file.Files.notExists(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return;
+            if (java.nio.file.Files.isRegularFile(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                var observed = new HashSet<>(previousKnownIdentities);
+                var older = read(previous);
+                observed.addAll(knownIdentities(older.agents, older.dismissed));
+                previousKnownIdentities = Set.copyOf(observed);
+            }
+        } catch (RuntimeException failure) {
+            // A frozen runtime keeps all evidence; unreadable identities remain unknown.
+        }
+    }
+    private boolean knownProtectedIdentity(String id) {
+        return data.agents.containsKey(id) || data.dismissed.contains(id) || previousKnownIdentities.contains(id);
+    }
     /**
      * Refuse to rotate an unrepresented previous active identity or explicit
      * owner/name disagreement out of the previous roster. Mode, profile and
@@ -260,10 +285,13 @@ public final class AgentCompanions {
     private String previousIdentityProblem() {
         Path previous = HelperPersistence.previousFile(file);
         try {
-            if (java.nio.file.Files.notExists(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return null;
+            if (java.nio.file.Files.notExists(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                previousKnownIdentities = Set.of(); return null;
+            }
             if (!java.nio.file.Files.isRegularFile(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS))
                 return "the previous helper roster is not a readable regular file";
             Data older = read(previous);
+            previousKnownIdentities = knownIdentities(older.agents, older.dismissed);
             for (var entry : older.agents.entrySet()) {
                 String id = entry.getKey();
                 Agent current = data.agents.get(id), previousAgent = entry.getValue();
@@ -380,7 +408,7 @@ public final class AgentCompanions {
      */
     Commit commit(Runnable change, Save policy, boolean keepPrevious) {
         if (creationRecoveryRequired) return Commit.BLOCKED;
-        if (freezeUnmarkedLoaded(data.agents)) return Commit.BLOCKED;
+        if (freezeUnmarkedLoaded()) return Commit.BLOCKED;
         if (HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file)) {
             freeze("unfinished or invalid previous-roster evidence must be preserved for review", null);
             return Commit.BLOCKED;
@@ -407,16 +435,18 @@ public final class AgentCompanions {
         }
         var agents = new TreeMap<>(data.agents); var dismissed = new ArrayList<>(data.dismissed);
         var guarded = new ArrayList<>(data.guardedRemovals); var pending = new ArrayList<>(data.pendingCreations);
+        boolean hadRoster = rosterEstablished;
         change.run();
         try {
             byte[] bytes = rosterBytes();
             var nextExpected = HelperPersistence.ExpectedRoster.fromBytes(bytes);
             var durability = persistence.replace(file, bytes, keepPrevious, policy == Save.CREATION, expectedRoster);
             rosterEstablished = true;
+            if (keepPrevious && hadRoster) previousKnownIdentities = knownIdentities(agents, dismissed);
             // A callback may have made ownership uncertain while the write was
             // in progress. Check both generations: a guarded removal may have
             // removed the identity from the new in-memory roster already.
-            var unmarked = unmarkedLoaded(agents);
+            var unmarked = unmarkedLoaded();
             if (creationRecoveryRequired || !unmarked.isEmpty()) {
                 restore(agents, dismissed, guarded, pending);
                 if (!unmarked.isEmpty()) freezeUnmarkedLoaded(unmarked);
@@ -447,7 +477,7 @@ public final class AgentCompanions {
      * not touched. An ambiguous marker write freezes, since it may exist.
      */
     private String guard(String reason) {
-        if (!creationRecoveryRequired) freezeUnmarkedLoaded(data.agents);
+        if (!creationRecoveryRequired) freezeUnmarkedLoaded();
         if (creationRecoveryRequired) return "Nothing was changed. " + FROZEN;
         try { persistence.beginGuard(file, clock.instant() + " " + reason); return null; }
         catch (HelperPersistence.Failure failure) {
@@ -470,6 +500,7 @@ public final class AgentCompanions {
     }
     private void freeze(String reason, Exception failure) {
         creationRecoveryRequired = true;
+        rememberPreviousIdentities();
         var log = org.slf4j.LoggerFactory.getLogger("Infinity helpers");
         log.error("Helper ownership is frozen: {}. Inspect {} and its .previous copy.", reason, file, failure);
         try { persistence.markRecoveryRequired(file, clock.instant() + " " + reason); }
@@ -494,7 +525,15 @@ public final class AgentCompanions {
         var companions = INSTANCES.get(world.getServer());
         // A guarded dismissal removes the record in memory before its write
         // finishes. Keep shielding the exact mapped body through that interval.
-        return companions != null && (companions.data.agents.containsKey(entity.getStringUUID())
+        return companions != null && (companions.knownProtectedIdentity(entity.getStringUUID())
+            || companions.loaded.get(entity.getUUID()) == entity);
+    }
+    /** A tagged or uncertain rostered body is not a valid ordinary mob target. */
+    public static boolean potentialHelper(Entity entity) {
+        if (isAgent(entity)) return true;
+        if (entity == null || !(entity.level() instanceof ServerLevel world)) return false;
+        var companions = INSTANCES.get(world.getServer());
+        return companions != null && (companions.knownProtectedIdentity(entity.getStringUUID())
             || companions.loaded.get(entity.getUUID()) == entity);
     }
     public static boolean weaponCombat(Entity entity) {
@@ -642,17 +681,17 @@ public final class AgentCompanions {
         ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
         golem.setTarget(null); golem.getNavigation().stop();
     }
-    private List<IronGolem> unmarkedLoaded(Map<String, Agent> earlierAgents) {
+    private List<IronGolem> unmarkedLoaded() {
         var result = new ArrayList<IronGolem>();
         for (var entry : new ArrayList<>(loaded.entrySet())) {
-            var golem = entry.getValue(); String id = entry.getKey().toString();
-            if (!golem.isRemoved() && (earlierAgents.containsKey(id) || data.agents.containsKey(id)) && !isAgent(golem))
+            var golem = entry.getValue();
+            if (!golem.isRemoved() && !isAgent(golem))
                 result.add(golem);
         }
         return result;
     }
-    private boolean freezeUnmarkedLoaded(Map<String, Agent> earlierAgents) {
-        return freezeUnmarkedLoaded(unmarkedLoaded(earlierAgents));
+    private boolean freezeUnmarkedLoaded() {
+        return freezeUnmarkedLoaded(unmarkedLoaded());
     }
     private boolean freezeUnmarkedLoaded(List<IronGolem> bodies) {
         if (bodies.isEmpty()) return false;
@@ -666,15 +705,16 @@ public final class AgentCompanions {
     }
     void load(Entity entity) {
         Agent agent = data.agents.get(entity.getStringUUID());
+        boolean known = knownProtectedIdentity(entity.getStringUUID());
         if (!(entity instanceof IronGolem golem)) {
-            if (agent != null) {
+            if (known) {
                 if (!creationRecoveryRequired) freeze("a different entity type claims a saved helper identity", null);
                 notifyRecoveryOwner(entity.getStringUUID(), "A different entity type has a saved helper identity. Its body and roster were kept for host review. " + FROZEN);
             }
             return;
         }
         if (!isAgent(golem)) {
-            if (agent == null) return;
+            if (!known) return;
             if (!creationRecoveryRequired) freeze("a saved helper identity was found on a body without its helper marker", null);
             var prior = loaded.get(golem.getUUID());
             if (prior != null && prior != golem && !prior.isRemoved()) retainUnmarked(prior);
@@ -737,7 +777,7 @@ public final class AgentCompanions {
         return creationRecoveryRequired ? 0 : Math.max(0, Math.min(LIMIT - count(owner), GLOBAL_LIMIT - data.agents.size()));
     }
     private boolean rosterWritable(ServerPlayer owner) {
-        if (!creationRecoveryRequired) freezeUnmarkedLoaded(data.agents);
+        if (!creationRecoveryRequired) freezeUnmarkedLoaded();
         if (!creationRecoveryRequired) return true;
         reply(owner, "Nothing was changed. " + FROZEN);
         return false;
@@ -761,7 +801,7 @@ public final class AgentCompanions {
     }
     /** Order availability is separate from target distance: a usable squad can pursue or wait inside its leash. */
     boolean playerOrderHelperAvailable(IronGolem golem, Agent agent, ServerPlayer owner) {
-        if (owner == null || !playerCombatProfile(agent.profile) || !agent.owner.equals(owner.getStringUUID()) || pauseReason(owner, golem, agent) != null) return false;
+        if (!isAgent(golem) || owner == null || !playerCombatProfile(agent.profile) || !agent.owner.equals(owner.getStringUUID()) || pauseReason(owner, golem, agent) != null) return false;
         Vec3 center = agent.mode == Mode.FOLLOW ? owner.position() : agent.anchor();
         double leash = agent.mode == Mode.FOLLOW ? 48 : 14;
         return golem.position().distanceToSqr(center) <= leash * leash;
@@ -925,9 +965,12 @@ public final class AgentCompanions {
             } else loaded.put(id, recalled);
             halt(recalled);
             if (creationRecoveryRequired) {
-                recalled.removeFreeWill();
-                ((AgentGoalAccess) recalled).infinity$getTargetSelector().removeAllGoals(goal -> true);
-                recalled.setPersistenceRequired();
+                if (!isAgent(recalled)) retainUnmarked(recalled);
+                else {
+                    recalled.removeFreeWill();
+                    ((AgentGoalAccess) recalled).infinity$getTargetSelector().removeAllGoals(goal -> true);
+                    recalled.setPersistenceRequired();
+                }
             }
             return refuse(owner, name + " moved beside you, but its new follow order did not save cleanly. " + unsaved(result));
         }
@@ -1241,7 +1284,7 @@ public final class AgentCompanions {
     /** The exact loaded object, not merely its UUID, owns the death callback. */
     void handleDeath(IronGolem golem) {
         UUID id = golem.getUUID(); String key = golem.getStringUUID();
-        if (!isAgent(golem) && data.agents.containsKey(key)) {
+        if (!isAgent(golem) && knownProtectedIdentity(key)) {
             if (!creationRecoveryRequired) freeze("a rostered body died without its helper marker", null);
             notifyRecoveryOwner(key, "A body with a saved helper identity died without its helper marker. Its roster remains reserved for host review. " + FROZEN);
         }
@@ -1339,13 +1382,23 @@ public final class AgentCompanions {
         return null;
     }
     void halt(IronGolem golem) {
+        // A command or collision can reach a mapped body before the next marker
+        // check. Do not clear saved anger or apply the normal movement reset to
+        // a body whose identity has become uncertain.
+        if (!isAgent(golem) && (knownProtectedIdentity(golem.getStringUUID()) || loaded.get(golem.getUUID()) == golem)) {
+            boolean newlyFrozen = !creationRecoveryRequired;
+            if (newlyFrozen) freeze("a loaded helper body lost its helper marker", null);
+            retainUnmarked(golem);
+            if (newlyFrozen) notifyRecoveryOwner(golem.getStringUUID(), "A loaded body lost its helper marker. Its body and roster need host review. " + FROZEN);
+            return;
+        }
         cancelAerial(golem);
         APPROVED_TARGETS.remove(golem); golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0); golem.getNavigation().stop(); golem.stopInPlace();
     }
     void tick() {
         // Marker loss can happen between load callbacks. Freeze before aerial
         // updates or the next five-tick control pass can touch that body.
-        freezeUnmarkedLoaded(data.agents);
+        freezeUnmarkedLoaded();
         // Plans only serve controls within this tick. Release obsolete owner
         // sessions/helpers even on ticks without the five-tick control pass.
         formationPlans.clear();
@@ -1362,7 +1415,6 @@ public final class AgentCompanions {
         for (var entry : new ArrayList<>(loaded.entrySet())) {
             var golem = entry.getValue(); var agent = data.agents.get(entry.getKey().toString());
             if (golem.isRemoved() || !golem.isAlive()) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); continue; }
-            if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); retireStale(golem); continue; }
             if (!isAgent(golem)) {
                 boolean newlyFrozen = !creationRecoveryRequired;
                 if (newlyFrozen) freeze("a loaded helper body lost its helper marker", null);
@@ -1370,6 +1422,7 @@ public final class AgentCompanions {
                 if (newlyFrozen) notifyRecoveryOwner(golem.getStringUUID(), "A loaded body lost its helper marker. Its body and roster were kept for host review. " + FROZEN);
                 continue;
             }
+            if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); retireStale(golem); continue; }
             control(golem, agent, server.getTickCount());
         }
     }
