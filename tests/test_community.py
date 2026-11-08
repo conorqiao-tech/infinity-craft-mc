@@ -411,9 +411,19 @@ class CommunityTests(unittest.TestCase):
             self.assertEqual(holder.stdout.readline().strip(), "LOCKED")
             for already_locked in (False, True):
                 with self.subTest(already_locked=already_locked):
-                    with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
-                        community.backup(self.root, {"level-name": "my-world"}, locked=already_locked)
-                    self.assertFalse((self.root / "backups").exists())
+                    descriptor = None
+                    try:
+                        if already_locked:
+                            descriptor = launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
+                            os.write(descriptor, str(os.getpid()).encode("ascii"))
+                        with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
+                            community.backup(self.root, {"level-name": "my-world"}, locked=already_locked,
+                                             lease_fd=descriptor)
+                        self.assertFalse((self.root / "backups").exists())
+                    finally:
+                        if descriptor is not None:
+                            os.close(descriptor)
+                            (self.root / "launcher.lock").unlink()
                     self.assertFalse((self.root / "launcher.lock").exists())
         finally:
             holder.stdin.write("\n"); holder.stdin.flush()
@@ -555,8 +565,14 @@ class CommunityTests(unittest.TestCase):
              patch.object(community, "sync_directory", side_effect=sync_directory):
             with self.assertRaisesRegex(OSError, "injected directory sync failure"):
                 community.backup(self.root, {"level-name": "my-world"})
-            with self.assertRaisesRegex(OSError, "injected directory sync failure"):
-                community.backup(self.root, {"level-name": "my-world"}, locked=True)
+            descriptor = launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
+            try:
+                os.write(descriptor, str(os.getpid()).encode("ascii"))
+                with self.assertRaisesRegex(OSError, "injected directory sync failure"):
+                    community.backup(self.root, {"level-name": "my-world"}, locked=True, lease_fd=descriptor)
+            finally:
+                os.close(descriptor)
+                (self.root / "launcher.lock").unlink()
         self.assertEqual(list((self.root / "backups").glob("*.partial")), [])
         self.assertFalse((self.root / "launcher.lock").exists())
         self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")

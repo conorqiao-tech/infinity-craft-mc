@@ -57,6 +57,16 @@ class TerrainRefreshTests(unittest.TestCase):
         self.storage.stop()
         self.temp.cleanup()
 
+    def backup_with_fixture_lease(self):
+        # This synthetic fixture's launcher entry models a cooperating holder.
+        import fcntl
+        descriptor = os.open(self.root / "launcher.lock", os.O_WRONLY)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return community.backup(self.root, {"level-name": "world"}, locked=True, lease_fd=descriptor)
+        finally:
+            os.close(descriptor)
+
     def write_mod(self, path, content, version="2.13.0-explore.24"):
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("fabric.mod.json", json.dumps({"version": version}))
@@ -565,7 +575,7 @@ class TerrainRefreshTests(unittest.TestCase):
         nested = self.world / "dimensions/infinity/games/hub/region/r.0.0.mca"
         nested.parent.mkdir(parents=True)
         nested.write_bytes(b"nested saved terrain")
-        self.backup = community.backup(self.root, {"level-name": "world"}, locked=True)
+        self.backup = self.backup_with_fixture_lease()
         self.policy()
         rollback = self.transaction()
         self.assertFalse(nested.exists())
@@ -579,7 +589,7 @@ class TerrainRefreshTests(unittest.TestCase):
         metadata = dimension / "data/minecraft/world_border.dat"
         metadata.parent.mkdir(parents=True)
         metadata.write_bytes(b"retained border")
-        self.backup = community.backup(self.root, {"level-name": "world"}, locked=True)
+        self.backup = self.backup_with_fixture_lease()
         self.policy()
         self.transaction()
         self.assertEqual(metadata.read_bytes(), b"retained border")
@@ -660,7 +670,7 @@ class TerrainRefreshTests(unittest.TestCase):
     def test_unconfirmed_backup_blocks_transaction_before_any_terrain_change(self):
         policy = self.policy()
         with patch.object(community, "DIRECTORY_SYNC", False):
-            self.backup = community.backup(self.root, {"level-name": "world"}, locked=True)
+            self.backup = self.backup_with_fixture_lease()
             with patch.object(refresh.terrain_storage, "prepare") as prepare:
                 with self.assertRaisesRegex(community.DurabilityError, "terrain refresh was not performed"):
                     self.transaction()
