@@ -1670,7 +1670,12 @@ public class HelperBatchGameTests {
                     && moved.getHealth() == 37 && moved.getAttributeBaseValue(Attributes.MOVEMENT_SPEED) == .31
                     && moved.getAttributeBaseValue(Attributes.ATTACK_DAMAGE) == 15
                     && observed.getIntOr("synthetic_edit", 0) == 77 && !observed.contains(HelperPowerDefaults.MARKER),
-                    "The transferred body keeps its name, tags, health and edited stat metadata");
+                    "The transferred body keeps its name, tags, health and edited stat metadata: name="
+                        + moved.getCustomName().getString() + ", tagsMatch=" + tags.equals(moved.entityTags())
+                        + ", health=" + moved.getHealth() + ", speed=" + moved.getAttributeBaseValue(Attributes.MOVEMENT_SPEED)
+                        + ", attack=" + moved.getAttributeBaseValue(Attributes.ATTACK_DAMAGE)
+                        + ", edit=" + observed.getIntOr("synthetic_edit", 0)
+                        + ", defaultMarker=" + observed.contains(HelperPowerDefaults.MARKER));
             } finally { destination.setChunkForced(arrival.x(), arrival.z(), false); }
         }
         c.succeed();

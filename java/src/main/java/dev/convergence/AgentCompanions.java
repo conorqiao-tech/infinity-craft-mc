@@ -68,6 +68,8 @@ public final class AgentCompanions {
     /** Identities observed in readable previous active or reserved-removal records. */
     private Set<String> previousKnownIdentities = Set.of();
     private HelperPersistence.ExpectedRoster expectedRoster;
+    /** Bytes or absence last observed for the previous generation; not a writer lock. */
+    private HelperPersistence.ExpectedRoster expectedPrevious;
     /** True once a roster was read at startup or this runtime may have written one; only a genuine first boot starts false. */
     boolean rosterEstablished;
     /** Set once a creation in this runtime ended UNRESOLVED; its helpers may be in the world whatever memory lists. */
@@ -285,12 +287,14 @@ public final class AgentCompanions {
     private String previousIdentityProblem() {
         Path previous = HelperPersistence.previousFile(file);
         try {
-            if (java.nio.file.Files.notExists(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+            var observed = readLoaded(previous);
+            if (expectedPrevious == null) expectedPrevious = observed.expected();
+            else if (!expectedPrevious.matches(observed.expected()))
+                return "the previous helper roster differs from the generation this runtime observed";
+            if (!observed.established()) {
                 previousKnownIdentities = Set.of(); return null;
             }
-            if (!java.nio.file.Files.isRegularFile(previous, java.nio.file.LinkOption.NOFOLLOW_LINKS))
-                return "the previous helper roster is not a readable regular file";
-            Data older = read(previous);
+            Data older = observed.data();
             previousKnownIdentities = knownIdentities(older.agents, older.dismissed);
             for (var entry : older.agents.entrySet()) {
                 String id = entry.getKey();
@@ -436,13 +440,17 @@ public final class AgentCompanions {
         var agents = new TreeMap<>(data.agents); var dismissed = new ArrayList<>(data.dismissed);
         var guarded = new ArrayList<>(data.guardedRemovals); var pending = new ArrayList<>(data.pendingCreations);
         boolean hadRoster = rosterEstablished;
+        var priorExpected = expectedRoster;
         change.run();
         try {
             byte[] bytes = rosterBytes();
             var nextExpected = HelperPersistence.ExpectedRoster.fromBytes(bytes);
             var durability = persistence.replace(file, bytes, keepPrevious, policy == Save.CREATION, expectedRoster);
             rosterEstablished = true;
-            if (keepPrevious && hadRoster) previousKnownIdentities = knownIdentities(agents, dismissed);
+            if (keepPrevious && hadRoster) {
+                previousKnownIdentities = knownIdentities(agents, dismissed);
+                expectedPrevious = priorExpected;
+            }
             // A callback may have made ownership uncertain while the write was
             // in progress. Check both generations: a guarded removal may have
             // removed the identity from the new in-memory roster already.
