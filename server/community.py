@@ -467,7 +467,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
     ownership. A noncooperating writer or later path swap is not excluded.
     """
     if not isinstance(descriptor, int) or isinstance(descriptor, bool):
-        raise ValueError("A matching launcher lease is required before backup.")
+        raise ValueError("A matching launcher lease is required before world work.")
 
     def check_entry():
         held = os.fstat(descriptor)
@@ -475,7 +475,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
         if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
                 or held.st_nlink != 1 or current.st_nlink != 1
                 or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
-            raise ValueError("The borrowed launcher lease changed; no archive was published.")
+            raise ValueError("The borrowed launcher lease changed; keep the world stopped for review.")
 
     try:
         check_entry()
@@ -486,7 +486,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
         # of existing worlds still refuse without a native session-lock check.
         check_entry()
     except OSError as error:
-        raise ValueError("The borrowed launcher lease is unavailable or changed; no archive was published.") from error
+        raise ValueError("The borrowed launcher lease is unavailable or changed; keep the world stopped for review.") from error
 
 
 def backup(root, props, locked=False, lease_fd=None):
