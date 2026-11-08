@@ -317,6 +317,75 @@ public class HelperMissingMarkerGameTests {
         c.succeed();
     }
 
+    private void observedPreviousChangedBeforeCommit(GameTestHelper c, boolean remove) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = UUID.randomUUID();
+            f.helpers.data.dismissed.add(id.toString()); f.helpers.save();
+            f.helpers.data.dismissed.clear(); f.helpers.save();
+            var restarted = new AgentCompanions(f.helpers.server, f.helpers.file);
+            c.assertTrue(!restarted.creationRecoveryRequired, "The synthetic previous reserved identity was observed without a conflict");
+            AgentCompanions.INSTANCES.put(f.helpers.server, restarted);
+            try {
+                Path previous = HelperPersistence.previousFile(f.helpers.file);
+                byte[] current = Files.readAllBytes(f.helpers.file);
+                if (remove) Files.delete(previous); // Synthetic external change, never a live file.
+                else Files.write(previous, current); // Valid but different synthetic prior generation.
+                var result = restarted.commit(() -> {}, AgentCompanions.Save.ORDINARY, true);
+                var body = f.body(id, false); f.add(body);
+                boolean harmed = body.hurtServer(c.getLevel(), body.damageSources().generic(), 5);
+                boolean priorRetained = remove ? !Files.exists(previous) : Arrays.equals(current, Files.readAllBytes(previous));
+                c.assertTrue(result == AgentCompanions.Commit.BLOCKED && restarted.creationRecoveryRequired
+                        && !harmed && AgentCompanions.potentialHelper(body) && !body.isRemoved()
+                        && Arrays.equals(current, Files.readAllBytes(f.helpers.file)) && priorRetained,
+                    "Loss or replacement of an observed previous roster freezes before saving and preserves its known identity: result="
+                        + result + ", harmed=" + harmed + ", prior retained=" + priorRetained);
+            } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void removedObservedPreviousRosterFreezesBeforeCommit(GameTestHelper c) throws Exception {
+        observedPreviousChangedBeforeCommit(c, true);
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void replacedObservedPreviousRosterFreezesBeforeCommit(GameTestHelper c) throws Exception {
+        observedPreviousChangedBeforeCommit(c, false);
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unexpectedPreviousRosterAppearingFreezesBeforeCommit(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            Path previous = HelperPersistence.previousFile(f.helpers.file);
+            c.assertTrue(!Files.exists(previous), "The synthetic first save has no prior generation");
+            byte[] current = Files.readAllBytes(f.helpers.file);
+            Files.write(previous, current, java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE);
+            var result = f.helpers.commit(() -> {}, AgentCompanions.Save.ORDINARY, true);
+            c.assertTrue(result == AgentCompanions.Commit.BLOCKED && f.helpers.creationRecoveryRequired
+                    && Arrays.equals(current, Files.readAllBytes(f.helpers.file))
+                    && Arrays.equals(current, Files.readAllBytes(previous)),
+                "An unexpected previous roster is preserved for review before another save");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void ownPreviousRosterRotationsRemainWritable(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID firstId = UUID.randomUUID(), secondId = UUID.randomUUID();
+            var first = f.helpers.commit(() -> f.helpers.data.dismissed.add(firstId.toString()), AgentCompanions.Save.ORDINARY, true);
+            byte[] firstGeneration = Files.readAllBytes(f.helpers.file);
+            var second = f.helpers.commit(() -> f.helpers.data.dismissed.add(secondId.toString()), AgentCompanions.Save.ORDINARY, true);
+            c.assertTrue((first == AgentCompanions.Commit.PROVEN || first == AgentCompanions.Commit.UNPROVEN)
+                    && (second == AgentCompanions.Commit.PROVEN || second == AgentCompanions.Commit.UNPROVEN)
+                    && !f.helpers.creationRecoveryRequired
+                    && Arrays.equals(firstGeneration, Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file))),
+                "The runtime accepts its own successive previous-roster rotations");
+        }
+        c.succeed();
+    }
+
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void unmarkedBodyWithReservedRemovalIsRetainedForReview(GameTestHelper c) throws Exception {
         try (var f = new Fixture(c)) {

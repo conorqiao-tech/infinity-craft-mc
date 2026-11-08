@@ -116,6 +116,11 @@ final class HelperPersistence {
             try { return new ExpectedRoster(sha256().digest(bytes)); }
             catch (IOException e) { throw new Failure("Cannot hash helper roster evidence", false, e); }
         }
+        boolean matches(ExpectedRoster other) {
+            if (other == null) return false;
+            if (digest == null || other.digest == null) return digest == null && other.digest == null;
+            return MessageDigest.isEqual(digest, other.digest);
+        }
     }
 
     final Io io;
