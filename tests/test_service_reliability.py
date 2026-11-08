@@ -224,12 +224,33 @@ class ServiceReliabilityTests(unittest.TestCase):
             try:
                 service.wait_ready(timeout=5)
             finally:
-                service.stop()
+                self.assertTrue(service.stop())
             self.assertEqual(service.process.returncode, 0)
             self.assertFalse(service.thread.is_alive())
             self.assertTrue(service.process.stdin.closed and service.process.stdout.closed)
             self.assertIn("SAVED", (Path(folder) / "launcher.log").read_text())
-            service.stop()  # Already stopped services still keep cleanup idempotent.
+            self.assertFalse(service.stop())  # Already stopped is not proof of a controlled stop.
+
+    def test_forced_stop_does_not_claim_a_controlled_exit(self):
+        script = "import time\nprint('READY', flush=True)\nwhile True: time.sleep(1)\n"
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            service = launcher.Service("Test", [sys.executable, "-u", "-c", script], Path(folder), "READY")
+            service.wait_ready(timeout=5)
+            real_wait = service.process.wait
+            calls = []
+            def wait(timeout):
+                calls.append(timeout)
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(service.process.args, timeout)
+                return real_wait(timeout=timeout)
+            try:
+                with patch.object(service.process, "wait", side_effect=wait):
+                    self.assertFalse(service.stop())
+                self.assertIsNotNone(service.process.poll())
+            finally:
+                if service.process.poll() is None:
+                    service.process.kill()
+                    service.process.wait(timeout=5)
 
     def test_stop_does_not_close_stdin_during_an_inflight_send(self):
         entered, release, closed = threading.Event(), threading.Event(), threading.Event()

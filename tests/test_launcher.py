@@ -116,34 +116,32 @@ class LauncherTests(unittest.TestCase):
             bedrock_port = udp.getsockname()[1]
         launcher.check_ports(launcher.parse_args(['--bind', '127.0.0.1', '--java-port', str(port), '--bedrock-port', str(bedrock_port)]))
 
-    @unittest.skipUnless(launcher.os.name == 'posix', 'Automatic stale-lock recovery uses POSIX file locking')
-    def test_crashed_launcher_lock_is_recovered_with_free_ports(self):
+    def test_crashed_launcher_lock_is_preserved_even_with_free_ports(self):
         lock = self.root / 'launcher.lock'
         lock.write_text('999999999')
         stale_inode = lock.stat().st_ino
         args = launcher.parse_args(['--bind', '127.0.0.1'])
         with patch.object(launcher.os, 'kill', side_effect=ProcessLookupError), \
              patch.object(launcher, 'check_ports') as ports:
-            descriptor = launcher.acquire_launcher_lock(args, self.root)
-        try:
-            self.assertNotEqual(lock.stat().st_ino, stale_inode)
-            self.assertEqual(lock.read_text(), '')
-            ports.assert_called_once_with(args)
-        finally:
-            launcher.os.close(descriptor)
-            lock.unlink()
+            with self.assertRaisesRegex(RuntimeError, 'launcher.lock'):
+                launcher.check_launcher_lock(args, self.root)
+            with self.assertRaisesRegex(RuntimeError, 'launcher.lock'):
+                launcher.acquire_launcher_lock(args, self.root)
+            ports.assert_not_called()
+        self.assertEqual(lock.stat().st_ino, stale_inode)
+        self.assertEqual(lock.read_text(), '999999999')
 
     @unittest.skipUnless(launcher.os.name == 'posix', 'Automatic stale-lock recovery uses POSIX file locking')
     def test_active_or_unverifiable_launcher_lock_is_preserved(self):
         lock = self.root / 'launcher.lock'
         lock.write_text(str(launcher.os.getpid()))
         with patch.object(launcher, 'check_ports') as ports:
-            with self.assertRaisesRegex(RuntimeError, 'may still be running'):
+            with self.assertRaisesRegex(RuntimeError, 'launcher.lock'):
                 launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
             ports.assert_not_called()
         self.assertEqual(lock.read_text(), str(launcher.os.getpid()))
         lock.write_text('not a process ID')
-        with self.assertRaisesRegex(RuntimeError, 'valid process ID'):
+        with self.assertRaisesRegex(RuntimeError, 'launcher.lock'):
             launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
         self.assertEqual(lock.read_text(), 'not a process ID')
 
@@ -156,7 +154,7 @@ class LauncherTests(unittest.TestCase):
             listener.listen(1)
             args = launcher.parse_args(['--bind', '127.0.0.1', '--java-port', str(listener.getsockname()[1])])
             with patch.object(launcher.os, 'kill', side_effect=ProcessLookupError):
-                with self.assertRaisesRegex(RuntimeError, 'Java port'):
+                with self.assertRaisesRegex(RuntimeError, 'launcher.lock'):
                     launcher.acquire_launcher_lock(args, self.root)
         self.assertEqual(lock.read_text(), '999999999')
 

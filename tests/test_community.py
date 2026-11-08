@@ -277,7 +277,7 @@ class CommunityTests(unittest.TestCase):
         self.assertFalse(lock.exists())
 
     @unittest.skipUnless(os.name == "posix", "requires the POSIX launcher lease")
-    def test_crashed_manual_backup_leaves_recoverable_launcher_identity(self):
+    def test_crashed_manual_backup_preserves_launcher_identity_for_review(self):
         from types import SimpleNamespace
         code = (
             "import os,sys; from pathlib import Path; "
@@ -292,18 +292,16 @@ class CommunityTests(unittest.TestCase):
         lock = self.root / "launcher.lock"
         self.assertEqual(lock.read_text(), str(child.pid))
         args = SimpleNamespace(bind="127.0.0.1", java_port=0, bedrock_port=0)
-        launcher.check_launcher_lock(args, self.root)
+        with self.assertRaisesRegex(RuntimeError, "launcher.lock"):
+            launcher.check_launcher_lock(args, self.root)
         self.assertEqual(lock.read_text(), str(child.pid))
         self.assertEqual(len(list((self.root / "backups").glob("*.partial"))), 1)
         self.assertEqual(list((self.root / "backups").glob("*.zip")), [])
         self.assertEqual((self.world / "level.dat").read_bytes(), b"test world header")
         self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
-        lease = launcher.acquire_launcher_lock(args, self.root)
-        try:
-            self.assertTrue(lock.is_file())
-        finally:
-            os.close(lease)
-            lock.unlink()
+        with self.assertRaisesRegex(RuntimeError, "launcher.lock"):
+            launcher.acquire_launcher_lock(args, self.root)
+        self.assertEqual(lock.read_text(), str(child.pid))
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX hard links and launcher leases")
     def test_manual_backup_lock_publication_survives_process_exit(self):
@@ -331,10 +329,11 @@ class CommunityTests(unittest.TestCase):
                 self.assertEqual(lock.exists(), cut == "after-link")
                 if lock.exists():
                     self.assertEqual(lock.read_text(), str(child.pid))
-                    launcher.check_launcher_lock(args, root)
-                    lease = launcher.acquire_launcher_lock(args, root)
-                    os.close(lease)
-                    lock.unlink()
+                    with self.assertRaisesRegex(RuntimeError, "launcher.lock"):
+                        launcher.check_launcher_lock(args, root)
+                    with self.assertRaisesRegex(RuntimeError, "launcher.lock"):
+                        launcher.acquire_launcher_lock(args, root)
+                    self.assertEqual(lock.read_text(), str(child.pid))
                     self.assertTrue(staged[0].is_file())
                 self.assertFalse((root / "backups").exists())
                 self.assertEqual((world / "level.dat").read_bytes(), b"synthetic world")

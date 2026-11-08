@@ -441,12 +441,17 @@ class Service:
         return False
 
     def stop(self):
+        """Return False when a child did not exit in response to our stop command.
+
+        A True result is only process-lifecycle evidence, not proof of a save.
+        """
         try:
             if self.process.poll() is not None:
-                return
+                return False
             try:
-                self.send(self.stop_command)
-                self.process.wait(timeout=45)
+                if not self.send(self.stop_command):
+                    return False
+                return self.process.wait(timeout=45) == 0
             except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
                 if self.process.poll() is None:
                     self.process.terminate()
@@ -455,6 +460,7 @@ class Service:
                     except subprocess.TimeoutExpired:
                         self.process.kill()
                         self.process.wait(timeout=10)
+                return False
         finally:
             if self.process.poll() is not None:
                 try:
@@ -634,56 +640,30 @@ def create_launcher_lock(path):
 
 
 def acquire_launcher_lock(args, root):
-    """Recover a crashed POSIX launcher only when its PID is gone and ports are free."""
+    """Never replace evidence left by an interrupted launcher or backup."""
     path = root / "launcher.lock"
     try:
         return create_launcher_lock(path)
-    except FileExistsError:
-        return inspect_stale_launcher_lock(args, root, replace=True)
+    except FileExistsError as error:
+        raise RuntimeError(UNRESOLVED_LAUNCHER_LOCK) from error
+
+
+UNRESOLVED_LAUNCHER_LOCK = (
+    "launcher.lock exists. A launcher or backup may still be running or may have stopped unexpectedly. "
+    "Keep the world stopped and retain the lock for host review."
+)
 
 
 def check_launcher_lock(args, root):
-    """Validate dashboard preflight without removing a lock or changing settings."""
+    """Refuse dashboard startup without removing any existing lock evidence."""
     path = root / "launcher.lock"
-    if path.exists() or path.is_symlink():
-        inspect_stale_launcher_lock(args, root, replace=False)
-
-
-def inspect_stale_launcher_lock(args, root, *, replace):
-    path = root / "launcher.lock"
-    if os.name != "posix":
-        raise RuntimeError("launcher.lock exists. Close the other launcher before starting this world.")
-
-    import fcntl
-    previous = None
     try:
-        previous = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-        fcntl.flock(previous, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        info = os.fstat(previous)
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or not 0 < info.st_size <= 32:
-            raise RuntimeError("launcher.lock is not a valid lock owned by this user.")
-        value = os.read(previous, 33).decode("ascii").strip()
-        if not value.isdecimal() or int(value) < 1:
-            raise RuntimeError("launcher.lock does not contain a valid process ID.")
-        try:
-            os.kill(int(value), 0)
-        except ProcessLookupError:
-            pass
-        else:
-            raise RuntimeError("launcher.lock belongs to a process that may still be running.")
-        check_ports(args)
-        current = path.lstat()
-        if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
-            raise RuntimeError("launcher.lock changed during recovery.")
-        if not replace:
-            return None  # The real start repeats these checks before acquiring its lease.
-        path.unlink()
-        return create_launcher_lock(path)
-    except (OSError, UnicodeError, ValueError) as error:
-        raise RuntimeError("launcher.lock could not be safely recovered. Close the other launcher and check the game ports.") from error
-    finally:
-        if previous is not None:
-            os.close(previous)
+        path.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise RuntimeError("The launcher lock could not be checked; keep the world stopped for host review.") from error
+    raise RuntimeError(UNRESOLVED_LAUNCHER_LOCK)
 
 
 def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True, on_console_ready=None):
@@ -692,6 +672,9 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     lock_path = root / "launcher.lock"
     lock_fd = acquire_launcher_lock(args, root)
     services = []
+    spawn_may_be_untracked = False
+    unexpected_session = False
+    cancelled_after_launch = False
     try:
         pid = str(os.getpid()).encode("ascii")
         if os.write(lock_fd, pid) != len(pid):
@@ -731,16 +714,22 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             return
         for name in ["infinity-items.json", "infinity-blocks.json", "infinity-catalogue.json"]:
             (root / "fabric/crossplay-export" / name).unlink(missing_ok=True)
+        # A failed constructor may have started a child before losing its
+        # handle. Retain the lease entry unless every attempted child is tracked.
+        spawn_may_be_untracked = True
         fabric = Service("Java", [java, "-Xms512M", "-Xmx" + args.memory,
             "-jar", "fabric-server-launch.jar", "nogui"], root / "fabric", "[Infinity] Community and crossplay ready.",
             join_rules=join_rules, lease_fd=lock_fd)
         services.append(fabric)
+        spawn_may_be_untracked = False
         fabric.wait_ready(cancel=stop_requested)
         copy_bridge_data(root)
         clear_creative_receipt(root)
+        spawn_may_be_untracked = True
         geyser = Service("Bedrock", [java, "-Xms128M", "-Xmx512M", "-jar", "Geyser-Standalone.jar", "--nogui"],
             root / "geyser", "Started Geyser on", stop_command="geyser stop", lease_fd=lock_fd)
         services.append(geyser)
+        spawn_may_be_untracked = False
         geyser.wait_ready(120, cancel=stop_requested)
         wait_creative_ready(geyser, root, stop_requested)
         if on_console_ready:
@@ -772,20 +761,45 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     except KeyboardInterrupt:
         emit("\nSaving and stopping...")
     except InterruptedError:
+        cancelled_after_launch = bool(services) or spawn_may_be_untracked
+        unexpected_session = cancelled_after_launch
         emit("Startup cancelled; stopping any running services...")
+    except BaseException:
+        unexpected_session = bool(services) or spawn_may_be_untracked
+        raise
     finally:
         try:
+            stop_error = None
+            stop_unconfirmed = False
             for service in reversed(services):
-                service.stop()
-            # Preserve an entry that no longer refers to our open lease.
-            try:
-                current = lock_path.lstat()
-            except FileNotFoundError:
-                pass
-            else:
-                held = os.fstat(lock_fd)
-                if (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino):
-                    lock_path.unlink()
+                try:
+                    if service.stop() is False:
+                        stop_unconfirmed = True
+                except BaseException as error:
+                    # Still try to stop the other tracked child. Keep the lock
+                    # and propagate the first failure after those attempts.
+                    if stop_error is None:
+                        stop_error = error
+            if stop_error is not None:
+                raise stop_error
+            if any(service.process.poll() is None for service in services):
+                raise RuntimeError("A server process did not stop; keep the world stopped and retain launcher.lock for host review.")
+            if stop_unconfirmed and not unexpected_session:
+                raise RuntimeError("A server process did not stop normally; keep the world stopped and retain launcher.lock for host review.")
+            if cancelled_after_launch:
+                raise RuntimeError("Startup was cancelled after a server process started; retain launcher.lock for host review.")
+            # Preserve a changed entry or one associated with a child whose
+            # startup could not be fully tracked. Process exit is not proof of
+            # a successful Minecraft entity save.
+            if not spawn_may_be_untracked and not unexpected_session:
+                try:
+                    current = lock_path.lstat()
+                except FileNotFoundError:
+                    pass
+                else:
+                    held = os.fstat(lock_fd)
+                    if (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino):
+                        lock_path.unlink()
         finally:
             os.close(lock_fd)
 
@@ -802,8 +816,7 @@ def main(argv=None):
         emit("Java OK: " + java + "\nAll pinned files verified. No server was started.")
         return
     if args.setup:
-        if (ROOT / "launcher.lock").exists():
-            raise RuntimeError("Stop the running world before downloading or repairing server files.")
+        check_launcher_lock(args, ROOT)
         setup()
         java_command(args.java, install=True)
         emit("Setup complete. Open the launcher to start. No EULA was accepted.")

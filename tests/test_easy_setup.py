@@ -41,30 +41,20 @@ class EasySetupTests(unittest.TestCase):
         self.assertFalse((self.root / "fabric/eula.txt").exists())
         self.assertFalse((self.root / "settings.json").exists())
 
-    @unittest.skipUnless(os.name == 'posix', 'Stale-lock recovery requires POSIX')
-    def test_dashboard_start_recovers_crashed_lock_through_real_launcher_lease(self):
+    def test_dashboard_refuses_crashed_lock_without_changing_settings(self):
         lock = self.root / "launcher.lock"
         lock.write_text("999999999")
         original = lock.stat().st_ino
         panel = self.panel()
-        def fake_run(args, stop, ready, root, console, on_console_ready):
-            self.assertEqual(lock.stat().st_ino, original, "Preflight must not remove the stale lock")
-            fd = launcher.acquire_launcher_lock(args, root)
-            try:
-                self.assertNotEqual(lock.stat().st_ino, original)
-                self.assertEqual(args.java_port, 25599)
-                ready(launcher.join_addresses(args))
-            finally:
-                os.close(fd)
-                lock.unlink()
         with patch.object(launcher.os, "kill", side_effect=ProcessLookupError), patch.object(launcher, "check_ports") as ports, \
-             patch.object(launcher, "run_server", side_effect=fake_run):
-            panel.start({"accept_eula": True, "settings": {"java_port": 25599, "bind": "127.0.0.1"}})
-            panel.worker.join(2)
-        self.assertFalse(panel.worker.is_alive())
-        self.assertEqual(panel.state, "stopped", panel.error)
-        self.assertEqual(ports.call_count, 2, "Availability is checked again during real acquisition")
-        self.assertFalse(lock.exists())
+             patch.object(launcher, "run_server") as run:
+            with self.assertRaisesRegex(ValueError, "launcher.lock"):
+                panel.start({"accept_eula": True, "settings": {"java_port": 25599, "bind": "127.0.0.1"}})
+            run.assert_not_called()
+            ports.assert_not_called()
+        self.assertEqual(lock.stat().st_ino, original)
+        self.assertEqual(lock.read_text(), "999999999")
+        self.assertFalse((self.root / "settings.json").exists())
 
     @unittest.skipUnless(os.name == 'posix', 'Stale-lock recovery requires POSIX')
     def test_dashboard_preserves_live_or_invalid_lock_and_settings(self):
@@ -90,7 +80,7 @@ class EasySetupTests(unittest.TestCase):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
             udp.bind(("127.0.0.1", 0))
             with patch.object(launcher.os, "kill", side_effect=ProcessLookupError), patch.object(launcher, "run_server") as run:
-                with self.assertRaisesRegex(ValueError, "Bedrock port"):
+                with self.assertRaisesRegex(ValueError, "launcher.lock"):
                     panel.start({"accept_eula": True, "settings": {"bind": "127.0.0.1", "bedrock_port": udp.getsockname()[1]}})
                 run.assert_not_called()
         self.assertEqual(lock.read_text(), "999999999")
@@ -508,7 +498,7 @@ class EasySetupTests(unittest.TestCase):
             setup.assert_not_called()
         self.assertEqual((self.root / "launcher.lock").read_text(), "another launcher")
 
-    def test_failed_bridge_start_stops_both_services_and_releases_lock(self):
+    def test_failed_bridge_start_stops_both_services_and_preserves_lock(self):
         java, geyser = Mock(), Mock()
         geyser.wait_ready.side_effect = RuntimeError("Bedrock failed")
         with patch.object(launcher, "check_ports"), patch.object(launcher, "java_command", return_value="java"), \
@@ -518,7 +508,7 @@ class EasySetupTests(unittest.TestCase):
                 launcher.run_server(self.args, root=self.root, console=False)
         java.stop.assert_called_once()
         geyser.stop.assert_called_once()
-        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertEqual((self.root / "launcher.lock").read_text(), str(os.getpid()))
 
     def test_bootstrap_pins_match_runtime_manifest(self):
         lock = json.loads((ROOT / "server/runtime.lock.json").read_text())

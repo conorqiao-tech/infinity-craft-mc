@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import zipfile
 from unittest.mock import patch
@@ -87,26 +88,45 @@ class TerrainRefreshTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), self.original)
 
     def start(self):
-        """Run the real launcher up to opening Java; return the world as Java would see it."""
+        """Observe the world at Java startup and complete a synthetic clean stop."""
         import server as launcher
         seen = []
+        stopped = []
+        stop_requested = threading.Event()
 
-        def open_java(*args, **kwargs):
-            seen.append(self.snapshot())
-            raise InterruptedError
+        class FakeService:
+            def __init__(self, name, *args, **kwargs):
+                self.name = name
+                self.process = type("FakeProcess", (), {"poll": lambda self: 0})()
+                if name == "Java":
+                    seen.append(self_outer.snapshot())
+
+            def wait_ready(self, *args, **kwargs):
+                if self.name == "Bedrock":
+                    stop_requested.set()
+
+            def stop(self):
+                stopped.append(self.name)
+                return True
+
+        self_outer = self
         (self.root / "launcher.lock").unlink(missing_ok=True)
         with patch.object(launcher, "check_ports"), patch.object(launcher, "emit") as emit, \
              patch.object(launcher, "java_command", return_value="java"), \
              patch.object(launcher, "setup"), patch.object(launcher, "accept_eula"), \
              patch.object(launcher.owner_rules, "load"), \
-             patch.object(launcher, "Service", side_effect=open_java), \
+             patch.object(launcher, "Service", FakeService), \
+             patch.object(launcher, "copy_bridge_data"), patch.object(launcher, "clear_creative_receipt"), \
+             patch.object(launcher, "wait_creative_ready"), \
+             patch.object(launcher, "join_addresses", return_value={"java": "", "local_java": "loopback", "host": "", "bedrock_port": 1}), \
              patch.object(refresh.terrain_storage, "prepare") as prepare, \
              patch.object(community, "confirm_backup_durable") as confirm, \
              patch.object(refresh, "regenerate", side_effect=AssertionError("launcher regenerated terrain")):
-            launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+            launcher.run_server(launcher.parse_args([]), stop_requested=stop_requested, root=self.root, console=False)
         prepare.assert_not_called()
         confirm.assert_not_called()
         self.assertEqual(len(seen), 1, "Java was not reached exactly once")
+        self.assertEqual(stopped, ["Bedrock", "Java"])
         self.assertFalse((self.root / "launcher.lock").exists())
         return seen[0], [call.args[0] for call in emit.call_args_list]
 
