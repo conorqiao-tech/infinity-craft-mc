@@ -469,6 +469,7 @@ def backup(root, props, locked=False):
     fd = None
     lease_temporary = None
     owns_launcher_lock = False
+    lease_prepared = False
     temporary = None
     session_lock = None
     try:
@@ -489,8 +490,8 @@ def backup(root, props, locked=False):
             pid = str(os.getpid()).encode("ascii")
             if os.write(fd, pid) != len(pid):
                 raise OSError("Could not write the complete launcher lock owner")
+            flush_descriptor(fd)
             if lease_temporary is not None:
-                os.fsync(fd)
                 try:
                     os.link(lease_temporary, lockfile, follow_symlinks=False)
                     owns_launcher_lock = True
@@ -510,6 +511,18 @@ def backup(root, props, locked=False):
                 if (not stat.S_ISREG(current.st_mode) or held.st_nlink != 1 or current.st_nlink != 1
                         or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
                     raise ValueError("The launcher lock changed before backup; no archive was published.")
+            # Make the published entry as durable as this platform can request
+            # before looking at world files. A later same-authority swap can
+            # still bypass this bounded check.
+            if DIRECTORY_SYNC:
+                sync_directory(root)
+            held = os.fstat(fd)
+            current = lockfile.lstat()
+            if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
+                    or held.st_nlink != 1 or current.st_nlink != 1
+                    or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+                raise ValueError("The launcher lock changed before backup; no archive was published.")
+            lease_prepared = True
         fabric, world = world_folder(root, props)
         if not world.exists():
             return None  # A genuinely new world; Minecraft creates it on first start.
@@ -567,7 +580,7 @@ def backup(root, props, locked=False):
             finally:
                 if fd is not None:
                     try:
-                        if owns_launcher_lock:
+                        if owns_launcher_lock and lease_prepared:
                             unlink_backup_lease_entry(lockfile, fd)
                     finally:
                         try:
