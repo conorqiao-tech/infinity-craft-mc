@@ -220,7 +220,7 @@ Choose **Minigames** or **Adventure maps**, then tap a course icon to play. Each
 
 ## Restarting after a crash
 
-Press **Start server** in the dashboard. An existing launcher lock blocks startup before settings are changed. If the launcher or a backup stopped unexpectedly, leave the world stopped and retain the lock for host review; a missing process or free game ports do not prove that a child has stopped or that world saves succeeded.
+Press **Start server** in the dashboard. An existing launcher lock blocks startup before settings are changed. The launcher flushes the lock file and, where supported, its directory before world recovery or startup. A flush failure or observed lock substitution stops startup and retains the available evidence for review. If the launcher or a backup stopped unexpectedly, leave the world stopped and retain the lock for host review; a missing process or free game ports do not prove that a child has stopped or that world saves succeeded. These checks and flushes do not prove power-loss durability or exclude another writer.
 
 ## Preserving worlds and historical Minecraft 26.3 upgrade
 

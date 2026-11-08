@@ -666,6 +666,19 @@ def check_launcher_lock(args, root):
     raise RuntimeError(UNRESOLVED_LAUNCHER_LOCK)
 
 
+def verify_launcher_lock_entry(path, descriptor):
+    """Reject an observed replacement; this cannot exclude another writer."""
+    try:
+        held = os.fstat(descriptor)
+        current = path.lstat()
+    except OSError as error:
+        raise RuntimeError("The launcher lock changed or could not be checked; keep the world stopped for host review.") from error
+    if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
+            or held.st_nlink != 1 or current.st_nlink != 1
+            or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+        raise RuntimeError("The launcher lock changed; keep the world stopped and retain the evidence for host review.")
+
+
 def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True, on_console_ready=None):
     stop_requested = stop_requested or threading.Event()
     # An exclusive lock prevents two launchers from changing files under a running world.
@@ -675,10 +688,19 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     spawn_may_be_untracked = False
     unexpected_session = False
     cancelled_after_launch = False
+    lock_prepared = False
     try:
         pid = str(os.getpid()).encode("ascii")
         if os.write(lock_fd, pid) != len(pid):
             raise OSError("Could not write the complete launcher lock owner")
+        # Complete the available file and directory flushes before recovery,
+        # backup, setup or either child can touch the world. These requests do
+        # not establish writer exclusion or prove power-loss durability.
+        community.flush_descriptor(lock_fd)
+        if community.DIRECTORY_SYNC:
+            community.sync_directory(root)
+        verify_launcher_lock_entry(lock_path, lock_fd)
+        lock_prepared = True
         check_ports(args)
         # Interpret both Java properties files before recovery, backup or setup
         # changes anything, so a malformed file cannot select the wrong world.
@@ -791,7 +813,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             # Preserve a changed entry or one associated with a child whose
             # startup could not be fully tracked. Process exit is not proof of
             # a successful Minecraft entity save.
-            if not spawn_may_be_untracked and not unexpected_session:
+            if lock_prepared and not spawn_may_be_untracked and not unexpected_session:
                 try:
                     current = lock_path.lstat()
                 except FileNotFoundError:
