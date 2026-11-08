@@ -359,7 +359,7 @@ class CommunityTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX launcher lease synchronization")
     def test_manual_backup_does_not_publish_a_lock_when_lease_sync_fails(self):
-        with patch.object(community.os, "fsync", side_effect=OSError("injected lease sync failure")):
+        with patch.object(community, "flush_descriptor", side_effect=OSError("injected lease sync failure")):
             with self.assertRaisesRegex(OSError, "lease sync failure"):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertFalse((self.root / "launcher.lock").exists())
@@ -522,7 +522,8 @@ class CommunityTests(unittest.TestCase):
              patch.object(community, "sync_file", side_effect=sync_file), \
              patch.object(community, "sync_directory", side_effect=sync_directory):
             name = community.backup(self.root, {"level-name": "my-world"})
-        self.assertEqual(events, [("sync directory", self.root, ([], [])), "sync zip",
+        self.assertEqual(events, [("sync directory", self.root, ([], [])),
+                                  ("sync directory", self.root, ([], [])), "sync zip",
                                   ("sync directory", backups, ([], [".zip"]))])
         self.assertEqual([p.name for p in backups.iterdir()], [name])
         if community.os.name == "posix":
@@ -536,8 +537,9 @@ class CommunityTests(unittest.TestCase):
              patch.object(community, "sync_directory") as sync_directory:
             with self.assertRaisesRegex(OSError, "injected file sync failure"):
                 community.backup(self.root, {"level-name": "my-world"})
-        # Only the new backups folder's parent was synchronized; no rename followed.
-        sync_directory.assert_called_once_with(self.root)
+        # The lease entry and the new backup folder's parent were synchronized;
+        # no archive rename followed.
+        self.assertEqual([call.args[0] for call in sync_directory.call_args_list], [self.root, self.root])
         self.assertEqual(list((self.root / "backups").iterdir()), [])
         self.assertFalse((self.root / "launcher.lock").exists())
         self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
