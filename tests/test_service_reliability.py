@@ -54,6 +54,8 @@ class ServiceReliabilityTests(unittest.TestCase):
         service.name = "Test"
         service.join_rules = join_rules
         service.ready = threading.Event()
+        service.world_save_failure = threading.Event()
+        service.output_drained = threading.Event()
         service.failed_sinks = set()
         service.log = log if log is not None else io.StringIO()
         service.process = Mock(stdout=TrackingPipe("first\nREADY\nlast\n"))

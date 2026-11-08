@@ -26,6 +26,14 @@ ROOT = Path(__file__).resolve().parent
 EULA_URL = "https://www.minecraft.net/eula"
 OUTPUT = None
 
+# These are observed native snapshot-5 messages, not an exhaustive list of
+# Minecraft save failures. Anchor the logger prefix so ordinary player chat
+# containing the same words does not by itself trigger this safeguard.
+WORLD_SAVE_FAILURE = re.compile(
+    r"^\[[0-9]{2}:[0-9]{2}:[0-9]{2}\] \[[^\]\r\n]{1,160}/(?:ERROR|FATAL)\]"
+    r"(?:: | \(Minecraft\) )(?:Failed to store entity chunk |Failed to store chunk |Failed to save chunk )"
+)
+
 
 def emit(message):
     print(message, flush=True)
@@ -331,6 +339,8 @@ class Service:
         self.join_rules = join_rules
         self.send_lock = threading.Lock()
         self.ready = threading.Event()
+        self.world_save_failure = threading.Event()
+        self.output_drained = threading.Event()
         self.failed_sinks = set()
         self.log = (cwd / "launcher.log").open("w", encoding="utf-8")
         self.process = None
@@ -397,6 +407,8 @@ class Service:
             for line in self.process.stdout:
                 if ready_text in line:
                     self.ready.set()
+                if self.name == "Java" and WORLD_SAVE_FAILURE.match(line):
+                    self.world_save_failure.set()
                 self._publish_output("[" + self.name + "] " + line.rstrip(), line)
                 if self.join_rules:
                     try:
@@ -408,6 +420,9 @@ class Service:
                         # Keep draining Java output even if a guard or pipe
                         # fails; a blocked stdout pipe can stall the server.
                         self._publish_output("[Owner rule] Ban could not be sent; check the server console.")
+            # Set only after normal EOF; an exception or a reader still blocked
+            # on a sink means the final Java output has not been inspected.
+            self.output_drained.set()
         finally:
             try:
                 self.log.close()
@@ -443,24 +458,23 @@ class Service:
     def stop(self):
         """Return False when a child did not exit in response to our stop command.
 
-        A True result is only process-lifecycle evidence, not proof of a save.
+        Java also returns False for recognized save errors or incomplete output.
+        A True result is only limited evidence, not proof of a successful save.
         """
+        controlled = False
         try:
-            if self.process.poll() is not None:
-                return False
-            try:
-                if not self.send(self.stop_command):
-                    return False
-                return self.process.wait(timeout=45) == 0
-            except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
-                if self.process.poll() is None:
-                    self.process.terminate()
-                    try:
-                        self.process.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        self.process.kill()
-                        self.process.wait(timeout=10)
-                return False
+            if self.process.poll() is None:
+                try:
+                    if self.send(self.stop_command):
+                        controlled = self.process.wait(timeout=45) == 0
+                except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
+                    if self.process.poll() is None:
+                        self.process.terminate()
+                        try:
+                            self.process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            self.process.kill()
+                            self.process.wait(timeout=10)
         finally:
             if self.process.poll() is not None:
                 try:
@@ -470,6 +484,9 @@ class Service:
                     pass
                 if threading.current_thread() is not self.thread:
                     self.thread.join(timeout=5)
+        if self.name == "Java" and (not self.output_drained.is_set() or self.world_save_failure.is_set()):
+            return False
+        return controlled
 
 
 def copy_bridge_data(root=ROOT):
@@ -807,7 +824,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             if any(service.process.poll() is None for service in services):
                 raise RuntimeError("A server process did not stop; keep the world stopped and retain launcher.lock for host review.")
             if stop_unconfirmed and not unexpected_session:
-                raise RuntimeError("A server process did not stop normally; keep the world stopped and retain launcher.lock for host review.")
+                raise RuntimeError("A server process did not stop normally, its output could not be fully read, or a world save failure was observed; keep the world stopped and retain launcher.lock for host review.")
             if cancelled_after_launch:
                 raise RuntimeError("Startup was cancelled after a server process started; retain launcher.lock for host review.")
             # Preserve a changed entry or one associated with a child whose
