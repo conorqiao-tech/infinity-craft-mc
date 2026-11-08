@@ -380,6 +380,7 @@ public final class AgentCompanions {
      */
     Commit commit(Runnable change, Save policy, boolean keepPrevious) {
         if (creationRecoveryRequired) return Commit.BLOCKED;
+        if (freezeUnmarkedLoaded(data.agents)) return Commit.BLOCKED;
         if (HelperPersistence.unfinishedRosterWrite(file) || HelperPersistence.unsafePreviousFile(file)) {
             freeze("unfinished or invalid previous-roster evidence must be preserved for review", null);
             return Commit.BLOCKED;
@@ -412,6 +413,15 @@ public final class AgentCompanions {
             var nextExpected = HelperPersistence.ExpectedRoster.fromBytes(bytes);
             var durability = persistence.replace(file, bytes, keepPrevious, policy == Save.CREATION, expectedRoster);
             rosterEstablished = true;
+            // A callback may have made ownership uncertain while the write was
+            // in progress. Check both generations: a guarded removal may have
+            // removed the identity from the new in-memory roster already.
+            var unmarked = unmarkedLoaded(agents);
+            if (creationRecoveryRequired || !unmarked.isEmpty()) {
+                restore(agents, dismissed, guarded, pending);
+                if (!unmarked.isEmpty()) freezeUnmarkedLoaded(unmarked);
+                return Commit.UNCERTAIN; // Disk may already contain the new roster.
+            }
             // A saved legacy entry does not become explicit merely because it
             // was written again. Keep only this runtime's still-present proofs.
             provenRemoved.retainAll(data.guardedRemovals);
@@ -437,6 +447,7 @@ public final class AgentCompanions {
      * not touched. An ambiguous marker write freezes, since it may exist.
      */
     private String guard(String reason) {
+        if (!creationRecoveryRequired) freezeUnmarkedLoaded(data.agents);
         if (creationRecoveryRequired) return "Nothing was changed. " + FROZEN;
         try { persistence.beginGuard(file, clock.instant() + " " + reason); return null; }
         catch (HelperPersistence.Failure failure) {
@@ -477,6 +488,15 @@ public final class AgentCompanions {
     static boolean operator(CommandSourceStack source) { return source.permissions().hasPermission(new HasCommandLevel(PermissionLevel.OWNERS)); }
     static boolean isAgent(Entity entity) { return entity instanceof IronGolem && entity.entityTags().contains(TAG); }
     public static boolean registeredHelper(Entity entity) { return isAgent(entity); }
+    /** A roster UUID without the marker is uncertain evidence, not proof of a helper. */
+    private static boolean unmarkedRosterGolem(Entity entity) {
+        if (!(entity instanceof IronGolem) || isAgent(entity) || !(entity.level() instanceof ServerLevel world)) return false;
+        var companions = INSTANCES.get(world.getServer());
+        // A guarded dismissal removes the record in memory before its write
+        // finishes. Keep shielding the exact mapped body through that interval.
+        return companions != null && (companions.data.agents.containsKey(entity.getStringUUID())
+            || companions.loaded.get(entity.getUUID()) == entity);
+    }
     public static boolean weaponCombat(Entity entity) {
         if(!isAgent(entity) || !(entity.level() instanceof ServerLevel world))return false;
         var companions=INSTANCES.get(world.getServer());
@@ -526,7 +546,7 @@ public final class AgentCompanions {
     }
     /** Independent damage gate also covers targets forced by commands or another mod. */
     static boolean allowDamage(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
-        if (!isAgent(source.getEntity())) return true;
+        if (!isAgent(source.getEntity())) return !unmarkedRosterGolem(source.getEntity());
         if (!(source.getEntity() instanceof IronGolem golem)
             || !(golem.level() instanceof ServerLevel world)) return false;
         var companions = INSTANCES.get(world.getServer());
@@ -545,9 +565,10 @@ public final class AgentCompanions {
             && companions.insideLeash(agent, owner, victim.position());
     }
     /**
-     * Runtime-only shield for a tagged helper kept for host inspection: one that
-     * is not the registered loaded entity for its roster record, or any helper
-     * while ownership is frozen. Decided per hit from current state, so it
+     * Runtime-only shield for a tagged helper kept for host inspection, or an
+     * unmarked iron golem whose UUID is in the roster. A UUID match alone does
+     * not prove identity. Also shield helpers while ownership is frozen.
+     * Decided per hit from current state, so it
      * follows unloads, reloads and restarts; nothing is persisted, and health,
      * stats and invulnerability flags are untouched. A registered helper in a
      * writable runtime is not shielded. Of the damage that vanilla lets bypass
@@ -556,11 +577,12 @@ public final class AgentCompanions {
      * the damage event (discard, direct health changes, other mods) still apply.
      */
     static boolean retainedHelperShielded(LivingEntity victim, net.minecraft.world.damagesource.DamageSource source) {
-        if (!isAgent(victim)) return false;
+        boolean unmarked = unmarkedRosterGolem(victim);
+        if (!isAgent(victim) && !unmarked) return false;
         if (source.is(net.minecraft.tags.DamageTypeTags.BYPASSES_INVULNERABILITY) && !naturalVoid(victim, source)) return false;
         if (!(victim.level() instanceof ServerLevel world)) return true;
         var companions = INSTANCES.get(world.getServer());
-        return companions == null || companions.creationRecoveryRequired
+        return unmarked || companions == null || companions.creationRecoveryRequired
             || !companions.data.agents.containsKey(victim.getStringUUID()) || companions.loaded.get(victim.getUUID()) != victim;
     }
     /**
@@ -612,10 +634,54 @@ public final class AgentCompanions {
             (tag.startsWith("infinity_owner_") && !tag.equals(owner))
                 || (tag.startsWith("infinity_name_") && !tag.equals(name)));
     }
+    /** Stop an ambiguous body without applying profile defaults or rewriting its tags or name. */
+    private void retainUnmarked(IronGolem golem) {
+        APPROVED_TARGETS.remove(golem);
+        if (loaded.get(golem.getUUID()) == golem) { aerial.remove(golem.getUUID()); combatFeedback.remove(golem.getUUID()); }
+        golem.removeFreeWill();
+        ((AgentGoalAccess) golem).infinity$getTargetSelector().removeAllGoals(goal -> true);
+        golem.setTarget(null); golem.getNavigation().stop();
+    }
+    private List<IronGolem> unmarkedLoaded(Map<String, Agent> earlierAgents) {
+        var result = new ArrayList<IronGolem>();
+        for (var entry : new ArrayList<>(loaded.entrySet())) {
+            var golem = entry.getValue(); String id = entry.getKey().toString();
+            if (!golem.isRemoved() && (earlierAgents.containsKey(id) || data.agents.containsKey(id)) && !isAgent(golem))
+                result.add(golem);
+        }
+        return result;
+    }
+    private boolean freezeUnmarkedLoaded(Map<String, Agent> earlierAgents) {
+        return freezeUnmarkedLoaded(unmarkedLoaded(earlierAgents));
+    }
+    private boolean freezeUnmarkedLoaded(List<IronGolem> bodies) {
+        if (bodies.isEmpty()) return false;
+        boolean newlyFrozen = !creationRecoveryRequired;
+        if (newlyFrozen) freeze("a loaded helper body lost its helper marker", null);
+        for (var golem : bodies) {
+            retainUnmarked(golem);
+            if (newlyFrozen) notifyRecoveryOwner(golem.getStringUUID(), "A loaded body lost its helper marker. Its body and roster need host review. " + FROZEN);
+        }
+        return true;
+    }
     void load(Entity entity) {
-        if (!isAgent(entity)) return;
-        var golem = (IronGolem) entity;
-        Agent agent = data.agents.get(golem.getStringUUID());
+        Agent agent = data.agents.get(entity.getStringUUID());
+        if (!(entity instanceof IronGolem golem)) {
+            if (agent != null) {
+                if (!creationRecoveryRequired) freeze("a different entity type claims a saved helper identity", null);
+                notifyRecoveryOwner(entity.getStringUUID(), "A different entity type has a saved helper identity. Its body and roster were kept for host review. " + FROZEN);
+            }
+            return;
+        }
+        if (!isAgent(golem)) {
+            if (agent == null) return;
+            if (!creationRecoveryRequired) freeze("a saved helper identity was found on a body without its helper marker", null);
+            var prior = loaded.get(golem.getUUID());
+            if (prior != null && prior != golem && !prior.isRemoved()) retainUnmarked(prior);
+            retainUnmarked(golem);
+            notifyRecoveryOwner(golem.getStringUUID(), "A body with a saved helper identity lacks its helper marker. Its body and roster were kept for host review. " + FROZEN);
+            return;
+        }
         if (agent == null) { retireStale(golem); return; }
         var prior = loaded.get(golem.getUUID());
         if (prior != null && prior != golem && !prior.isRemoved()) {
@@ -671,6 +737,7 @@ public final class AgentCompanions {
         return creationRecoveryRequired ? 0 : Math.max(0, Math.min(LIMIT - count(owner), GLOBAL_LIMIT - data.agents.size()));
     }
     private boolean rosterWritable(ServerPlayer owner) {
+        if (!creationRecoveryRequired) freezeUnmarkedLoaded(data.agents);
         if (!creationRecoveryRequired) return true;
         reply(owner, "Nothing was changed. " + FROZEN);
         return false;
@@ -1174,6 +1241,10 @@ public final class AgentCompanions {
     /** The exact loaded object, not merely its UUID, owns the death callback. */
     void handleDeath(IronGolem golem) {
         UUID id = golem.getUUID(); String key = golem.getStringUUID();
+        if (!isAgent(golem) && data.agents.containsKey(key)) {
+            if (!creationRecoveryRequired) freeze("a rostered body died without its helper marker", null);
+            notifyRecoveryOwner(key, "A body with a saved helper identity died without its helper marker. Its roster remains reserved for host review. " + FROZEN);
+        }
         if (loaded.get(id) != golem) {
             // An unloaded or different same-UUID body is not proof that the
             // registered helper died. Never touch its UUID-scoped state.
@@ -1272,6 +1343,9 @@ public final class AgentCompanions {
         APPROVED_TARGETS.remove(golem); golem.setTarget(null); golem.setLastHurtByMob(null); golem.setPersistentAngerTarget(null); golem.setPersistentAngerEndTime(0); golem.getNavigation().stop(); golem.stopInPlace();
     }
     void tick() {
+        // Marker loss can happen between load callbacks. Freeze before aerial
+        // updates or the next five-tick control pass can touch that body.
+        freezeUnmarkedLoaded(data.agents);
         // Plans only serve controls within this tick. Release obsolete owner
         // sessions/helpers even on ticks without the five-tick control pass.
         formationPlans.clear();
@@ -1289,6 +1363,13 @@ public final class AgentCompanions {
             var golem = entry.getValue(); var agent = data.agents.get(entry.getKey().toString());
             if (golem.isRemoved() || !golem.isAlive()) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); continue; }
             if (agent == null) { aerial.remove(entry.getKey()); loaded.remove(entry.getKey()); combatFeedback.remove(entry.getKey()); retireStale(golem); continue; }
+            if (!isAgent(golem)) {
+                boolean newlyFrozen = !creationRecoveryRequired;
+                if (newlyFrozen) freeze("a loaded helper body lost its helper marker", null);
+                retainUnmarked(golem);
+                if (newlyFrozen) notifyRecoveryOwner(golem.getStringUUID(), "A loaded body lost its helper marker. Its body and roster were kept for host review. " + FROZEN);
+                continue;
+            }
             control(golem, agent, server.getTickCount());
         }
     }
@@ -1745,18 +1826,26 @@ public final class AgentCompanions {
             for (ServerLevel world : server.getAllLevels()) for (Entity entity : world.getAllEntities()) helpers.load(entity);
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(INSTANCES::remove);
-        ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> { if (isAgent(entity)) get(world.getServer()).load(entity); });
+        ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> {
+            var helpers = INSTANCES.get(world.getServer());
+            if (helpers != null) helpers.load(entity);
+            else if (isAgent(entity)) get(world.getServer()).load(entity);
+        });
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
-            if (isAgent(entity)) get(world.getServer()).unload(entity);
+            var helpers = INSTANCES.get(world.getServer());
+            if (helpers != null && entity instanceof IronGolem) helpers.unload(entity);
+            else if (isAgent(entity)) get(world.getServer()).unload(entity);
         });
         ServerPlayerEvents.LEAVE.register(player -> get(player.level().getServer()).invalidatePlayer(player));
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> get(player.level().getServer()).invalidatePlayer(oldPlayer));
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, origin, destination) -> get(destination.getServer()).invalidatePlayer(player));
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
             if (entity instanceof ServerPlayer player) get(player.level().getServer()).invalidatePlayer(player);
-            if (isAgent(entity) && entity.level() instanceof ServerLevel world) {
-                var helpers = get(world.getServer());
-                helpers.handleDeath((IronGolem) entity);
+            if (entity instanceof IronGolem golem && entity.level() instanceof ServerLevel world) {
+                var helpers = INSTANCES.get(world.getServer());
+                if (helpers == null && isAgent(entity)) helpers = get(world.getServer());
+                if (helpers != null && (isAgent(golem) || helpers.data.agents.containsKey(golem.getStringUUID())))
+                    helpers.handleDeath(golem);
             }
         });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> allowIncomingDamage(entity, source));
