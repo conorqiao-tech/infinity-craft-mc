@@ -728,7 +728,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         # Recover first so the startup ZIP represents the complete stopped save,
         # rather than a partially archived world from an interrupted refresh.
         # Recovery only completes that earlier transaction; it never starts one.
-        world_refresh.recover(root, emit)
+        world_refresh.recover(root, emit, lock_fd)
         backup_name = community.backup(root, startup_properties, locked=True, lease_fd=lock_fd)
         if backup_name and community.DIRECTORY_SYNC:
             emit("World backed up before startup: backups/" + backup_name)

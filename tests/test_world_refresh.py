@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -57,15 +58,27 @@ class TerrainRefreshTests(unittest.TestCase):
         self.storage.stop()
         self.temp.cleanup()
 
-    def backup_with_fixture_lease(self):
+    @contextmanager
+    def fixture_lease(self):
         # This synthetic fixture's launcher entry models a cooperating holder.
         import fcntl
+        if not (self.root / "launcher.lock").exists():
+            yield None
+            return
         descriptor = os.open(self.root / "launcher.lock", os.O_WRONLY)
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return community.backup(self.root, {"level-name": "world"}, locked=True, lease_fd=descriptor)
+            yield descriptor
         finally:
             os.close(descriptor)
+
+    def backup_with_fixture_lease(self):
+        with self.fixture_lease() as descriptor:
+            return community.backup(self.root, {"level-name": "world"}, locked=True, lease_fd=descriptor)
+
+    def recover(self):
+        with self.fixture_lease() as descriptor:
+            return refresh.recover(self.root, lease_fd=descriptor)
 
     def write_mod(self, path, content, version="2.13.0-explore.24"):
         with zipfile.ZipFile(path, "w") as archive:
@@ -88,7 +101,8 @@ class TerrainRefreshTests(unittest.TestCase):
     def transaction(self):
         # The retained earlier transaction; only used here to create real
         # journals for recovery, never by the launcher.
-        return refresh.regenerate(self.root, "world", self.backup, lambda _: None)
+        with self.fixture_lease() as descriptor:
+            return refresh.regenerate(self.root, "world", self.backup, lambda _: None, lease_fd=descriptor)
 
     def snapshot(self):
         return {p.relative_to(self.world).as_posix(): p.read_bytes()
@@ -348,7 +362,7 @@ class TerrainRefreshTests(unittest.TestCase):
         try:
             self.assertEqual(holder.stdout.readline().strip(), "LOCKED")
             with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
-                refresh.recover(self.root)
+                self.recover()
             self.assertEqual(self.snapshot(), before)
             self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
             self.assertEqual({p.relative_to(folders[0]).as_posix(): p.read_bytes()
@@ -357,7 +371,7 @@ class TerrainRefreshTests(unittest.TestCase):
             holder.stdin.write("\n"); holder.stdin.flush()
             _, errors = holder.communicate(timeout=10)
             self.assertEqual(holder.returncode, 0, errors)
-        refresh.recover(self.root)
+        self.recover()
         self.assert_original()
         self.assertFalse((self.root / refresh.JOURNAL).exists())
 
@@ -375,7 +389,7 @@ class TerrainRefreshTests(unittest.TestCase):
             attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
             return real_move(source, target)
         with patch.object(refresh, "move", observe):
-            refresh.recover(self.root)
+            self.recover()
         self.assertTrue(attempts)
         self.assertEqual(set(attempts), {42})
         self.assertEqual(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode, 0)
@@ -427,7 +441,7 @@ class TerrainRefreshTests(unittest.TestCase):
                 lock.write_bytes(b"unexpected replacement")
         with patch.object(refresh, "move", move_and_replace):
             with self.assertRaisesRegex(ValueError, "lock.*changed"):
-                refresh.recover(self.root)
+                self.recover()
         self.assertTrue(replaced)
         self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
         self.assertEqual(old_lock.read_bytes(), b"native session lock")
@@ -455,7 +469,7 @@ class TerrainRefreshTests(unittest.TestCase):
         self.assertTrue(original_saved.exists())
         inode = lock.stat().st_ino
         with self.assertRaisesRegex(ValueError, "lock"):
-            refresh.recover(self.root)
+            self.recover()
         self.assertEqual(lock.stat().st_ino, inode)
         self.assertEqual(lock.read_bytes(), b"native session lock")
         self.assertEqual(saved.read_bytes(), b"untrusted saved lock")
@@ -597,8 +611,9 @@ class TerrainRefreshTests(unittest.TestCase):
 
     def test_missing_or_corrupt_backup_stops_before_moving_anything(self):
         self.policy()
-        with self.assertRaises(ValueError):
-            refresh.regenerate(self.root, "world", None)
+        with self.fixture_lease() as descriptor:
+            with self.assertRaises(ValueError):
+                refresh.regenerate(self.root, "world", None, lease_fd=descriptor)
         (self.root / "backups" / self.backup).write_bytes(b"corrupt ZIP")
         with self.assertRaises(Exception):
             self.transaction()
@@ -644,7 +659,7 @@ class TerrainRefreshTests(unittest.TestCase):
         self.policy()
         self.interrupt_move()
         disabled = self.policy(enabled=False)
-        refresh.recover(self.root)
+        self.recover()
         self.assert_original()
         self.assertEqual(refresh.read_policy(self.root), disabled)
         record = json.loads(next((self.root / "backups").glob("Terrain-Refresh-*/MANIFEST.json")).read_text())
@@ -658,7 +673,7 @@ class TerrainRefreshTests(unittest.TestCase):
         archived = self.root / "backups" / record["rollback"] / "terrain" / record["moved_paths"][0]
         shutil.rmtree(archived)
         with self.assertRaisesRegex(ValueError, "missing"):
-            refresh.recover(self.root)
+            self.recover()
         self.assertTrue((self.root / refresh.JOURNAL).exists())
 
     def assert_refresh_did_not_start(self, policy):
@@ -720,7 +735,7 @@ class TerrainRefreshTests(unittest.TestCase):
         with patch.object(refresh, "atomic_bytes", side_effect=interrupted):
             with self.assertRaises(KeyboardInterrupt):
                 self.transaction()
-        refresh.recover(self.root)
+        self.recover()
         self.assert_original()
 
     def test_interrupted_protected_chunk_restore_is_recovered_by_ordinary_start(self):
@@ -752,8 +767,9 @@ class TerrainRefreshTests(unittest.TestCase):
 
     def test_world_escape_and_symlink_are_rejected(self):
         self.policy()
-        with self.assertRaisesRegex(ValueError, "Unsafe"):
-            refresh.regenerate(self.root, "../world", self.backup)
+        with self.fixture_lease() as descriptor:
+            with self.assertRaisesRegex(ValueError, "Unsafe"):
+                refresh.regenerate(self.root, "../world", self.backup, lease_fd=descriptor)
         (self.world / "escape").symlink_to(self.root / "dependencies.lock.json")
         with self.assertRaises(ValueError):
             self.transaction()

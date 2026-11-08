@@ -114,10 +114,14 @@ def read_policy(root):
     return value
 
 
-def recover(root, emit=None):
+def recover(root, emit=None, lease_fd=None):
     path = root / JOURNAL
     if not path.exists():
         return
+    # Recovery can change saved terrain. Do not accept an unbacked claim that
+    # a launcher owns the outer lease. This check cannot exclude a late swap
+    # or a noncooperating writer with the same filesystem authority.
+    community.verify_borrowed_launcher_lease(root, lease_fd)
     if path.is_symlink():
         raise ValueError("Terrain journal cannot be a symbolic link")
     record = json.loads(path.read_text())
@@ -133,12 +137,12 @@ def recover(root, emit=None):
     # recovery; an advisory lock does not exclude noncooperating writers.
     session_lock = community.acquire_world_session_lock(world)
     try:
-        return _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock)
+        return _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd)
     finally:
         os.close(session_lock)
 
 
-def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock):
+def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd):
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
         if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
@@ -152,6 +156,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
             inside(world, relative)
             inside(rollback / "terrain", relative)
         for relative in reversed(moved_paths):
+            community.verify_borrowed_launcher_lease(root, lease_fd)
             community.verify_world_session_lock(world, session_lock)
             source = inside(world, relative)
             saved = inside(rollback / "terrain", relative)
@@ -180,6 +185,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
                 raise ValueError("Old terrain is missing; restore the verified full backup manually")
         # The moving transaction has never written its new policy. Preserve
         # the owner's edits, especially a decision to disable refresh.
+        community.verify_borrowed_launcher_lease(root, lease_fd)
         community.verify_world_session_lock(world, session_lock)
         record["state"] = "rolled_back"
         message = ("Rolled back an interrupted terrain refresh from an earlier start; original terrain restored. "
@@ -187,6 +193,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
     else:
         # This finishes the earlier, already-committed transaction only; it
         # records that transaction's result and never requests another refresh.
+        community.verify_borrowed_launcher_lease(root, lease_fd)
         community.verify_world_session_lock(world, session_lock)
         current = read_policy(root)
         if current is not None:
@@ -195,8 +202,11 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         message = ("Finished recording a terrain refresh completed by an earlier start; "
                    + (POLICY + " was updated to clear its pending request. " if current is not None else "")
                    + "Recovery record: backups/" + rollback.name)
+    community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
     atomic_json(rollback / "MANIFEST.json", record)
+    community.verify_borrowed_launcher_lease(root, lease_fd)
+    community.verify_world_session_lock(world, session_lock)
     path.unlink()
     sync_directory(root)
     if emit:
@@ -246,7 +256,7 @@ def verify_backup(root, world, backup_name):
     return archive, files
 
 
-def regenerate(root, level_name, backup_name, emit=print):
+def regenerate(root, level_name, backup_name, emit=print, lease_fd=None):
     """The earlier destructive transaction, retained so its journal/recovery format stays defined.
 
     The launcher does not call this. Any future use needs a new, separately
@@ -256,7 +266,8 @@ def regenerate(root, level_name, backup_name, emit=print):
     # The caller holds the launcher's exclusive lease and has not started Java.
     if not (root / "launcher.lock").is_file():
         raise ValueError("Terrain refresh requires a locked, stopped launcher")
-    recover(root)
+    community.verify_borrowed_launcher_lease(root, lease_fd)
+    recover(root, lease_fd=lease_fd)
     policy = read_policy(root)
     if policy is None or not policy["enabled"]:
         return None
@@ -351,7 +362,7 @@ def regenerate(root, level_name, backup_name, emit=print):
         (root / JOURNAL).unlink()
         sync_directory(root)
     except Exception:
-        recover(root)
+        recover(root, lease_fd=lease_fd)
         raise
     emit("Terrain regenerated for installed mod update. Verified backup: " + archive.name)
     emit("Refreshed dimension folders: " + ", ".join(p.relative_to(world / "dimensions").as_posix() for p in dimensions))
