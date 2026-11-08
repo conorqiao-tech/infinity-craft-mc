@@ -188,6 +188,216 @@ public class HelperMissingMarkerGameTests {
     }
 
     @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void ceasefireBeforeMarkerDetectionPreservesEditedAnger(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, true)) {
+            UUID id = f.record(); var body = f.body(id, true); f.add(body);
+            byte[] roster = Files.readAllBytes(f.helpers.file);
+            body.setPersistentAngerEndTime(4321); body.removeTag(AgentCompanions.TAG);
+            f.helpers.ceasefire(f.player);
+            c.assertTrue(f.helpers.creationRecoveryRequired && body.getPersistentAngerEndTime() == 4321
+                    && !AgentCompanions.isAgent(body) && !body.isRemoved()
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
+                "Ceasefire must freeze without erasing a newly unmarked body's edited anger: frozen="
+                    + f.helpers.creationRecoveryRequired + ", anger=" + body.getPersistentAngerEndTime());
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void ceasefireAfterMarkerDetectionPreservesEditedAnger(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, true)) {
+            UUID id = f.record(); var body = f.body(id, true); f.add(body);
+            body.setPersistentAngerEndTime(4321); body.removeTag(AgentCompanions.TAG);
+            f.helpers.controlLoaded();
+            c.assertTrue(f.helpers.creationRecoveryRequired && body.getPersistentAngerEndTime() == 4321,
+                "The marker check first freezes without changing the sampled anger");
+            f.helpers.ceasefire(f.player);
+            c.assertTrue(body.getPersistentAngerEndTime() == 4321 && !body.isRemoved(),
+                "Ceasefire must not erase the uncertain body's edited anger after the freeze");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void taggedDuplicateKeepsUnmarkedMappedBodyEditedAnger(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = f.record(); var original = f.body(id, true); f.add(original);
+            original.setPersistentAngerEndTime(4321); original.removeTag(AgentCompanions.TAG);
+            var duplicate = f.body(id, true); f.helpers.load(duplicate);
+            c.assertTrue(f.helpers.creationRecoveryRequired && f.helpers.loaded.get(id) == original
+                    && original.getPersistentAngerEndTime() == 4321 && !original.isRemoved() && !duplicate.isRemoved(),
+                "A tagged duplicate must retain the unmarked mapped body and its edited anger");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unmarkedRosterBodyCannotBeChosenAsMobTarget(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c, HelperPersistence.NATIVE, true)) {
+            UUID id = f.record(); var body = f.body(id, true); f.add(body);
+            f.player.setPos(body.position().add(1, 0, 0));
+            var original = f.helpers.data.agents.get(id.toString());
+            f.helpers.data.agents.put(id.toString(), original.profile(AgentCompanions.Profile.PRIMITIVE)
+                .mode(AgentCompanions.Mode.FOLLOW, body));
+            f.helpers.save(); body.removeTag(AgentCompanions.TAG);
+            try {
+                boolean listed = AgentEntityTargetMenu.nearby(f.player).stream().anyMatch(s -> s.target() == body);
+                String problem = AgentEntityTargets.problem(f.player, body);
+                boolean available = f.helpers.playerOrderHelperAvailable(body, f.helpers.data.agents.get(id.toString()), f.player);
+                boolean selected = AgentEntityTargets.select(f.player, body);
+                c.assertTrue(!listed && problem != null && !available && !selected,
+                    "A rostered body with a lost marker cannot be offered or accepted as a mob target: listed="
+                        + listed + ", problem=" + problem + ", available=" + available + ", selected=" + selected);
+            } finally { AgentEntityTargets.clear(f.player); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void previousOnlyIdentityWithoutMarkerIsShieldedForReview(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = f.record();
+            f.helpers.data.agents.clear(); f.helpers.save(); // Synthetic older active generation and empty current generation.
+            byte[] current = Files.readAllBytes(f.helpers.file);
+            byte[] previous = Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file));
+            var restarted = new AgentCompanions(f.helpers.server, f.helpers.file);
+            c.assertTrue(restarted.creationRecoveryRequired, "The missing previous identity freezes the fresh runtime");
+            var restartedWithNote = new AgentCompanions(f.helpers.server, f.helpers.file);
+            c.assertTrue(restartedWithNote.creationRecoveryRequired, "The fresh runtime also freezes when the note already exists");
+            AgentCompanions.INSTANCES.put(f.helpers.server, restartedWithNote);
+            try {
+                var body = f.body(id, false); f.add(body);
+                var victim = EntityTypes.PIG.create(c.getLevel(), EntitySpawnReason.LOAD);
+                boolean harmed = body.hurtServer(c.getLevel(), body.damageSources().generic(), 5);
+                boolean outgoing = AgentCompanions.allowDamage(victim, body.damageSources().mobAttack(body));
+                var unrelated = f.body(UUID.randomUUID(), false); f.add(unrelated);
+                boolean unrelatedHarmed = unrelated.hurtServer(c.getLevel(), unrelated.damageSources().generic(), 5);
+                c.assertTrue(!harmed && !outgoing && AgentCompanions.potentialHelper(body) && !body.isRemoved() && unrelatedHarmed
+                        && Arrays.equals(current, Files.readAllBytes(f.helpers.file))
+                        && Arrays.equals(previous, Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file))),
+                    "A body matching only the previous active roster is preserved and shielded: harmed="
+                        + harmed + ", outgoing allowed=" + outgoing + ", unrelated harmed=" + unrelatedHarmed);
+            } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void previousOnlyIdentityIsRetainedWhenThisRuntimeFreezes(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = f.record();
+            f.helpers.data.agents.clear(); f.helpers.save();
+            new HelperPersistence(HelperPersistence.NATIVE).markRecoveryRequired(f.helpers.file, "synthetic later review");
+            c.assertTrue(f.helpers.commit(() -> {}, AgentCompanions.Save.ORDINARY, true) == AgentCompanions.Commit.BLOCKED
+                    && f.helpers.creationRecoveryRequired, "A newly observed note freezes this runtime");
+            var body = f.body(id, false); f.add(body);
+            c.assertTrue(!body.hurtServer(c.getLevel(), body.damageSources().generic(), 5)
+                    && AgentCompanions.potentialHelper(body),
+                "The just-published previous active identity remains protected in the frozen runtime");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void frozenRuntimeKeepsPreviouslyObservedIdentityAfterSyntheticEvidenceLoss(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = f.record();
+            f.helpers.data.agents.clear(); f.helpers.save();
+            var restarted = new AgentCompanions(f.helpers.server, f.helpers.file);
+            c.assertTrue(restarted.creationRecoveryRequired, "The previous-only identity froze the new runtime");
+            AgentCompanions.INSTANCES.put(f.helpers.server, restarted);
+            try {
+                Files.delete(HelperPersistence.previousFile(f.helpers.file)); // Synthetic external evidence loss, not a live operation.
+                var body = f.body(id, false); f.add(body);
+                c.assertTrue(!body.hurtServer(c.getLevel(), body.damageSources().generic(), 5)
+                        && AgentCompanions.potentialHelper(body) && !body.isRemoved(),
+                    "A frozen runtime continues to protect the identity it observed before evidence disappeared");
+            } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unmarkedBodyWithReservedRemovalIsRetainedForReview(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = UUID.randomUUID(); f.helpers.data.dismissed.add(id.toString()); f.helpers.save();
+            byte[] roster = Files.readAllBytes(f.helpers.file);
+            var body = f.body(id, false); f.add(body);
+            var victim = EntityTypes.PIG.create(c.getLevel(), EntitySpawnReason.LOAD);
+            boolean harmed = body.hurtServer(c.getLevel(), body.damageSources().generic(), 5);
+            boolean outgoing = AgentCompanions.allowDamage(victim, body.damageSources().mobAttack(body));
+            c.assertTrue(f.helpers.creationRecoveryRequired && !harmed && !outgoing && !body.isRemoved()
+                    && Arrays.equals(roster, Files.readAllBytes(f.helpers.file)),
+                "An unmarked body with an ambiguous reserved-removal identity is kept and shielded: frozen="
+                    + f.helpers.creationRecoveryRequired + ", harmed=" + harmed + ", outgoing=" + outgoing);
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unmarkedBodyWithPreviousReservedRemovalIsRetainedForReview(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = UUID.randomUUID(); f.helpers.data.dismissed.add(id.toString()); f.helpers.save();
+            f.helpers.data.dismissed.clear(); f.helpers.save();
+            byte[] current = Files.readAllBytes(f.helpers.file);
+            byte[] previous = Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file));
+            var restarted = new AgentCompanions(f.helpers.server, f.helpers.file);
+            AgentCompanions.INSTANCES.put(f.helpers.server, restarted);
+            try {
+                var body = f.body(id, false); f.add(body);
+                var victim = EntityTypes.PIG.create(c.getLevel(), EntitySpawnReason.LOAD);
+                boolean harmed = body.hurtServer(c.getLevel(), body.damageSources().generic(), 5);
+                boolean outgoing = AgentCompanions.allowDamage(victim, body.damageSources().mobAttack(body));
+                c.assertTrue(restarted.creationRecoveryRequired && !harmed && !outgoing && !body.isRemoved()
+                        && Arrays.equals(current, Files.readAllBytes(f.helpers.file))
+                        && Arrays.equals(previous, Files.readAllBytes(HelperPersistence.previousFile(f.helpers.file))),
+                    "An unmarked body known only in the previous reserved removals is kept and shielded: frozen="
+                        + restarted.creationRecoveryRequired + ", harmed=" + harmed + ", outgoing=" + outgoing);
+            } finally { AgentCompanions.INSTANCES.put(f.helpers.server, f.helpers); }
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void unmarkedMappedBodyIsNotDiscardedFromRemovalProof(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = UUID.randomUUID(); f.helpers.data.dismissed.add(id.toString()); f.helpers.save();
+            f.helpers.provenRemoved.add(id.toString());
+            var body = f.body(id, false); body.setPersistentAngerEndTime(4321);
+            f.helpers.loaded.put(id, body); // Direct synthetic mapping models a callback-time marker loss.
+            f.helpers.controlLoaded();
+            c.assertTrue(f.helpers.creationRecoveryRequired && !body.isRemoved()
+                    && body.getPersistentAngerEndTime() == 4321 && f.helpers.loaded.get(id) == body,
+                "An unmarked mapped body is retained for review even if a removal proof exists");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
+    public void nativeContactDoesNotRetargetAnUnmarkedRosterBody(GameTestHelper c) throws Exception {
+        try (var f = new Fixture(c)) {
+            UUID id = f.record(); var body = f.body(id, true); f.add(body);
+            var ordinary = EntityTypes.IRON_GOLEM.create(c.getLevel(), EntitySpawnReason.COMMAND);
+            ordinary.setNoAi(true); ordinary.setPos(body.position().add(0, 0, 3)); ordinary.setOnGround(true); f.add(ordinary);
+            var hostile = EntityTypes.HUSK.create(c.getLevel(), EntitySpawnReason.COMMAND);
+            hostile.setNoAi(true); hostile.setOnGround(true); hostile.setPos(ordinary.position().add(.8, 0, 0)); f.add(hostile);
+            var contact = IronGolem.class.getDeclaredMethod("doPush", Entity.class); contact.setAccessible(true);
+            long seed = 0;
+            for (; seed < 1000; seed++) { ordinary.getRandom().setSeed(seed); if (ordinary.getRandom().nextInt(20) == 0) break; }
+            c.assertTrue(seed < 1000, "Choose a native contact roll that can acquire the hostile");
+            ordinary.getRandom().setSeed(seed); contact.invoke(ordinary, hostile);
+            c.assertTrue(ordinary.getTarget() == hostile, "An unrelated ordinary golem still acquires the native contact target");
+            body.removeTag(AgentCompanions.TAG); body.setOnGround(true);
+            hostile.setPos(body.position().add(.8, 0, 0)); body.setDeltaMovement(Vec3.ZERO); hostile.setDeltaMovement(Vec3.ZERO);
+            body.getRandom().setSeed(seed); contact.invoke(body, hostile);
+            c.assertTrue(body.getTarget() == null && body.getDeltaMovement().horizontalDistanceSqr() > 0
+                    && hostile.getDeltaMovement().horizontalDistanceSqr() > 0,
+                "An unmarked roster body retains native physical contact without acquiring a combat target");
+        }
+        c.succeed();
+    }
+
+    @GameTest(structure="convergence_tests:combat_arena", maxTicks=180)
     public void missingMarkerOnNativeLoadFreezesAndPreservesTheBody(GameTestHelper c) throws Exception {
         try (var f = new Fixture(c)) {
             UUID id = f.record(); byte[] saved = Files.readAllBytes(f.helpers.file);
@@ -251,7 +461,7 @@ public class HelperMissingMarkerGameTests {
             pig.setUUID(id); pig.setCustomName(Component.literal("Synthetic other kind"));
             pig.setPos(Vec3.atBottomCenterOf(c.absolutePos(new BlockPos(5, 5, 5))));
             var tags = Set.copyOf(pig.entityTags()); f.add(pig);
-            c.assertTrue(f.helpers.creationRecoveryRequired && !pig.isRemoved() && pig.entityTags().equals(tags)
+            c.assertTrue(f.helpers.creationRecoveryRequired && AgentCompanions.potentialHelper(pig) && !pig.isRemoved() && pig.entityTags().equals(tags)
                     && pig.getCustomName().getString().equals("Synthetic other kind")
                     && Arrays.equals(saved, Files.readAllBytes(f.helpers.file)),
                 "A different entity kind claiming a roster UUID freezes without editing the body or roster");

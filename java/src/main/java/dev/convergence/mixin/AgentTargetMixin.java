@@ -23,6 +23,6 @@ abstract class AgentTargetMixin {
     private void contactTarget(IronGolem golem,LivingEntity target) {
         // Keep the rest of native doPush, including both entities' physical push.
         // The helper controller alone selects its eligible or reviewed targets.
-        if(!AgentCompanions.registeredHelper(golem))golem.setTarget(target);
+        if(!AgentCompanions.potentialHelper(golem))golem.setTarget(target);
     }
 }
