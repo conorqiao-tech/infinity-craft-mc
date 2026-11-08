@@ -120,6 +120,15 @@ else:
     def test_run_server_holds_and_passes_one_lease_to_both_services(self):
         stop = threading.Event()
         descriptors = []
+        backup_descriptors = []
+
+        def backup_with_launcher_lease(root, props, *, locked, lease_fd):
+            self.assertTrue(locked)
+            held, entry = os.fstat(lease_fd), (root / "launcher.lock").stat()
+            self.assertEqual((held.st_dev, held.st_ino), (entry.st_dev, entry.st_ino))
+            self.assertFalse(self.raw_lease_available())
+            backup_descriptors.append(lease_fd)
+            return None
 
         class FakeService:
             def __init__(self, name, command, cwd, ready_text, **kwargs):
@@ -138,7 +147,7 @@ else:
             for obj, name, value in [
                 (launcher, "check_ports", None), (launcher, "require_plain_properties", None),
                 (launcher, "properties", {}), (launcher.community, "world_folder", None),
-                (launcher.world_refresh, "recover", None), (launcher.community, "backup", None),
+                (launcher.world_refresh, "recover", None),
                 (launcher, "java_command", "java"), (launcher, "setup", None),
                 (launcher, "accept_eula", None), (launcher, "configure", None),
                 (launcher.owner_rules, "load", {}), (launcher.world_refresh, "startup_check", None),
@@ -146,10 +155,12 @@ else:
                 (launcher, "wait_creative_ready", None), (launcher, "emit", None),
             ]:
                 stack.enter_context(patch.object(obj, name, return_value=value))
+            stack.enter_context(patch.object(launcher.community, "backup", side_effect=backup_with_launcher_lease))
             stack.enter_context(patch.object(launcher, "Service", FakeService))
             launcher.run_server(self.args, stop_requested=stop, root=self.root, console=False)
         self.assertEqual(len(descriptors), 2)
         self.assertEqual(descriptors[0], descriptors[1])
+        self.assertEqual(backup_descriptors, [descriptors[0]])
         with self.assertRaises(OSError):
             os.fstat(descriptors[0])
         self.assertFalse((self.root / "launcher.lock").exists())

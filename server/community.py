@@ -460,7 +460,36 @@ def unlink_backup_lease_entry(path, descriptor):
     return True
 
 
-def backup(root, props, locked=False):
+def verify_borrowed_launcher_lease(root, descriptor):
+    """Check a caller's matching cooperative lease without closing it.
+
+    Reacquiring an already unlocked descriptor cannot prove uninterrupted
+    ownership. A noncooperating writer or later path swap is not excluded.
+    """
+    if not isinstance(descriptor, int) or isinstance(descriptor, bool):
+        raise ValueError("A matching launcher lease is required before backup.")
+
+    def check_entry():
+        held = os.fstat(descriptor)
+        current = os.stat(root / "launcher.lock", follow_symlinks=False)
+        if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
+                or held.st_nlink != 1 or current.st_nlink != 1
+                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+            raise ValueError("The borrowed launcher lease changed; no archive was published.")
+
+    try:
+        check_entry()
+        if os.name == "posix":
+            import fcntl
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # On Windows this only compares the descriptor to the entry. Backups
+        # of existing worlds still refuse without a native session-lock check.
+        check_entry()
+    except OSError as error:
+        raise ValueError("The borrowed launcher lease is unavailable or changed; no archive was published.") from error
+
+
+def backup(root, props, locked=False, lease_fd=None):
     """Archive the stopped world; returns its name, or None for a genuinely new world.
 
     Where DIRECTORY_SYNC is false the archive is fsynced and renamed but its
@@ -473,7 +502,11 @@ def backup(root, props, locked=False):
     temporary = None
     session_lock = None
     try:
-        if not locked:
+        if locked:
+            verify_borrowed_launcher_lease(root, lease_fd)
+        else:
+            if lease_fd is not None:
+                raise ValueError("A borrowed launcher lease requires a locked backup.")
             if os.name == "posix":
                 import fcntl
                 # Do not publish an empty launcher.lock: a process exit between
@@ -563,6 +596,8 @@ def backup(root, props, locked=False):
             temporary.chmod(0o600)
             sync_file(stream)
         verify_world_session_lock(world, session_lock)
+        if locked:
+            verify_borrowed_launcher_lease(root, lease_fd)
         os.replace(temporary, destination)
         # Where possible the backup only counts once its folder entry is durable;
         # real sync failures propagate.
