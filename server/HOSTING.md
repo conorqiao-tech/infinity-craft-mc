@@ -61,6 +61,8 @@ Recovery of an interrupted older terrain transaction also checks the borrowed la
 
 Before moving any listed path, recovery checks all paths and refuses overlapping entries or unrecorded files, including temporary files, linked or special entries, and unrelated directories in terrain it would replace. It repeats each check before acting. These checks cannot exclude a writer changing an entry afterward; retain unexpected data and the recovery journal for host review.
 
+Recovery reads recorded kept-file hashes in a separate process so that a path substituted during that read cannot make the lock-owning process open and close another descriptor to the Minecraft world-lock inode. A changed file or an unavailable reader stops recovery for host review. This does not prevent later substitutions or establish exclusive writer ownership.
+
 If interrupted terrain recovery or a startup backup fails or is interrupted, the launcher retains its existing lock for host review when the entry is still available. A retained lock is evidence of uncertainty, not proof that the world or backup is intact.
 
 A manual backup also retains its lock if archive publication or the following cleanup fails. An unpublished `.partial` file may remain for review; it is not a confirmed backup.
