@@ -184,8 +184,48 @@ def world_folder(root, props):
 SESSION_LOCK_AVAILABLE = sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
 
 
-def verify_world_session_lock(world, descriptor):
-    """Reject an observed lock-path swap; this cannot exclude noncooperating writers."""
+_WORLD_SESSION_LOCK_OBSERVER = r'''
+import ctypes, fcntl, os, stat, sys
+try:
+    if ctypes.sizeof(ctypes.c_void_p) != 8:
+        sys.exit(30)
+    machine = os.uname().machine
+    if sys.platform == "darwin" and machine in ("arm64", "x86_64"):
+        class Flock(ctypes.Structure):
+            _fields_ = [("start", ctypes.c_int64), ("length", ctypes.c_int64),
+                        ("pid", ctypes.c_int32), ("kind", ctypes.c_int16), ("whence", ctypes.c_int16)]
+        expected_size = 24
+    elif sys.platform == "linux" and machine in ("aarch64", "x86_64"):
+        class Flock(ctypes.Structure):
+            _fields_ = [("kind", ctypes.c_int16), ("whence", ctypes.c_int16),
+                        ("start", ctypes.c_int64), ("length", ctypes.c_int64), ("pid", ctypes.c_int32)]
+        expected_size = 32
+    else:
+        sys.exit(30)
+    if ctypes.sizeof(Flock) != expected_size:
+        sys.exit(30)
+    fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or (info.st_dev, info.st_ino) != (int(sys.argv[2]), int(sys.argv[3]))):
+            sys.exit(20)
+        query = Flock()
+        query.kind, query.whence, query.start, query.length = fcntl.F_WRLCK, os.SEEK_SET, 0, 0
+        result = Flock.from_buffer_copy(fcntl.fcntl(fd, fcntl.F_GETLK, bytes(query)))
+        if (result.kind == fcntl.F_WRLCK and result.pid == int(sys.argv[4])
+                and result.whence == os.SEEK_SET and result.start == 0 and result.length == 0):
+            sys.exit(10)
+        sys.exit(20)
+    finally:
+        os.close(fd)
+except (OSError, ValueError):
+    sys.exit(30)
+'''
+
+
+def _world_session_lock_identity(world, descriptor):
+    """Check the descriptor and path without reopening the lock in this process."""
     try:
         held = os.fstat(descriptor)
         current = os.stat(world / "session.lock", follow_symlinks=False)
@@ -193,8 +233,27 @@ def verify_world_session_lock(world, descriptor):
                 or held.st_nlink != 1 or current.st_nlink != 1
                 or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
             raise ValueError("The Minecraft world lock changed while preparing the backup; no archive was published.")
+        return held
     except OSError as error:
         raise ValueError("The Minecraft world lock changed or became unreadable; no archive was published.") from error
+
+
+def verify_world_session_lock(world, descriptor):
+    """Observe the exclusive record lock; this does not prove continuous ownership."""
+    held = _world_session_lock_identity(world, descriptor)
+    try:
+        # F_GETLK ignores locks owned by its own process. Inspect from a child;
+        # opening and closing another descriptor in this process could release
+        # this process's record lock even while the original descriptor is open.
+        observer = subprocess.run([sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_OBSERVER,
+                                   str(world / "session.lock"), str(held.st_dev), str(held.st_ino), str(os.getpid())],
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
+        if observer.returncode != 10:
+            raise ValueError("The Minecraft world lock is not confirmed; keep the world stopped for host review.")
+        _world_session_lock_identity(world, descriptor)
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("The Minecraft world lock could not be confirmed; keep the world stopped for host review.") from error
 
 
 def acquire_world_session_lock(world):
@@ -207,7 +266,7 @@ def acquire_world_session_lock(world):
     except OSError as error:
         raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.") from error
     try:
-        verify_world_session_lock(world, descriptor)
+        _world_session_lock_identity(world, descriptor)
         try:
             # Java's FileChannel.tryLock and POSIX lockf use the same advisory
             # record lock on the tested local macOS filesystem. Hold it for the
