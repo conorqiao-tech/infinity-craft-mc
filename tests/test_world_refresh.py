@@ -726,7 +726,7 @@ class TerrainRefreshTests(unittest.TestCase):
             self.assertIsNotNone(self.transaction())
         self.assertEqual(events, [("confirm", self.backup), "prepare"])
 
-    def test_interrupted_protected_chunk_restore_rolls_back_complete_original_world(self):
+    def test_interrupted_protected_chunk_restore_retains_unknown_temporary_for_review(self):
         self.policy()
         write = refresh.atomic_bytes
         def interrupted(path, value):
@@ -738,10 +738,20 @@ class TerrainRefreshTests(unittest.TestCase):
         with patch.object(refresh, "atomic_bytes", side_effect=interrupted):
             with self.assertRaises(KeyboardInterrupt):
                 self.transaction()
-        self.recover()
-        self.assert_original()
+        before = self.snapshot()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
+        folders = self.refresh_folders()
+        archived = {p.relative_to(self.root).as_posix(): p.read_bytes()
+                    for folder in folders for p in folder.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(ValueError, "Unexpected.*review"):
+            self.recover()
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+        self.assertEqual({p.relative_to(self.root).as_posix(): p.read_bytes()
+                          for folder in folders for p in folder.rglob("*") if p.is_file()}, archived)
+        self.assertIn(b"partial write", before.values())
 
-    def test_interrupted_protected_chunk_restore_is_recovered_by_ordinary_start(self):
+    def test_interrupted_protected_chunk_restore_stops_ordinary_start_for_review(self):
         self.policy(refresh_next_start=True)
         write = refresh.atomic_bytes
         def interrupted(path, value):
@@ -753,9 +763,20 @@ class TerrainRefreshTests(unittest.TestCase):
         with patch.object(refresh, "atomic_bytes", side_effect=interrupted):
             with self.assertRaises(KeyboardInterrupt):
                 self.transaction()
+        before = self.snapshot()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
         folders = self.refresh_folders()
-        self.assertEqual(self.start()[0], self.original)
-        self.assert_no_new_refresh(folders=folders)
+        archived = {p.relative_to(self.root).as_posix(): p.read_bytes()
+                    for folder in folders for p in folder.rglob("*") if p.is_file()}
+        with self.assertRaisesRegex(ValueError, "Unexpected.*review"):
+            self.start()
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+        self.assertEqual({p.relative_to(self.root).as_posix(): p.read_bytes()
+                          for folder in folders for p in folder.rglob("*") if p.is_file()}, archived)
+        self.assertEqual(self.refresh_folders(), folders)
+        self.assertTrue((self.root / "launcher.lock").exists())
+        self.assertIn(b"partial write", before.values())
 
     def test_legacy_layout_is_rejected_and_lock_required(self):
         self.policy()

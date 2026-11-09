@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import stat
 import uuid
 import zipfile
 import tempfile
@@ -142,47 +143,93 @@ def recover(root, emit=None, lease_fd=None):
         os.close(session_lock)
 
 
+def _recovery_item(world, rollback, relative, kept_files):
+    """Inspect one recovery item without deleting or moving any entry."""
+    source = inside(world, relative)
+    saved = inside(rollback / "terrain", relative)
+    if not saved.exists():
+        if not source.exists():
+            raise ValueError("Old terrain is missing; restore the verified full backup manually")
+        source_info = source.lstat()
+        if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
+            raise ValueError("Unexpected restored terrain entry; keep it for host review")
+        return source, saved, [], []
+    saved_info = saved.lstat()
+    if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
+        raise ValueError("Unexpected archived terrain entry; keep it for host review")
+    if not source.exists():
+        return source, saved, [], []
+
+    files = []
+    directories = []
+    pending = [source]
+    while pending:
+        item = pending.pop()
+        relative_item = item.relative_to(world).as_posix()
+        inside(world, relative_item)
+        info = item.lstat()
+        if stat.S_ISDIR(info.st_mode):
+            directories.append(item)
+            # scandir propagates traversal errors and does not follow links.
+            with os.scandir(item) as entries:
+                pending.extend(item / entry.name for entry in entries)
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+            if kept_files.get(relative_item) != digest(item):
+                raise ValueError("Unexpected new terrain exists; keep it for host review")
+            files.append(item)
+        else:
+            raise ValueError("Unexpected terrain recovery entry; keep it for host review")
+
+    # Empty or unrelated nested directories have no recorded kept-file owner.
+    # Retain them for review rather than deleting them as incidental cleanup.
+    known_directories = {source}
+    for file in files:
+        parent = file.parent
+        while parent != source and parent.is_relative_to(source):
+            known_directories.add(parent)
+            parent = parent.parent
+    if any(directory not in known_directories for directory in directories):
+        raise ValueError("Unexpected terrain recovery directory; keep it for host review")
+    return source, saved, files, sorted(directories, key=lambda item: len(item.parts), reverse=True)
+
+
 def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd):
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
         if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
             raise ValueError("Invalid terrain refresh recovery paths")
+        kept_files = record.get("kept_files", {})
+        if not isinstance(kept_files, dict):
+            raise ValueError("Invalid protected terrain recovery records")
         # Validate all entries before any move: an old or damaged journal must
         # never be allowed to replace the inode whose lock guards recovery.
+        normalized = []
         for relative in moved_paths:
             parts = PurePosixPath(relative).parts
             if parts and parts[0].casefold() == "session.lock":
                 raise ValueError("Terrain recovery cannot move the Minecraft world lock")
             inside(world, relative)
             inside(rollback / "terrain", relative)
+            normalized.append(tuple(part.casefold() for part in parts))
+        ordered = sorted(normalized)
+        if any(child[:len(parent)] == parent for parent, child in zip(ordered, ordered[1:])):
+            raise ValueError("Overlapping terrain recovery paths require host review")
+        # Check all items before the first mutation. Repeat the check at each
+        # move because a prior check does not exclude a concurrent writer.
+        for relative in reversed(moved_paths):
+            _recovery_item(world, rollback, relative, kept_files)
         for relative in reversed(moved_paths):
             community.verify_borrowed_launcher_lease(root, lease_fd)
             community.verify_world_session_lock(world, session_lock)
-            source = inside(world, relative)
-            saved = inside(rollback / "terrain", relative)
+            source, saved, existing, directories = _recovery_item(world, rollback, relative, kept_files)
             if saved.exists():
                 if source.exists():
-                    # Only the exact protected records written by this stopped
-                    # transaction may be removed during rollback.
-                    existing = [p for p in source.rglob("*") if p.is_file()] if source.is_dir() else [source]
-                    for file in existing:
-                        relative_file = file.relative_to(world).as_posix()
-                        inside(world, relative_file)
-                        kept_files = record.get("kept_files", {})
-                        temporary_for_kept = any(file.parent == inside(world, name).parent
-                            and file.name.startswith(Path(name).name + ".refresh-tmp-") for name in kept_files)
-                        if not temporary_for_kept and kept_files.get(relative_file) != digest(file):
-                            raise ValueError("Unexpected new terrain exists; restore the verified backup manually")
                     for file in existing:
                         file.unlink()
-                    if source.is_dir():
-                        for folder in sorted((p for p in source.rglob("*") if p.is_dir()), reverse=True):
-                            folder.rmdir()
-                        source.rmdir()
+                    for folder in directories:
+                        folder.rmdir()
                 source.parent.mkdir(parents=True, exist_ok=True)
                 move(saved, source)
-            elif not source.exists():
-                raise ValueError("Old terrain is missing; restore the verified full backup manually")
         # The moving transaction has never written its new policy. Preserve
         # the owner's edits, especially a decision to disable refresh.
         community.verify_borrowed_launcher_lease(root, lease_fd)
