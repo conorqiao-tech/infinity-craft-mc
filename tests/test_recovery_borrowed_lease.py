@@ -83,6 +83,17 @@ class BorrowedRecoveryLeaseTests(unittest.TestCase):
         finally:
             os.close(descriptor)
 
+    def test_recovery_refuses_a_previously_unlocked_borrowed_lease(self):
+        descriptor = self.lease()
+        try:
+            code = 'import fcntl,sys; fcntl.flock(int(sys.argv[1]),fcntl.LOCK_UN)'
+            subprocess.run([sys.executable, '-c', code, str(descriptor)], pass_fds=(descriptor,), check=True, timeout=10)
+            with self.assertRaisesRegex(ValueError, 'launcher.*lease|lease.*launcher'):
+                refresh.recover(self.root, lease_fd=descriptor)
+            self.assert_unchanged()
+        finally:
+            os.close(descriptor)
+
     def test_recovery_holds_both_cooperative_locks_during_a_move(self):
         descriptor = self.lease()
         original = refresh.move
