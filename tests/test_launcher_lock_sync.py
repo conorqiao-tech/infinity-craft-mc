@@ -91,10 +91,11 @@ class LauncherLockSyncTests(unittest.TestCase):
              patch.object(launcher.community, "world_folder"), \
              patch.object(launcher.world_refresh, "recover", side_effect=recover), \
              patch.object(launcher, "emit"):
-            launcher.run_server(self.args, root=self.root, console=False)
+            with self.assertRaisesRegex(RuntimeError, "Interrupted during interrupted terrain recovery"):
+                launcher.run_server(self.args, root=self.root, console=False)
         self.assertEqual(events, ["lock file flush", "directory flush", "directory flush completed",
                                   "port check", "world recovery"])
-        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertTrue((self.root / "launcher.lock").exists())
 
     @unittest.skipUnless(os.name == "posix", "POSIX directory synchronization")
     def test_observed_lock_swap_during_sync_stops_before_world_work(self):
@@ -144,9 +145,11 @@ class LauncherLockSyncTests(unittest.TestCase):
              patch.object(launcher.community, "world_folder"), \
              patch.object(launcher.world_refresh, "recover", side_effect=InterruptedError), \
              patch.object(launcher, "emit"):
-            launcher.run_server(self.args, root=self.root, console=False)
+            with self.assertRaisesRegex(RuntimeError, "Interrupted during interrupted terrain recovery"):
+                launcher.run_server(self.args, root=self.root, console=False)
         directory.assert_not_called()
         self.assertEqual(events, ["file flush", "ports"])
+        self.assertTrue((self.root / "launcher.lock").exists())
 
 
 if __name__ == "__main__":

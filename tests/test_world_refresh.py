@@ -329,7 +329,10 @@ class TerrainRefreshTests(unittest.TestCase):
                 self.assertEqual(self.refresh_folders(), [])
                 self.assertEqual(list((self.root / "backups").glob("*.partial")), [])
                 self.assertFalse((self.root / refresh.JOURNAL).exists())
-                self.assertFalse((self.root / "launcher.lock").exists())
+                self.assertTrue((self.root / "launcher.lock").exists())
+                # Only this disposable fixture models review so the next
+                # independent injected-failure case can run.
+                (self.root / "launcher.lock").unlink()
 
     # Interrupted transactions from earlier releases are still recovered first.
 
@@ -415,7 +418,7 @@ class TerrainRefreshTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Minecraft.*world|world.*Minecraft"):
                     launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
             backup.assert_not_called()
-            self.assertFalse((self.root / "launcher.lock").exists())
+            self.assertTrue((self.root / "launcher.lock").exists())
             self.assertEqual(self.snapshot(), before)
             self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
         finally:
