@@ -565,6 +565,10 @@ class CommunityTests(unittest.TestCase):
              patch.object(community, "sync_directory", side_effect=sync_directory):
             with self.assertRaisesRegex(OSError, "injected directory sync failure"):
                 community.backup(self.root, {"level-name": "my-world"})
+            self.assertTrue((self.root / "launcher.lock").is_file())
+            # Model a host reviewing this disposable fixture before exercising
+            # the separate borrowed-descriptor path below.
+            (self.root / "launcher.lock").unlink()
             descriptor = launcher.acquire_launcher_lock(launcher.parse_args([]), self.root)
             try:
                 os.write(descriptor, str(os.getpid()).encode("ascii"))

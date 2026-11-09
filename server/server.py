@@ -706,6 +706,7 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
     unexpected_session = False
     cancelled_after_launch = False
     lock_prepared = False
+    world_work = None
     try:
         pid = str(os.getpid()).encode("ascii")
         if os.write(lock_fd, pid) != len(pid):
@@ -728,8 +729,11 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
         # Recover first so the startup ZIP represents the complete stopped save,
         # rather than a partially archived world from an interrupted refresh.
         # Recovery only completes that earlier transaction; it never starts one.
+        world_work = "interrupted terrain recovery"
         world_refresh.recover(root, emit, lock_fd)
+        world_work = "startup backup"
         backup_name = community.backup(root, startup_properties, locked=True, lease_fd=lock_fd)
+        world_work = None
         if backup_name and community.DIRECTORY_SYNC:
             emit("World backed up before startup: backups/" + backup_name)
         elif backup_name:
@@ -797,14 +801,20 @@ def run_server(args, stop_requested=None, on_ready=None, root=ROOT, console=True
             for service in services:
                 if service.process.poll() is not None:
                     raise RuntimeError(service.name + " stopped; shutting down the other service.")
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as error:
+        if world_work is not None:
+            unexpected_session = True
+            raise RuntimeError("Interrupted during " + world_work + "; retain launcher.lock for host review.") from error
         emit("\nSaving and stopping...")
-    except InterruptedError:
+    except InterruptedError as error:
+        if world_work is not None:
+            unexpected_session = True
+            raise RuntimeError("Interrupted during " + world_work + "; retain launcher.lock for host review.") from error
         cancelled_after_launch = bool(services) or spawn_may_be_untracked
         unexpected_session = cancelled_after_launch
         emit("Startup cancelled; stopping any running services...")
     except BaseException:
-        unexpected_session = bool(services) or spawn_may_be_untracked
+        unexpected_session = world_work is not None or bool(services) or spawn_may_be_untracked
         raise
     finally:
         try:

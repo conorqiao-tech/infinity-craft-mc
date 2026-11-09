@@ -535,6 +535,10 @@ def backup(root, props, locked=False, lease_fd=None):
     lease_prepared = False
     temporary = None
     session_lock = None
+    publication_attempted = False
+    publication_complete = False
+    temporary_cleanup_complete = False
+    session_lock_closed = False
     try:
         if locked:
             verify_borrowed_launcher_lease(root, lease_fd)
@@ -632,24 +636,33 @@ def backup(root, props, locked=False, lease_fd=None):
         verify_world_session_lock(world, session_lock)
         if locked:
             verify_borrowed_launcher_lease(root, lease_fd)
+        # A rename can have happened even when its caller observes an error.
+        # Retain the lease and any remaining staged file until publication and
+        # cleanup have completed; this does not prove power-loss durability.
+        publication_attempted = True
         os.replace(temporary, destination)
         # Where possible the backup only counts once its folder entry is durable;
         # real sync failures propagate.
         if DIRECTORY_SYNC:
             sync_directory(folder)
+        publication_complete = True
         return destination.name
     finally:
         try:
-            if temporary is not None:
+            if temporary is not None and not (publication_attempted and not publication_complete):
                 temporary.unlink(missing_ok=True)
+            temporary_cleanup_complete = True
         finally:
             try:
                 if session_lock is not None:
                     os.close(session_lock)
+                session_lock_closed = True
             finally:
                 if fd is not None:
                     try:
-                        if owns_launcher_lock and lease_prepared:
+                        safe_to_retire = (not publication_attempted or
+                            (publication_complete and temporary_cleanup_complete and session_lock_closed))
+                        if owns_launcher_lock and lease_prepared and safe_to_retire:
                             unlink_backup_lease_entry(lockfile, fd)
                     finally:
                         try:

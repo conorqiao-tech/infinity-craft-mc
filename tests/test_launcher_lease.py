@@ -181,7 +181,8 @@ else:
             ]:
                 stack.enter_context(patch.object(obj, name, return_value=value))
             stack.enter_context(patch.object(launcher.community, "backup", side_effect=replace_before_exit))
-            launcher.run_server(self.args, root=self.root, console=False)
+            with self.assertRaisesRegex(RuntimeError, "Interrupted during startup backup"):
+                launcher.run_server(self.args, root=self.root, console=False)
         self.assertEqual((self.root / "launcher.lock").read_bytes(), b"other lock evidence")
 
     def test_failed_lease_creation_leaves_entry_for_review(self):
