@@ -57,6 +57,8 @@ Backup refuses unreadable world directories, symbolic links, hard-linked files a
 
 Recovery of an interrupted older terrain transaction also checks the borrowed launcher lease and Minecraft's native world lock before its guarded moves and before retiring its journal. An observed change can stop later steps but cannot undo a move already made. The launcher does not start a new terrain refresh; these checks do not authorize one.
 
+Before moving any listed path, recovery checks all paths and refuses overlapping entries or unrecorded files, including temporary files, linked or special entries, and unrelated directories in terrain it would replace. It repeats each check before acting. These checks cannot exclude a writer changing an entry afterward; retain unexpected data and the recovery journal for host review.
+
 If interrupted terrain recovery or a startup backup fails or is interrupted, the launcher retains its existing lock for host review when the entry is still available. A retained lock is evidence of uncertainty, not proof that the world or backup is intact.
 
 A manual backup also retains its lock if archive publication or the following cleanup fails. An unpublished `.partial` file may remain for review; it is not a confirmed backup.
