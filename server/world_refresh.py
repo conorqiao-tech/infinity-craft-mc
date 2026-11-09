@@ -14,6 +14,7 @@ import uuid
 import zipfile
 import tempfile
 import sys
+import subprocess
 import community
 import terrain_storage
 
@@ -29,6 +30,60 @@ def digest(path):
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             h.update(block)
     return h.hexdigest()
+
+
+_RECOVERY_DIGEST_READER = r'''
+import hashlib, os, stat, sys
+try:
+    expected = tuple(int(value) for value in sys.argv[2:])
+    fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                    info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or identity(before) != expected:
+            sys.exit(21)
+        value = hashlib.sha256()
+        while True:
+            block = os.read(fd, 1024 * 1024)
+            if not block:
+                break
+            value.update(block)
+        if identity(os.fstat(fd)) != expected:
+            sys.exit(22)
+        print(value.hexdigest())
+    finally:
+        os.close(fd)
+except (OSError, ValueError):
+    sys.exit(23)
+'''
+
+
+def _recovery_digest(path, info):
+    """Read a kept file outside the process holding the POSIX world lock.
+
+    Closing a second descriptor to that lock's inode in the lock-owning
+    process would release its record lock. A substituted hardlink must not
+    make the recovery reader do that. This does not exclude a later writer.
+    """
+    expected = (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    try:
+        reader = subprocess.run([sys.executable, "-I", "-S", "-c", _RECOVERY_DIGEST_READER,
+                                 str(path), *(str(value) for value in expected)],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, close_fds=True, timeout=120)
+        current = path.lstat()
+        current_identity = (current.st_dev, current.st_ino, current.st_mode, current.st_nlink,
+                            current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+        value = reader.stdout.strip()
+        if (reader.returncode != 0 or current_identity != expected or len(value) != 64
+                or any(byte not in b"0123456789abcdef" for byte in value)):
+            raise ValueError("Terrain recovery file changed; keep it for host review")
+        return value.decode("ascii")
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("Terrain recovery file could not be checked; keep it for host review") from error
 
 
 def sync_directory(path):
@@ -174,7 +229,8 @@ def _recovery_item(world, rollback, relative, kept_files):
             with os.scandir(item) as entries:
                 pending.extend(item / entry.name for entry in entries)
         elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
-            if kept_files.get(relative_item) != digest(item):
+            expected_hash = kept_files.get(relative_item)
+            if expected_hash is None or expected_hash != _recovery_digest(item, info):
                 raise ValueError("Unexpected new terrain exists; keep it for host review")
             files.append(item)
         else:
