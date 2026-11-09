@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
 import time
 import uuid
@@ -460,11 +461,34 @@ def unlink_backup_lease_entry(path, descriptor):
     return True
 
 
+_LAUNCHER_LEASE_OBSERVER = r'''
+import fcntl, os, stat, sys
+try:
+    fd = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or (info.st_dev, info.st_ino) != (int(sys.argv[2]), int(sys.argv[3]))):
+            sys.exit(20)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            sys.exit(10)  # The expected entry has an exclusive flock.
+        else:
+            sys.exit(0)  # No exclusive lease; do not silently reacquire it.
+    finally:
+        os.close(fd)
+except OSError:
+    sys.exit(30)
+'''
+
+
 def verify_borrowed_launcher_lease(root, descriptor):
     """Check a caller's matching cooperative lease without closing it.
 
-    Reacquiring an already unlocked descriptor cannot prove uninterrupted
-    ownership. A noncooperating writer or later path swap is not excluded.
+    An independent observer catches a missing or downgraded exclusive lock at
+    its check point; it cannot prove uninterrupted ownership or exclude a
+    noncooperating writer.
     """
     if not isinstance(descriptor, int) or isinstance(descriptor, bool):
         raise ValueError("A matching launcher lease is required before world work.")
@@ -476,16 +500,26 @@ def verify_borrowed_launcher_lease(root, descriptor):
                 or held.st_nlink != 1 or current.st_nlink != 1
                 or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
             raise ValueError("The borrowed launcher lease changed; keep the world stopped for review.")
+        return held
 
     try:
-        check_entry()
+        held = check_entry()
         if os.name == "posix":
             import fcntl
+            # Open the path in a separate process. Closing another descriptor
+            # for Minecraft's session.lock in this process can release its
+            # POSIX record lock if an actor substitutes that inode here.
+            observer = subprocess.run([sys.executable, "-I", "-S", "-c", _LAUNCHER_LEASE_OBSERVER,
+                                       str(root / "launcher.lock"), str(held.st_dev), str(held.st_ino)],
+                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                      stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
+            if observer.returncode != 10:
+                raise ValueError("The borrowed launcher lease is not confirmed; keep the world stopped for review.")
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # On Windows this only compares the descriptor to the entry. Backups
         # of existing worlds still refuse without a native session-lock check.
         check_entry()
-    except OSError as error:
+    except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("The borrowed launcher lease is unavailable or changed; keep the world stopped for review.") from error
 
 
