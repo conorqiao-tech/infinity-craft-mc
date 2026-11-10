@@ -1,6 +1,7 @@
 """Community server settings and stopped-world backups."""
 from datetime import datetime, timezone
 from dataclasses import dataclass
+from contextvars import ContextVar
 import errno
 import json
 import hashlib
@@ -8,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import re
+import selectors
 import stat
 import subprocess
 import sys
@@ -467,16 +469,115 @@ def open_backup_parent(entry):
         raise
 
 
+_BACKUP_READER_IDLE_TIMEOUT = 120
+_BACKUP_READER_BASE_TIMEOUT = 120
+_BACKUP_READER_MIN_BYTES_PER_SECOND = 64 * 1024
+_BACKUP_READER_TRAILER = b"INFINITY_BACKUP_FILE_OK_V1"
+
+_BACKUP_FILE_READER = r'''
+import os, stat, sys
+try:
+    def emit(block):
+        remaining = memoryview(block)
+        while remaining:
+            written = os.write(1, remaining)
+            if written <= 0:
+                sys.exit(23)
+            remaining = remaining[written:]
+    parent = int(sys.argv[1])
+    name = sys.argv[2]
+    parent_expected = (int(sys.argv[3]), int(sys.argv[4]))
+    expected = tuple(int(value) for value in sys.argv[5:])
+    directory = os.fstat(parent)
+    if not stat.S_ISDIR(directory.st_mode) or (directory.st_dev, directory.st_ino) != parent_expected:
+        sys.exit(24)
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    try:
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                    info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or identity(before) != expected:
+            sys.exit(21)
+        copied = 0
+        while True:
+            block = os.read(descriptor, 1024 * 1024)
+            if not block:
+                break
+            copied += len(block)
+            if copied > expected[4]:
+                sys.exit(22)
+            emit(block)
+        if copied != expected[4] or identity(os.fstat(descriptor)) != expected:
+            sys.exit(22)
+    finally:
+        os.close(descriptor)
+    # This is emitted only after the complete read, final fstat and close.
+    # The parent treats it as a fixed trailer after exactly the expected bytes.
+    emit(b"INFINITY_BACKUP_FILE_OK_V1")
+except (OSError, ValueError):
+    sys.exit(23)
+'''
+
+
+class BackupReaderUncertain(RuntimeError):
+    """A backup reader could not be confirmed stopped; retain the launcher marker."""
+
+
+class _BackupReaderState:
+    def __init__(self):
+        self.unconfirmed = 0
+
+
+_ACTIVE_BACKUP_READERS = ContextVar("active_backup_readers", default=None)
+
+
+def _backup_error_requires_review(error):
+    """Retain evidence when cleanup masks an interruption or uncertain reader."""
+    pending = [error]
+    seen = set()
+    while pending:
+        current = pending.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, (BackupReaderUncertain, KeyboardInterrupt, SystemExit)):
+            return True
+        pending.extend((current.__cause__, current.__context__))
+    return False
+
+
+def _stop_backup_reader(reader):
+    try:
+        if reader.poll() is None:
+            reader.kill()
+        reader.wait(timeout=5)
+    except BaseException as error:
+        raise BackupReaderUncertain("A backup reader could not be confirmed stopped; keep the launcher lock for host review.") from error
+
+
 def write_backup_file(output, entry, fabric):
-    """Copy from a checked descriptor; reject observed replacement or mutation."""
+    """Copy through a child so file closes cannot release our native record lock."""
     expected = backup_file_identity(entry.snapshot)
+    if (not entry.parts or not isinstance(entry.parts[-1], str) or entry.parts[-1] in ("", ".", "..")
+            or "/" in entry.parts[-1] or "\0" in entry.parts[-1]):
+        raise ValueError("An invalid backup filename cannot be copied; no archive was published.")
+    parent_expected = entry.parent_identities[-1] if entry.parent_identities else entry.root_identity
+    reader_state = _ACTIVE_BACKUP_READERS.get()
     try:
         parent = open_backup_parent(entry)
         try:
-            descriptor = os.open(entry.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-            with os.fdopen(descriptor, "rb") as source:
-                if backup_file_identity(os.fstat(source.fileno())) != expected:
-                    raise ValueError("A backup file changed before it could be copied; no archive was published.")
+            reader = None
+            try:
+                if reader_state is not None:
+                    # A failed or interrupted spawn may have created a child
+                    # even when no usable process handle was returned.
+                    reader_state.unconfirmed += 1
+                reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _BACKUP_FILE_READER,
+                                           str(parent), entry.parts[-1], *(str(value) for value in parent_expected),
+                                           *(str(value) for value in expected)],
+                                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                          stderr=subprocess.DEVNULL, close_fds=True, pass_fds=(parent,))
                 archive_name = entry.root.joinpath(*entry.parts).relative_to(fabric).as_posix()
                 info = zipfile.ZipInfo(archive_name, time.localtime(entry.snapshot.st_mtime)[:6])
                 info.external_attr = (entry.snapshot.st_mode & 0xFFFF) << 16
@@ -484,14 +585,39 @@ def write_backup_file(output, entry, fabric):
                 info._compresslevel = output.compresslevel
                 info.file_size = entry.snapshot.st_size
                 copied = 0
-                with output.open(info, "w") as target:
-                    while chunk := source.read(1024 * 1024):
-                        target.write(chunk)
-                        copied += len(chunk)
-                if copied != entry.snapshot.st_size or backup_file_identity(os.fstat(source.fileno())) != expected:
+                trailer = bytearray()
+                deadline = (time.monotonic() + _BACKUP_READER_BASE_TIMEOUT
+                            + entry.snapshot.st_size / _BACKUP_READER_MIN_BYTES_PER_SECOND)
+                with selectors.DefaultSelector() as selector, output.open(info, "w") as target:
+                    selector.register(reader.stdout, selectors.EVENT_READ)
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0 or not selector.select(min(_BACKUP_READER_IDLE_TIMEOUT, remaining)):
+                            raise ValueError("A backup reader stopped making progress; no archive was published.")
+                        chunk = os.read(reader.stdout.fileno(), 1024 * 1024)
+                        if not chunk:
+                            break
+                        remaining_file = entry.snapshot.st_size - copied
+                        data = chunk[:remaining_file]
+                        copied += len(data)
+                        if data:
+                            target.write(data)
+                        trailer.extend(chunk[len(data):])
+                        if len(trailer) > len(_BACKUP_READER_TRAILER):
+                            raise ValueError("A backup file changed while it was copied; no archive was published.")
+                status = reader.wait(timeout=_BACKUP_READER_IDLE_TIMEOUT)
+                if status != 0 or copied != entry.snapshot.st_size or bytes(trailer) != _BACKUP_READER_TRAILER:
                     raise ValueError("A backup file changed while it was copied; no archive was published.")
                 if backup_file_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
                     raise ValueError("A backup file changed while it was copied; no archive was published.")
+            finally:
+                if reader is not None:
+                    try:
+                        reader.stdout.close()
+                    finally:
+                        _stop_backup_reader(reader)
+                        if reader_state is not None:
+                            reader_state.unconfirmed -= 1
         finally:
             os.close(parent)
         # Reopen the path after copying, including parents, to detect an observed
@@ -502,7 +628,7 @@ def write_backup_file(output, entry, fabric):
                 raise ValueError("A backup file changed while it was copied; no archive was published.")
         finally:
             os.close(parent)
-    except OSError as error:
+    except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("A backup path changed or could not be read; no archive was published.") from error
 
 
@@ -587,6 +713,15 @@ def backup(root, props, locked=False, lease_fd=None):
 
     Where DIRECTORY_SYNC is false the archive is fsynced and renamed but its
     folder entry is unconfirmed; confirm_backup_durable reports that."""
+    reader_state = _BackupReaderState()
+    token = _ACTIVE_BACKUP_READERS.set(reader_state)
+    try:
+        return _backup_with_reader_state(root, props, locked, lease_fd, reader_state)
+    finally:
+        _ACTIVE_BACKUP_READERS.reset(token)
+
+
+def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
     lockfile = root / "launcher.lock"
     fd = None
     lease_temporary = None
@@ -598,6 +733,7 @@ def backup(root, props, locked=False, lease_fd=None):
     publication_complete = False
     temporary_cleanup_complete = False
     session_lock_closed = False
+    reader_uncertain = False
     try:
         if locked:
             verify_borrowed_launcher_lease(root, lease_fd)
@@ -706,6 +842,9 @@ def backup(root, props, locked=False, lease_fd=None):
             sync_directory(folder)
         publication_complete = True
         return destination.name
+    except BaseException as error:
+        reader_uncertain = _backup_error_requires_review(error)
+        raise
     finally:
         try:
             if temporary is not None and not (publication_attempted and not publication_complete):
@@ -719,7 +858,7 @@ def backup(root, props, locked=False, lease_fd=None):
             finally:
                 if fd is not None:
                     try:
-                        safe_to_retire = (not publication_attempted or
+                        safe_to_retire = not reader_uncertain and reader_state.unconfirmed == 0 and (not publication_attempted or
                             (publication_complete and temporary_cleanup_complete and session_lock_closed))
                         if owns_launcher_lock and lease_prepared and safe_to_retire:
                             unlink_backup_lease_entry(lockfile, fd)
