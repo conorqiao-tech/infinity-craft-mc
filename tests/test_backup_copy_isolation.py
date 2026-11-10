@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -200,6 +201,28 @@ class BackupCopyIsolationTests(unittest.TestCase):
              patch.object(community.subprocess, 'Popen', side_effect=capture):
             with self.assertRaisesRegex(ValueError, 'progress'):
                 community.backup(self.root, self.props)
+        self.assertEqual(len(readers), 1)
+        self.assertIsNotNone(readers[0].poll())
+        self.assertFalse(list((self.root / 'backups').glob('Infinity-World-*.zip')))
+
+    def test_reader_hanging_after_stdout_eof_is_bounded_by_total_deadline(self):
+        script = 'import os,time;os.close(1);time.sleep(30)'
+        real_popen = subprocess.Popen
+        readers = []
+        def capture(command, *args, **kwargs):
+            process = real_popen(command, *args, **kwargs)
+            if len(command) > 4 and command[4] == script:
+                readers.append(process)
+            return process
+        start = time.monotonic()
+        with patch.object(community, '_BACKUP_FILE_READER', script), \
+             patch.object(community, '_BACKUP_READER_IDLE_TIMEOUT', 5), \
+             patch.object(community, '_BACKUP_READER_BASE_TIMEOUT', 0.2), \
+             patch.object(community, '_BACKUP_READER_MIN_BYTES_PER_SECOND', 10**9), \
+             patch.object(community.subprocess, 'Popen', side_effect=capture):
+            with self.assertRaises(ValueError):
+                community.backup(self.root, self.props)
+        self.assertLess(time.monotonic() - start, 2)
         self.assertEqual(len(readers), 1)
         self.assertIsNotNone(readers[0].poll())
         self.assertFalse(list((self.root / 'backups').glob('Infinity-World-*.zip')))

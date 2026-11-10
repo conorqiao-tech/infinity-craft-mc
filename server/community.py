@@ -605,7 +605,10 @@ def write_backup_file(output, entry, fabric):
                         trailer.extend(chunk[len(data):])
                         if len(trailer) > len(_BACKUP_READER_TRAILER):
                             raise ValueError("A backup file changed while it was copied; no archive was published.")
-                status = reader.wait(timeout=_BACKUP_READER_IDLE_TIMEOUT)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ValueError("A backup reader stopped making progress; no archive was published.")
+                status = reader.wait(timeout=min(_BACKUP_READER_IDLE_TIMEOUT, remaining))
                 if status != 0 or copied != entry.snapshot.st_size or bytes(trailer) != _BACKUP_READER_TRAILER:
                     raise ValueError("A backup file changed while it was copied; no archive was published.")
                 if backup_file_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
