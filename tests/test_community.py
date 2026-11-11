@@ -29,6 +29,12 @@ class CommunityTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def assert_failed_archive_retained(self):
+        entries = list((self.root / "backups").iterdir())
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].suffix, ".partial")
+        self.assertTrue((self.root / "launcher.lock").exists())
+
     def test_backup_copies_world_and_moderation_without_runtime_keys(self):
         (self.root / "fabric/ops.json").write_text('[{"name":"Test"}]')
         (self.root / "fabric/config").mkdir()
@@ -125,7 +131,7 @@ class CommunityTests(unittest.TestCase):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual(retained.read_bytes(), b"test region bytes")
         self.assertEqual(outside.read_bytes(), b"unrelated synthetic data")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
     def test_backup_rejects_directory_link_substituted_after_listing(self):
@@ -147,7 +153,7 @@ class CommunityTests(unittest.TestCase):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual((retained / "r.0.0.mca").read_bytes(), b"test region bytes")
         self.assertEqual((outside / "r.0.0.mca").read_bytes(), b"unrelated synthetic data")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     @unittest.skipUnless(os.name == "posix", "requires stable POSIX file identities")
     def test_backup_rejects_regular_file_substituted_after_listing(self):
@@ -166,7 +172,7 @@ class CommunityTests(unittest.TestCase):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual(retained.read_bytes(), b"test region bytes")
         self.assertEqual(target.read_bytes(), b"replacement synthetic data")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX hard links")
     def test_backup_rejects_hard_link_to_an_outside_file(self):
@@ -194,7 +200,7 @@ class CommunityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed"):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertTrue(changed)
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     def test_backup_rejects_new_file_after_initial_listing(self):
         added = self.world / "region/r.1.0.mca"
@@ -209,7 +215,7 @@ class CommunityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed"):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual(added.read_bytes(), b"new synthetic region")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     def test_backup_rejects_change_to_an_already_copied_file(self):
         target = self.world / "region/r.0.0.mca"
@@ -224,7 +230,7 @@ class CommunityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "changed"):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual(target.read_bytes(), b"changed synthetic region")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     @unittest.skipUnless(os.name == "posix", "requires POSIX symlinks")
     def test_backup_rejects_accompanying_file_substitution(self):
@@ -245,7 +251,7 @@ class CommunityTests(unittest.TestCase):
                 community.backup(self.root, {"level-name": "my-world"})
         self.assertEqual(retained.read_text(), "level-name=my-world\n")
         self.assertEqual(outside.read_bytes(), b"unrelated synthetic data")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
+        self.assert_failed_archive_retained()
 
     def test_backup_never_runs_under_an_active_world_lock(self):
         (self.root / "launcher.lock").write_text("running")
@@ -469,11 +475,10 @@ class CommunityTests(unittest.TestCase):
         self.assertTrue(replaced)
         self.assertEqual(saved.read_bytes(), b"original lock")
         self.assertEqual(lock.read_bytes(), b"replacement lock")
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
-        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assert_failed_archive_retained()
 
     @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
-    def test_backup_releases_locks_even_when_partial_archive_cleanup_fails(self):
+    def test_failed_archive_is_retained_and_native_lock_released(self):
         lock = self.world / "session.lock"
         lock.write_bytes(b"native lock")
         real_unlink = Path.unlink
@@ -483,9 +488,10 @@ class CommunityTests(unittest.TestCase):
             return real_unlink(path, *args, **kwargs)
         with patch.object(community, "sync_file", side_effect=OSError("injected archive flush failure")):
             with patch.object(Path, "unlink", refuse_partial):
-                with self.assertRaisesRegex(PermissionError, "partial cleanup"):
+                with self.assertRaisesRegex(OSError, "archive flush"):
                     community.backup(self.root, {"level-name": "my-world"})
-        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assertTrue((self.root / "launcher.lock").exists())
+        self.assertEqual(len(list((self.root / "backups").glob("*.partial"))), 1)
         code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
                 "fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)")
         self.assertEqual(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode, 0)
@@ -524,7 +530,7 @@ class CommunityTests(unittest.TestCase):
             events.append("sync zip")
 
         def sync_directory(path):
-            # The backup folder is synchronized only after the rename.
+            # The backup folder is synchronized after the exclusive rename.
             events.append(("sync directory", Path(path), published()))
 
         # Recorded rather than real directory syncs keep this ordering check platform-independent.
@@ -550,8 +556,7 @@ class CommunityTests(unittest.TestCase):
         # The lease entry and the new backup folder's parent were synchronized;
         # no archive rename followed.
         self.assertEqual([call.args[0] for call in sync_directory.call_args_list], [self.root, self.root])
-        self.assertEqual(list((self.root / "backups").iterdir()), [])
-        self.assertFalse((self.root / "launcher.lock").exists())
+        self.assert_failed_archive_retained()
         self.assertEqual((self.world / "region/r.0.0.mca").read_bytes(), b"test region bytes")
 
     def test_backup_directory_sync_failure_is_not_reported_as_success(self):

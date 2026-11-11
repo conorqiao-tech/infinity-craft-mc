@@ -313,6 +313,8 @@ class TerrainRefreshTests(unittest.TestCase):
 
         failures = {"file": patch.object(community, "sync_file", side_effect=OSError(errno.EIO, "injected file sync failure")),
                     "directory": patch.object(community, "sync_directory", side_effect=fail_backups_directory)}
+        retained_partial = None
+        retained_bytes = None
         for case, failure in failures.items():
             with self.subTest(case=case):
                 # Directory sync is forced on so injected failures are exercised on every platform.
@@ -327,7 +329,14 @@ class TerrainRefreshTests(unittest.TestCase):
                 self.assertFalse(any("backed up" in str(call) for call in emit.call_args_list))
                 self.assert_original()
                 self.assertEqual(self.refresh_folders(), [])
-                self.assertEqual(list((self.root / "backups").glob("*.partial")), [])
+                partials = list((self.root / "backups").glob("*.partial"))
+                if case == "file":
+                    self.assertEqual(len(partials), 1)
+                    retained_partial = partials[0]
+                    retained_bytes = retained_partial.read_bytes()
+                else:
+                    self.assertEqual(partials, [retained_partial])
+                    self.assertEqual(retained_partial.read_bytes(), retained_bytes)
                 self.assertFalse((self.root / refresh.JOURNAL).exists())
                 self.assertTrue((self.root / "launcher.lock").exists())
                 # Only this disposable fixture models review so the next
