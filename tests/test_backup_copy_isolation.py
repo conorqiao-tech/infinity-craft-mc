@@ -96,7 +96,8 @@ class BackupCopyIsolationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 community.backup(self.root, self.props)
         self.assertFalse(list((self.root / 'backups').glob('Infinity-World-*.zip')))
-        self.assertFalse((self.root / 'launcher.lock').exists())
+        self.assertTrue((self.root / 'launcher.lock').exists())
+        self.assertEqual(len(list((self.root / 'backups').glob('*.partial'))), 1)
         self.assertEqual(self.target.read_bytes(), self.data)
 
     def test_reader_error_after_complete_output_is_not_published(self):
@@ -183,7 +184,8 @@ class BackupCopyIsolationTests(unittest.TestCase):
         self.assertEqual(len(readers), 1)
         self.assertIsNotNone(readers[0].poll())
         self.assertFalse(list((self.root / 'backups').glob('Infinity-World-*.zip')))
-        self.assertFalse((self.root / 'launcher.lock').exists())
+        self.assertTrue((self.root / 'launcher.lock').exists())
+        self.assertEqual(len(list((self.root / 'backups').glob('*.partial'))), 1)
 
     def test_trickling_reader_is_bounded_by_total_deadline(self):
         script = "import os,time\nfor _ in range(15):\n os.write(1,b'x');time.sleep(0.04)"

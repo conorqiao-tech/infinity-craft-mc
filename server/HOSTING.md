@@ -67,7 +67,9 @@ Recovery reads recorded kept-file hashes in a separate process so that a path su
 
 If interrupted terrain recovery or a startup backup fails or is interrupted, the launcher retains its existing lock for host review when the entry is still available. A retained lock is evidence of uncertainty, not proof that the world or backup is intact.
 
-A manual backup also retains its lock if archive publication or the following cleanup fails. An unpublished `.partial` file may remain for review; it is not a confirmed backup.
+A manual backup retains its lock if archive creation is attempted but the backup does not complete. Available `.partial` or published files are left for host review and are not confirmed backups. This avoids deleting a pathname that another writer may have replaced.
+
+Before and after publication, backup compares the archive path with its still-open file descriptor and refuses observed substitutions. It publishes with an exclusive rename so an existing backup name is not replaced. Unsupported systems or filesystems fail for host review and retain available evidence. macOS has been tested for this change; Linux has not. These are bounded checks: another writer can still change an entry after the last check, and the checks do not establish an atomic snapshot or exclusive writer ownership.
 
 To restore, stop the server, retain the current world under another name, extract a chosen backup **into a separate folder**, inspect its `BACKUP_INFO.json` for the world path, then copy that world into `fabric` and set `level-name` to its directory. Restore moderation files only if you want those older settings as well. Keep the same mod version initially. Never extract over a running world.
 

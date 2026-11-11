@@ -524,6 +524,46 @@ class BackupReaderUncertain(RuntimeError):
     """A backup reader could not be confirmed stopped; retain the launcher marker."""
 
 
+class BackupArchiveUncertain(RuntimeError):
+    """An archive entry no longer matches the held descriptor; retain evidence."""
+
+
+def verify_backup_archive_entry(path, descriptor):
+    """Compare an archive path without opening a possible native-lock alias."""
+    try:
+        held = os.fstat(descriptor)
+        entry = path.lstat()
+    except OSError as error:
+        raise BackupArchiveUncertain("The backup archive could not be confirmed; keep its evidence for review.") from error
+    if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(entry.st_mode)
+            or held.st_nlink != 1 or entry.st_nlink != 1
+            or (held.st_dev, held.st_ino) != (entry.st_dev, entry.st_ino)):
+        raise BackupArchiveUncertain("The backup archive changed; keep its evidence for review.")
+
+
+def publish_backup_no_replace(source, destination):
+    """Use an exclusive native rename; unsupported filesystems fail closed."""
+    import ctypes
+    library = ctypes.CDLL(None, use_errno=True)
+    try:
+        if sys.platform == "darwin":
+            rename = library.renamex_np
+            rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+            args = (os.fsencode(source), os.fsencode(destination), 0x00000004)  # RENAME_EXCL
+        elif sys.platform == "linux":
+            rename = library.renameat2
+            rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+            args = (-100, os.fsencode(source), -100, os.fsencode(destination), 1)  # AT_FDCWD, RENAME_NOREPLACE
+        else:
+            raise AttributeError("exclusive rename is unsupported")
+    except AttributeError as error:
+        raise OSError(errno.ENOTSUP, "Exclusive backup publication is unavailable") from error
+    rename.restype = ctypes.c_int
+    if rename(*args) != 0:
+        number = ctypes.get_errno()
+        raise OSError(number, os.strerror(number), str(source), None, str(destination))
+
+
 class _BackupReaderState:
     def __init__(self):
         self.unconfirmed = 0
@@ -541,7 +581,7 @@ def _backup_error_requires_review(error):
         if current is None or id(current) in seen:
             continue
         seen.add(id(current))
-        if isinstance(current, (BackupReaderUncertain, KeyboardInterrupt, SystemExit)):
+        if isinstance(current, (BackupReaderUncertain, BackupArchiveUncertain, KeyboardInterrupt, SystemExit)):
             return True
         pending.extend((current.__cause__, current.__context__))
     return False
@@ -731,10 +771,9 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
     owns_launcher_lock = False
     lease_prepared = False
     temporary = None
+    archive_creation_attempted = False
     session_lock = None
-    publication_attempted = False
     publication_complete = False
-    temporary_cleanup_complete = False
     session_lock_closed = False
     reader_uncertain = False
     try:
@@ -818,6 +857,7 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         temporary = destination.with_suffix(".partial")
         files = backup_world_files(world) + backup_server_files(fabric)
         inventory = backup_inventory(files)
+        archive_creation_attempted = True
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
         with os.fdopen(descriptor, "wb") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
@@ -829,20 +869,20 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                 raise ValueError("The world or server files changed during backup; no archive was published.")
             # Closing the archive wrote its central directory; persist the
             # complete ZIP before its final name becomes visible.
-            temporary.chmod(0o600)
+            os.fchmod(stream.fileno(), 0o600)
             sync_file(stream)
-        verify_world_session_lock(world, session_lock)
-        if locked:
-            verify_borrowed_launcher_lease(root, lease_fd)
-        # A rename can have happened even when its caller observes an error.
-        # Retain the lease and any remaining staged file until publication and
-        # cleanup have completed; this does not prove power-loss durability.
-        publication_attempted = True
-        os.replace(temporary, destination)
-        # Where possible the backup only counts once its folder entry is durable;
-        # real sync failures propagate.
-        if DIRECTORY_SYNC:
-            sync_directory(folder)
+            verify_backup_archive_entry(temporary, stream.fileno())
+            verify_world_session_lock(world, session_lock)
+            if locked:
+                verify_borrowed_launcher_lease(root, lease_fd)
+            verify_backup_archive_entry(temporary, stream.fileno())
+            # Rename without replacing an existing backup. If this call or a
+            # later check is uncertain, retain the marker and available paths.
+            publish_backup_no_replace(temporary, destination)
+            verify_backup_archive_entry(destination, stream.fileno())
+            if DIRECTORY_SYNC:
+                sync_directory(folder)
+            verify_backup_archive_entry(destination, stream.fileno())
         publication_complete = True
         return destination.name
     except BaseException as error:
@@ -850,27 +890,26 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         raise
     finally:
         try:
-            if temporary is not None and not (publication_attempted and not publication_complete):
-                temporary.unlink(missing_ok=True)
-            temporary_cleanup_complete = True
+            if session_lock is not None:
+                os.close(session_lock)
+            session_lock_closed = True
         finally:
-            try:
-                if session_lock is not None:
-                    os.close(session_lock)
-                session_lock_closed = True
-            finally:
-                if fd is not None:
+            if fd is not None:
+                try:
+                    # Once staging is attempted, leave every available archive
+                    # path and the marker for review unless publication fully
+                    # completed. A pathname can be replaced after any check.
+                    safe_to_retire = (not reader_uncertain and reader_state.unconfirmed == 0
+                                      and session_lock_closed
+                                      and (not archive_creation_attempted or publication_complete))
+                    if owns_launcher_lock and lease_prepared and safe_to_retire:
+                        unlink_backup_lease_entry(lockfile, fd)
+                finally:
                     try:
-                        safe_to_retire = not reader_uncertain and reader_state.unconfirmed == 0 and (not publication_attempted or
-                            (publication_complete and temporary_cleanup_complete and session_lock_closed))
-                        if owns_launcher_lock and lease_prepared and safe_to_retire:
-                            unlink_backup_lease_entry(lockfile, fd)
+                        if lease_temporary is not None:
+                            unlink_backup_lease_entry(lease_temporary, fd)
                     finally:
-                        try:
-                            if lease_temporary is not None:
-                                unlink_backup_lease_entry(lease_temporary, fd)
-                        finally:
-                            os.close(fd)
+                        os.close(fd)
 
 
 ROSTER_MAX_BYTES = 256 * 1024

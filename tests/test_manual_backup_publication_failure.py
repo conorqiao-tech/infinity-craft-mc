@@ -48,23 +48,23 @@ class ManualBackupPublicationFailureTests(unittest.TestCase):
             self.assertEqual(archive.read("world/level.dat"), b"synthetic level")
         self.assert_retained_marker()
 
-    def test_rename_failure_after_move_keeps_published_archive_and_marker(self):
-        real_replace = community.os.replace
-        def move_then_fail(source, destination):
-            self.assertEqual(Path(source).suffix, ".partial")
-            real_replace(source, destination)
+    def test_rename_failure_after_publication_keeps_archive_and_marker(self):
+        real_publish = community.publish_backup_no_replace
+        def rename_then_fail(source, destination):
+            real_publish(source, destination)
             raise OSError("synthetic uncertain rename failure")
-        with patch.object(community.os, "replace", side_effect=move_then_fail):
+        with patch.object(community, "publish_backup_no_replace", side_effect=rename_then_fail):
             with self.assertRaisesRegex(OSError, "synthetic uncertain rename failure"):
                 community.backup(self.root, {"level-name": "world"})
         archives = list(self.backups.glob("*.zip"))
         self.assertEqual(len(archives), 1)
         with zipfile.ZipFile(archives[0]) as archive:
             self.assertIsNone(archive.testzip())
+        self.assertEqual(list(self.backups.glob("*.partial")), [])
         self.assert_retained_marker()
 
-    def test_rename_failure_before_move_keeps_partial_and_marker(self):
-        with patch.object(community.os, "replace", side_effect=OSError("synthetic rename refusal")):
+    def test_rename_failure_before_publication_keeps_partial_and_marker(self):
+        with patch.object(community, "publish_backup_no_replace", side_effect=OSError("synthetic rename refusal")):
             with self.assertRaisesRegex(OSError, "synthetic rename refusal"):
                 community.backup(self.root, {"level-name": "world"})
         self.assertEqual(list(self.backups.glob("*.zip")), [])
@@ -74,14 +74,22 @@ class ManualBackupPublicationFailureTests(unittest.TestCase):
             self.assertIsNone(archive.testzip())
         self.assert_retained_marker()
 
-    def test_partial_cleanup_failure_after_publication_keeps_marker(self):
-        real_unlink = Path.unlink
-        def unlink(path, *args, **kwargs):
-            if path.suffix == ".partial":
-                raise PermissionError("synthetic partial cleanup failure")
-            return real_unlink(path, *args, **kwargs)
-        with patch.object(Path, "unlink", unlink):
-            with self.assertRaisesRegex(PermissionError, "synthetic partial cleanup failure"):
+    def test_archive_close_failure_after_publication_keeps_marker(self):
+        real_fdopen = community.os.fdopen
+        class CloseFailure:
+            def __init__(self, stream):
+                self.stream = stream
+            def __getattr__(self, name):
+                return getattr(self.stream, name)
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                self.stream.__exit__(*args)
+                raise OSError("synthetic archive close failure")
+        def fdopen(descriptor, mode):
+            return CloseFailure(real_fdopen(descriptor, mode))
+        with patch.object(community.os, "fdopen", side_effect=fdopen):
+            with self.assertRaisesRegex(OSError, "synthetic archive close failure"):
                 community.backup(self.root, {"level-name": "world"})
         self.assertEqual(len(list(self.backups.glob("*.zip"))), 1)
         self.assert_retained_marker()
