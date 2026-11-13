@@ -138,7 +138,7 @@ print(json.dumps(observed))
         held = self.root / 'held-original.synthetic'
         observations = []
 
-        def late_swap(source, destination):
+        def late_swap(source, destination, **kwargs):
             if Path(source).suffix == '.partial':
                 script = ("import os,sys;from pathlib import Path;"
                           "os.replace(sys.argv[1],sys.argv[2]);"
@@ -146,7 +146,7 @@ print(json.dumps(observed))
                 subprocess.run([sys.executable, '-I', '-S', '-c', script, str(source), str(held)],
                                check=True, timeout=10)
                 observations.append(True)
-            return real_publish(source, destination)
+            return real_publish(source, destination, **kwargs)
 
         with patch.object(community, 'publish_backup_no_replace', side_effect=late_swap):
             with self.assertRaises((ValueError, RuntimeError, OSError)):
@@ -163,12 +163,12 @@ print(json.dumps(observed))
         held = self.root / 'held-original.synthetic'
         victim = self.world / 'region/r.0.0.mca'
 
-        def late_swap(source, destination):
+        def late_swap(source, destination, **kwargs):
             script = ("import os,sys;os.replace(sys.argv[1],sys.argv[2]);"
                       "os.replace(sys.argv[3],sys.argv[1])")
             subprocess.run([sys.executable, '-I', '-S', '-c', script, str(source), str(held), str(victim)],
                            check=True, timeout=10)
-            return real_publish(source, destination)
+            return real_publish(source, destination, **kwargs)
 
         with patch.object(community, 'publish_backup_no_replace', side_effect=late_swap):
             with self.assertRaises(community.BackupArchiveUncertain):
@@ -184,10 +184,10 @@ print(json.dumps(observed))
         real_publish = community.publish_backup_no_replace
         created = []
 
-        def collide(source, destination):
+        def collide(source, destination, **kwargs):
             Path(destination).write_bytes(b'preserve existing synthetic backup')
             created.append(Path(destination))
-            return real_publish(source, destination)
+            return real_publish(source, destination, **kwargs)
 
         with patch.object(community, 'publish_backup_no_replace', side_effect=collide):
             with self.assertRaises(FileExistsError):

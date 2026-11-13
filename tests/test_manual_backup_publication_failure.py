@@ -33,10 +33,10 @@ class ManualBackupPublicationFailureTests(unittest.TestCase):
 
     def test_directory_sync_failure_after_publication_keeps_marker(self):
         actual_sync = community.sync_directory
-        def sync(path):
+        def sync(path, **kwargs):
             if Path(path) == self.backups and list(self.backups.glob("*.zip")):
                 raise OSError("synthetic publication directory sync failure")
-            return actual_sync(path)
+            return actual_sync(path, **kwargs)
         with patch.object(community, "DIRECTORY_SYNC", True), \
              patch.object(community, "sync_directory", side_effect=sync):
             with self.assertRaisesRegex(OSError, "synthetic publication directory sync failure"):
@@ -50,8 +50,8 @@ class ManualBackupPublicationFailureTests(unittest.TestCase):
 
     def test_rename_failure_after_publication_keeps_archive_and_marker(self):
         real_publish = community.publish_backup_no_replace
-        def rename_then_fail(source, destination):
-            real_publish(source, destination)
+        def rename_then_fail(source, destination, **kwargs):
+            real_publish(source, destination, **kwargs)
             raise OSError("synthetic uncertain rename failure")
         with patch.object(community, "publish_backup_no_replace", side_effect=rename_then_fail):
             with self.assertRaisesRegex(OSError, "synthetic uncertain rename failure"):

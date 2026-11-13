@@ -529,8 +529,10 @@ class CommunityTests(unittest.TestCase):
                 self.assertEqual(archive.read("my-world/level.dat"), b"test world header")
             events.append("sync zip")
 
-        def sync_directory(path):
+        def sync_directory(path, **kwargs):
             # The backup folder is synchronized after the exclusive rename.
+            if Path(path) == backups:
+                self.assertTrue(stat.S_ISDIR(os.fstat(kwargs['directory_fd']).st_mode))
             events.append(("sync directory", Path(path), published()))
 
         # Recorded rather than real directory syncs keep this ordering check platform-independent.
@@ -562,7 +564,7 @@ class CommunityTests(unittest.TestCase):
     def test_backup_directory_sync_failure_is_not_reported_as_success(self):
         import errno
 
-        def sync_directory(path):
+        def sync_directory(path, **kwargs):
             if Path(path) == self.root / "backups":
                 raise OSError(errno.EIO, "injected directory sync failure")
 

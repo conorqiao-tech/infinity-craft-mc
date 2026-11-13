@@ -325,9 +325,12 @@ def sync_file(stream):
     flush_descriptor(stream.fileno())
 
 
-def sync_directory(path):
+def sync_directory(path, *, directory_fd=None):
     if not DIRECTORY_SYNC:
         raise DurabilityError(UNSUPPORTED_DIRECTORY_SYNC)
+    if directory_fd is not None:
+        flush_descriptor(directory_fd)
+        return
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         flush_descriptor(descriptor)
@@ -528,11 +531,71 @@ class BackupArchiveUncertain(RuntimeError):
     """An archive entry no longer matches the held descriptor; retain evidence."""
 
 
-def verify_backup_archive_entry(path, descriptor):
-    """Compare an archive path without opening a possible native-lock alias."""
+def backup_output_ancestry(descriptor):
+    """Observe directory identities up to the filesystem root, without opening files."""
+    current = None
+    parent = None
+
+    def close_probe(fd):
+        try:
+            os.close(fd)
+        except OSError as error:
+            raise BackupArchiveUncertain("A backups-directory check could not close safely; keep its evidence for review.") from error
+
+    try:
+        current = os.dup(descriptor)
+        chain = []
+        seen = set()
+        for _ in range(256):
+            info = os.fstat(current)
+            if not stat.S_ISDIR(info.st_mode):
+                raise BackupArchiveUncertain("The backups-directory ancestry is not a directory; keep its evidence for review.")
+            identity = (info.st_dev, info.st_ino)
+            if identity in seen:
+                raise BackupArchiveUncertain("The backups-directory ancestry is ambiguous; keep its evidence for review.")
+            seen.add(identity)
+            chain.append(identity)
+            parent = open_backup_directory("..", dir_fd=current)
+            parent_info = os.fstat(parent)
+            if not stat.S_ISDIR(parent_info.st_mode):
+                raise BackupArchiveUncertain("The backups-directory parent is not a directory; keep its evidence for review.")
+            if (parent_info.st_dev, parent_info.st_ino) == identity:
+                return tuple(chain)
+            previous = current
+            current = parent
+            parent = None
+            close_probe(previous)
+        raise BackupArchiveUncertain("The backups-directory ancestry is too deep; keep its evidence for review.")
+    except OSError as error:
+        raise BackupArchiveUncertain("The backups-directory ancestry could not be confirmed; keep its evidence for review.") from error
+    finally:
+        try:
+            if parent is not None:
+                close_probe(parent)
+        finally:
+            if current is not None:
+                close_probe(current)
+
+
+def verify_backup_output_directory(path, descriptor, *, ancestry=None):
+    """Compare the output path and observed parents with the held directory."""
     try:
         held = os.fstat(descriptor)
         entry = path.lstat()
+    except OSError as error:
+        raise BackupArchiveUncertain("The backups directory could not be confirmed; keep its evidence for review.") from error
+    if (not stat.S_ISDIR(held.st_mode) or not stat.S_ISDIR(entry.st_mode)
+            or (held.st_dev, held.st_ino) != (entry.st_dev, entry.st_ino)):
+        raise BackupArchiveUncertain("The backups directory changed; keep its evidence for review.")
+    if ancestry is not None and backup_output_ancestry(descriptor) != ancestry:
+        raise BackupArchiveUncertain("The backups-directory ancestry changed; keep its evidence for review.")
+
+
+def verify_backup_archive_entry(path, descriptor, *, directory_fd):
+    """Compare an archive entry without opening a possible native-lock alias."""
+    try:
+        held = os.fstat(descriptor)
+        entry = os.stat(path.name, dir_fd=directory_fd, follow_symlinks=False)
     except OSError as error:
         raise BackupArchiveUncertain("The backup archive could not be confirmed; keep its evidence for review.") from error
     if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(entry.st_mode)
@@ -541,19 +604,21 @@ def verify_backup_archive_entry(path, descriptor):
         raise BackupArchiveUncertain("The backup archive changed; keep its evidence for review.")
 
 
-def publish_backup_no_replace(source, destination):
-    """Use an exclusive native rename; unsupported filesystems fail closed."""
+def publish_backup_no_replace(source, destination, *, directory_fd):
+    """Rename inside the held output directory without replacing an entry."""
     import ctypes
     library = ctypes.CDLL(None, use_errno=True)
     try:
         if sys.platform == "darwin":
-            rename = library.renamex_np
-            rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
-            args = (os.fsencode(source), os.fsencode(destination), 0x00000004)  # RENAME_EXCL
+            rename = library.renameatx_np
+            rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+            args = (directory_fd, os.fsencode(source.name), directory_fd,
+                    os.fsencode(destination.name), 0x00000004)  # RENAME_EXCL
         elif sys.platform == "linux":
             rename = library.renameat2
             rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-            args = (-100, os.fsencode(source), -100, os.fsencode(destination), 1)  # AT_FDCWD, RENAME_NOREPLACE
+            args = (directory_fd, os.fsencode(source.name), directory_fd,
+                    os.fsencode(destination.name), 1)  # RENAME_NOREPLACE
         else:
             raise AttributeError("exclusive rename is unsupported")
     except AttributeError as error:
@@ -773,7 +838,9 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
     temporary = None
     archive_creation_attempted = False
     session_lock = None
+    backup_directory_fd = None
     publication_complete = False
+    backup_directory_closed = False
     session_lock_closed = False
     reader_uncertain = False
     try:
@@ -852,13 +919,22 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         else:
             if DIRECTORY_SYNC:
                 sync_directory(folder.parent)
+        try:
+            backup_directory_fd = open_backup_directory(folder)
+        except OSError as error:
+            raise ValueError("The backups directory cannot be opened safely; no archive was published.") from error
+        verify_backup_output_directory(folder, backup_directory_fd)
+        backup_directory_ancestry = backup_output_ancestry(backup_directory_fd)
+        verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         destination = folder / ("Infinity-World-" + stamp + "-" + uuid.uuid4().hex[:6] + ".zip")
         temporary = destination.with_suffix(".partial")
         files = backup_world_files(world) + backup_server_files(fabric)
         inventory = backup_inventory(files)
+        verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         archive_creation_attempted = True
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+        descriptor = os.open(temporary.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+                             0o600, dir_fd=backup_directory_fd)
         with os.fdopen(descriptor, "wb") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
                 for file in files:
@@ -871,18 +947,22 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
             # complete ZIP before its final name becomes visible.
             os.fchmod(stream.fileno(), 0o600)
             sync_file(stream)
-            verify_backup_archive_entry(temporary, stream.fileno())
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
+            verify_backup_archive_entry(temporary, stream.fileno(), directory_fd=backup_directory_fd)
             verify_world_session_lock(world, session_lock)
             if locked:
                 verify_borrowed_launcher_lease(root, lease_fd)
-            verify_backup_archive_entry(temporary, stream.fileno())
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
+            verify_backup_archive_entry(temporary, stream.fileno(), directory_fd=backup_directory_fd)
             # Rename without replacing an existing backup. If this call or a
             # later check is uncertain, retain the marker and available paths.
-            publish_backup_no_replace(temporary, destination)
-            verify_backup_archive_entry(destination, stream.fileno())
+            publish_backup_no_replace(temporary, destination, directory_fd=backup_directory_fd)
+            verify_backup_archive_entry(destination, stream.fileno(), directory_fd=backup_directory_fd)
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
             if DIRECTORY_SYNC:
-                sync_directory(folder)
-            verify_backup_archive_entry(destination, stream.fileno())
+                sync_directory(folder, directory_fd=backup_directory_fd)
+            verify_backup_archive_entry(destination, stream.fileno(), directory_fd=backup_directory_fd)
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         publication_complete = True
         return destination.name
     except BaseException as error:
@@ -890,26 +970,30 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         raise
     finally:
         try:
-            if session_lock is not None:
-                os.close(session_lock)
-            session_lock_closed = True
+            if backup_directory_fd is not None:
+                os.close(backup_directory_fd)
+            backup_directory_closed = True
         finally:
-            if fd is not None:
-                try:
-                    # Once staging is attempted, leave every available archive
-                    # path and the marker for review unless publication fully
-                    # completed. A pathname can be replaced after any check.
-                    safe_to_retire = (not reader_uncertain and reader_state.unconfirmed == 0
-                                      and session_lock_closed
-                                      and (not archive_creation_attempted or publication_complete))
-                    if owns_launcher_lock and lease_prepared and safe_to_retire:
-                        unlink_backup_lease_entry(lockfile, fd)
-                finally:
+            try:
+                if session_lock is not None:
+                    os.close(session_lock)
+                session_lock_closed = True
+            finally:
+                if fd is not None:
                     try:
-                        if lease_temporary is not None:
-                            unlink_backup_lease_entry(lease_temporary, fd)
+                        # A pathname can be replaced after any check, so retain
+                        # available evidence whenever staging did not complete.
+                        safe_to_retire = (not reader_uncertain and reader_state.unconfirmed == 0
+                                          and backup_directory_closed and session_lock_closed
+                                          and (not archive_creation_attempted or publication_complete))
+                        if owns_launcher_lock and lease_prepared and safe_to_retire:
+                            unlink_backup_lease_entry(lockfile, fd)
                     finally:
-                        os.close(fd)
+                        try:
+                            if lease_temporary is not None:
+                                unlink_backup_lease_entry(lease_temporary, fd)
+                        finally:
+                            os.close(fd)
 
 
 ROSTER_MAX_BYTES = 256 * 1024

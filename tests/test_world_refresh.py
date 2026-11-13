@@ -307,7 +307,7 @@ class TerrainRefreshTests(unittest.TestCase):
         self.policy()
         (self.root / "launcher.lock").unlink()
 
-        def fail_backups_directory(path):
+        def fail_backups_directory(path, **kwargs):
             if Path(path).name == "backups":
                 raise OSError(errno.EIO, "injected directory sync failure")
 

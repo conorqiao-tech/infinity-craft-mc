@@ -89,10 +89,10 @@ class PreChildWorldFailureTests(unittest.TestCase):
         backups = self.root / "backups"
         backups.mkdir()
         real_sync = community.sync_directory
-        def sync(path):
+        def sync(path, **kwargs):
             if Path(path) == backups and list(backups.glob("*.zip")):
                 raise OSError("synthetic archive directory sync failure")
-            return real_sync(path)
+            return real_sync(path, **kwargs)
         with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
              patch.object(community, "DIRECTORY_SYNC", True), \
              patch.object(community, "sync_directory", side_effect=sync), \
@@ -111,10 +111,10 @@ class PreChildWorldFailureTests(unittest.TestCase):
         backups = self.root / "backups"
         backups.mkdir()
         real_sync = community.sync_directory
-        def sync(path):
+        def sync(path, **kwargs):
             if Path(path) == backups and list(backups.glob("*.zip")):
                 raise InterruptedError("synthetic backup interruption")
-            return real_sync(path)
+            return real_sync(path, **kwargs)
         with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
              patch.object(community, "DIRECTORY_SYNC", True), \
              patch.object(community, "sync_directory", side_effect=sync), \
