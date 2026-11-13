@@ -71,6 +71,8 @@ A manual backup retains its lock if archive creation is attempted but the backup
 
 Backup opens the output directory without following a final symbolic link, creates and publishes the archive relative to that held directory, and checks the directory path, its observed parent identities and the archive entries at bounded points. It publishes with an exclusive rename so an existing backup name is not replaced. Unsupported systems or filesystems fail for host review and retain available evidence. macOS has been tested for this change; Linux has not. Another writer can still change entries after the last check; these checks do not establish an atomic snapshot or exclusive writer ownership.
 
+If the server folder is observed inside the selected world, backup refuses before creating its backup directory; a manual backup may already have created its launcher marker. After publishing, it checks the Minecraft world lock and launcher lease again. If either cannot be confirmed, the archive may already exist: retain the available archive and launcher marker for host review. These are bounded observations, so a writer can still act between or after them.
+
 To restore, stop the server, retain the current world under another name, extract a chosen backup **into a separate folder**, inspect its `BACKUP_INFO.json` for the world path, then copy that world into `fabric` and set `level-name` to its directory. Restore moderation files only if you want those older settings as well. Keep the same mod version initially. Never extract over a running world.
 
 ## What was checked

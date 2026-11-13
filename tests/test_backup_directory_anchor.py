@@ -172,7 +172,7 @@ print(json.dumps(blocked))
         failures = []
         def record_output_descriptor(path, *args, **kwargs):
             descriptor = actual_open(path, *args, **kwargs)
-            if Path(path) == folder:
+            if Path(path) == folder or (Path(path) == Path('backups') and kwargs.get('dir_fd') is not None):
                 output_descriptors.append(descriptor)
             return descriptor
         def fail_after_closing(descriptor):

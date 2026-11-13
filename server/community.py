@@ -531,6 +531,10 @@ class BackupArchiveUncertain(RuntimeError):
     """An archive entry no longer matches the held descriptor; retain evidence."""
 
 
+class BackupPublishedLockUncertain(BackupArchiveUncertain):
+    """A published archive's final lock observations could not be confirmed."""
+
+
 def backup_output_ancestry(descriptor):
     """Observe directory identities up to the filesystem root, without opening files."""
     current = None
@@ -575,6 +579,35 @@ def backup_output_ancestry(descriptor):
         finally:
             if current is not None:
                 close_probe(current)
+
+
+def verify_backup_parent_outside_world(root, descriptor, world, *, expected=None):
+    """Observe whether the held server root is inside the selected world."""
+    def identities():
+        held = os.fstat(descriptor)
+        entry = os.stat(root)  # A symlinked server root can be legitimate.
+        world_entry = os.stat(world, follow_symlinks=False)
+        if (not stat.S_ISDIR(held.st_mode) or not stat.S_ISDIR(entry.st_mode)
+                or not stat.S_ISDIR(world_entry.st_mode)
+                or (held.st_dev, held.st_ino) != (entry.st_dev, entry.st_ino)):
+            raise BackupArchiveUncertain("The backup parent or world changed; keep its evidence for review.")
+        return (held.st_dev, held.st_ino), (world_entry.st_dev, world_entry.st_ino)
+
+    try:
+        before = identities()
+        ancestry = backup_output_ancestry(descriptor)
+        if identities() != before:
+            raise BackupArchiveUncertain("The backup parent or world changed; keep its evidence for review.")
+    except OSError as error:
+        raise BackupArchiveUncertain("The backup parent or world could not be confirmed; keep its evidence for review.") from error
+    observation = (ancestry, before[1])
+    if expected is not None and observation != expected:
+        raise BackupArchiveUncertain("The backup parent or world changed; keep its evidence for review.")
+    if before[1] in ancestry:
+        if expected is not None:
+            raise BackupArchiveUncertain("The backup parent moved inside the world; keep its evidence for review.")
+        raise ValueError("The server root is inside the world; move it outside the world before making a backup.")
+    return observation
 
 
 def verify_backup_output_directory(path, descriptor, *, ancestry=None):
@@ -650,6 +683,21 @@ def _backup_error_requires_review(error):
             return True
         pending.extend((current.__cause__, current.__context__))
     return False
+
+
+def verify_backup_holds_after_publication(root, world, session_lock, lease_descriptor):
+    """Fail closed if the observed native lock or launcher lease is lost."""
+    failures = []
+    for label, check in (("world lock", lambda: verify_world_session_lock(world, session_lock)),
+                         ("launcher lease", lambda: verify_borrowed_launcher_lease(root, lease_descriptor))):
+        try:
+            check()
+        except Exception as error:
+            failures.append((label, error))
+    if failures:
+        labels = " and ".join(label for label, _ in failures)
+        raise BackupPublishedLockUncertain("A backup archive may already have been published, but the " + labels
+                                          + " could not be confirmed. Keep the archive and launcher marker for review.") from failures[0][1]
 
 
 def _stop_backup_reader(reader):
@@ -825,6 +873,23 @@ def backup(root, props, locked=False, lease_fd=None):
     token = _ACTIVE_BACKUP_READERS.set(reader_state)
     try:
         return _backup_with_reader_state(root, props, locked, lease_fd, reader_state)
+    except Exception as error:
+        # A stream or descriptor close can mask the post-publication lock
+        # failure. The dashboard displays only str(error), so retain the
+        # actionable warning while preserving both errors in the chain.
+        pending = [error]
+        seen = set()
+        while pending:
+            current = pending.pop()
+            if current is None or id(current) in seen:
+                continue
+            seen.add(id(current))
+            if isinstance(current, BackupPublishedLockUncertain):
+                if current is error:
+                    raise
+                raise BackupPublishedLockUncertain(str(current)) from error
+            pending.extend((current.__cause__, current.__context__))
+        raise
     finally:
         _ACTIVE_BACKUP_READERS.reset(token)
 
@@ -838,8 +903,10 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
     temporary = None
     archive_creation_attempted = False
     session_lock = None
+    backup_parent_fd = None
     backup_directory_fd = None
     publication_complete = False
+    backup_parent_closed = False
     backup_directory_closed = False
     session_lock_closed = False
     reader_uncertain = False
@@ -911,20 +978,32 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         # Minecraft server also holds the world's session.lock, including when
         # the caller already owns launcher.lock (locked=True).
         session_lock = acquire_world_session_lock(world)
+        try:
+            # Allow a symlinked server root, but open only a directory so this
+            # descriptor cannot alias the native regular-file session lock.
+            backup_parent_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+        except OSError as error:
+            raise BackupArchiveUncertain("The backup parent could not be opened safely; keep its evidence for review.") from error
+        parent_observation = verify_backup_parent_outside_world(root, backup_parent_fd, world)
         folder = root / "backups"
         try:
-            folder.mkdir()
+            os.mkdir("backups", dir_fd=backup_parent_fd)
         except FileExistsError:
             pass
+        except OSError as error:
+            raise BackupArchiveUncertain("The backups directory creation could not be confirmed; keep its evidence for review.") from error
         else:
             if DIRECTORY_SYNC:
-                sync_directory(folder.parent)
+                sync_directory(root, directory_fd=backup_parent_fd)
+        verify_backup_parent_outside_world(root, backup_parent_fd, world, expected=parent_observation)
         try:
-            backup_directory_fd = open_backup_directory(folder)
+            backup_directory_fd = open_backup_directory("backups", dir_fd=backup_parent_fd)
         except OSError as error:
             raise ValueError("The backups directory cannot be opened safely; no archive was published.") from error
         verify_backup_output_directory(folder, backup_directory_fd)
         backup_directory_ancestry = backup_output_ancestry(backup_directory_fd)
+        if parent_observation[1] in backup_directory_ancestry:
+            raise BackupArchiveUncertain("The backups directory is inside the world; keep its evidence for review.")
         verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
         destination = folder / ("Infinity-World-" + stamp + "-" + uuid.uuid4().hex[:6] + ".zip")
@@ -963,6 +1042,11 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                 sync_directory(folder, directory_fd=backup_directory_fd)
             verify_backup_archive_entry(destination, stream.fileno(), directory_fd=backup_directory_fd)
             verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
+            # The archive may already exist if either observation fails. Keep
+            # the marker and archive rather than reporting a completed backup.
+            verify_backup_holds_after_publication(root, world, session_lock, lease_fd if locked else fd)
+            verify_backup_archive_entry(destination, stream.fileno(), directory_fd=backup_directory_fd)
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         publication_complete = True
         return destination.name
     except BaseException as error:
@@ -975,25 +1059,30 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
             backup_directory_closed = True
         finally:
             try:
-                if session_lock is not None:
-                    os.close(session_lock)
-                session_lock_closed = True
+                if backup_parent_fd is not None:
+                    os.close(backup_parent_fd)
+                backup_parent_closed = True
             finally:
-                if fd is not None:
-                    try:
-                        # A pathname can be replaced after any check, so retain
-                        # available evidence whenever staging did not complete.
-                        safe_to_retire = (not reader_uncertain and reader_state.unconfirmed == 0
-                                          and backup_directory_closed and session_lock_closed
-                                          and (not archive_creation_attempted or publication_complete))
-                        if owns_launcher_lock and lease_prepared and safe_to_retire:
-                            unlink_backup_lease_entry(lockfile, fd)
-                    finally:
+                try:
+                    if session_lock is not None:
+                        os.close(session_lock)
+                    session_lock_closed = True
+                finally:
+                    if fd is not None:
                         try:
-                            if lease_temporary is not None:
-                                unlink_backup_lease_entry(lease_temporary, fd)
+                            # A pathname can be replaced after any check, so retain
+                            # available evidence whenever staging did not complete.
+                            safe_to_retire = (not reader_uncertain and reader_state.unconfirmed == 0
+                                              and backup_directory_closed and backup_parent_closed and session_lock_closed
+                                              and (not archive_creation_attempted or publication_complete))
+                            if owns_launcher_lock and lease_prepared and safe_to_retire:
+                                unlink_backup_lease_entry(lockfile, fd)
                         finally:
-                            os.close(fd)
+                            try:
+                                if lease_temporary is not None:
+                                    unlink_backup_lease_entry(lease_temporary, fd)
+                            finally:
+                                os.close(fd)
 
 
 ROSTER_MAX_BYTES = 256 * 1024
