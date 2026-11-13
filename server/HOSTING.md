@@ -51,6 +51,8 @@ If using the allowlist, add the trusted owner and test names before enabling it.
 
 Before every start of an existing world, the launcher makes a ZIP backup while the world is stopped. The panel can make additional stopped-world backups. Backups contain the selected world and moderation/property files, not server JARs or Floodgate keys. Keep the original server folder for the complete installation, and copy important backups to another disk. Backups are not automatically deleted, so monitor free disk space. There are no periodic live-world backups in this build.
 
+If the selected world path cannot be checked, backup and startup stop for host review instead of treating the error as a new world. A path observed missing or empty is not proof that a world never existed there; investigate unexpected absence before proceeding.
+
 Before a manual backup reads world files, it flushes its launcher lease and, where supported, the containing directory. If a flush or observed lease substitution fails after the lease is published, the lock is retained for host review. These requests do not establish an atomic snapshot or prove power-loss durability.
 
 At bounded points during backup and interrupted recovery, a separate process checks that the Minecraft world lock is still an exclusive, whole-file record lock owned by the current process. If the check cannot confirm that, work stops for review. The check is implemented for 64-bit macOS on Apple Silicon or Intel and 64-bit Linux on ARM or x86; Linux has not been verified. Other architectures fail closed for existing worlds. This is a point-in-time observation, not proof of continuous ownership.
