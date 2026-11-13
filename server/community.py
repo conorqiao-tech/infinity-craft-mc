@@ -865,7 +865,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
 
 
 def backup(root, props, locked=False, lease_fd=None):
-    """Archive the stopped world; returns its name, or None for a genuinely new world.
+    """Archive the stopped world; return None if it was absent or empty when checked.
 
     Where DIRECTORY_SYNC is false the archive is fsynced and renamed but its
     folder entry is unconfirmed; confirm_backup_durable reports that."""
@@ -966,9 +966,15 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                 raise ValueError("The launcher lock changed before backup; no archive was published.")
             lease_prepared = True
         fabric, world = world_folder(root, props)
-        if not world.exists():
-            return None  # A genuinely new world; Minecraft creates it on first start.
-        if not world.is_dir():
+        try:
+            world_info = world.stat()
+        except FileNotFoundError:
+            return None  # A missing path may be a new world; this cannot prove its history.
+        except OSError as error:
+            # Path.exists() suppresses additional errors on newer Python
+            # versions. Do not interpret an unreadable world as a new one.
+            raise ValueError("The selected world could not be checked; keep it stopped for host review.") from error
+        if not stat.S_ISDIR(world_info.st_mode):
             raise ValueError("level-name in server.properties names a file, not a world folder.")
         # Minecraft can still load a folder without level.dat (for example from
         # level.dat_old), so only an empty folder counts as a new world.
