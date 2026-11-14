@@ -119,6 +119,49 @@ _POLICY_READER_TRAILER = b"\x00INFINITY_POLICY_READ_OK\n"
 _POLICY_SIZE_LIMIT = 1024 * 1024
 
 
+def _run_policy_reader(path, expected):
+    """Read in a direct child and bound cleanup after a failed read."""
+    reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _POLICY_READER,
+                               str(path), *(str(value) for value in expected)],
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, close_fds=True)
+    try:
+        try:
+            output, _ = reader.communicate(timeout=120)
+            return output, reader.returncode
+        except BaseException as original:
+            try:
+                if reader.poll() is None:
+                    try:
+                        reader.kill()
+                    except ProcessLookupError:
+                        pass  # It exited between poll and kill; wait still confirms it.
+                reader.wait(timeout=5)
+            except BaseException as cleanup_error:
+                if isinstance(original, (KeyboardInterrupt, SystemExit)):
+                    raise original from cleanup_error
+                if isinstance(cleanup_error, (KeyboardInterrupt, SystemExit)):
+                    raise cleanup_error from original
+                raise ValueError("Terrain policy reader could not be confirmed stopped; "
+                                 "keep the launcher marker for host review") from cleanup_error
+            raise
+    finally:
+        pending = sys.exc_info()[1]
+        try:
+            if reader.stdout is not None:
+                reader.stdout.close()
+        except BaseException as close_error:
+            if pending is not None:
+                if (pending.__cause__ is not None and close_error.__cause__ is None
+                        and close_error is not pending.__cause__):
+                    close_error.__cause__ = pending.__cause__
+                if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
+                        and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
+                    raise close_error from pending
+                raise pending from close_error
+            raise
+
+
 def _read_policy_bytes(path, info):
     """Read the policy without opening its inode in the native-lock owner."""
     if info.st_nlink != 1 or info.st_size > _POLICY_SIZE_LIMIT:
@@ -126,16 +169,12 @@ def _read_policy_bytes(path, info):
     expected = (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
                 info.st_size, info.st_mtime_ns, info.st_ctime_ns)
     try:
-        reader = subprocess.run([sys.executable, "-I", "-S", "-c", _POLICY_READER,
-                                 str(path), *(str(value) for value in expected)],
-                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, close_fds=True, timeout=120)
+        output, returncode = _run_policy_reader(path, expected)
         current = _terrain_entry(path)
         current_identity = None if current is None else (
             current.st_dev, current.st_ino, current.st_mode, current.st_nlink,
             current.st_size, current.st_mtime_ns, current.st_ctime_ns)
-        output = reader.stdout
-        if (reader.returncode != 0 or current_identity != expected
+        if (returncode != 0 or current_identity != expected
                 or len(output) != info.st_size + len(_POLICY_READER_TRAILER)
                 or not output.endswith(_POLICY_READER_TRAILER)):
             raise ValueError("Terrain policy changed or its reader failed; keep it for host review")

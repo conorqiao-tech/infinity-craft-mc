@@ -34,27 +34,37 @@ class RecoveryPolicyReaderTests(unittest.TestCase):
         return subprocess.run([sys.executable, '-I', '-S', '-c', code,
                                str(self.world / 'session.lock')], timeout=10).returncode
 
+    def assert_chain_contains(self, error, expected_type):
+        seen, pending = set(), [error]
+        while pending:
+            current = pending.pop()
+            if current is None or id(current) in seen:
+                continue
+            if isinstance(current, expected_type):
+                return
+            seen.add(id(current))
+            pending.extend((current.__cause__, current.__context__))
+        self.fail('exception chain did not retain ' + expected_type.__name__)
+
     def test_normal_policy_is_read(self):
         self.assertEqual(refresh.read_policy(self.root), self.value)
 
     def test_swapped_hardlink_does_not_release_world_lock(self):
         held = community.acquire_world_session_lock(self.world)
         self.assertEqual(self.contender(), 42)
-        real_run = subprocess.run
+        real_read = refresh._run_policy_reader
         observed = []
-        def substitute(command, *args, **kwargs):
-            if refresh._POLICY_READER in command and not observed:
-                displaced = self.root / 'saved-synthetic-policy'
-                code = ("import os,sys;from pathlib import Path;p,q,lock=map(Path,sys.argv[1:]);"
-                        "os.replace(p,q);os.link(lock,p)")
-                real_run([sys.executable, '-I', '-S', '-c', code, str(self.policy), str(displaced),
-                          str(self.world / 'session.lock')], check=True, timeout=10)
-                result = real_run(command, *args, **kwargs)
-                observed.append(self.contender())
-                return result
-            return real_run(command, *args, **kwargs)
+        def substitute(path, expected):
+            displaced = self.root / 'saved-synthetic-policy'
+            code = ("import os,sys;from pathlib import Path;p,q,lock=map(Path,sys.argv[1:]);"
+                    "os.replace(p,q);os.link(lock,p)")
+            subprocess.run([sys.executable, '-I', '-S', '-c', code, str(self.policy), str(displaced),
+                            str(self.world / 'session.lock')], check=True, timeout=10)
+            result = real_read(path, expected)
+            observed.append(self.contender())
+            return result
         try:
-            with patch.object(refresh.subprocess, 'run', side_effect=substitute):
+            with patch.object(refresh, '_run_policy_reader', side_effect=substitute):
                 with self.assertRaisesRegex(ValueError, 'changed|reader|review'):
                     refresh.read_policy(self.root)
             self.assertEqual(observed, [42])
@@ -67,32 +77,110 @@ class RecoveryPolicyReaderTests(unittest.TestCase):
 
     def test_linked_or_oversized_policy_is_refused_before_reader(self):
         os.link(self.policy, self.root / 'extra-policy-link')
-        with patch.object(refresh.subprocess, 'run') as run:
+        with patch.object(refresh, '_run_policy_reader') as run:
             with self.assertRaisesRegex(ValueError, 'linked|review'):
                 refresh.read_policy(self.root)
         run.assert_not_called()
         (self.root / 'extra-policy-link').unlink()
         self.policy.write_bytes(b' ' * (refresh._POLICY_SIZE_LIMIT + 1))
-        with patch.object(refresh.subprocess, 'run') as run:
+        with patch.object(refresh, '_run_policy_reader') as run:
             with self.assertRaisesRegex(ValueError, 'large|review'):
                 refresh.read_policy(self.root)
         run.assert_not_called()
 
     def test_policy_changed_after_reader_is_refused(self):
-        real_run = subprocess.run
-        def change(command, *args, **kwargs):
-            result = real_run(command, *args, **kwargs)
-            if refresh._POLICY_READER in command:
-                self.policy.write_text(json.dumps(dict(self.value, last_release='changed')))
+        real_read = refresh._run_policy_reader
+        def change(path, expected):
+            result = real_read(path, expected)
+            self.policy.write_text(json.dumps(dict(self.value, last_release='changed')))
             return result
-        with patch.object(refresh.subprocess, 'run', side_effect=change):
+        with patch.object(refresh, '_run_policy_reader', side_effect=change):
             with self.assertRaisesRegex(ValueError, 'changed|review'):
                 refresh.read_policy(self.root)
 
     def test_reader_timeout_is_refused(self):
-        with patch.object(refresh.subprocess, 'run', side_effect=subprocess.TimeoutExpired('reader', 120)):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = subprocess.TimeoutExpired('reader', 120)
+            reader.poll.return_value = None
             with self.assertRaisesRegex(ValueError, 'checked|review'):
                 refresh.read_policy(self.root)
+            reader.kill.assert_called_once_with()
+            reader.wait.assert_called_once_with(timeout=5)
+            reader.stdout.close.assert_called_once_with()
+
+    def test_unconfirmed_timed_out_reader_has_bounded_cleanup(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = subprocess.TimeoutExpired('reader', 120)
+            reader.poll.return_value = None
+            reader.wait.side_effect = subprocess.TimeoutExpired('reader', 5)
+            with self.assertRaisesRegex(ValueError, 'could not be confirmed stopped'):
+                refresh.read_policy(self.root)
+            reader.kill.assert_called_once_with()
+            reader.wait.assert_called_once_with(timeout=5)
+            reader.stdout.close.assert_called_once_with()
+
+    def test_interrupt_survives_unconfirmed_reader_and_close_failure(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = KeyboardInterrupt()
+            reader.poll.return_value = None
+            reader.wait.side_effect = subprocess.TimeoutExpired('reader', 5)
+            reader.stdout.close.side_effect = OSError('synthetic close failure')
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                refresh.read_policy(self.root)
+            self.assertIsInstance(caught.exception.__cause__, OSError)
+            self.assert_chain_contains(caught.exception, subprocess.TimeoutExpired)
+            reader.kill.assert_called_once_with()
+            reader.wait.assert_called_once_with(timeout=5)
+            reader.stdout.close.assert_called_once_with()
+
+    def test_unconfirmed_reader_warning_survives_close_failure(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = subprocess.TimeoutExpired('reader', 120)
+            reader.poll.return_value = None
+            reader.wait.side_effect = subprocess.TimeoutExpired('reader', 5)
+            reader.stdout.close.side_effect = OSError('synthetic close failure')
+            with self.assertRaisesRegex(ValueError, 'could not be confirmed stopped') as caught:
+                refresh.read_policy(self.root)
+            self.assertIsInstance(caught.exception.__cause__, OSError)
+            self.assert_chain_contains(caught.exception, subprocess.TimeoutExpired)
+            reader.wait.assert_called_once_with(timeout=5)
+
+    def test_system_exit_is_preserved_after_reader_cleanup(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = SystemExit(3)
+            reader.poll.return_value = None
+            with self.assertRaises(SystemExit) as caught:
+                refresh.read_policy(self.root)
+            self.assertEqual(caught.exception.code, 3)
+            reader.kill.assert_called_once_with()
+            reader.wait.assert_called_once_with(timeout=5)
+
+    def test_interrupt_during_timeout_cleanup_is_not_masked(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = subprocess.TimeoutExpired('reader', 120)
+            reader.poll.return_value = None
+            reader.kill.side_effect = KeyboardInterrupt()
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                refresh.read_policy(self.root)
+            self.assertIsInstance(caught.exception.__cause__, subprocess.TimeoutExpired)
+            reader.stdout.close.assert_called_once_with()
+
+    def test_interrupt_during_close_is_not_masked_by_timeout(self):
+        with patch.object(refresh.subprocess, 'Popen') as popen:
+            reader = popen.return_value
+            reader.communicate.side_effect = subprocess.TimeoutExpired('reader', 120)
+            reader.poll.return_value = None
+            reader.stdout.close.side_effect = KeyboardInterrupt()
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                refresh.read_policy(self.root)
+            self.assertIsInstance(caught.exception.__cause__, subprocess.TimeoutExpired)
+            reader.wait.assert_called_once_with(timeout=5)
 
     def test_failed_reader_with_ignored_sigchld_is_refused(self):
         code = ("import signal,sys;sys.path.insert(0,sys.argv[1]);import world_refresh as r;"

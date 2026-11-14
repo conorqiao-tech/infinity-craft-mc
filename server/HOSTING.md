@@ -71,7 +71,7 @@ Recovery reads recorded kept-file hashes in a separate process so that a path su
 
 On POSIX, recovery opens directories for synchronization with directory-only flags. If that facility is unavailable or the opened entry is not a directory, recovery stops for host review; this avoids opening a substituted regular world-lock file during directory synchronization. A link to a directory can still be followed, and these checks do not exclude a same-authority writer.
 
-The legacy terrain policy is also read by a separate process, with file identity checked around the read. Linked, changed, unreadable or larger-than-1-MiB policies require host review during a committed recovery. This prevents the policy reader itself from closing a substituted world-lock inode in the lock-owning process; it does not exclude a later writer.
+The legacy terrain policy is also read by a separate process, with file identity checked around the read. Linked, changed, unreadable or larger-than-1-MiB policies require host review during a committed recovery. A failed reader is killed and given a bounded wait; if it cannot be confirmed stopped, retain the launcher marker. An interruption before the process handle is returned may still leave a read-only child running. This prevents the policy reader itself from closing a substituted world-lock inode in the lock-owning process; it does not exclude a later writer.
 
 If interrupted terrain recovery or a startup backup fails or is interrupted, the launcher retains its existing lock for host review when the entry is still available. A retained lock is evidence of uncertainty, not proof that the world or backup is intact.
 
