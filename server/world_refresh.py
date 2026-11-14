@@ -86,9 +86,111 @@ def _recovery_digest(path, info):
         raise ValueError("Terrain recovery file could not be checked; keep it for host review") from error
 
 
+_POLICY_READER = r'''
+import os, stat, sys
+try:
+    expected = tuple(int(value) for value in sys.argv[2:])
+    fd = os.open(sys.argv[1], os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                    info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or identity(before) != expected:
+            sys.exit(21)
+        remaining = before.st_size
+        data = bytearray()
+        while remaining:
+            block = os.read(fd, min(65536, remaining))
+            if not block:
+                sys.exit(22)
+            data.extend(block)
+            remaining -= len(block)
+        if identity(os.fstat(fd)) != expected:
+            sys.exit(23)
+    finally:
+        os.close(fd)
+    sys.stdout.buffer.write(data + b"\x00INFINITY_POLICY_READ_OK\n")
+    sys.stdout.buffer.flush()
+except (OSError, ValueError):
+    sys.exit(24)
+'''
+_POLICY_READER_TRAILER = b"\x00INFINITY_POLICY_READ_OK\n"
+_POLICY_SIZE_LIMIT = 1024 * 1024
+
+
+def _run_policy_reader(path, expected):
+    """Read in a direct child and bound cleanup after a failed read."""
+    reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _POLICY_READER,
+                               str(path), *(str(value) for value in expected)],
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, close_fds=True)
+    try:
+        try:
+            output, _ = reader.communicate(timeout=120)
+            return output, reader.returncode
+        except BaseException as original:
+            try:
+                if reader.poll() is None:
+                    try:
+                        reader.kill()
+                    except ProcessLookupError:
+                        pass  # It exited between poll and kill; wait still confirms it.
+                reader.wait(timeout=5)
+            except BaseException as cleanup_error:
+                if isinstance(original, (KeyboardInterrupt, SystemExit)):
+                    raise original from cleanup_error
+                if isinstance(cleanup_error, (KeyboardInterrupt, SystemExit)):
+                    raise cleanup_error from original
+                raise ValueError("Terrain policy reader could not be confirmed stopped; "
+                                 "keep the launcher marker for host review") from cleanup_error
+            raise
+    finally:
+        pending = sys.exc_info()[1]
+        try:
+            if reader.stdout is not None:
+                reader.stdout.close()
+        except BaseException as close_error:
+            if pending is not None:
+                if (pending.__cause__ is not None and close_error.__cause__ is None
+                        and close_error is not pending.__cause__):
+                    close_error.__cause__ = pending.__cause__
+                if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
+                        and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
+                    raise close_error from pending
+                raise pending from close_error
+            raise
+
+
+def _read_policy_bytes(path, info):
+    """Read the policy without opening its inode in the native-lock owner."""
+    if info.st_nlink != 1 or info.st_size > _POLICY_SIZE_LIMIT:
+        raise ValueError("Terrain policy is linked or too large; keep it for host review")
+    expected = (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+                info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    try:
+        output, returncode = _run_policy_reader(path, expected)
+        current = _terrain_entry(path)
+        current_identity = None if current is None else (
+            current.st_dev, current.st_ino, current.st_mode, current.st_nlink,
+            current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+        if (returncode != 0 or current_identity != expected
+                or len(output) != info.st_size + len(_POLICY_READER_TRAILER)
+                or not output.endswith(_POLICY_READER_TRAILER)):
+            raise ValueError("Terrain policy changed or its reader failed; keep it for host review")
+        return output[:info.st_size]
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("Terrain policy could not be checked; keep it for host review") from error
+
+
 def sync_directory(path):
     if os.name == "posix":
-        descriptor = os.open(path, os.O_RDONLY)
+        directory_flag = getattr(os, "O_DIRECTORY", None)
+        if not directory_flag:
+            raise OSError("Directory synchronization requires directory-only open support")
+        # Opening and closing a substituted session.lock in this process can
+        # release its POSIX record lock. Require a directory at the open itself.
+        descriptor = os.open(path, os.O_RDONLY | directory_flag | getattr(os, "O_NONBLOCK", 0))
         try:
             os.fsync(descriptor)
         finally:
@@ -125,8 +227,19 @@ def atomic_json(path, value):
     atomic_bytes(path, (json.dumps(value, indent=2) + "\n").encode())
 
 
+def _terrain_entry(path):
+    """Return an observed entry, treating only a missing path as absent."""
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise ValueError("A terrain path could not be checked; keep its evidence for host review") from error
+
+
 def inside(parent, relative):
-    if parent.is_symlink():
+    parent_info = _terrain_entry(parent)
+    if parent_info is not None and stat.S_ISLNK(parent_info.st_mode):
         raise ValueError("Terrain refresh refuses symbolic links")
     parent = parent.resolve()
     value = PurePosixPath(relative)
@@ -136,7 +249,8 @@ def inside(parent, relative):
     cursor = parent
     for part in value.parts:
         cursor = cursor / part
-        if cursor.is_symlink():
+        info = _terrain_entry(cursor)
+        if info is not None and stat.S_ISLNK(info.st_mode):
             raise ValueError("Terrain refresh refuses symbolic links")
     if not path.resolve().is_relative_to(parent.resolve()):
         raise ValueError("Terrain refresh path escapes its folder")
@@ -158,11 +272,14 @@ def release_id(root):
 
 def read_policy(root):
     path = root / POLICY
-    if not path.exists():
+    info = _terrain_entry(path)
+    if info is None:
         return None
-    if path.is_symlink():
+    if stat.S_ISLNK(info.st_mode):
         raise ValueError("Terrain policy cannot be a symbolic link")
-    value = json.loads(path.read_text())
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("Terrain policy must be a regular file; keep it for host review")
+    value = json.loads(_read_policy_bytes(path, info))
     if (not isinstance(value, dict) or value.get("format") != 1 or type(value.get("enabled")) is not bool
             or type(value.get("refresh_next_start", False)) is not bool
             or not isinstance(value.get("last_release", ""), str)):
@@ -172,14 +289,17 @@ def read_policy(root):
 
 def recover(root, emit=None, lease_fd=None):
     path = root / JOURNAL
-    if not path.exists():
+    journal_info = _terrain_entry(path)
+    if journal_info is None:
         return
     # Recovery can change saved terrain. Do not accept an unbacked claim that
     # a launcher owns the outer lease. This check cannot exclude a late swap
     # or a noncooperating writer with the same filesystem authority.
     community.verify_borrowed_launcher_lease(root, lease_fd)
-    if path.is_symlink():
+    if stat.S_ISLNK(journal_info.st_mode):
         raise ValueError("Terrain journal cannot be a symbolic link")
+    if not stat.S_ISREG(journal_info.st_mode):
+        raise ValueError("Terrain journal must be a regular file; keep it for host review")
     record = json.loads(path.read_text())
     if record.get("format") != 1 or record.get("state") not in ("moving", "committed"):
         raise ValueError("Invalid terrain refresh recovery journal")
@@ -202,17 +322,17 @@ def _recovery_item(world, rollback, relative, kept_files):
     """Inspect one recovery item without deleting or moving any entry."""
     source = inside(world, relative)
     saved = inside(rollback / "terrain", relative)
-    if not saved.exists():
-        if not source.exists():
+    saved_info = _terrain_entry(saved)
+    source_info = _terrain_entry(source)
+    if saved_info is None:
+        if source_info is None:
             raise ValueError("Old terrain is missing; restore the verified full backup manually")
-        source_info = source.lstat()
         if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
             raise ValueError("Unexpected restored terrain entry; keep it for host review")
         return source, saved, [], []
-    saved_info = saved.lstat()
     if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
         raise ValueError("Unexpected archived terrain entry; keep it for host review")
-    if not source.exists():
+    if source_info is None:
         return source, saved, [], []
 
     files = []
@@ -278,8 +398,19 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
             community.verify_borrowed_launcher_lease(root, lease_fd)
             community.verify_world_session_lock(world, session_lock)
             source, saved, existing, directories = _recovery_item(world, rollback, relative, kept_files)
-            if saved.exists():
-                if source.exists():
+            saved_info = _terrain_entry(saved)
+            source_info = _terrain_entry(source)
+            if saved_info is None:
+                if source_info is None:
+                    raise ValueError("Old terrain is missing; restore the verified full backup manually")
+                if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
+                    raise ValueError("Unexpected restored terrain entry; keep it for host review")
+            else:
+                if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
+                    raise ValueError("Unexpected archived terrain entry; keep it for host review")
+                if source_info is not None:
+                    if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
+                        raise ValueError("Unexpected terrain recovery entry; keep it for host review")
                     for file in existing:
                         file.unlink()
                     for folder in directories:
@@ -321,15 +452,12 @@ def startup_check(root, emit=print):
 
     Runs after recovery and the startup backup, before Java opens. It writes nothing.
     """
-    if (root / JOURNAL).exists() or (root / JOURNAL).is_symlink():
+    if _terrain_entry(root / JOURNAL) is not None:
         raise ValueError("An earlier terrain refresh is unrecovered; startup stopped before opening the world")
-    path = root / POLICY
-    if not path.exists() and not path.is_symlink():
-        return
     try:
         policy = read_policy(root)
-        if policy is None:  # A dangling symbolic link.
-            raise ValueError("Terrain policy cannot be a symbolic link")
+        if policy is None:
+            return
     except (OSError, ValueError):
         emit("Existing worlds kept. " + POLICY + " is unreadable and was left unchanged; "
              "this launcher does not regenerate terrain.")
