@@ -65,7 +65,13 @@ Recovery of an interrupted older terrain transaction also checks the borrowed la
 
 Before moving any listed path, recovery checks all paths and refuses overlapping entries or unrecorded files, including temporary files, linked or special entries, and unrelated directories in terrain it would replace. It repeats each check before acting. These checks cannot exclude a writer changing an entry afterward; retain unexpected data and the recovery journal for host review.
 
+Recovery also stops for host review if the journal, a terrain path or the policy needed to finish a committed transaction cannot be checked. An unreadable entry is not treated as absent, and journal and policy entries must be regular files. Keep the journal, launcher marker and archived terrain together when recovery is uncertain.
+
 Recovery reads recorded kept-file hashes in a separate process so that a path substituted during that read cannot make the lock-owning process open and close another descriptor to the Minecraft world-lock inode. A changed file or an unavailable reader stops recovery for host review. This does not prevent later substitutions or establish exclusive writer ownership.
+
+On POSIX, recovery opens directories for synchronization with directory-only flags. If that facility is unavailable or the opened entry is not a directory, recovery stops for host review; this avoids opening a substituted regular world-lock file during directory synchronization. A link to a directory can still be followed, and these checks do not exclude a same-authority writer.
+
+The legacy terrain policy is also read by a separate process, with file identity checked around the read. Linked, changed, unreadable or larger-than-1-MiB policies require host review during a committed recovery. This prevents the policy reader itself from closing a substituted world-lock inode in the lock-owning process; it does not exclude a later writer.
 
 If interrupted terrain recovery or a startup backup fails or is interrupted, the launcher retains its existing lock for host review when the entry is still available. A retained lock is evidence of uncertainty, not proof that the world or backup is intact.
 
