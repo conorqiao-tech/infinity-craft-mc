@@ -168,6 +168,7 @@ except (OSError, ValueError):
 '''
 _POLICY_READER_TRAILER = b"\x00INFINITY_POLICY_READ_OK\n"
 _POLICY_SIZE_LIMIT = 1024 * 1024
+_JOURNAL_SIZE_LIMIT = 16 * 1024 * 1024
 
 
 def _run_policy_reader(path, expected):
@@ -194,6 +195,38 @@ def _read_policy_bytes(path, info):
         return output[:info.st_size]
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("Terrain policy could not be checked; keep it for host review") from error
+
+
+def _journal_identity(info):
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+            info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _check_journal(path, expected):
+    current = _terrain_entry(path)
+    if current is None or _journal_identity(current) != expected:
+        raise ValueError("Terrain journal changed; keep its evidence for host review")
+
+
+def _run_journal_reader(path, expected):
+    # The policy reader also performs the required bounded regular-file read
+    # and emits its trailer only after identity checks and descriptor close.
+    return _run_recovery_reader(_POLICY_READER, path, expected, "journal")
+
+
+def _read_journal_bytes(path, info):
+    if info.st_nlink != 1 or info.st_size > _JOURNAL_SIZE_LIMIT:
+        raise ValueError("Terrain journal is linked or too large; keep it for host review")
+    expected = _journal_identity(info)
+    try:
+        output, returncode = _run_journal_reader(path, expected)
+        _check_journal(path, expected)
+        if (returncode != 0 or len(output) != info.st_size + len(_POLICY_READER_TRAILER)
+                or not output.endswith(_POLICY_READER_TRAILER)):
+            raise ValueError("Terrain journal changed or its reader failed; keep it for host review")
+        return output[:-len(_POLICY_READER_TRAILER)]
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("Terrain journal could not be checked; keep it for host review") from error
 
 
 def sync_directory(path):
@@ -313,7 +346,8 @@ def recover(root, emit=None, lease_fd=None):
         raise ValueError("Terrain journal cannot be a symbolic link")
     if not stat.S_ISREG(journal_info.st_mode):
         raise ValueError("Terrain journal must be a regular file; keep it for host review")
-    record = json.loads(path.read_text())
+    journal_identity = _journal_identity(journal_info)
+    record = json.loads(_read_journal_bytes(path, journal_info).decode("utf-8"))
     if record.get("format") != 1 or record.get("state") not in ("moving", "committed"):
         raise ValueError("Invalid terrain refresh recovery journal")
     world = inside(root / "fabric", record["world"])
@@ -326,7 +360,8 @@ def recover(root, emit=None, lease_fd=None):
     # recovery; an advisory lock does not exclude noncooperating writers.
     session_lock = community.acquire_world_session_lock(world)
     try:
-        return _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd)
+        return _recover_with_world_lock(root, emit, path, record, world, rollback,
+                                        session_lock, lease_fd, journal_identity)
     finally:
         os.close(session_lock)
 
@@ -382,7 +417,9 @@ def _recovery_item(world, rollback, relative, kept_files):
     return source, saved, files, sorted(directories, key=lambda item: len(item.parts), reverse=True)
 
 
-def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd):
+def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd,
+                             journal_identity):
+    _check_journal(path, journal_identity)
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
         if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
@@ -413,6 +450,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
             source, saved, existing, directories = _recovery_item(world, rollback, relative, kept_files)
             saved_info = _terrain_entry(saved)
             source_info = _terrain_entry(source)
+            _check_journal(path, journal_identity)
             if saved_info is None:
                 if source_info is None:
                     raise ValueError("Old terrain is missing; restore the verified full backup manually")
@@ -443,6 +481,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         community.verify_borrowed_launcher_lease(root, lease_fd)
         community.verify_world_session_lock(world, session_lock)
         current = read_policy(root)
+        _check_journal(path, journal_identity)
         if current is not None:
             atomic_json(root / POLICY, dict(current,
                         last_release=record["new_policy"]["last_release"], refresh_next_start=False))
@@ -451,9 +490,11 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
                    + "Recovery record: backups/" + rollback.name)
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
+    _check_journal(path, journal_identity)
     atomic_json(rollback / "MANIFEST.json", record)
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
+    _check_journal(path, journal_identity)
     path.unlink()
     sync_directory(root)
     if emit:
