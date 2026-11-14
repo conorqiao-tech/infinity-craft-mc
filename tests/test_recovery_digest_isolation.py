@@ -55,6 +55,7 @@ class RecoveryDigestIsolationTests(unittest.TestCase):
     def exercise_swap(self, actor_code, expected_reader_status):
         original_digest = refresh._recovery_digest
         actual_run = subprocess.run
+        actual_reader = refresh._run_digest_reader
         reader_status = []
         observations = []
         original = self.kept.with_name("kept-original.bin")
@@ -65,12 +66,11 @@ class RecoveryDigestIsolationTests(unittest.TestCase):
             actual_run([sys.executable, "-c", actor_code, str(self.kept), str(self.lock)],
                        check=True, timeout=10)
             def capture(*args, **kwargs):
-                result = actual_run(*args, **kwargs)
-                if args[0][4] == refresh._RECOVERY_DIGEST_READER:
-                    reader_status.append(result.returncode)
+                result = actual_reader(*args, **kwargs)
+                reader_status.append(result[1])
                 return result
             try:
-                with patch.object(refresh.subprocess, "run", side_effect=capture):
+                with patch.object(refresh, "_run_digest_reader", side_effect=capture):
                     return original_digest(path, info)
             finally:
                 self.kept.unlink()
@@ -97,7 +97,7 @@ class RecoveryDigestIsolationTests(unittest.TestCase):
 
     def test_reader_timeout_is_a_review_failure(self):
         info = self.kept.lstat()
-        with patch.object(refresh.subprocess, "run", side_effect=subprocess.TimeoutExpired("reader", 120)):
+        with patch.object(refresh, "_run_digest_reader", side_effect=subprocess.TimeoutExpired("reader", 120)):
             with self.assertRaisesRegex(ValueError, "host review"):
                 refresh._recovery_digest(self.kept, info)
         self.assert_preserved()

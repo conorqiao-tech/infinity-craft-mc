@@ -45,19 +45,71 @@ try:
         if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or identity(before) != expected:
             sys.exit(21)
         value = hashlib.sha256()
-        while True:
-            block = os.read(fd, 1024 * 1024)
+        remaining = before.st_size
+        while remaining:
+            block = os.read(fd, min(1024 * 1024, remaining))
             if not block:
-                break
+                sys.exit(22)
             value.update(block)
-        if identity(os.fstat(fd)) != expected:
+            remaining -= len(block)
+        if os.read(fd, 1) or identity(os.fstat(fd)) != expected:
             sys.exit(22)
-        print(value.hexdigest())
     finally:
         os.close(fd)
+    # Emit success only after the identity checks and file close succeed.
+    sys.stdout.buffer.write(value.hexdigest().encode("ascii") + b"\n\x00INFINITY_RECOVERY_DIGEST_OK\n")
+    sys.stdout.buffer.flush()
 except (OSError, ValueError):
     sys.exit(23)
 '''
+_RECOVERY_DIGEST_TRAILER = b"\n\x00INFINITY_RECOVERY_DIGEST_OK\n"
+
+
+def _run_recovery_reader(program, path, expected, label):
+    """Read in a direct child and bound cleanup after a failed read."""
+    reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", program,
+                               str(path), *(str(value) for value in expected)],
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, close_fds=True)
+    try:
+        try:
+            output, _ = reader.communicate(timeout=120)
+            return output, reader.returncode
+        except BaseException as original:
+            try:
+                if reader.poll() is None:
+                    try:
+                        reader.kill()
+                    except ProcessLookupError:
+                        pass  # It exited between poll and kill; wait still confirms it.
+                reader.wait(timeout=5)
+            except BaseException as cleanup_error:
+                if isinstance(original, (KeyboardInterrupt, SystemExit)):
+                    raise original from cleanup_error
+                if isinstance(cleanup_error, (KeyboardInterrupt, SystemExit)):
+                    raise cleanup_error from original
+                raise ValueError("Terrain " + label + " reader could not be confirmed stopped; "
+                                 "keep the launcher marker for host review") from cleanup_error
+            raise
+    finally:
+        pending = sys.exc_info()[1]
+        try:
+            if reader.stdout is not None:
+                reader.stdout.close()
+        except BaseException as close_error:
+            if pending is not None:
+                if (pending.__cause__ is not None and close_error.__cause__ is None
+                        and close_error is not pending.__cause__):
+                    close_error.__cause__ = pending.__cause__
+                if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
+                        and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
+                    raise close_error from pending
+                raise pending from close_error
+            raise
+
+
+def _run_digest_reader(path, expected):
+    return _run_recovery_reader(_RECOVERY_DIGEST_READER, path, expected, "file digest")
 
 
 def _recovery_digest(path, info):
@@ -70,15 +122,14 @@ def _recovery_digest(path, info):
     expected = (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
                 info.st_size, info.st_mtime_ns, info.st_ctime_ns)
     try:
-        reader = subprocess.run([sys.executable, "-I", "-S", "-c", _RECOVERY_DIGEST_READER,
-                                 str(path), *(str(value) for value in expected)],
-                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, close_fds=True, timeout=120)
+        output, returncode = _run_digest_reader(path, expected)
         current = path.lstat()
         current_identity = (current.st_dev, current.st_ino, current.st_mode, current.st_nlink,
                             current.st_size, current.st_mtime_ns, current.st_ctime_ns)
-        value = reader.stdout.strip()
-        if (reader.returncode != 0 or current_identity != expected or len(value) != 64
+        value = output[:64]
+        if (returncode != 0 or current_identity != expected
+                or len(output) != 64 + len(_RECOVERY_DIGEST_TRAILER)
+                or output[64:] != _RECOVERY_DIGEST_TRAILER
                 or any(byte not in b"0123456789abcdef" for byte in value)):
             raise ValueError("Terrain recovery file changed; keep it for host review")
         return value.decode("ascii")
@@ -121,45 +172,7 @@ _POLICY_SIZE_LIMIT = 1024 * 1024
 
 def _run_policy_reader(path, expected):
     """Read in a direct child and bound cleanup after a failed read."""
-    reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _POLICY_READER,
-                               str(path), *(str(value) for value in expected)],
-                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                              stderr=subprocess.DEVNULL, close_fds=True)
-    try:
-        try:
-            output, _ = reader.communicate(timeout=120)
-            return output, reader.returncode
-        except BaseException as original:
-            try:
-                if reader.poll() is None:
-                    try:
-                        reader.kill()
-                    except ProcessLookupError:
-                        pass  # It exited between poll and kill; wait still confirms it.
-                reader.wait(timeout=5)
-            except BaseException as cleanup_error:
-                if isinstance(original, (KeyboardInterrupt, SystemExit)):
-                    raise original from cleanup_error
-                if isinstance(cleanup_error, (KeyboardInterrupt, SystemExit)):
-                    raise cleanup_error from original
-                raise ValueError("Terrain policy reader could not be confirmed stopped; "
-                                 "keep the launcher marker for host review") from cleanup_error
-            raise
-    finally:
-        pending = sys.exc_info()[1]
-        try:
-            if reader.stdout is not None:
-                reader.stdout.close()
-        except BaseException as close_error:
-            if pending is not None:
-                if (pending.__cause__ is not None and close_error.__cause__ is None
-                        and close_error is not pending.__cause__):
-                    close_error.__cause__ = pending.__cause__
-                if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
-                        and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
-                    raise close_error from pending
-                raise pending from close_error
-            raise
+    return _run_recovery_reader(_POLICY_READER, path, expected, "policy")
 
 
 def _read_policy_bytes(path, info):
