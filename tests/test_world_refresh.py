@@ -357,6 +357,19 @@ class TerrainRefreshTests(unittest.TestCase):
                 self.transaction()
         self.assertTrue((self.root / refresh.JOURNAL).exists())
 
+    def complete_synthetic_archive_fixture(self):
+        """Only this disposable fixture finishes its planned old moves."""
+        record = json.loads((self.root / refresh.JOURNAL).read_text())
+        terrain = self.root / "backups" / record["rollback"] / "terrain"
+        for relative in record["moved_paths"]:
+            source, saved = self.world / relative, terrain / relative
+            if saved.exists():
+                self.assertFalse(source.exists())
+            else:
+                self.assertTrue(source.exists())
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                source.rename(saved)
+
     @unittest.skipUnless(os.name == "posix", "the POSIX native session-lock test requires fcntl")
     def test_interrupted_recovery_refuses_to_move_terrain_while_native_world_is_locked(self):
         self.policy(refresh_next_start=True)
@@ -383,6 +396,7 @@ class TerrainRefreshTests(unittest.TestCase):
             holder.stdin.write("\n"); holder.stdin.flush()
             _, errors = holder.communicate(timeout=10)
             self.assertEqual(holder.returncode, 0, errors)
+        self.complete_synthetic_archive_fixture()
         self.recover()
         self.assert_original()
         self.assertFalse((self.root / refresh.JOURNAL).exists())
@@ -391,6 +405,7 @@ class TerrainRefreshTests(unittest.TestCase):
     def test_interrupted_recovery_holds_native_lock_while_moving_saved_terrain(self):
         self.policy(refresh_next_start=True)
         self.interrupt_move()
+        self.complete_synthetic_archive_fixture()
         lock = self.world / "session.lock"
         code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
                 "\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
@@ -439,6 +454,7 @@ class TerrainRefreshTests(unittest.TestCase):
     def test_recovery_keeps_journal_if_world_lock_path_changes_during_restore(self):
         self.policy(refresh_next_start=True)
         self.interrupt_move()
+        self.complete_synthetic_archive_fixture()
         journal = (self.root / refresh.JOURNAL).read_bytes()
         lock = self.world / "session.lock"
         old_lock = self.world / "session.lock.replaced"
@@ -490,7 +506,8 @@ class TerrainRefreshTests(unittest.TestCase):
         self.assertEqual(self.snapshot(), before_world)
         self.assertTrue(original_saved.exists())
 
-    def test_interrupted_move_is_rolled_back_before_backup_and_never_relaunched(self):
+    def test_ambiguous_interrupted_move_blocks_backup_and_preserves_evidence(self):
+        import server as launcher
         self.policy(refresh_next_start=True)
         self.interrupt_move()
         folders = self.refresh_folders()
@@ -498,17 +515,25 @@ class TerrainRefreshTests(unittest.TestCase):
         manifest_bytes = (folders[0] / "MANIFEST.json").read_bytes()
         policy_bytes = (self.root / refresh.POLICY).read_bytes()
         self.update_mod("later release", "2.13.0-explore.40")
-        # Only the start that finds the journal reports the rollback; neither start refreshes.
-        for reported in (1, 0):
-            before_java, messages = self.start()
-            self.assertEqual(before_java, self.original)
-            self.assert_no_new_refresh(policy_bytes, folders)
-            self.assertEqual(sum("Rolled back an interrupted terrain refresh" in m for m in messages), reported)
+        before_world = self.snapshot()
+        journal = (self.root / refresh.JOURNAL).read_bytes()
+        archive = {p.relative_to(folders[0]).as_posix(): p.read_bytes()
+                   for p in folders[0].rglob("*") if p.is_file()}
+        (self.root / "launcher.lock").unlink()
+        with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
+             patch.object(community, "backup") as backup, patch.object(launcher, "Service") as service:
+            with self.assertRaisesRegex(ValueError, "review"):
+                launcher.run_server(launcher.parse_args([]), root=self.root, console=False)
+        backup.assert_not_called()
+        service.assert_not_called()
+        self.assertEqual(self.snapshot(), before_world)
+        self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
+        self.assertTrue((self.root / "launcher.lock").exists())
+        self.assertEqual((self.root / refresh.POLICY).read_bytes(), policy_bytes)
         self.assertEqual((folders[0] / "MANIFEST.json").read_bytes(), manifest_bytes)
-        receipt, = folders[0].glob("RECOVERY-*.json")
-        self.assertEqual(json.loads(receipt.read_text())["recovery_state"], "rolled_back")
-        fresh = max((self.root / "backups").glob("Infinity-World-*.zip"), key=lambda p: p.stat().st_mtime_ns)
-        refresh.verify_backup(self.root, self.world, fresh.name)
+        self.assertEqual({p.relative_to(folders[0]).as_posix(): p.read_bytes()
+                          for p in folders[0].rglob("*") if p.is_file()}, archive)
+        self.assertEqual(list(folders[0].glob("RECOVERY-*.json")), [])
 
     def test_committed_earlier_transaction_is_finalized_without_another_refresh(self):
         self.policy(refresh_next_start=True)
@@ -569,6 +594,7 @@ class TerrainRefreshTests(unittest.TestCase):
     def test_launcher_recovers_before_creating_its_fresh_startup_backup(self):
         self.policy()
         self.interrupt_move()
+        self.complete_synthetic_archive_fixture()
         (self.root / "launcher.lock").unlink()
         import server as launcher
         args = launcher.parse_args([])
@@ -656,7 +682,7 @@ class TerrainRefreshTests(unittest.TestCase):
             self.transaction()
         self.assert_original()
 
-    def test_failure_mid_move_rolls_back_every_chunk_and_policy(self):
+    def test_failure_mid_move_preserves_world_and_archive_for_review(self):
         original_policy = self.policy()
         original_replace = refresh.os.replace
         failed = False
@@ -667,11 +693,19 @@ class TerrainRefreshTests(unittest.TestCase):
                 raise OSError("disk error")
             return original_replace(source, target)
         with patch.object(refresh.os, "replace", side_effect=replace):
-            with self.assertRaisesRegex(OSError, "disk error"):
+            with self.assertRaisesRegex(ValueError, "review") as caught:
                 self.transaction()
-        self.assert_original()
+        self.assertIsInstance(caught.exception.__context__, OSError)
+        self.assertIn("disk error", str(caught.exception.__context__))
+        record = json.loads((self.root / refresh.JOURNAL).read_text())
+        terrain = self.root / "backups" / record["rollback"] / "terrain"
+        archived = {p.relative_to(terrain).as_posix(): p.read_bytes()
+                    for p in terrain.rglob("*") if p.is_file()}
+        current = self.snapshot()
+        self.assertTrue(set(archived).isdisjoint(current))
+        self.assertEqual({**archived, **current}, self.original)
         self.assertEqual(refresh.read_policy(self.root), original_policy)
-        self.assertFalse((self.root / refresh.JOURNAL).exists())
+        self.assertTrue((self.root / refresh.JOURNAL).exists())
 
     def test_interrupted_move_recovery_preserves_owner_policy_edits(self):
         self.policy()
@@ -679,6 +713,7 @@ class TerrainRefreshTests(unittest.TestCase):
         disabled = self.policy(enabled=False)
         manifest = next((self.root / "backups").glob("Terrain-Refresh-*/MANIFEST.json"))
         manifest_bytes = manifest.read_bytes()
+        self.complete_synthetic_archive_fixture()
         self.recover()
         self.assert_original()
         self.assertEqual(refresh.read_policy(self.root), disabled)

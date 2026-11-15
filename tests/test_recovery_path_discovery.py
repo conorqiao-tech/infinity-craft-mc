@@ -128,16 +128,14 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
         self.assertTrue(self.current.is_dir())
 
     def test_observed_source_symlink_after_recheck_keeps_journal(self):
-        retained_saved = self.root / 'synthetic-retained-archive'
-        self.saved.rename(retained_saved)
         displaced = self.root / 'synthetic-displaced-current'
+        self.current.rename(displaced)
         original = refresh._recovery_item
         calls = []
         def substitute_after_recheck(*args):
             result = original(*args)
             calls.append(True)
             if len(calls) == 2:
-                self.current.rename(displaced)
                 self.current.symlink_to(displaced, target_is_directory=True)
             return result
         with patch.object(refresh, '_recovery_item', side_effect=substitute_after_recheck):
@@ -146,7 +144,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertTrue(self.current.is_symlink())
         self.assertEqual((displaced / 'unrecorded.bin').read_bytes(), b'synthetic unrecorded current terrain')
-        self.assertEqual((retained_saved / 'old.bin').read_bytes(), b'synthetic archived terrain')
+        self.assertEqual(self.old.read_bytes(), b'synthetic archived terrain')
         self.assertEqual(self.journal.read_bytes(), self.original_journal)
 
     def test_dangling_journal_link_is_refused_by_recovery(self):

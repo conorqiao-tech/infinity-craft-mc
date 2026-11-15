@@ -147,17 +147,19 @@ class RecoveryPreserveTargetsTests(unittest.TestCase):
         self.assertEqual(saved.read_bytes(), b'synthetic archive')
         self.assertEqual(self.journal.read_bytes(), before)
 
-    def test_current_entry_with_no_archive_is_left_in_place(self):
+    def test_current_entry_with_no_archive_requires_review(self):
         region = self.world / 'region'
         region.mkdir()
         target = region / 'r.0.0.mca'
         target.write_bytes(b'synthetic original')
-        self.write_journal(['region/r.0.0.mca'])
+        before = self.write_journal(['region/r.0.0.mca'])
         with patch.object(community, 'restore_terrain_no_replace', wraps=community.restore_terrain_no_replace) as move:
-            refresh.recover(self.root, lease_fd=self.lease)
+            with self.assertRaisesRegex(ValueError, 'review'):
+                refresh.recover(self.root, lease_fd=self.lease)
         move.assert_not_called()
         self.assertEqual(target.read_bytes(), b'synthetic original')
-        self.assertFalse(self.journal.exists())
+        self.assertEqual(self.journal.read_bytes(), before)
+        self.assertTrue((self.root / 'launcher.lock').exists())
 
     def test_archived_source_substitution_after_check_keeps_available_evidence(self):
         (self.world / 'region').mkdir()
