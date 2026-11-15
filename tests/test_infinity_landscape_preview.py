@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILDER = ROOT / 'tools/build_infinity_landscape_preview.py'
@@ -25,6 +26,9 @@ PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'j
               'crimson_planks':'huge_fungus/crimson_planks', 'warped_planks':'huge_fungus/warped_planks',
               'granite':'stone_granite', 'diorite':'stone_diorite', 'andesite':'stone_andesite',
               'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal'})
+ITEMS = {name:name for name in ('iron_ingot','gold_ingot','copper_ingot','netherite_ingot',
+                                'diamond','emerald','coal','amethyst_shard','raw_iron','raw_gold','raw_copper')}
+ITEMS['redstone'] = 'redstone_dust'
 
 class InfinityLandscapePreviewTests(unittest.TestCase):
     def test_archives_have_matching_real_textures_and_refuse_overwrite(self):
@@ -36,12 +40,12 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 48); self.assertEqual(len(b.namelist()), 48)
+                self.assertEqual(len(j.namelist()), 60); self.assertEqual(len(b.namelist()), 60)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
-                self.assertEqual(manifest['header']['version'], [0,2,0])
+                self.assertEqual(manifest['header']['version'], [0,3,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
                 textures = {}
                 for name, alias in PAIRS.items():
@@ -51,6 +55,20 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
                     self.assertEqual(struct.unpack('>IIBB', data[16:26]), (16,16,8,6))
                     textures[name] = hashlib.sha256(data).digest()
                 self.assertEqual(len(set(textures.values())), len(PAIRS), 'Every terrain tile must remain visually distinct')
+                items = {}
+                for name, alias in ITEMS.items():
+                    data = j.read('assets/minecraft/textures/item/'+name+'.png')
+                    self.assertEqual(data, b.read('textures/items/'+alias+'.png'))
+                    self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n')
+                    self.assertEqual(struct.unpack('>IIBB', data[16:26]), (16,16,8,6))
+                    # The generator writes a single IDAT using unfiltered RGBA rows.
+                    size = struct.unpack('>I', data[33:37])[0]
+                    self.assertEqual(data[37:41], b'IDAT')
+                    raw = zlib.decompress(data[41:41+size])
+                    alpha = {raw[y*65+1+x*4+3] for y in range(16) for x in range(16)}
+                    self.assertEqual(alpha, {0,255}, name)
+                    items[name] = hashlib.sha256(data).digest()
+                self.assertEqual(len(set(items.values())), len(ITEMS), 'Every material icon must remain distinct')
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
             self.assertEqual(before, {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)})
 
