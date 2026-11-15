@@ -33,6 +33,7 @@ class PreChildWorldFailureTests(unittest.TestCase):
 
     def journal(self):
         paths = ["data/synthetic-a.bin", "data/synthetic-b.bin"]
+        (self.world / "data").mkdir()
         saved = self.root / "backups/Terrain-Refresh-synthetic/terrain"
         for relative in paths:
             item = saved / relative
@@ -59,16 +60,17 @@ class PreChildWorldFailureTests(unittest.TestCase):
     def recover_then_fail(self, error):
         paths, saved, journal = self.journal()
         before = journal.read_bytes()
-        real_move = refresh.move
-        def interrupted(source, target):
-            real_move(source, target)
+        real_move = community.restore_terrain_no_replace
+        def interrupted(source, target, **kwargs):
+            real_move(source, target, **kwargs)
             raise error
         with patch.object(launcher, "check_ports"), patch.object(launcher, "emit"), \
-             patch.object(refresh, "move", side_effect=interrupted), \
+             patch.object(community, "restore_terrain_no_replace", side_effect=interrupted), \
              patch.object(community, "backup", wraps=community.backup) as backup, \
              patch.object(launcher, "Service") as service:
-            with self.assertRaises((OSError, RuntimeError)):
+            with self.assertRaises((ValueError, RuntimeError)) as observed:
                 launcher.run_server(self.args, root=self.root, console=False)
+        self.assertIs(observed.exception.__cause__, error)
         backup.assert_not_called()
         service.assert_not_called()
         self.assertEqual(journal.read_bytes(), before)

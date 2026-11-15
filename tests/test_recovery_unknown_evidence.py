@@ -131,12 +131,10 @@ class RecoveryUnknownEvidenceTests(unittest.TestCase):
         self.assertEqual((self.saved / 'data/safe/old.bin').read_bytes(), b'synthetic old data/safe')
         self.assertEqual((self.saved / 'data/ambiguous/old.bin').read_bytes(), b'synthetic old data/ambiguous')
 
-    def test_known_kept_file_can_complete_a_clean_recovery(self):
-        self.recover()
-        self.assertFalse(self.journal.exists())
-        self.assertFalse(self.kept.exists())
-        self.assertEqual((self.world / 'data/ambiguous/old.bin').read_bytes(), b'synthetic old data/ambiguous')
-        self.assertEqual((self.world / 'data/safe/old.bin').read_bytes(), b'synthetic old data/safe')
+    def test_known_kept_file_requires_review_before_any_move(self):
+        with self.assertRaisesRegex(ValueError, 'review'):
+            self.recover()
+        self.assert_preflight_preserved_all()
 
 
 if __name__ == '__main__':

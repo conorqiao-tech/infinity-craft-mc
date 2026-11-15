@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'server'))
 import server as launcher
+import community
 import world_refresh as refresh
 
 
@@ -79,7 +80,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
         self.assert_evidence_retained()
 
     def test_unreadable_archived_entry_stops_before_any_move(self):
-        with self.fail_metadata(self.saved), patch.object(refresh, 'move', wraps=refresh.move) as move:
+        with self.fail_metadata(self.saved), patch.object(community, 'restore_terrain_no_replace', wraps=community.restore_terrain_no_replace) as move:
             with self.assertRaisesRegex(ValueError, 'check|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
         move.assert_not_called()
@@ -91,7 +92,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
             if not isinstance(path, int) and os.fspath(path) == os.fspath(self.saved):
                 raise OSError(errno.EIO, 'synthetic archived-entry stat error')
             return real_stat(path, *args, **kwargs)
-        with patch.object(os, 'stat', side_effect=stat), patch.object(refresh, 'move', wraps=refresh.move) as move:
+        with patch.object(os, 'stat', side_effect=stat), patch.object(community, 'restore_terrain_no_replace', wraps=community.restore_terrain_no_replace) as move:
             with self.assertRaisesRegex(ValueError, 'Unexpected|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
         move.assert_not_called()
@@ -99,7 +100,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
 
     def test_unreadable_current_entry_stops_before_any_move(self):
         self.unrecorded.unlink()
-        with self.fail_metadata(self.current), patch.object(refresh, 'move', wraps=refresh.move) as move:
+        with self.fail_metadata(self.current), patch.object(community, 'restore_terrain_no_replace', wraps=community.restore_terrain_no_replace) as move:
             with self.assertRaisesRegex(ValueError, 'check|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
         move.assert_not_called()
@@ -117,7 +118,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
             return result
         with self.fail_metadata(self.saved, enabled=lambda: bool(completed)), \
              patch.object(refresh, '_recovery_item', side_effect=preflight), \
-             patch.object(refresh, 'move', wraps=refresh.move) as move:
+             patch.object(community, 'restore_terrain_no_replace', wraps=community.restore_terrain_no_replace) as move:
             with self.assertRaisesRegex(ValueError, 'check|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
         self.assertEqual(completed, [True])
@@ -219,6 +220,7 @@ class RecoveryPathDiscoveryTests(unittest.TestCase):
 
     def test_clean_recovery_restores_archived_entry(self):
         self.unrecorded.unlink()
+        self.current.rmdir()  # Only this synthetic fixture's empty target.
         refresh.recover(self.root, lease_fd=self.lease)
         self.assertFalse(self.journal.exists())
         self.assertEqual((self.current / 'old.bin').read_bytes(), b'synthetic archived terrain')

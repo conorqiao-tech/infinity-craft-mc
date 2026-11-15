@@ -395,12 +395,12 @@ class TerrainRefreshTests(unittest.TestCase):
         code = ("import fcntl,sys; f=open(sys.argv[1],'r+b'); "
                 "\ntry: fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)"
                 "\nexcept BlockingIOError: sys.exit(42)\nelse: sys.exit(0)")
-        real_move = refresh.move
+        real_move = community.restore_terrain_no_replace
         attempts = []
-        def observe(source, target):
+        def observe(source, target, **kwargs):
             attempts.append(subprocess.run([sys.executable, "-c", code, str(lock)], timeout=10).returncode)
-            return real_move(source, target)
-        with patch.object(refresh, "move", observe):
+            return real_move(source, target, **kwargs)
+        with patch.object(community, "restore_terrain_no_replace", observe):
             self.recover()
         self.assertTrue(attempts)
         self.assertEqual(set(attempts), {42})
@@ -442,18 +442,19 @@ class TerrainRefreshTests(unittest.TestCase):
         journal = (self.root / refresh.JOURNAL).read_bytes()
         lock = self.world / "session.lock"
         old_lock = self.world / "session.lock.replaced"
-        real_move = refresh.move
+        real_move = community.restore_terrain_no_replace
         replaced = False
-        def move_and_replace(source, target):
+        def move_and_replace(source, target, **kwargs):
             nonlocal replaced
-            real_move(source, target)
+            real_move(source, target, **kwargs)
             if not replaced:
                 replaced = True
                 lock.rename(old_lock)
                 lock.write_bytes(b"unexpected replacement")
-        with patch.object(refresh, "move", move_and_replace):
-            with self.assertRaisesRegex(ValueError, "lock.*changed"):
+        with patch.object(community, "restore_terrain_no_replace", move_and_replace):
+            with self.assertRaisesRegex(ValueError, "review") as caught:
                 self.recover()
+        self.assertRegex(str(caught.exception.__cause__), "lock.*changed")
         self.assertTrue(replaced)
         self.assertEqual((self.root / refresh.JOURNAL).read_bytes(), journal)
         self.assertEqual(old_lock.read_bytes(), b"native session lock")

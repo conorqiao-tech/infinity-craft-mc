@@ -29,6 +29,7 @@ class BorrowedRecoveryLeaseTests(unittest.TestCase):
         self.saved.parent.mkdir(parents=True)
         self.saved.write_bytes(b"synthetic old terrain")
         self.target = self.world / self.relative
+        self.target.parent.mkdir(parents=True)
         self.journal = self.root / refresh.JOURNAL
         self.journal.write_text(json.dumps({"format": 1, "state": "moving", "world": "world",
             "rollback": "Terrain-Refresh-synthetic", "moved_paths": [self.relative], "kept_files": {}}))
@@ -96,14 +97,14 @@ class BorrowedRecoveryLeaseTests(unittest.TestCase):
 
     def test_recovery_holds_both_cooperative_locks_during_a_move(self):
         descriptor = self.lease()
-        original = refresh.move
+        original = community.restore_terrain_no_replace
         observed = []
-        def move(source, target):
+        def move(source, target, **kwargs):
             observed.append((self.blocked(self.root / "launcher.lock", "flock"),
                              self.blocked(self.world / "session.lock", "lockf")))
-            return original(source, target)
+            return original(source, target, **kwargs)
         try:
-            with patch.object(refresh, "move", side_effect=move):
+            with patch.object(community, "restore_terrain_no_replace", side_effect=move):
                 refresh.recover(self.root, lease_fd=descriptor)
             self.assertEqual(observed, [(True, True)])
             self.assertEqual(self.target.read_bytes(), b"synthetic old terrain")

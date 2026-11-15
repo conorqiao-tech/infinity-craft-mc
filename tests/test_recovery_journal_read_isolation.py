@@ -11,6 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'server'))
 import server as launcher
 import world_refresh as refresh
+import community
 
 
 @unittest.skipUnless(os.name == 'posix', 'requires POSIX locks and FIFOs')
@@ -103,11 +104,11 @@ class RecoveryJournalReadIsolationTests(unittest.TestCase):
         self.assertTrue((self.root / 'launcher.lock').exists())
 
     def test_journal_change_after_move_is_retained_for_review(self):
-        actual = refresh.move
-        def move_and_swap(source, target):
-            actual(source, target)
+        actual = community.restore_terrain_no_replace
+        def move_and_swap(source, target, **kwargs):
+            actual(source, target, **kwargs)
             self.swap_in_another_process()
-        with patch.object(refresh, 'move', side_effect=move_and_swap):
+        with patch.object(community, 'restore_terrain_no_replace', side_effect=move_and_swap):
             with self.assertRaisesRegex(ValueError, 'journal|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
         self.assertEqual(self.retained.read_bytes(), self.original)

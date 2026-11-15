@@ -650,9 +650,163 @@ def _recovery_item(world, rollback, relative, kept_files):
     return source, saved, files, sorted(directories, key=lambda item: len(item.parts), reverse=True)
 
 
+def _check_recovery_archive(saved, info, *, directory_fd=None):
+    """Reject linked or special archived entries without opening files here."""
+    def check_file(entry):
+        if not stat.S_ISREG(entry.st_mode) or entry.st_nlink != 1:
+            raise ValueError("Archived terrain is linked or special; keep it for host review")
+
+    if stat.S_ISREG(info.st_mode):
+        check_file(info)
+    elif stat.S_ISDIR(info.st_mode):
+        directory = community.open_backup_directory(saved.name if directory_fd is not None else saved,
+                                                    dir_fd=directory_fd)
+        try:
+            if _journal_identity(os.fstat(directory)) != _journal_identity(info):
+                raise ValueError("Archived terrain directory changed; keep it for host review")
+
+            def walk(parent):
+                before = _journal_identity(os.fstat(parent))
+                for name in sorted(os.listdir(parent)):
+                    if name.casefold() == "session.lock":
+                        raise ValueError("Archived terrain contains a lock entry; keep it for host review")
+                    child_info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                    if stat.S_ISDIR(child_info.st_mode):
+                        child = community.open_backup_directory(name, dir_fd=parent)
+                        try:
+                            if _journal_identity(os.fstat(child)) != _journal_identity(child_info):
+                                raise ValueError("Archived terrain directory changed; keep it for host review")
+                            walk(child)
+                            if _journal_identity(os.fstat(child)) != _journal_identity(child_info):
+                                raise ValueError("Archived terrain directory changed; keep it for host review")
+                        finally:
+                            _close_recovery_descriptor(child)
+                    else:
+                        check_file(child_info)
+                    if _journal_identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != _journal_identity(child_info):
+                        raise ValueError("Archived terrain entry changed; keep it for host review")
+                if _journal_identity(os.fstat(parent)) != before:
+                    raise ValueError("Archived terrain directory changed; keep it for host review")
+
+            walk(directory)
+            if _journal_identity(os.fstat(directory)) != _journal_identity(info):
+                raise ValueError("Archived terrain directory changed; keep it for host review")
+        finally:
+            _close_recovery_descriptor(directory)
+    else:
+        raise ValueError("Unexpected archived terrain entry; keep it for host review")
+
+
+def _open_recovery_parent(root, entry, descriptors):
+    """Walk an existing parent from its held root without following links."""
+    relative = entry.relative_to(root)
+    if not relative.parts or any(part in ("", ".", "..") for part in relative.parts):
+        raise ValueError("Invalid terrain recovery path; keep evidence for host review")
+    root_entry = _retirement_root_entry(root)
+    root_fd = community.open_backup_directory(root)
+    descriptors.append(root_fd)
+    _verify_retirement_directory(root, root_fd)
+    if _retirement_root_entry(root) != root_entry:
+        raise ValueError("Terrain recovery root changed; keep evidence for host review")
+    chain = [(None, root_fd)]
+    for part in relative.parts[:-1]:
+        child = community.open_backup_directory(part, dir_fd=chain[-1][1])
+        descriptors.append(child)
+        entry_info = os.stat(part, dir_fd=chain[-1][1], follow_symlinks=False)
+        if (not stat.S_ISDIR(entry_info.st_mode)
+                or community.backup_directory_identity(entry_info) != community.backup_directory_identity(os.fstat(child))):
+            raise ValueError("Terrain recovery parent changed; keep evidence for host review")
+        chain.append((part, child))
+    return root_entry, chain, community.backup_output_ancestry(chain[-1][1])
+
+
+def _verify_recovery_parent(root, snapshot):
+    root_entry, chain, ancestry = snapshot
+    _verify_retirement_directory(root, chain[0][1])
+    if _retirement_root_entry(root) != root_entry:
+        raise ValueError("Terrain recovery root changed; keep evidence for host review")
+    for index in range(1, len(chain)):
+        name, child = chain[index]
+        entry = os.stat(name, dir_fd=chain[index - 1][1], follow_symlinks=False)
+        if (not stat.S_ISDIR(entry.st_mode)
+                or community.backup_directory_identity(entry) != community.backup_directory_identity(os.fstat(child))):
+            raise ValueError("Terrain recovery parent changed; keep evidence for host review")
+    if community.backup_output_ancestry(chain[-1][1]) != ancestry:
+        raise ValueError("Terrain recovery ancestry changed; keep evidence for host review")
+
+
+def _close_recovery_directories(descriptors):
+    pending = sys.exc_info()[1]
+    errors = []
+    for descriptor in reversed(descriptors):
+        try:
+            os.close(descriptor)
+        except BaseException as error:
+            errors.append(error)
+    if errors:
+        error = next((item for item in errors if isinstance(item, (KeyboardInterrupt, SystemExit))), errors[0])
+        if pending is not None:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)) and not isinstance(pending, (KeyboardInterrupt, SystemExit)):
+                raise error from pending
+            raise pending from error
+        raise error
+
+
+def _restore_recovery_entry(saved, source, expected, verify_holds, archive_root, world_root):
+    """Restore into an absent name through held directories, never replacing it."""
+    descriptors = []
+    try:
+        source_snapshot = _open_recovery_parent(archive_root, saved, descriptors)
+        destination_snapshot = _open_recovery_parent(world_root, source, descriptors)
+        source_directory = source_snapshot[1][-1][1]
+        destination_directory = destination_snapshot[1][-1][1]
+        _verify_recovery_parent(archive_root, source_snapshot)
+        _verify_recovery_parent(world_root, destination_snapshot)
+        entry = os.stat(saved.name, dir_fd=source_directory, follow_symlinks=False)
+        if _journal_identity(entry) != _journal_identity(expected):
+            raise ValueError("Archived terrain changed before restoration")
+        _check_recovery_archive(saved, entry, directory_fd=source_directory)
+        try:
+            os.stat(source.name, dir_fd=destination_directory, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise ValueError("Terrain recovery target already exists")
+        verify_holds()
+        _verify_recovery_parent(archive_root, source_snapshot)
+        _verify_recovery_parent(world_root, destination_snapshot)
+        community.restore_terrain_no_replace(saved, source, source_directory_fd=source_directory,
+                                             destination_directory_fd=destination_directory)
+        verify_holds()
+        moved = os.stat(source.name, dir_fd=destination_directory, follow_symlinks=False)
+        if _journal_identity(moved)[:6] != _journal_identity(expected)[:6]:
+            raise ValueError("Restored terrain differs from the observed archive")
+        try:
+            os.stat(saved.name, dir_fd=source_directory, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise ValueError("Archived terrain appeared again during restoration")
+        _verify_recovery_parent(archive_root, source_snapshot)
+        _verify_recovery_parent(world_root, destination_snapshot)
+        _check_recovery_archive(source, moved, directory_fd=destination_directory)
+        os.fsync(source_directory)
+        os.fsync(destination_directory)
+    except InterruptedError:
+        raise
+    except (OSError, ValueError, community.BackupArchiveUncertain) as error:
+        raise ValueError("Terrain restoration could not be confirmed; keep all evidence for host review") from error
+    finally:
+        _close_recovery_directories(descriptors)
+
+
 def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd,
                              journal_identity, journal_bytes):
     _check_journal(path, journal_identity)
+    def verify_holds():
+        community.verify_borrowed_launcher_lease(root, lease_fd)
+        community.verify_world_session_lock(world, session_lock)
+        _check_journal(path, journal_identity)
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
         if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
@@ -676,11 +830,20 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         # Check all items before the first mutation. Repeat the check at each
         # move because a prior check does not exclude a concurrent writer.
         for relative in reversed(moved_paths):
-            _recovery_item(world, rollback, relative, kept_files)
+            source, saved, _, _ = _recovery_item(world, rollback, relative, kept_files)
+            saved_info = _terrain_entry(saved)
+            source_info = _terrain_entry(source)
+            if saved_info is not None:
+                _check_recovery_archive(saved, saved_info)
+                if source_info is not None:
+                    raise ValueError("Terrain recovery target already exists; keep both entries for host review")
+                parent_info = _terrain_entry(source.parent)
+                if parent_info is None or not stat.S_ISDIR(parent_info.st_mode):
+                    raise ValueError("Terrain recovery target parent is missing; keep evidence for host review")
         for relative in reversed(moved_paths):
             community.verify_borrowed_launcher_lease(root, lease_fd)
             community.verify_world_session_lock(world, session_lock)
-            source, saved, existing, directories = _recovery_item(world, rollback, relative, kept_files)
+            source, saved, _, _ = _recovery_item(world, rollback, relative, kept_files)
             saved_info = _terrain_entry(saved)
             source_info = _terrain_entry(source)
             _check_journal(path, journal_identity)
@@ -692,15 +855,10 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
             else:
                 if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
                     raise ValueError("Unexpected archived terrain entry; keep it for host review")
+                _check_recovery_archive(saved, saved_info)
                 if source_info is not None:
-                    if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
-                        raise ValueError("Unexpected terrain recovery entry; keep it for host review")
-                    for file in existing:
-                        file.unlink()
-                    for folder in directories:
-                        folder.rmdir()
-                source.parent.mkdir(parents=True, exist_ok=True)
-                move(saved, source)
+                    raise ValueError("Terrain recovery target already exists; keep both entries for host review")
+                _restore_recovery_entry(saved, source, saved_info, verify_holds, rollback / "terrain", world)
         # The moving transaction has never written its new policy. Preserve
         # the owner's edits, especially a decision to disable refresh.
         community.verify_borrowed_launcher_lease(root, lease_fd)
@@ -719,10 +877,6 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
     _check_journal(path, journal_identity)
-    def verify_holds():
-        community.verify_borrowed_launcher_lease(root, lease_fd)
-        community.verify_world_session_lock(world, session_lock)
-        _check_journal(path, journal_identity)
     receipt = _write_recovery_receipt(rollback, record, journal_bytes, verify_holds)
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
