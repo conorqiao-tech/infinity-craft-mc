@@ -239,29 +239,47 @@ def _read_journal_bytes(path, info):
         raise ValueError("Terrain journal could not be checked; keep it for host review") from error
 
 
-def _run_retired_journal_reader(name, expected, directory_fd):
+def _run_held_directory_reader(name, expected, directory_fd, label):
     if not name or name in (".", "..") or Path(name).name != name:
-        raise ValueError("Unsafe retired terrain journal name; keep it for host review")
+        raise ValueError("Unsafe " + label + " name; keep it for host review")
     # The backup reader opens relative to the inherited directory, verifies
     # both identities, and emits its trailer only after the file is closed.
     return _run_recovery_reader(community._BACKUP_FILE_READER, name, expected,
-                                "retired journal", directory_fd=directory_fd)
+                                label, directory_fd=directory_fd)
 
 
-def _read_retired_journal_bytes(name, info, directory_fd):
+def _run_retired_journal_reader(name, expected, directory_fd):
+    return _run_held_directory_reader(name, expected, directory_fd, "retired journal")
+
+
+def _run_recovery_receipt_reader(name, expected, directory_fd):
+    return _run_held_directory_reader(name, expected, directory_fd, "recovery receipt")
+
+
+def _read_held_directory_bytes(name, info, directory_fd, reader, label):
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > _JOURNAL_SIZE_LIMIT:
-        raise ValueError("Retired terrain journal is linked or too large; keep it for host review")
+        raise ValueError(label + " is linked or too large; keep it for host review")
     expected = _journal_identity(info)
     try:
-        output, returncode = _run_retired_journal_reader(name, expected, directory_fd)
+        output, returncode = reader(name, expected, directory_fd)
         current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
         trailer = community._BACKUP_READER_TRAILER
         if (returncode != 0 or _journal_identity(current) != expected
                 or len(output) != info.st_size + len(trailer) or not output.endswith(trailer)):
-            raise ValueError("Retired terrain journal changed or its reader failed; keep it for host review")
+            raise ValueError(label + " changed or its reader failed; keep it for host review")
         return output[:-len(trailer)]
     except (OSError, subprocess.SubprocessError) as error:
-        raise ValueError("Retired terrain journal could not be checked; keep it for host review") from error
+        raise ValueError(label + " could not be checked; keep it for host review") from error
+
+
+def _read_retired_journal_bytes(name, info, directory_fd):
+    return _read_held_directory_bytes(name, info, directory_fd, _run_retired_journal_reader,
+                                      "Retired terrain journal")
+
+
+def _read_recovery_receipt_bytes(name, info, directory_fd):
+    return _read_held_directory_bytes(name, info, directory_fd, _run_recovery_receipt_reader,
+                                      "Terrain recovery receipt")
 
 
 def _verify_retirement_directory(root, descriptor):
@@ -276,6 +294,101 @@ def _verify_retirement_directory(root, descriptor):
 def _retirement_root_entry(root):
     info = root.lstat()
     return info.st_dev, info.st_ino, info.st_mode
+
+
+def _close_recovery_descriptor(descriptor):
+    """Close without replacing an in-flight interruption or recovery error."""
+    pending = sys.exc_info()[1]
+    try:
+        os.close(descriptor)
+    except BaseException as close_error:
+        if pending is not None:
+            if (pending.__cause__ is not None and close_error.__cause__ is None
+                    and close_error is not pending.__cause__):
+                close_error.__cause__ = pending.__cause__
+            if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
+                    and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
+                raise close_error from pending
+            raise pending from close_error
+        raise
+
+
+def _write_recovery_receipt(rollback, record, journal_bytes, verify_holds):
+    """Publish new recovery evidence without replacing or unlinking old entries."""
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if os.name != "posix" or not directory_flag:
+        raise ValueError("Terrain recovery receipt is unsupported; keep evidence for host review")
+    token = uuid.uuid4().hex
+    staged = ".RECOVERY-" + token + ".partial"
+    published = "RECOVERY-" + token + ".json"
+    payload = (json.dumps({"format": 1, "recovery_state": record["state"],
+                           "world": record["world"], "rollback": record["rollback"],
+                           "source_journal_sha256": hashlib.sha256(journal_bytes).hexdigest(),
+                           "phase": "before_journal_retirement",
+                           "recovery_writes_existing_manifest_or_policy": False}, indent=2) + "\n").encode("utf-8")
+    if len(payload) > _JOURNAL_SIZE_LIMIT:
+        raise ValueError("Terrain recovery receipt is too large; keep evidence for host review")
+    try:
+        directory = os.open(rollback, os.O_RDONLY | directory_flag | getattr(os, "O_NONBLOCK", 0))
+        try:
+            _verify_retirement_directory(rollback, directory)
+            root_entry = _retirement_root_entry(rollback)
+            ancestry = community.backup_output_ancestry(directory)
+            _verify_retirement_directory(rollback, directory)
+            if _retirement_root_entry(rollback) != root_entry:
+                raise ValueError("Terrain recovery receipt directory changed")
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(staged, flags, 0o600, dir_fd=directory)
+            try:
+                os.fchmod(descriptor, 0o600)
+                remaining = memoryview(payload)
+                while remaining:
+                    count = os.write(descriptor, remaining)
+                    if count <= 0:
+                        raise OSError("Incomplete terrain recovery receipt write")
+                    remaining = remaining[count:]
+                community.flush_descriptor(descriptor)
+                held = os.fstat(descriptor)
+                entry = os.stat(staged, dir_fd=directory, follow_symlinks=False)
+                if (not stat.S_ISREG(held.st_mode) or held.st_nlink != 1
+                        or _journal_identity(entry) != _journal_identity(held)
+                        or held.st_size != len(payload)):
+                    raise ValueError("Staged terrain recovery receipt changed")
+                _verify_retirement_directory(rollback, directory)
+                if (_retirement_root_entry(rollback) != root_entry
+                        or community.backup_output_ancestry(directory) != ancestry):
+                    raise ValueError("Terrain recovery receipt directory changed")
+                verify_holds()
+                community.publish_backup_no_replace(Path(staged), Path(published), directory_fd=directory)
+                current = os.fstat(descriptor)
+                entry = os.stat(published, dir_fd=directory, follow_symlinks=False)
+                if (_journal_identity(current)[:6] != _journal_identity(held)[:6]
+                        or _journal_identity(entry) != _journal_identity(current)):
+                    raise ValueError("Published terrain recovery receipt changed")
+                if _read_recovery_receipt_bytes(published, entry, directory) != payload:
+                    raise ValueError("Published terrain recovery receipt contents changed")
+                if _journal_identity(os.fstat(descriptor)) != _journal_identity(entry):
+                    raise ValueError("Published terrain recovery receipt changed during verification")
+                try:
+                    os.stat(staged, dir_fd=directory, follow_symlinks=False)
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise ValueError("A staged terrain recovery receipt appeared after publication")
+                _verify_retirement_directory(rollback, directory)
+                if (_retirement_root_entry(rollback) != root_entry
+                        or community.backup_output_ancestry(directory) != ancestry):
+                    raise ValueError("Terrain recovery receipt directory changed")
+                verify_holds()
+                os.fsync(directory)
+                return published
+            finally:
+                _close_recovery_descriptor(descriptor)
+        finally:
+            _close_recovery_descriptor(directory)
+    except (OSError, ValueError, subprocess.SubprocessError, community.BackupArchiveUncertain) as error:
+        raise ValueError("Terrain recovery receipt could not be confirmed; keep " + staged
+                         + " and any " + published + " for host review") from error
 
 
 def _retire_journal(root, path, expected, original_bytes):
@@ -593,8 +706,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         community.verify_borrowed_launcher_lease(root, lease_fd)
         community.verify_world_session_lock(world, session_lock)
         record["state"] = "rolled_back"
-        message = ("Rolled back an interrupted terrain refresh from an earlier start; original terrain restored. "
-                   "Recovery record: backups/" + rollback.name)
+        message = "Rolled back an interrupted terrain refresh from an earlier start; original terrain restored."
     else:
         # This finishes the earlier, already-committed transaction only; it
         # records that transaction's result and never requests another refresh.
@@ -602,22 +714,23 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         community.verify_world_session_lock(world, session_lock)
         current = read_policy(root)
         _check_journal(path, journal_identity)
-        if current is not None:
-            atomic_json(root / POLICY, dict(current,
-                        last_release=record["new_policy"]["last_release"], refresh_next_start=False))
         message = ("Finished recording a terrain refresh completed by an earlier start; "
-                   + (POLICY + " was updated to clear its pending request. " if current is not None else "")
-                   + "Recovery record: backups/" + rollback.name)
+                   + (POLICY + " was left unchanged. " if current is not None else ""))
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
     _check_journal(path, journal_identity)
-    atomic_json(rollback / "MANIFEST.json", record)
+    def verify_holds():
+        community.verify_borrowed_launcher_lease(root, lease_fd)
+        community.verify_world_session_lock(world, session_lock)
+        _check_journal(path, journal_identity)
+    receipt = _write_recovery_receipt(rollback, record, journal_bytes, verify_holds)
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
     _check_journal(path, journal_identity)
     retired_name = _retire_journal(root, path, journal_identity, journal_bytes)
     if emit:
-        emit(message + " Original journal retained as " + retired_name + ".")
+        emit(message + " Recovery record: backups/" + rollback.name + "/" + receipt
+             + ". Original journal retained as " + retired_name + ".")
 
 
 def startup_check(root, emit=print):

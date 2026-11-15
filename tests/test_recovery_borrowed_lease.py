@@ -134,16 +134,16 @@ class BorrowedRecoveryLeaseTests(unittest.TestCase):
 
     def test_observed_swap_before_journal_retirement_keeps_recovery_evidence(self):
         descriptor = self.lease()
-        original = refresh.atomic_json
-        def write(path, record):
-            original(path, record)
-            if Path(path).name == "MANIFEST.json":
-                actor = ("from pathlib import Path; import os,sys; r=Path(sys.argv[1]); "
-                         "os.rename(r/'launcher.lock',r/'original-lock'); "
-                         "(r/'launcher.lock').write_bytes(b'synthetic replacement')")
-                subprocess.run([sys.executable, '-c', actor, str(self.root)], check=True, timeout=10)
+        original = refresh._write_recovery_receipt
+        def write(*args, **kwargs):
+            result = original(*args, **kwargs)
+            actor = ("from pathlib import Path; import os,sys; r=Path(sys.argv[1]); "
+                     "os.rename(r/'launcher.lock',r/'original-lock'); "
+                     "(r/'launcher.lock').write_bytes(b'synthetic replacement')")
+            subprocess.run([sys.executable, '-c', actor, str(self.root)], check=True, timeout=10)
+            return result
         try:
-            with patch.object(refresh, "atomic_json", side_effect=write):
+            with patch.object(refresh, "_write_recovery_receipt", side_effect=write):
                 with self.assertRaisesRegex(ValueError, "launcher.*lease|lease.*launcher"):
                     refresh.recover(self.root, lease_fd=descriptor)
             self.assertEqual(self.journal.read_bytes(), self.journal_before)

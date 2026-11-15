@@ -103,6 +103,8 @@ class RecoveryJournalRetirementTests(unittest.TestCase):
         actual = community.publish_backup_no_replace
         changed = []
         def publish(source, destination, **kwargs):
+            if source != self.journal:
+                return actual(source, destination, **kwargs)
             before = self.journal.stat()
             code = ("import os,sys;from pathlib import Path;p=Path(sys.argv[1]);"
                     "data=p.read_bytes();p.write_bytes(b'X'+data[1:]);"
@@ -134,7 +136,8 @@ class RecoveryJournalRetirementTests(unittest.TestCase):
         actual = community.publish_backup_no_replace
         def rename_then_fail(source, destination, **kwargs):
             actual(source, destination, **kwargs)
-            raise OSError('synthetic post-rename failure')
+            if source == self.journal:
+                raise OSError('synthetic post-rename failure')
         with patch.object(community, 'publish_backup_no_replace', side_effect=rename_then_fail):
             with self.assertRaises((ValueError, OSError)):
                 refresh.recover(self.root, lease_fd=self.lease)
@@ -147,7 +150,8 @@ class RecoveryJournalRetirementTests(unittest.TestCase):
         actual = community.publish_backup_no_replace
         def rename_then_create(source, destination, **kwargs):
             actual(source, destination, **kwargs)
-            self.journal.write_bytes(b'synthetic new journal')
+            if source == self.journal:
+                self.journal.write_bytes(b'synthetic new journal')
         with patch.object(community, 'publish_backup_no_replace', side_effect=rename_then_create):
             with self.assertRaisesRegex(ValueError, 'journal|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
@@ -190,12 +194,13 @@ class RecoveryJournalRetirementTests(unittest.TestCase):
                                                        community.publish_backup_no_replace, os.close)
         held = []
         def verify(root, descriptor):
-            if not held:
+            if root == self.root and not held:
                 held.append(descriptor)
             return actual_verify(root, descriptor)
         def rename_then_interrupt(source, destination, **kwargs):
             actual_publish(source, destination, **kwargs)
-            raise KeyboardInterrupt()
+            if source == self.journal:
+                raise KeyboardInterrupt()
         def close(descriptor):
             actual_close(descriptor)
             if held and descriptor == held[0]:
@@ -243,7 +248,7 @@ class RecoveryJournalRetirementTests(unittest.TestCase):
         actual_verify, actual_sync = refresh._verify_retirement_directory, os.fsync
         held = []
         def verify(root, descriptor):
-            if not held:
+            if root == self.root and not held:
                 held.append(descriptor)
             return actual_verify(root, descriptor)
         def sync(descriptor):
@@ -337,7 +342,7 @@ else:
             return result
         with patch.object(community, 'publish_backup_no_replace', side_effect=publish):
             refresh.recover(self.root, lease_fd=self.lease)
-        self.assertEqual(observed, [42])
+        self.assertEqual(observed, [42, 42])
         self.assertEqual(len(self.retired()), 1)
         self.assertEqual(self.retired()[0].read_bytes(), self.original)
 
@@ -368,9 +373,10 @@ else:
         moved = []
         def publish(source, destination, **kwargs):
             actual(source, destination, **kwargs)
-            os.rename(self.root, displaced)
-            self.root.symlink_to(displaced, target_is_directory=True)
-            moved.append(True)
+            if source == self.journal:
+                os.rename(self.root, displaced)
+                self.root.symlink_to(displaced, target_is_directory=True)
+                moved.append(True)
         with patch.object(community, 'publish_backup_no_replace', side_effect=publish):
             with self.assertRaisesRegex(ValueError, 'journal|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
@@ -386,9 +392,10 @@ else:
         moved = []
         def publish(source, destination, **kwargs):
             actual(source, destination, **kwargs)
-            os.rename(self.root, displaced)
-            self.root.symlink_to(displaced, target_is_directory=True)
-            moved.append(True)
+            if source == self.journal:
+                os.rename(self.root, displaced)
+                self.root.symlink_to(displaced, target_is_directory=True)
+                moved.append(True)
         with patch.object(community, 'publish_backup_no_replace', side_effect=publish):
             with self.assertRaisesRegex(ValueError, 'journal|review'):
                 refresh.recover(self.root, lease_fd=self.lease)
