@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER }
     record Choice(Item icon, String label, Runnable action) {}
     record View(String title, String content, List<Choice> choices) {}
     record Ticket(UUID nonce, ServerPlayer player, ServerGamePacketListenerImpl connection,
@@ -169,6 +169,7 @@ final class InfinityJourney {
     static View view(ServerPlayer p, Page page) {
         if (page == Page.RELAY) return InfinityRelay.view(p);
         if (page == Page.SURVEY) return InfinityOreSurvey.view(p);
+        if (page == Page.DEFENDER) return InfinityDefender.view(p);
         var choices = new ArrayList<Choice>();
         int ready = eligible(p), done = attuned(p);
         var body = new StringBuilder();
@@ -186,6 +187,7 @@ final class InfinityJourney {
             choices.add(new Choice(Items.END_ROD, "Attune paths and choose a trail", () -> open(p, Page.STYLES)));
             choices.add(new Choice(Items.REDSTONE_TORCH, "Infinity Circuit Relay • all courses", () -> open(p, Page.RELAY)));
             choices.add(new Choice(Items.DIAMOND_ORE, "Infinity Ore Survey • mining", () -> open(p, Page.SURVEY)));
+            choices.add(new Choice(Items.IRON_SWORD, "Infinity Defender • hostile encounters", () -> open(p, Page.DEFENDER)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
