@@ -94,7 +94,8 @@
       "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityJourneyGameTests",
       "dev.convergence.InfinityRelayGameTests",
-      "dev.convergence.InfinityCreativeLoopGameTests"
+      "dev.convergence.InfinityCreativeLoopGameTests",
+      "dev.convergence.InfinityOreSurveyGameTests"
     ]
   },
   "mixins": [
@@ -164,7 +165,8 @@
       "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityJourneyGameTests",
       "dev.convergence.InfinityRelayGameTests",
-      "dev.convergence.InfinityCreativeLoopGameTests"
+      "dev.convergence.InfinityCreativeLoopGameTests",
+      "dev.convergence.InfinityOreSurveyGameTests"
     ]
   },
   "depends": {

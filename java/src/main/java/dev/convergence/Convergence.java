@@ -317,6 +317,7 @@ public class Convergence implements ModInitializer {
       AstralWilds.register();
       AstralJournal.register();
       InfinityJourney.register();
+      InfinityOreSurvey.register();
       RcPlanes.register();
       GearCrates.register();
       OdysseyProphecy.register();
