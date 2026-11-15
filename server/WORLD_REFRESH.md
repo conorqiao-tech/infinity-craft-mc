@@ -12,12 +12,12 @@ Before Java opens, an ordinary start without an interrupted earlier refresh does
 
 An older launcher may have been stopped partway through a refresh. In that case, a `.world-refresh-transaction.json` journal and a `backups/Terrain-Refresh-*` folder remain. Recovery runs before the startup backup and before Java opens:
 
-- **Interrupted while moving terrain:** recovery puts the original terrain back from the recovery folder and marks the manifest `rolled_back`. The policy file is not changed.
-- **Refresh completed but not yet recorded:** recovery finishes recording that earlier refresh. If `.world-refresh.json` exists, recovery records that release in the file and clears its `refresh_next_start` request. Startup reports this change. The world is left in the state that earlier refresh produced.
+- **Interrupted while moving terrain:** recovery puts the original terrain back from the recovery folder and writes a new `RECOVERY-*.json` record with state `rolled_back`. The original manifest and policy are kept unchanged.
+- **Refresh completed but not yet recorded:** recovery writes a new record with state `committed`. The original manifest and `.world-refresh.json` policy are kept unchanged; startup may still report an old refresh request, but does not act on it. The world is left in the state that earlier refresh produced.
 
 Recovery does not start a new refresh, and the next start does not either. If the journal is invalid, or if both the archived and the current copy of some terrain are missing, startup stops before the backup and before Java opens. Restore from the verified full backup recorded in that folder's `MANIFEST.json` and `RECOVERY.md`.
 
-The retained recovery folders, manifests and the full-backup checksums they record are not deleted.
+The retained recovery folders, original manifests, journals and the full-backup checksums they record are not deleted. Recovery records are additive and written before journal retirement: several records may exist after interrupted attempts, and records with the same journal hash can belong to separate attempts. A record or retired journal alone does not prove that recovery completed safely. Keep any `.RECOVERY-*.partial` files and launcher marker for host review when recovery is uncertain.
 
 ## Minecraft version conversion
 
