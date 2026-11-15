@@ -17,6 +17,38 @@ import time
 import uuid
 import zipfile
 
+# Load the native rename dependency during module initialization, before the
+# launcher or backup acquires a world record lock. A later import could open and
+# close a file aliased to session.lock in the lock-owning process and release
+# that process's POSIX record lock. Keep the module reference, rather than
+# importing it again during publication.
+try:
+    import ctypes as _ctypes
+except ImportError:
+    _ctypes = None
+
+
+def _load_exclusive_rename():
+    """Resolve the native primitive before this process owns a world lock."""
+    if _ctypes is None:
+        return None, None
+    try:
+        library = _ctypes.CDLL(None, use_errno=True)
+        if sys.platform == "darwin":
+            rename, flags = library.renameatx_np, 0x00000004  # RENAME_EXCL
+        elif sys.platform == "linux":
+            rename, flags = library.renameat2, 1  # RENAME_NOREPLACE
+        else:
+            return None, None
+        rename.argtypes = (_ctypes.c_int, _ctypes.c_char_p, _ctypes.c_int, _ctypes.c_char_p, _ctypes.c_uint)
+        rename.restype = _ctypes.c_int
+        return rename, flags
+    except (AttributeError, OSError):
+        return None, None
+
+
+_EXCLUSIVE_RENAME, _EXCLUSIVE_RENAME_FLAGS = _load_exclusive_rename()
+
 DEFAULT_RULES = ["Respect other players.", "Do not grief, steal, or cheat.", "Follow staff instructions and report bugs."]
 
 
@@ -262,6 +294,8 @@ def acquire_world_session_lock(world):
     """Hold Minecraft's advisory lock for a stopped-world backup on supported POSIX hosts."""
     if not SESSION_LOCK_AVAILABLE:
         raise ValueError("This system cannot safely check the Minecraft world lock; use macOS or Linux to back up this world.")
+    if _EXCLUSIVE_RENAME is None:
+        raise ValueError("This system cannot safely retire a recovery journal or publish a backup; keep the world stopped for review.")
     import fcntl
     try:
         descriptor = os.open(world / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
@@ -639,26 +673,12 @@ def verify_backup_archive_entry(path, descriptor, *, directory_fd):
 
 def publish_backup_no_replace(source, destination, *, directory_fd):
     """Rename inside the held output directory without replacing an entry."""
-    import ctypes
-    library = ctypes.CDLL(None, use_errno=True)
-    try:
-        if sys.platform == "darwin":
-            rename = library.renameatx_np
-            rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-            args = (directory_fd, os.fsencode(source.name), directory_fd,
-                    os.fsencode(destination.name), 0x00000004)  # RENAME_EXCL
-        elif sys.platform == "linux":
-            rename = library.renameat2
-            rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-            args = (directory_fd, os.fsencode(source.name), directory_fd,
-                    os.fsencode(destination.name), 1)  # RENAME_NOREPLACE
-        else:
-            raise AttributeError("exclusive rename is unsupported")
-    except AttributeError as error:
-        raise OSError(errno.ENOTSUP, "Exclusive backup publication is unavailable") from error
-    rename.restype = ctypes.c_int
-    if rename(*args) != 0:
-        number = ctypes.get_errno()
+    if _ctypes is None or _EXCLUSIVE_RENAME is None:
+        raise OSError(errno.ENOTSUP, "Exclusive backup publication is unavailable")
+    args = (directory_fd, os.fsencode(source.name), directory_fd,
+            os.fsencode(destination.name), _EXCLUSIVE_RENAME_FLAGS)
+    if _EXCLUSIVE_RENAME(*args) != 0:
+        number = _ctypes.get_errno()
         raise OSError(number, os.strerror(number), str(source), None, str(destination))
 
 
