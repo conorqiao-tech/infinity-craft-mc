@@ -561,6 +561,7 @@ final class ModeMaps {
     }
     static void finish(ServerPlayer p,Run run,int tick) {
         var spec=MAPS.get(run.map);
+        boolean currentRun=RUNS.get(p.getUUID())==run;
         long millis=Math.max(1,spec.kind==Kind.CHECKPOINTS?(System.nanoTime()-run.started)/1_000_000:(long)(tick-run.startedTick)*50);
         var state=GameModes.state(p); var scores=state.getCompoundOrEmpty("scores");
         long old=scores.getLongOr(run.map,Long.MAX_VALUE);
@@ -569,5 +570,9 @@ final class ModeMaps {
         try {MinigameRecords.sync(p);}catch(IllegalStateException e) {CommunityServer.say(p,"Your best was saved, but the public leaderboard is temporarily unavailable.");}
         p.sendOverlayMessage(Component.literal("Course clear! "+MinigameRecords.time(millis)+" | /retry "+run.map).withStyle(ChatFormatting.GREEN));
         CommunityServer.say(p,"Completed "+spec.title+" in "+String.format(Locale.ROOT,"%.2f",millis/1000.0)+"s! Personal best: "+String.format(Locale.ROOT,"%.2f",Math.min(old,millis)/1000.0)+"s. /retry "+run.map+" to race again.");
+        if(currentRun)try {InfinityRelay.finished(p,run.map);}catch(RuntimeException failure) {
+            System.err.println("[Infinity] Circuit Relay progress could not be confirmed: "+failure);
+            CommunityServer.say(p,"Circuit Relay progress could not be confirmed. Your course result remains separate.");
+        }
     }
 }

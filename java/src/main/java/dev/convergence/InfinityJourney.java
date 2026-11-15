@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES }
+    enum Page { JOURNEY, STYLES, RELAY }
     record Choice(Item icon, String label, Runnable action) {}
     record View(String title, String content, List<Choice> choices) {}
     record Ticket(UUID nonce, ServerPlayer player, ServerGamePacketListenerImpl connection,
@@ -167,6 +167,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.RELAY) return InfinityRelay.view(p);
         var choices = new ArrayList<Choice>();
         int ready = eligible(p), done = attuned(p);
         var body = new StringBuilder();
@@ -182,30 +183,33 @@ final class InfinityJourney {
             choices.add(new Choice(Items.SLIME_BALL, "Challenger • minigame courses", () -> CourseSelector.open(p, GameModes.Mode.MINIGAMES)));
             choices.add(new Choice(Items.WHEAT, "Neighbor • Commons pantry", () -> CommonsMenu.open(p, CommonsMenu.Page.HARVEST, null)));
             choices.add(new Choice(Items.END_ROD, "Attune paths and choose a trail", () -> open(p, Page.STYLES)));
+            choices.add(new Choice(Items.REDSTONE_TORCH, "Infinity Circuit Relay • all courses", () -> open(p, Page.RELAY)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
         body.append("Choose a completed path to attune it and wear its trail. Completed paths are checked again when chosen. Trails are cosmetic, can be turned off, and are hidden while you are invisible. You can also hide other players' Journey trails.\n\n");
         for (int i = 0; i < NAMES.size(); i++) {
             final int index = i;
+            final boolean wasReady = (ready & (1 << i)) != 0;
             String label = NAMES.get(i) + " • " + ((done & (1 << i)) != 0 ? "attuned" : (ready & (1 << i)) != 0 ? "ready to attune" : "locked");
             body.append(label).append("\n").append(REQUIREMENTS.get(i)).append('\n');
             choices.add(new Choice(Items.AMETHYST_SHARD, label, () -> {
-                if (attune(p, index) == 0) CommunityServer.say(p, "Complete that path first; nothing changed.");
+                if (!wasReady || attune(p, index) == 0) CommunityServer.say(p, "Complete that path and reopen the Journey; nothing changed.");
                 open(p, Page.STYLES);
             }));
         }
         choices.add(new Choice(Items.NETHER_STAR, "Wear Constellation • " + (done == ALL ? "unlocked" : "attune all six"), () -> {
-            if (select(p, 7) == 0) CommunityServer.say(p, "Attune all six paths first; nothing changed.");
+            if (done != ALL || select(p, 7) == 0) CommunityServer.say(p, "Attune all six paths and reopen the Journey; nothing changed.");
             open(p, Page.STYLES);
         }));
         choices.add(new Choice(Items.GLASS_BOTTLE, "Turn my Infinity trail off", () -> { select(p, 0); open(p, Page.STYLES); }));
         choices.add(new Choice(Items.BANNER.purple(), "Get a Constellation Sigil • " + (done == ALL ? "unlocked" : "attune all six"), () -> {
-            if (giveSigil(p) == 0) CommunityServer.say(p, "Attune all six paths and clear one inventory slot; nothing was replaced.");
+            if (done != ALL || giveSigil(p) == 0) CommunityServer.say(p, "Attune all six paths, clear a slot and reopen the Journey; nothing was replaced.");
             open(p, Page.STYLES);
         }));
-        choices.add(new Choice(Items.ENDER_EYE, (hidesOthers(p) ? "Show" : "Hide") + " other players' Journey trails", () -> {
-            if (hideOthers(p, !hidesOthers(p)) == 0) CommunityServer.say(p, "Your trail preference could not be changed.");
+        boolean hideAtView = hidesOthers(p);
+        choices.add(new Choice(Items.ENDER_EYE, (hideAtView ? "Show" : "Hide") + " other players' Journey trails", () -> {
+            if (hidesOthers(p) != hideAtView || hideOthers(p, !hideAtView) == 0) CommunityServer.say(p, "Your trail preference changed; reopen the Journey.");
             open(p, Page.STYLES);
         }));
         choices.add(new Choice(Items.ARROW, "Back to the six paths", () -> open(p, Page.JOURNEY)));
