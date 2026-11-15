@@ -16,7 +16,7 @@ def files_for(edition):
     files = sorted(p for p in directory.rglob('*') if p.is_file())
     if any(p.is_symlink() or any(parent.is_symlink() for parent in p.parents if parent != directory.parent) for p in files):
         raise ValueError('Linked preview source is not supported')
-    if len(files) != 48: raise ValueError('Expected one manifest and forty-seven terrain textures')
+    if len(files) != 60: raise ValueError('Expected one manifest, forty-seven terrain and twelve material textures')
     manifest = directory / ('pack.mcmeta' if edition == 'java' else 'manifest.json')
     json.loads(manifest.read_text())
     return [(p.relative_to(directory).as_posix(), p.read_bytes()) for p in files]

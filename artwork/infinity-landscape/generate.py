@@ -38,6 +38,14 @@ ALIASES = {
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
 
+ITEM_ALIASES = {
+    'iron_ingot': 'iron_ingot', 'gold_ingot': 'gold_ingot',
+    'copper_ingot': 'copper_ingot', 'netherite_ingot': 'netherite_ingot',
+    'diamond': 'diamond', 'emerald': 'emerald', 'coal': 'coal',
+    'redstone': 'redstone_dust', 'amethyst_shard': 'amethyst_shard',
+    'raw_iron': 'raw_iron', 'raw_gold': 'raw_gold', 'raw_copper': 'raw_copper',
+}
+
 def png(width, height, rows):
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
@@ -139,6 +147,43 @@ def make(name):
     line(tile, [(2,3),(3,3),(4,4),(9,2),(10,2),(10,3),(12,9),(13,9),(5,12),(6,12),(7,13)], accents[name])
     return tile
 
+def make_item(name):
+    """Draw recognizable, transparent material icons without source artwork."""
+    colors = {
+        'iron_ingot': (190, 200, 207), 'gold_ingot': (229, 179, 55),
+        'copper_ingot': (188, 112, 76), 'netherite_ingot': (72, 65, 78),
+        'diamond': (74, 198, 198), 'emerald': (49, 178, 111),
+        'coal': (46, 50, 59), 'redstone': (190, 45, 58),
+        'amethyst_shard': (157, 100, 203), 'raw_iron': (191, 145, 115),
+        'raw_gold': (225, 174, 55), 'raw_copper': (178, 103, 70),
+    }
+    shapes = {
+        'ingot': [(4,12),(3,13),(3,13),(2,12),(2,12),(1,11),(2,11),(3,10)],
+        'diamond': [(7,8),(5,10),(4,11),(3,12),(3,12),(4,11),(5,10),(6,9),(7,8)],
+        'emerald': [(7,8),(5,10),(4,11),(4,11),(4,11),(4,11),(4,11),(5,10),(7,8)],
+        'coal': [(6,9),(4,11),(3,12),(3,12),(2,12),(3,12),(3,11),(4,10),(6,9)],
+        'redstone': [(7,8),(5,9),(4,10),(5,11),(3,11),(2,12),(3,12),(4,11),(5,10)],
+        'amethyst_shard': [(7,8),(6,8),(6,9),(5,9),(5,10),(4,10),(4,11),(4,11),(5,10),(6,9)],
+        'raw': [(5,9),(4,11),(3,12),(3,12),(2,12),(3,12),(4,11),(4,10),(6,9)],
+    }
+    kind = 'ingot' if name.endswith('_ingot') else 'raw' if name.startswith('raw_') else name
+    spans = shapes[kind]
+    top = 2 if kind == 'amethyst_shard' else 3 if kind in ('diamond','emerald') else 4
+    pixels = {(x, top+y) for y,(left,right) in enumerate(spans) for x in range(left,right+1)}
+    tile = [[(0,0,0,0) for _ in range(16)] for _ in range(16)]
+    base = colors[name]
+    for x,y in pixels:
+        edge = any((x+dx,y+dy) not in pixels for dx,dy in ((-1,0),(1,0),(0,-1),(0,1)))
+        adjustment = -48 if edge else 14 if y <= top+2 else 0
+        dot(tile,x,y,tuple(max(0,min(255,c+adjustment)) for c in base))
+    if kind == 'ingot':
+        line(tile, [(5,7),(6,7),(7,8),(8,8),(9,7),(10,7)], (100, 191, 184))
+    elif kind in ('diamond','emerald','amethyst_shard'):
+        line(tile, [(6,top+3),(7,top+2),(8,top+2)], tuple(min(255,c+55) for c in base))
+    else:
+        line(tile, [(5,top+3),(8,top+5),(10,top+4)], tuple(min(255,c+45) for c in base))
+    return tile
+
 def write(path, data):
     path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
 
@@ -147,14 +192,18 @@ def main():
         data = png(16,16,make(name))
         write(JAVA / 'assets/minecraft/textures/block' / (name + '.png'), data)
         write(BEDROCK / 'textures/blocks' / (alias + '.png'), data)
+    for name, alias in ITEM_ALIASES.items():
+        data = png(16,16,make_item(name))
+        write(JAVA / 'assets/minecraft/textures/item' / (name + '.png'), data)
+        write(BEDROCK / 'textures/items' / (alias + '.png'), data)
     write(JAVA / 'pack.mcmeta', (json.dumps({'pack': {'description': 'Infinity Landscape preview',
         'min_format': [100,2], 'max_format': [100,2]}}, indent=2)+'\n').encode())
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
-        'description':'Original optional Infinity terrain preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,2,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,2,0]}]}
+        'description':'Original optional Infinity terrain and materials preview; no behavior pack.',
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,3,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,3,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
-    print('Generated',len(ALIASES),'original paired terrain textures.')
+    print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'material textures for each edition.')
 
 if __name__ == '__main__': main()
