@@ -49,7 +49,7 @@ final class ServerMenu {
     static final int INVENTORY_GEAR = 50, RANKS = 52;
     static final int PROPHECY = 6;
     static final int STUDIO = 8;
-    static final int COMMONS = 0;
+    static final int COMMONS = 0, JOURNEY = 1;
     static final int PLAYER_WORKSHOP = 2;
     static final int ELEMENTAL_FORGE = 18;
     static final int INFINI = 4, ASTRAL = 20;
@@ -206,6 +206,7 @@ final class ServerMenu {
         String title = "Infinity Menu";
         if (page == Page.MAIN) {
             icon(view,COMMONS,Items.LANTERN,"Commons • Builder Exchange & Harvest Together","Working circuits, live delivery trials and a shared village pantry.","Earn permanent gifts, titles and original banners.");
+            icon(view,JOURNEY,Items.NETHER_STAR,"Infinity Journey • six paths","Connect exploration, guardians, building, courses and community.","Attune earned paths for optional visual trails.");
             icon(view,PLAYER_WORKSHOP,Items.MAP,"Expedition Atlas & Pack Organizer","Permanent biome discoveries and Wayfinder rewards.","Review a safe sort of your main inventory.");
             icon(view,STUDIO,Items.PAINTING,"Creative Studio • new toys & outfits","Building brushes, blueprints and Undo.","RC planes, blink and party wands, armor styles.");
             icon(view,INFINI,Items.SUNFLOWER,"Infini • wallet, styles & permanent ranks",
@@ -377,6 +378,7 @@ final class ServerMenu {
             if (page != Page.MAIN) return;
             if(slot==INFINI){owner.closeContainer();InfiniShopMenu.open(owner);return;}
             if(slot==ASTRAL){owner.closeContainer();AstralJournal.open(owner);return;}
+            if(slot==JOURNEY){owner.closeContainer();InfinityJourney.open(owner);return;}
             if(slot==COMMONS){owner.closeContainer();CommonsMenu.open(owner);return;}
             if(slot==PLAYER_WORKSHOP){owner.closeContainer();CommonsMenu.open(owner,CommonsMenu.Page.ATLAS);return;}
             if(slot==STUDIO){owner.closeContainer();CreativeStudio.open(owner);return;}

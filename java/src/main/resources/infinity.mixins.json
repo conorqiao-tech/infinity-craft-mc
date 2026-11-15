@@ -7,6 +7,7 @@
     "ModePlayerMixin",
     "ModeRespawnMixin",
     "PlayerSaveAccess",
+    "ScreenEpochMixin",
     "ModeEntityMixin",
     "ModeDifficultyMixin",
     "AgentGoalAccess",
