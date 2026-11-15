@@ -77,3 +77,7 @@ image was used as input. Mechanical cropping, binary alpha, palette reduction
 and nearest-neighbor scaling produce matching Java/Bedrock pixels. The manifest
 and validator preserve source/output hashes and historical artwork. Previews
 show actual packed sprites at inventory sizes, not captured gameplay.
+
+## Infinity Landscape preview
+
+Forty-seven paired Java and Bedrock terrain tiles and twelve paired material icons in `artwork/infinity-landscape/` are original, deterministic pixel art drawn from blank colors by the included generator. They do not reuse vanilla or third-party artwork. They are a standalone partial preview and are not included in the existing server packs.

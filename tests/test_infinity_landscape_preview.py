@@ -31,6 +31,10 @@ ITEMS = {name:name for name in ('iron_ingot','gold_ingot','copper_ingot','nether
 ITEMS['redstone'] = 'redstone_dust'
 
 class InfinityLandscapePreviewTests(unittest.TestCase):
+    def test_source_and_server_texture_credits_match(self):
+        self.assertEqual((ROOT / 'TEXTURE_CREDITS.md').read_bytes(),
+                         (ROOT / 'server/TEXTURE_CREDITS.md').read_bytes())
+
     def test_archives_have_matching_real_textures_and_refuse_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             command = [sys.executable, str(BUILDER), '--output', directory]
