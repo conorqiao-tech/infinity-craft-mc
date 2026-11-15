@@ -8,7 +8,7 @@ Choose a **brush** (Plane, Line, Sphere, Cube or Ring), radius 1–3, and a them
 
 **Get themed building kit** delivers three stacks and both building wands into five empty slots. A full inventory receives nothing rather than a partial kit or dropped items. **Undo last Studio edit** restores the latest brush or blueprint edit in the same world and session. If someone changes any affected block, or restoring a block would enclose a living entity, the entire undo is refused. Undo creates no item drops. It is temporary and expires when you disconnect, change worlds or lose Studio access.
 
-Choose **Arch**, **Pavilion** or **Tree**, then aim at clear ground and select **Preview blueprint**, or use the **Infinity Blueprint Wand**. A particle preview and review screen show the position and block count. **Confirm building** places the reviewed footprint; Cancel places nothing. Approval expires after 30 seconds and checks your current permission, connection, world, distance and every target cell again. These are small native structures, separate from naturally generated Odyssey ruins.
+Choose **Arch**, **Pavilion**, **Tree**, **Builder Exchange**, **Harvest Garden** or **Infinity Loop**, then aim at clear ground and select **Preview blueprint**, or use the **Infinity Blueprint Wand**. The Infinity palette adds purple, cyan and light to Studio's existing options. A particle preview and review screen show the position and block count. **Confirm building** places the reviewed footprint; Cancel places nothing. Approval expires after 30 seconds and checks your current permission, connection, world, distance and every target cell again. These are small native structures, separate from naturally generated Odyssey ruins.
 
 ## Gadgets, outfits and flight
 

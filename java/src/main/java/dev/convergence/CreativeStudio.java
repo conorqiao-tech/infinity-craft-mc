@@ -51,14 +51,15 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 /** Native items and chest controls keep the Studio usable through Geyser. */
 final class CreativeStudio {
     enum Brush { PLANE, LINE, SPHERE, CUBE, RING }
-    enum Stamp { ARCH, PAVILION, TREE, EXCHANGE, HARVEST_GARDEN }
+    enum Stamp { ARCH, PAVILION, TREE, EXCHANGE, HARVEST_GARDEN, INFINITY_LOOP }
     record Palette(String name, Block wall, Block accent, Block light) {}
     static final List<Palette> PALETTES = List.of(
         new Palette("Aurora", Blocks.QUARTZ_BLOCK, Blocks.CONCRETE.cyan(), Blocks.SEA_LANTERN),
         new Palette("Ember", Blocks.POLISHED_BLACKSTONE, Blocks.RED_NETHER_BRICKS, Blocks.SHROOMLIGHT),
         new Palette("Sakura", Blocks.CHERRY_PLANKS, Blocks.CONCRETE.pink(), Blocks.PEARLESCENT_FROGLIGHT),
         new Palette("Clockwork", Blocks.RAW_COPPER_BLOCK, Blocks.DEEPSLATE_BRICKS, Blocks.OCHRE_FROGLIGHT),
-        new Palette("Frost", Blocks.PACKED_ICE, Blocks.CONCRETE.blue(), Blocks.SEA_LANTERN));
+        new Palette("Frost", Blocks.PACKED_ICE, Blocks.CONCRETE.blue(), Blocks.SEA_LANTERN),
+        new Palette("Infinity", Blocks.CONCRETE.purple(), Blocks.CONCRETE.cyan(), Blocks.SEA_LANTERN));
     record Change(BlockPos pos, BlockState before, BlockState after) {}
     record Edit(ServerPlayer owner, ServerGamePacketListenerImpl connection, ServerLevel world, List<Change> changes) {}
     record Preview(ServerPlayer owner, ServerGamePacketListenerImpl connection, ServerLevel world,
@@ -241,6 +242,11 @@ final class CreativeStudio {
         var particle=switch(option(p,"palette",PALETTES.size())){case 1->ParticleTypes.SOUL;case 2->ParticleTypes.CHERRY_LEAVES;case 3->ParticleTypes.ENCHANT;default->ParticleTypes.END_ROD;};
         p.level().sendParticles(particle,p.getX(),p.getY()+1,p.getZ(),count,.7,.7,.7,.01);
     }
+    static String stampLabel(Stamp stamp){return switch(stamp){
+        case ARCH->"Arch"; case PAVILION->"Pavilion"; case TREE->"Tree";
+        case EXCHANGE->"Builder Exchange"; case HARVEST_GARDEN->"Harvest Garden";
+        case INFINITY_LOOP->"Infinity Loop";
+    };}
     static Map<BlockPos,BlockState> stamp(ServerPlayer p,BlockPos origin){
         var palette=palette(p);var blocks=new LinkedHashMap<BlockPos,BlockState>();
         var kind=Stamp.values()[option(p,"stamp",Stamp.values().length)];
@@ -253,6 +259,12 @@ final class CreativeStudio {
             for(int x:new int[]{-2,2})for(int z:new int[]{-2,2})for(int y=0;y<4;y++)blocks.put(origin.offset(x,y,z),palette.wall().defaultBlockState());
             for(int x=-2;x<=2;x++)for(int z=-2;z<=2;z++)blocks.put(origin.offset(x,4,z),palette.accent().defaultBlockState());
             blocks.put(origin.offset(0,4,0),palette.light().defaultBlockState());
+        }else if(kind==Stamp.INFINITY_LOOP){
+            // Two linked loops, built only after the ordinary footprint review.
+            int[][] outline={{-3,1},{-3,2},{-2,0},{-2,3},{-1,0},{-1,3},
+                {0,1},{0,2},{1,0},{1,3},{2,0},{2,3},{3,1},{3,2}};
+            for(var point:outline)blocks.put(origin.offset(point[0],point[1],0),
+                (point[0]==0?palette.light():point[1]==0||point[1]==3?palette.accent():palette.wall()).defaultBlockState());
         }else{
             for(int y=0;y<4;y++)blocks.put(origin.offset(0,y,0),palette.wall().defaultBlockState());
             for(int x=-2;x<=2;x++)for(int z=-2;z<=2;z++)if(Math.abs(x)+Math.abs(z)<=3)blocks.put(origin.offset(x,4,z),palette.accent().defaultBlockState());
@@ -314,7 +326,7 @@ final class CreativeStudio {
             icon(view,BUILDER,Items.BLAZE_ROD,"Hold Builder Wand","Put a solid cube block in your offhand.");
             icon(view,SCULPTOR,Items.STICK,"Hold Sculptor Wand","Containers and protected blocks are preserved.");
             icon(view,KIT,Items.CHEST,"Get themed building kit","Five empty inventory slots; nothing is replaced.");
-            icon(view,STAMP,Items.STRUCTURE_BLOCK,"Blueprint: "+Stamp.values()[option(p,"stamp",Stamp.values().length)]);
+            icon(view,STAMP,Items.STRUCTURE_BLOCK,"Blueprint: "+stampLabel(Stamp.values()[option(p,"stamp",Stamp.values().length)]));
             icon(view,PREVIEW,Items.MAP,"Preview blueprint","Aim at open ground, then review and confirm.");
             icon(view,UNDO_BUTTON,Items.RECOVERY_COMPASS,"Undo last Studio edit","Same world and session. Refuses changed blocks.");
             icon(view,BLINK,Items.AMETHYST_SHARD,"Get Starlight Blink Wand","Use to blink through open space, up to 12 blocks.");

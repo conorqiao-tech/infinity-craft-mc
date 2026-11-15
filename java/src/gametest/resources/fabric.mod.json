@@ -93,7 +93,8 @@
       "dev.convergence.GptSquadMenuGameTests",
       "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityJourneyGameTests",
-      "dev.convergence.InfinityRelayGameTests"
+      "dev.convergence.InfinityRelayGameTests",
+      "dev.convergence.InfinityCreativeLoopGameTests"
     ]
   },
   "mixins": [
@@ -162,7 +163,8 @@
       "dev.convergence.GptSquadMenuGameTests",
       "dev.convergence.UnityCommonsGameTests",
       "dev.convergence.InfinityJourneyGameTests",
-      "dev.convergence.InfinityRelayGameTests"
+      "dev.convergence.InfinityRelayGameTests",
+      "dev.convergence.InfinityCreativeLoopGameTests"
     ]
   },
   "depends": {
