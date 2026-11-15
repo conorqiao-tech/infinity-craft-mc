@@ -682,6 +682,19 @@ def publish_backup_no_replace(source, destination, *, directory_fd):
         raise OSError(number, os.strerror(number), str(source), None, str(destination))
 
 
+def restore_terrain_no_replace(source, destination, *, source_directory_fd, destination_directory_fd):
+    """Move between held directories without replacing any destination entry."""
+    if _ctypes is None or _EXCLUSIVE_RENAME is None:
+        raise OSError(errno.ENOTSUP, "Exclusive terrain restoration is unavailable")
+    if (source.name in ("", ".", "..") or destination.name in ("", ".", "..")):
+        raise ValueError("Invalid terrain recovery entry; keep evidence for host review")
+    args = (source_directory_fd, os.fsencode(source.name), destination_directory_fd,
+            os.fsencode(destination.name), _EXCLUSIVE_RENAME_FLAGS)
+    if _EXCLUSIVE_RENAME(*args) != 0:
+        number = _ctypes.get_errno()
+        raise OSError(number, os.strerror(number), str(source), None, str(destination))
+
+
 class _BackupReaderState:
     def __init__(self):
         self.unconfirmed = 0

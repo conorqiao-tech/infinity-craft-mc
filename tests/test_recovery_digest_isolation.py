@@ -110,10 +110,10 @@ class RecoveryDigestIsolationTests(unittest.TestCase):
         self.assertEqual(self.journal.read_bytes(), self.journal_before)
         self.assertEqual((self.saved / "old.bin").read_bytes(), b"synthetic archived bytes")
 
-    def test_recorded_kept_file_recovers_normally(self):
-        refresh.recover(self.root, lease_fd=self.lease)
-        self.assertFalse(self.journal.exists())
-        self.assertEqual((self.world / "data/part/old.bin").read_bytes(), b"synthetic archived bytes")
+    def test_recorded_kept_file_requires_review_and_is_preserved(self):
+        with self.assertRaisesRegex(ValueError, 'review'):
+            refresh.recover(self.root, lease_fd=self.lease)
+        self.assert_preserved()
 
 
 if __name__ == "__main__":
