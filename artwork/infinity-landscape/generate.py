@@ -29,6 +29,13 @@ ALIASES = {
     'stone_bricks': 'stonebrick', 'bricks': 'brick',
     'nether_bricks': 'nether_brick', 'end_stone_bricks': 'end_bricks',
     'sand': 'sand', 'gravel': 'gravel',
+    'spruce_planks': 'planks_spruce', 'birch_planks': 'planks_birch',
+    'jungle_planks': 'planks_jungle', 'acacia_planks': 'planks_acacia',
+    'dark_oak_planks': 'planks_big_oak', 'mangrove_planks': 'mangrove_planks',
+    'cherry_planks': 'cherry_planks', 'bamboo_planks': 'bamboo_planks',
+    'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
+    'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
+    'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
 
 def png(width, height, rows):
@@ -94,12 +101,18 @@ def make(name):
         tile = field((104, 76, 68), 3)
         line(tile, [(1,2),(2,2),(2,3),(6,6),(7,6),(8,7),(11,12),(12,12),(13,13)], (69, 58, 69))
         line(tile, [(4,11),(5,11),(5,12),(10,3),(11,3)], (130, 135, 109)); return tile
-    if name == 'oak_planks':
-        tile = field((151, 112, 83), 4)
-        for y in (0,4,8,12): line(tile, [(x,y) for x in range(16)], (90, 69, 70))
+    planks = {'oak_planks':(151,112,83), 'spruce_planks':(108,79,62), 'birch_planks':(208,193,150),
+              'jungle_planks':(169,118,94), 'acacia_planks':(181,96,65), 'dark_oak_planks':(71,50,43),
+              'mangrove_planks':(133,61,56), 'cherry_planks':(216,164,164), 'bamboo_planks':(188,172,99),
+              'crimson_planks':(119,59,83), 'warped_planks':(57,131,126)}
+    if name in planks:
+        base = planks[name]; tile = field(base, list(planks).index(name)+4)
+        seam = tuple(max(0,c-45) for c in base)
+        for y in (0,4,8,12): line(tile, [(x,y) for x in range(16)], seam)
         for y in range(16):
-            if y % 4 != 0: dot(tile, 3 if (y//4)%2==0 else 11, y, (106,76,71))
-        line(tile, [(6,6),(7,6),(8,6),(8,7),(9,7)], (110,168,164)); return tile
+            if y % 4 != 0: dot(tile, 3 if (y//4)%2==0 else 11, y, seam)
+        accent = (135,198,190) if name != 'warped_planks' else (187,226,212)
+        line(tile, [(6,6),(7,6),(8,6),(8,7),(9,7)], accent); return tile
     if name == 'oak_log':
         tile = field((108, 78, 65), 5)
         for x in (1,5,10,14): line(tile, [(x,y) for y in range(16)], (71,56,63))
@@ -113,9 +126,11 @@ def make(name):
         for y in range(16):
             if y % 4: dot(tile, 4 if (y//4)%2==0 else 12, y, seam)
         line(tile, [(6,6),(7,6),(8,6),(8,7)], (104,164,163)); return tile
-    if name in ('deepslate', 'sand', 'gravel'):
-        bases = {'deepslate':(48,53,70), 'sand':(205,190,145), 'gravel':(109,101,102)}
-        tile = field(bases[name], {'deepslate':9,'sand':10,'gravel':11}[name])
+    if name in ('deepslate', 'sand', 'gravel', 'granite', 'diorite', 'andesite', 'calcite', 'tuff', 'sandstone'):
+        bases = {'deepslate':(48,53,70), 'sand':(205,190,145), 'gravel':(109,101,102),
+                 'granite':(153,106,94), 'diorite':(206,206,202), 'andesite':(132,133,138),
+                 'calcite':(221,213,207), 'tuff':(104,109,94), 'sandstone':(207,185,135)}
+        tile = field(bases[name], list(bases).index(name)+9)
         line(tile, [(2,3),(3,3),(7,8),(8,8),(13,12),(14,12)], tuple(max(0,c-28) for c in bases[name]))
         return tile
     bases = {'netherrack': (112,48,64), 'end_stone': (183,177,162), 'obsidian': (43,32,65)}
@@ -137,8 +152,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,1,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,1,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,2,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,2,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'original paired terrain textures.')
 
