@@ -1,0 +1,13 @@
+{
+  "pack": {
+    "description": "Infinity Landscape preview",
+    "min_format": [
+      100,
+      2
+    ],
+    "max_format": [
+      100,
+      2
+    ]
+  }
+}
