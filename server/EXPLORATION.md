@@ -1,5 +1,7 @@
 # Exploration and scores — 2.13.0-explore.26
 
+**Infinity Journey.** Open **Infinity Menu → Infinity Journey** for six paths linking the Expedition Atlas, Odyssey ruins, Astral guardians, Builder Exchange, courses and Commons pantry. Existing progress counts. Attune a completed path to wear its optional trail; attune all six for the Constellation trail and an original sigil banner. The banner can be requested again and goes into an empty inventory slot. Trails can be turned off, are hidden while invisible, and viewers can hide other players' Journey trails. The journey does not replace blocks or existing items. Bedrock uses a native form; its particle and banner appearance still needs a real-device check.
+
 **The Odyssey ruins** appear sparsely in newly generated Overworld, Nether and End terrain. Twenty-one biome palettes dress the original circuit shape, with one chest holding the lower chest's exact loot and its original book. A matching starting prophecy arrives in an empty inventory slot; recover it through **Infinity Menu → The Odyssey • your prophecy**. See [ODYSSEY.md](ODYSSEY.md), including the owner's explicitly selected automatic repeating command.
 
 
