@@ -610,7 +610,7 @@ def _recovery_item(world, rollback, relative, kept_files):
             raise ValueError("Old terrain is missing; restore the verified full backup manually")
         if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
             raise ValueError("Unexpected restored terrain entry; keep it for host review")
-        return source, saved, [], []
+        raise ValueError("Archived terrain is missing while a current entry exists; keep available evidence for host review")
     if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
         raise ValueError("Unexpected archived terrain entry; keep it for host review")
     if source_info is None:
@@ -809,8 +809,8 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
         _check_journal(path, journal_identity)
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
-        if not isinstance(moved_paths, list) or any(not isinstance(relative, str) for relative in moved_paths):
-            raise ValueError("Invalid terrain refresh recovery paths")
+        if not isinstance(moved_paths, list) or not moved_paths or any(not isinstance(relative, str) for relative in moved_paths):
+            raise ValueError("Invalid terrain refresh recovery paths; keep evidence for host review")
         kept_files = record.get("kept_files", {})
         if not isinstance(kept_files, dict):
             raise ValueError("Invalid protected terrain recovery records")
@@ -833,13 +833,16 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
             source, saved, _, _ = _recovery_item(world, rollback, relative, kept_files)
             saved_info = _terrain_entry(saved)
             source_info = _terrain_entry(source)
-            if saved_info is not None:
-                _check_recovery_archive(saved, saved_info)
-                if source_info is not None:
-                    raise ValueError("Terrain recovery target already exists; keep both entries for host review")
-                parent_info = _terrain_entry(source.parent)
-                if parent_info is None or not stat.S_ISDIR(parent_info.st_mode):
-                    raise ValueError("Terrain recovery target parent is missing; keep evidence for host review")
+            if saved_info is None:
+                if source_info is None:
+                    raise ValueError("Old terrain is missing; restore the verified full backup manually")
+                raise ValueError("Archived terrain is missing while a current entry exists; keep available evidence for host review")
+            _check_recovery_archive(saved, saved_info)
+            if source_info is not None:
+                raise ValueError("Terrain recovery target already exists; keep both entries for host review")
+            parent_info = _terrain_entry(source.parent)
+            if parent_info is None or not stat.S_ISDIR(parent_info.st_mode):
+                raise ValueError("Terrain recovery target parent is missing; keep evidence for host review")
         for relative in reversed(moved_paths):
             community.verify_borrowed_launcher_lease(root, lease_fd)
             community.verify_world_session_lock(world, session_lock)
@@ -852,6 +855,7 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
                     raise ValueError("Old terrain is missing; restore the verified full backup manually")
                 if not (stat.S_ISREG(source_info.st_mode) or stat.S_ISDIR(source_info.st_mode)):
                     raise ValueError("Unexpected restored terrain entry; keep it for host review")
+                raise ValueError("Archived terrain is missing while a current entry exists; keep available evidence for host review")
             else:
                 if not (stat.S_ISREG(saved_info.st_mode) or stat.S_ISDIR(saved_info.st_mode)):
                     raise ValueError("Unexpected archived terrain entry; keep it for host review")
