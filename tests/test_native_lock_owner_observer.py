@@ -145,6 +145,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
             os.close(descriptor)
 
     def test_recovery_refuses_lost_native_lock_before_moving_anything(self):
+        (self.world/'data').mkdir()
         saved=self.root/'backups/Terrain-Refresh-synthetic/terrain/data/old.bin'
         saved.parent.mkdir(parents=True);saved.write_bytes(b'synthetic archived bytes')
         journal=self.root/refresh.JOURNAL

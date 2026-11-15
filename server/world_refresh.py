@@ -792,6 +792,8 @@ def _restore_recovery_entry(saved, source, expected, verify_holds, archive_root,
         _check_recovery_archive(source, moved, directory_fd=destination_directory)
         os.fsync(source_directory)
         os.fsync(destination_directory)
+    except InterruptedError:
+        raise
     except (OSError, ValueError, community.BackupArchiveUncertain) as error:
         raise ValueError("Terrain restoration could not be confirmed; keep all evidence for host review") from error
     finally:

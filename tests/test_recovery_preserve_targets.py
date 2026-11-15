@@ -224,6 +224,27 @@ class RecoveryPreserveTargetsTests(unittest.TestCase):
         self.assertEqual(self.journal.read_bytes(), before)
         self.assertTrue((self.root / 'launcher.lock').exists())
 
+    def test_interrupted_error_after_rename_propagates_with_evidence(self):
+        (self.world / 'region').mkdir()
+        saved = self.rollback / 'terrain/region/r.0.0.mca'
+        saved.write_bytes(b'synthetic archive')
+        before = self.write_journal(['region/r.0.0.mca'])
+        actual = community.restore_terrain_no_replace
+        interruption = InterruptedError('synthetic interruption')
+
+        def interrupt(source, destination, **kwargs):
+            actual(source, destination, **kwargs)
+            raise interruption
+
+        with patch.object(community, 'restore_terrain_no_replace', side_effect=interrupt):
+            with self.assertRaises(InterruptedError) as observed:
+                refresh.recover(self.root, lease_fd=self.lease)
+        self.assertIs(observed.exception, interruption)
+        self.assertEqual((self.world / 'region/r.0.0.mca').read_bytes(), b'synthetic archive')
+        self.assertFalse(saved.exists())
+        self.assertEqual(self.journal.read_bytes(), before)
+        self.assertTrue((self.root / 'launcher.lock').exists())
+
     def test_directory_cleanup_does_not_mask_an_interruption(self):
         descriptors = [community.open_backup_directory(self.world), community.open_backup_directory(self.rollback)]
         close = os.close
