@@ -65,12 +65,22 @@ except (OSError, ValueError):
 _RECOVERY_DIGEST_TRAILER = b"\n\x00INFINITY_RECOVERY_DIGEST_OK\n"
 
 
-def _run_recovery_reader(program, path, expected, label):
+def _run_recovery_reader(program, path, expected, label, *, directory_fd=None):
     """Read in a direct child and bound cleanup after a failed read."""
-    reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", program,
-                               str(path), *(str(value) for value in expected)],
+    arguments = [sys.executable, "-I", "-S", "-c", program]
+    inherited = {}
+    if directory_fd is None:
+        arguments.extend((str(path), *(str(value) for value in expected)))
+    else:
+        directory = os.fstat(directory_fd)
+        if not stat.S_ISDIR(directory.st_mode):
+            raise ValueError("Terrain reader directory changed; keep its evidence for host review")
+        arguments.extend((str(directory_fd), str(path), str(directory.st_dev), str(directory.st_ino),
+                          *(str(value) for value in expected)))
+        inherited["pass_fds"] = (directory_fd,)
+    reader = subprocess.Popen(arguments,
                               stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                              stderr=subprocess.DEVNULL, close_fds=True)
+                              stderr=subprocess.DEVNULL, close_fds=True, **inherited)
     try:
         try:
             output, _ = reader.communicate(timeout=120)
@@ -229,6 +239,115 @@ def _read_journal_bytes(path, info):
         raise ValueError("Terrain journal could not be checked; keep it for host review") from error
 
 
+def _run_retired_journal_reader(name, expected, directory_fd):
+    if not name or name in (".", "..") or Path(name).name != name:
+        raise ValueError("Unsafe retired terrain journal name; keep it for host review")
+    # The backup reader opens relative to the inherited directory, verifies
+    # both identities, and emits its trailer only after the file is closed.
+    return _run_recovery_reader(community._BACKUP_FILE_READER, name, expected,
+                                "retired journal", directory_fd=directory_fd)
+
+
+def _read_retired_journal_bytes(name, info, directory_fd):
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > _JOURNAL_SIZE_LIMIT:
+        raise ValueError("Retired terrain journal is linked or too large; keep it for host review")
+    expected = _journal_identity(info)
+    try:
+        output, returncode = _run_retired_journal_reader(name, expected, directory_fd)
+        current = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        trailer = community._BACKUP_READER_TRAILER
+        if (returncode != 0 or _journal_identity(current) != expected
+                or len(output) != info.st_size + len(trailer) or not output.endswith(trailer)):
+            raise ValueError("Retired terrain journal changed or its reader failed; keep it for host review")
+        return output[:-len(trailer)]
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError("Retired terrain journal could not be checked; keep it for host review") from error
+
+
+def _verify_retirement_directory(root, descriptor):
+    """Observe that the visible root still names the held directory."""
+    held = os.fstat(descriptor)
+    visible = os.stat(root)
+    if (not stat.S_ISDIR(held.st_mode) or not stat.S_ISDIR(visible.st_mode)
+            or (held.st_dev, held.st_ino) != (visible.st_dev, visible.st_ino)):
+        raise ValueError("Terrain journal directory changed; keep its evidence for host review")
+
+
+def _retirement_root_entry(root):
+    info = root.lstat()
+    return info.st_dev, info.st_ino, info.st_mode
+
+
+def _retire_journal(root, path, expected, original_bytes):
+    """Move a journal to a retained no-overwrite entry and verify what moved.
+
+    A same-authority writer can still change entries between observations.
+    In particular, the rename moves whatever occupies the source name at that
+    instant; a detected mismatch leaves that entry and the marker for review.
+    """
+    retired = root / (JOURNAL + ".retired-" + uuid.uuid4().hex)
+    directory_flag = getattr(os, "O_DIRECTORY", None)
+    if os.name != "posix" or not directory_flag:
+        raise ValueError("Terrain journal retirement is unsupported; keep its evidence for host review")
+    try:
+        directory = os.open(root, os.O_RDONLY | directory_flag | getattr(os, "O_NONBLOCK", 0))
+        try:
+            _verify_retirement_directory(root, directory)
+            root_entry = _retirement_root_entry(root)
+            ancestry = community.backup_output_ancestry(directory)
+            _verify_retirement_directory(root, directory)
+            if _retirement_root_entry(root) != root_entry:
+                raise ValueError("Terrain journal directory entry changed")
+            current = os.stat(path.name, dir_fd=directory, follow_symlinks=False)
+            if _journal_identity(current) != expected:
+                raise ValueError("Terrain journal changed before retirement")
+            community.publish_backup_no_replace(path, retired, directory_fd=directory)
+            _verify_retirement_directory(root, directory)
+            moved = os.stat(retired.name, dir_fd=directory, follow_symlinks=False)
+            # A rename can itself update ctime. Verify the stable fields, then
+            # re-read the moved entry in a child and compare the original bytes.
+            if _journal_identity(moved)[:6] != expected[:6]:
+                raise ValueError("The moved terrain journal differs from the observed entry")
+            if _read_retired_journal_bytes(retired.name, moved, directory) != original_bytes:
+                raise ValueError("The moved terrain journal contents changed")
+            after = os.stat(retired.name, dir_fd=directory, follow_symlinks=False)
+            if _journal_identity(after) != _journal_identity(moved):
+                raise ValueError("The moved terrain journal changed during verification")
+            try:
+                os.stat(path.name, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise ValueError("A terrain journal appeared during retirement")
+            if _terrain_entry(path) is not None:
+                raise ValueError("A terrain journal appeared during retirement")
+            _verify_retirement_directory(root, directory)
+            if _retirement_root_entry(root) != root_entry:
+                raise ValueError("Terrain journal directory entry changed")
+            if community.backup_output_ancestry(directory) != ancestry:
+                raise ValueError("Terrain journal directory ancestry changed during retirement")
+            _verify_retirement_directory(root, directory)
+            os.fsync(directory)
+            return retired.name
+        finally:
+            pending = sys.exc_info()[1]
+            try:
+                os.close(directory)
+            except BaseException as close_error:
+                if pending is not None:
+                    if (pending.__cause__ is not None and close_error.__cause__ is None
+                            and close_error is not pending.__cause__):
+                        close_error.__cause__ = pending.__cause__
+                    if (isinstance(close_error, (KeyboardInterrupt, SystemExit))
+                            and not isinstance(pending, (KeyboardInterrupt, SystemExit))):
+                        raise close_error from pending
+                    raise pending from close_error
+                raise
+    except (OSError, ValueError, subprocess.SubprocessError, community.BackupArchiveUncertain) as error:
+        raise ValueError("Terrain journal retirement could not be confirmed; keep "
+                         + path.name + " and any " + retired.name + " for host review") from error
+
+
 def sync_directory(path):
     if os.name == "posix":
         directory_flag = getattr(os, "O_DIRECTORY", None)
@@ -347,7 +466,8 @@ def recover(root, emit=None, lease_fd=None):
     if not stat.S_ISREG(journal_info.st_mode):
         raise ValueError("Terrain journal must be a regular file; keep it for host review")
     journal_identity = _journal_identity(journal_info)
-    record = json.loads(_read_journal_bytes(path, journal_info).decode("utf-8"))
+    journal_bytes = _read_journal_bytes(path, journal_info)
+    record = json.loads(journal_bytes.decode("utf-8"))
     if record.get("format") != 1 or record.get("state") not in ("moving", "committed"):
         raise ValueError("Invalid terrain refresh recovery journal")
     world = inside(root / "fabric", record["world"])
@@ -361,7 +481,7 @@ def recover(root, emit=None, lease_fd=None):
     session_lock = community.acquire_world_session_lock(world)
     try:
         return _recover_with_world_lock(root, emit, path, record, world, rollback,
-                                        session_lock, lease_fd, journal_identity)
+                                        session_lock, lease_fd, journal_identity, journal_bytes)
     finally:
         os.close(session_lock)
 
@@ -418,7 +538,7 @@ def _recovery_item(world, rollback, relative, kept_files):
 
 
 def _recover_with_world_lock(root, emit, path, record, world, rollback, session_lock, lease_fd,
-                             journal_identity):
+                             journal_identity, journal_bytes):
     _check_journal(path, journal_identity)
     if record["state"] == "moving":
         moved_paths = record.get("moved_paths")
@@ -495,10 +615,9 @@ def _recover_with_world_lock(root, emit, path, record, world, rollback, session_
     community.verify_borrowed_launcher_lease(root, lease_fd)
     community.verify_world_session_lock(world, session_lock)
     _check_journal(path, journal_identity)
-    path.unlink()
-    sync_directory(root)
+    retired_name = _retire_journal(root, path, journal_identity, journal_bytes)
     if emit:
-        emit(message)
+        emit(message + " Original journal retained as " + retired_name + ".")
 
 
 def startup_check(root, emit=print):
