@@ -19,6 +19,12 @@ PAIRS.update({'redstone_ore':'redstone_ore', 'emerald_ore':'emerald_ore', 'lapis
               **{'deepslate_'+n+'_ore':'deepslate/deepslate_'+n+'_ore' for n in ('coal','iron','gold','diamond','redstone','emerald','lapis','copper')},
               'stone_bricks':'stonebrick', 'bricks':'brick', 'nether_bricks':'nether_brick', 'end_stone_bricks':'end_bricks',
               'sand':'sand', 'gravel':'gravel'})
+PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'jungle_planks':'planks_jungle',
+              'acacia_planks':'planks_acacia', 'dark_oak_planks':'planks_big_oak', 'mangrove_planks':'mangrove_planks',
+              'cherry_planks':'cherry_planks', 'bamboo_planks':'bamboo_planks',
+              'crimson_planks':'huge_fungus/crimson_planks', 'warped_planks':'huge_fungus/warped_planks',
+              'granite':'stone_granite', 'diorite':'stone_diorite', 'andesite':'stone_andesite',
+              'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal'})
 
 class InfinityLandscapePreviewTests(unittest.TestCase):
     def test_archives_have_matching_real_textures_and_refuse_overwrite(self):
@@ -30,11 +36,12 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 32); self.assertEqual(len(b.namelist()), 32)
+                self.assertEqual(len(j.namelist()), 48); self.assertEqual(len(b.namelist()), 48)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
+                self.assertEqual(manifest['header']['version'], [0,2,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
                 textures = {}
                 for name, alias in PAIRS.items():
