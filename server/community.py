@@ -767,20 +767,41 @@ _ARCHIVE_VERIFY_BASE_TIMEOUT = 120
 _ARCHIVE_VERIFY_IDLE_TIMEOUT = 120
 _ARCHIVE_VERIFY_MIN_BYTES_PER_SECOND = 64 * 1024
 _ARCHIVE_VERIFY_PROGRESS_BYTES = 4 * 1024 * 1024
+_ARCHIVE_VERIFY_PROGRESS_ENTRIES = 128
+_ARCHIVE_VERIFY_MIN_ENTRIES_PER_SECOND = 128
 _ARCHIVE_VERIFY_TRAILER = b"INFINITY_BACKUP_ARCHIVE_OK_V1"
 _BACKUP_ARCHIVE_VERIFIER = r'''
 import json, os, sys, zipfile
 try:
     expected = json.loads(sys.stdin.buffer.read().decode("ascii"))
     interval = int(sys.argv[2])
+    entry_interval = int(sys.argv[3])
     with os.fdopen(os.dup(int(sys.argv[1])), "rb") as stream:
         stream.seek(0)
         with zipfile.ZipFile(stream, "r") as archive:
             entries = archive.infolist()
             observed = [[item.filename, item.file_size, item.compress_size, item.CRC,
                          item.compress_type, item.external_attr, item.header_offset] for item in entries]
-            if observed != expected or len({item.filename for item in entries}) != len(entries):
+            if observed != [record[:7] for record in expected] or len({item.filename for item in entries}) != len(entries):
                 sys.exit(21)
+            # ZipFile reads using the central directory and does not compare
+            # several local header fields. Streaming readers use those fields.
+            # Compare the actual local bytes with the writer's in-memory record.
+            for number, (item, record) in enumerate(zip(entries, expected), 1):
+                header = bytes.fromhex(record[7])
+                if os.pread(stream.fileno(), len(header), item.header_offset) != header:
+                    sys.exit(22)
+                local_flags = int.from_bytes(header[6:8], "little")
+                local_time = int.from_bytes(header[10:12], "little")
+                local_date = int.from_bytes(header[12:14], "little")
+                year, month, day, hour, minute, second = item.date_time
+                central_time = (hour << 11) | (minute << 5) | (second // 2)
+                central_date = ((year - 1980) << 9) | (month << 5) | day
+                if (item.flag_bits != local_flags or central_time != local_time
+                        or central_date != local_date):
+                    sys.exit(22)
+                if number % entry_interval == 0:
+                    os.write(1, b".")
             progress = 0
             for item in entries:
                 with archive.open(item, "r") as source:
@@ -799,28 +820,35 @@ except Exception:
 
 
 def backup_archive_index(archive):
-    """Retain the writer's entry inventory for independent staged readback."""
+    """Retain writer inventory and expected local headers for staged readback."""
     entries = archive.infolist()
     if len({item.filename for item in entries}) != len(entries):
         raise ValueError("The backup archive has duplicate entries; no archive was published.")
+    # ZipFile.open chooses ZIP64 from the known uncompressed size using this
+    # same threshold. Record its completed header without rereading the file.
     return [[item.filename, item.file_size, item.compress_size, item.CRC,
-             item.compress_type, item.external_attr, item.header_offset] for item in entries]
+             item.compress_type, item.external_attr, item.header_offset,
+             item.FileHeader(zip64=item.file_size * 1.05 > zipfile.ZIP64_LIMIT).hex()]
+            for item in entries]
 
 
 def verify_staged_backup_archive(stream, expected, reader_state):
     """Read the held archive in a child so its closes cannot release our world lock."""
     payload = json.dumps(expected, ensure_ascii=True, separators=(",", ":")).encode("ascii")
     total = sum(item[1] for item in expected)
-    timeout = _ARCHIVE_VERIFY_BASE_TIMEOUT + total / _ARCHIVE_VERIFY_MIN_BYTES_PER_SECOND
+    timeout = (_ARCHIVE_VERIFY_BASE_TIMEOUT + total / _ARCHIVE_VERIFY_MIN_BYTES_PER_SECOND
+               + len(expected) / _ARCHIVE_VERIFY_MIN_ENTRIES_PER_SECOND)
     deadline = time.monotonic() + timeout
-    progress_remaining = total // _ARCHIVE_VERIFY_PROGRESS_BYTES
+    progress_remaining = (total // _ARCHIVE_VERIFY_PROGRESS_BYTES
+                          + len(expected) // _ARCHIVE_VERIFY_PROGRESS_ENTRIES)
     reader = None
     if reader_state is not None:
         # An interrupted spawn can leave a child without returning its handle.
         reader_state.unconfirmed += 1
     try:
         reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _BACKUP_ARCHIVE_VERIFIER,
-                                   str(stream.fileno()), str(_ARCHIVE_VERIFY_PROGRESS_BYTES)],
+                                   str(stream.fileno()), str(_ARCHIVE_VERIFY_PROGRESS_BYTES),
+                                   str(_ARCHIVE_VERIFY_PROGRESS_ENTRIES)],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, close_fds=True, pass_fds=(stream.fileno(),))
         os.set_blocking(reader.stdin.fileno(), False)
