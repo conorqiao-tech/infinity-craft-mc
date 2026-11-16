@@ -763,6 +763,128 @@ def _stop_backup_reader(reader):
         raise BackupReaderUncertain("A backup reader could not be confirmed stopped; keep the launcher lock for host review.") from error
 
 
+_ARCHIVE_VERIFY_BASE_TIMEOUT = 120
+_ARCHIVE_VERIFY_IDLE_TIMEOUT = 120
+_ARCHIVE_VERIFY_MIN_BYTES_PER_SECOND = 64 * 1024
+_ARCHIVE_VERIFY_PROGRESS_BYTES = 4 * 1024 * 1024
+_ARCHIVE_VERIFY_TRAILER = b"INFINITY_BACKUP_ARCHIVE_OK_V1"
+_BACKUP_ARCHIVE_VERIFIER = r'''
+import json, os, sys, zipfile
+try:
+    expected = json.loads(sys.stdin.buffer.read().decode("ascii"))
+    interval = int(sys.argv[2])
+    with os.fdopen(os.dup(int(sys.argv[1])), "rb") as stream:
+        stream.seek(0)
+        with zipfile.ZipFile(stream, "r") as archive:
+            entries = archive.infolist()
+            observed = [[item.filename, item.file_size, item.compress_size, item.CRC,
+                         item.compress_type, item.external_attr, item.header_offset] for item in entries]
+            if observed != expected or len({item.filename for item in entries}) != len(entries):
+                sys.exit(21)
+            progress = 0
+            for item in entries:
+                with archive.open(item, "r") as source:
+                    while True:
+                        chunk = source.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        progress += len(chunk)
+                        while progress >= interval:
+                            os.write(1, b".")
+                            progress -= interval
+    os.write(1, b"INFINITY_BACKUP_ARCHIVE_OK_V1")
+except Exception:
+    sys.exit(23)
+'''
+
+
+def backup_archive_index(archive):
+    """Retain the writer's entry inventory for independent staged readback."""
+    entries = archive.infolist()
+    if len({item.filename for item in entries}) != len(entries):
+        raise ValueError("The backup archive has duplicate entries; no archive was published.")
+    return [[item.filename, item.file_size, item.compress_size, item.CRC,
+             item.compress_type, item.external_attr, item.header_offset] for item in entries]
+
+
+def verify_staged_backup_archive(stream, expected, reader_state):
+    """Read the held archive in a child so its closes cannot release our world lock."""
+    payload = json.dumps(expected, ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    total = sum(item[1] for item in expected)
+    timeout = _ARCHIVE_VERIFY_BASE_TIMEOUT + total / _ARCHIVE_VERIFY_MIN_BYTES_PER_SECOND
+    deadline = time.monotonic() + timeout
+    progress_remaining = total // _ARCHIVE_VERIFY_PROGRESS_BYTES
+    reader = None
+    if reader_state is not None:
+        # An interrupted spawn can leave a child without returning its handle.
+        reader_state.unconfirmed += 1
+    try:
+        reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _BACKUP_ARCHIVE_VERIFIER,
+                                   str(stream.fileno()), str(_ARCHIVE_VERIFY_PROGRESS_BYTES)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, close_fds=True, pass_fds=(stream.fileno(),))
+        os.set_blocking(reader.stdin.fileno(), False)
+        os.set_blocking(reader.stdout.fileno(), False)
+        written, trailer = 0, bytearray()
+        with selectors.DefaultSelector() as selector:
+            selector.register(reader.stdin, selectors.EVENT_WRITE, "input")
+            selector.register(reader.stdout, selectors.EVENT_READ, "output")
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ValueError("Backup archive verification timed out; no archive was published.")
+                ready = selector.select(min(_ARCHIVE_VERIFY_IDLE_TIMEOUT, remaining))
+                if not ready:
+                    raise ValueError("Backup archive verification stopped making progress; no archive was published.")
+                for key, _ in ready:
+                    if key.data == "input":
+                        try:
+                            count = os.write(reader.stdin.fileno(), payload[written:written + 65536])
+                        except OSError as error:
+                            raise ValueError("Backup archive verification failed; no archive was published.") from error
+                        if count <= 0:
+                            raise ValueError("Backup archive verification failed; no archive was published.")
+                        written += count
+                        if written == len(payload):
+                            selector.unregister(reader.stdin)
+                            reader.stdin.close()
+                    else:
+                        chunk = os.read(reader.stdout.fileno(), 65536)
+                        if not chunk:
+                            selector.unregister(reader.stdout)
+                            reader.stdout.close()
+                        else:
+                            progress_bytes = min(progress_remaining, len(chunk))
+                            if chunk[:progress_bytes] != b"." * progress_bytes:
+                                raise ValueError("Backup archive verification returned unexpected data; no archive was published.")
+                            progress_remaining -= progress_bytes
+                            trailer.extend(chunk[progress_bytes:])
+                            if len(trailer) > len(_ARCHIVE_VERIFY_TRAILER):
+                                raise ValueError("Backup archive verification returned unexpected data; no archive was published.")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError("Backup archive verification timed out; no archive was published.")
+        try:
+            status = reader.wait(timeout=remaining)
+        except subprocess.TimeoutExpired as error:
+            raise ValueError("Backup archive verification timed out; no archive was published.") from error
+        if status != 0 or progress_remaining or bytes(trailer) != _ARCHIVE_VERIFY_TRAILER:
+            raise ValueError("Backup archive verification failed; no archive was published.")
+    finally:
+        if reader is not None:
+            try:
+                _stop_backup_reader(reader)
+            finally:
+                try:
+                    if reader.stdin is not None:
+                        reader.stdin.close()
+                finally:
+                    if reader.stdout is not None:
+                        reader.stdout.close()
+            if reader_state is not None:
+                reader_state.unconfirmed -= 1
+
+
 def write_backup_empty_directory(output, entry, fabric):
     """Record an empty directory without opening a substituted regular file."""
     expected = backup_empty_directory_identity(entry.snapshot)
@@ -1110,9 +1232,9 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         inventory = backup_inventory(files)
         verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
         archive_creation_attempted = True
-        descriptor = os.open(temporary.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+        descriptor = os.open(temporary.name, os.O_RDWR | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
                              0o600, dir_fd=backup_directory_fd)
-        with os.fdopen(descriptor, "wb") as stream:
+        with os.fdopen(descriptor, "r+b") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
                 for file in files:
                     if isinstance(file, BackupEmptyDirectory):
@@ -1120,6 +1242,7 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                     else:
                         write_backup_file(output, file, fabric)
                 output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
+                expected_archive = backup_archive_index(output)
             verify_world_session_lock(world, session_lock)
             if backup_inventory(backup_world_files(world) + backup_server_files(fabric)) != inventory:
                 raise ValueError("The world or server files changed during backup; no archive was published.")
@@ -1127,6 +1250,9 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
             # complete ZIP before its final name becomes visible.
             os.fchmod(stream.fileno(), 0o600)
             sync_file(stream)
+            verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
+            verify_backup_archive_entry(temporary, stream.fileno(), directory_fd=backup_directory_fd)
+            verify_staged_backup_archive(stream, expected_archive, reader_state)
             verify_backup_output_directory(folder, backup_directory_fd, ancestry=backup_directory_ancestry)
             verify_backup_archive_entry(temporary, stream.fileno(), directory_fd=backup_directory_fd)
             verify_world_session_lock(world, session_lock)
