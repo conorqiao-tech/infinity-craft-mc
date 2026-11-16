@@ -296,16 +296,23 @@ class BackupCopyIsolationTests(unittest.TestCase):
     def test_archive_close_cannot_mask_uncertain_reader_cleanup(self):
         real_stop = community._stop_backup_reader
         real_close = zipfile.ZipFile.close
+        real_open = zipfile.ZipFile.open
+        archives = []
         close_errors = []
+        def capture(archive, name, mode='r', *args, **kwargs):
+            if mode == 'w' and not archives:
+                archives.append(archive)
+            return real_open(archive, name, mode, *args, **kwargs)
         def uncertain_after_reap(reader):
             real_stop(reader)
             raise community.BackupReaderUncertain('synthetic uncertain cleanup')
         def fail_close_once(archive):
             real_close(archive)
-            if not close_errors:
+            if archives and archive is archives[0] and not close_errors:
                 close_errors.append(True)
                 raise OSError('synthetic archive close failure')
         with patch.object(community, '_stop_backup_reader', side_effect=uncertain_after_reap), \
+             patch.object(zipfile.ZipFile, 'open', capture), \
              patch.object(zipfile.ZipFile, 'close', fail_close_once):
             with self.assertRaisesRegex(OSError, 'archive close failure'):
                 community.backup(self.root, self.props)
@@ -315,13 +322,20 @@ class BackupCopyIsolationTests(unittest.TestCase):
 
     def test_archive_close_cannot_mask_interruption(self):
         real_close = zipfile.ZipFile.close
+        real_open = zipfile.ZipFile.open
+        archives = []
         close_errors = []
+        def capture(archive, name, mode='r', *args, **kwargs):
+            if mode == 'w' and not archives:
+                archives.append(archive)
+            return real_open(archive, name, mode, *args, **kwargs)
         def fail_close_once(archive):
             real_close(archive)
-            if not close_errors:
+            if archives and archive is archives[0] and not close_errors:
                 close_errors.append(True)
                 raise OSError('synthetic archive close failure')
         with patch.object(zipfile._ZipWriteFile, 'write', side_effect=KeyboardInterrupt()), \
+             patch.object(zipfile.ZipFile, 'open', capture), \
              patch.object(zipfile.ZipFile, 'close', fail_close_once):
             with self.assertRaisesRegex(OSError, 'archive close failure'):
                 community.backup(self.root, self.props)

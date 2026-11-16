@@ -919,10 +919,13 @@ def verify_backup(root, world, backup_name):
     with zipfile.ZipFile(archive) as output:
         if output.testzip() is not None:
             raise ValueError("Terrain regeneration backup is corrupt")
+        entries = community.backup_world_files(world)
+        empty_directories = {"/".join(entry.parts) + "/" for entry in entries
+                             if isinstance(entry, community.BackupEmptyDirectory)}
         files = {p.relative_to(world).as_posix(): p for p in world.rglob("*")
-                 if p.is_file() and p.name != "session.lock"}
+                 if p.is_file() and p != world / "session.lock"}
         names = [n[len(prefix):] for n in output.namelist() if n.startswith(prefix)]
-        if len(names) != len(set(names)) or set(names) != set(files):
+        if len(names) != len(set(names)) or set(names) != set(files) | empty_directories:
             raise ValueError("Terrain regeneration backup does not match this saved world")
         for name, file in files.items():
             inside(world, name)

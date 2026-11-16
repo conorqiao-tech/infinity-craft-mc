@@ -17,6 +17,8 @@ An older launcher may have been stopped partway through a refresh. In that case,
 
 Recovery does not start a new refresh, and the next start does not either. If the journal is invalid, or if both the archived and the current copy of some terrain are missing, startup stops before the backup and before Java opens. Keep the journal, launcher marker, current world, terrain archive and verified full backup together for host review. The archived entry is moved, not copied, during a successful restore; use the separate verified full backup when a pristine earlier copy is needed. If the archived entry is missing while a current entry exists, the old journal does not establish whether that path was never moved or was restored earlier. Recovery therefore stops and preserves the available entries for host review, even if the current entry looks normal. An empty moving-path list also requires review.
 
+The legacy terrain-backup verifier now checks empty world directories as well as saved files. An older ZIP that omitted an empty directory can fail this stricter comparison; keep that ZIP and review it instead of assuming it contains those directories.
+
 The retained recovery folders, original manifests, journals and the full-backup checksums they record are not deleted. Recovery records are additive and written before journal retirement: several records may exist after interrupted attempts, and records with the same journal hash can belong to separate attempts. A record or retired journal alone does not prove that recovery completed safely. Keep any `.RECOVERY-*.partial` files and launcher marker for host review when recovery is uncertain.
 
 ## Minecraft version conversion

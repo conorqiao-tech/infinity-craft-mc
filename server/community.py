@@ -401,10 +401,24 @@ class BackupFile:
     snapshot: os.stat_result
 
 
+@dataclass(frozen=True)
+class BackupEmptyDirectory:
+    root: Path
+    parts: tuple
+    root_identity: tuple
+    parent_identities: tuple
+    snapshot: os.stat_result
+
+
 def backup_directory_identity(info):
     if not stat.S_ISDIR(info.st_mode):
         raise ValueError("A backup directory changed; no archive was published.")
     return (info.st_dev, info.st_ino)
+
+
+def backup_empty_directory_identity(info):
+    identity = backup_directory_identity(info)
+    return identity + (info.st_mode, info.st_mtime_ns, info.st_ctime_ns)
 
 
 def backup_file_identity(info):
@@ -429,7 +443,8 @@ def backup_world_files(world):
     files = []
 
     def walk(directory, parts, root_identity, parents):
-        for name in sorted(os.listdir(directory)):
+        names = sorted(os.listdir(directory))
+        for name in names:
             if not parts and name == "session.lock":
                 continue  # Do not reopen the native record lock in this process.
             info = os.stat(name, dir_fd=directory, follow_symlinks=False)
@@ -441,12 +456,17 @@ def backup_world_files(world):
                 try:
                     if backup_directory_identity(os.fstat(child)) != identity:
                         raise ValueError("A world directory changed while preparing the backup; no archive was published.")
-                    walk(child, parts + (name,), root_identity, parents + (identity,))
+                    if not walk(child, parts + (name,), root_identity, parents + (identity,)):
+                        observed = os.fstat(child)
+                        if backup_empty_directory_identity(observed) != backup_empty_directory_identity(info):
+                            raise ValueError("A world directory changed while preparing the backup; no archive was published.")
+                        files.append(BackupEmptyDirectory(world, parts + (name,), root_identity, parents, observed))
                 finally:
                     os.close(child)
             else:
                 backup_file_identity(info)
                 files.append(BackupFile(world, parts + (name,), root_identity, parents, info))
+        return bool(names)
 
     try:
         directory = open_backup_directory(world)
@@ -484,8 +504,9 @@ def backup_server_files(fabric):
 
 
 def backup_inventory(files):
-    return [(entry.root, entry.parts, entry.root_identity, entry.parent_identities,
-             backup_file_identity(entry.snapshot)) for entry in files]
+    return [(type(entry), entry.root, entry.parts, entry.root_identity, entry.parent_identities,
+             (backup_empty_directory_identity(entry.snapshot) if isinstance(entry, BackupEmptyDirectory)
+              else backup_file_identity(entry.snapshot))) for entry in files]
 
 
 def open_backup_parent(entry):
@@ -740,6 +761,44 @@ def _stop_backup_reader(reader):
         reader.wait(timeout=5)
     except BaseException as error:
         raise BackupReaderUncertain("A backup reader could not be confirmed stopped; keep the launcher lock for host review.") from error
+
+
+def write_backup_empty_directory(output, entry, fabric):
+    """Record an empty directory without opening a substituted regular file."""
+    expected = backup_empty_directory_identity(entry.snapshot)
+    if (not entry.parts or not isinstance(entry.parts[-1], str) or entry.parts[-1] in ("", ".", "..")
+            or "/" in entry.parts[-1] or "\0" in entry.parts[-1]):
+        raise ValueError("An invalid backup directory name cannot be copied; no archive was published.")
+    try:
+        parent = open_backup_parent(entry)
+        try:
+            current = os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)
+            if backup_empty_directory_identity(current) != expected:
+                raise ValueError("A backup directory changed; no archive was published.")
+            child = open_backup_directory(entry.parts[-1], dir_fd=parent)
+            try:
+                if backup_empty_directory_identity(os.fstat(child)) != expected or os.listdir(child):
+                    raise ValueError("A backup directory changed; no archive was published.")
+                archive_name = entry.root.joinpath(*entry.parts).relative_to(fabric).as_posix() + "/"
+                info = zipfile.ZipInfo(archive_name, time.localtime(entry.snapshot.st_mtime)[:6])
+                info.external_attr = ((entry.snapshot.st_mode & 0xFFFF) << 16) | 0x10
+                output.writestr(info, b"")
+                if backup_empty_directory_identity(os.fstat(child)) != expected or os.listdir(child):
+                    raise ValueError("A backup directory changed; no archive was published.")
+            finally:
+                os.close(child)
+            if backup_empty_directory_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
+                raise ValueError("A backup directory changed; no archive was published.")
+        finally:
+            os.close(parent)
+        parent = open_backup_parent(entry)
+        try:
+            if backup_empty_directory_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
+                raise ValueError("A backup directory changed; no archive was published.")
+        finally:
+            os.close(parent)
+    except OSError as error:
+        raise ValueError("A backup directory changed or could not be read; no archive was published.") from error
 
 
 def write_backup_file(output, entry, fabric):
@@ -1056,7 +1115,10 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
         with os.fdopen(descriptor, "wb") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
                 for file in files:
-                    write_backup_file(output, file, fabric)
+                    if isinstance(file, BackupEmptyDirectory):
+                        write_backup_empty_directory(output, file, fabric)
+                    else:
+                        write_backup_file(output, file, fabric)
                 output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
             verify_world_session_lock(world, session_lock)
             if backup_inventory(backup_world_files(world) + backup_server_files(fabric)) != inventory:
