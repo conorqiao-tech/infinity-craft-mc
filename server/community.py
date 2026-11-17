@@ -843,6 +843,9 @@ try:
                             progress -= interval
                 if position != item.file_size or (digest is not None and digest.hexdigest() != value):
                     sys.exit(25)
+                # Small or empty entries may take a long time collectively
+                # without ever reaching the byte-based progress interval.
+                os.write(1, b".")
     os.write(1, b"INFINITY_BACKUP_ARCHIVE_OK_V1")
 except Exception:
     sys.exit(23)
@@ -873,7 +876,8 @@ def verify_staged_backup_archive(stream, expected, reader_state):
                + len(expected) / _ARCHIVE_VERIFY_MIN_ENTRIES_PER_SECOND)
     deadline = time.monotonic() + timeout
     progress_remaining = (total // _ARCHIVE_VERIFY_PROGRESS_BYTES
-                          + len(expected) // _ARCHIVE_VERIFY_PROGRESS_ENTRIES)
+                          + len(expected) // _ARCHIVE_VERIFY_PROGRESS_ENTRIES
+                          + len(expected))
     reader = None
     if reader_state is not None:
         # An interrupted spawn can leave a child without returning its handle.
