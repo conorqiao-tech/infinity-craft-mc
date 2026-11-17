@@ -531,6 +531,7 @@ _BACKUP_READER_IDLE_TIMEOUT = 120
 _BACKUP_READER_BASE_TIMEOUT = 120
 _BACKUP_READER_MIN_BYTES_PER_SECOND = 64 * 1024
 _BACKUP_READER_TRAILER = b"INFINITY_BACKUP_FILE_OK_V1"
+_BACKUP_READER_DIGEST_BYTES = 64
 
 _BACKUP_FILE_READER = r'''
 import os, stat, sys
@@ -545,7 +546,13 @@ try:
     parent = int(sys.argv[1])
     name = sys.argv[2]
     parent_expected = (int(sys.argv[3]), int(sys.argv[4]))
-    expected = tuple(int(value) for value in sys.argv[5:])
+    digest_mode = len(sys.argv) == 13 and sys.argv[12] == "sha256"
+    if len(sys.argv) != (13 if digest_mode else 12):
+        sys.exit(24)
+    expected = tuple(int(value) for value in sys.argv[5:12])
+    if digest_mode:
+        import hashlib
+        digest = hashlib.sha256()
     directory = os.fstat(parent)
     if not stat.S_ISDIR(directory.st_mode) or (directory.st_dev, directory.st_ino) != parent_expected:
         sys.exit(24)
@@ -565,6 +572,8 @@ try:
             copied += len(block)
             if copied > expected[4]:
                 sys.exit(22)
+            if digest_mode:
+                digest.update(block)
             emit(block)
         if copied != expected[4] or identity(os.fstat(descriptor)) != expected:
             sys.exit(22)
@@ -573,6 +582,8 @@ try:
     # This is emitted only after the complete read, final fstat and close.
     # The parent treats it as a fixed trailer after exactly the expected bytes.
     emit(b"INFINITY_BACKUP_FILE_OK_V1")
+    if digest_mode:
+        emit(digest.hexdigest().encode("ascii"))
 except (OSError, ValueError):
     sys.exit(23)
 '''
@@ -771,7 +782,7 @@ _ARCHIVE_VERIFY_PROGRESS_ENTRIES = 128
 _ARCHIVE_VERIFY_MIN_ENTRIES_PER_SECOND = 128
 _ARCHIVE_VERIFY_TRAILER = b"INFINITY_BACKUP_ARCHIVE_OK_V1"
 _BACKUP_ARCHIVE_VERIFIER = r'''
-import json, os, sys, zipfile
+import hashlib, json, os, sys, zipfile
 try:
     expected = json.loads(sys.stdin.buffer.read().decode("ascii"))
     interval = int(sys.argv[2])
@@ -803,32 +814,54 @@ try:
                 if number % entry_interval == 0:
                     os.write(1, b".")
             progress = 0
-            for item in entries:
+            for item, record in zip(entries, expected):
+                kind, value = record[8]
+                if kind == "sha256":
+                    digest = hashlib.sha256()
+                    literal = None
+                elif kind == "literal":
+                    literal = bytes.fromhex(value)
+                    if len(literal) != item.file_size:
+                        sys.exit(25)
+                    digest = None
+                else:
+                    sys.exit(25)
+                position = 0
                 with archive.open(item, "r") as source:
                     while True:
                         chunk = source.read(1024 * 1024)
                         if not chunk:
                             break
+                        if digest is not None:
+                            digest.update(chunk)
+                        elif chunk != literal[position:position + len(chunk)]:
+                            sys.exit(25)
+                        position += len(chunk)
                         progress += len(chunk)
                         while progress >= interval:
                             os.write(1, b".")
                             progress -= interval
+                if position != item.file_size or (digest is not None and digest.hexdigest() != value):
+                    sys.exit(25)
     os.write(1, b"INFINITY_BACKUP_ARCHIVE_OK_V1")
 except Exception:
     sys.exit(23)
 '''
 
 
-def backup_archive_index(archive):
-    """Retain writer inventory and expected local headers for staged readback."""
+def backup_archive_index(archive, content_checks):
+    """Retain writer inventory, local headers and expected content for readback."""
     entries = archive.infolist()
     if len({item.filename for item in entries}) != len(entries):
         raise ValueError("The backup archive has duplicate entries; no archive was published.")
+    if set(content_checks) != {item.filename for item in entries}:
+        raise ValueError("The backup archive content record is incomplete; no archive was published.")
     # ZipFile.open chooses ZIP64 from the known uncompressed size using this
     # same threshold. Record its completed header without rereading the file.
     return [[item.filename, item.file_size, item.compress_size, item.CRC,
              item.compress_type, item.external_attr, item.header_offset,
-             item.FileHeader(zip64=item.file_size * 1.05 > zipfile.ZIP64_LIMIT).hex()]
+             item.FileHeader(zip64=item.file_size * 1.05 > zipfile.ZIP64_LIMIT).hex(),
+             content_checks[item.filename]]
             for item in entries]
 
 
@@ -949,6 +982,7 @@ def write_backup_empty_directory(output, entry, fabric):
             os.close(parent)
     except OSError as error:
         raise ValueError("A backup directory changed or could not be read; no archive was published.") from error
+    return archive_name
 
 
 def write_backup_file(output, entry, fabric):
@@ -970,7 +1004,7 @@ def write_backup_file(output, entry, fabric):
                     reader_state.unconfirmed += 1
                 reader = subprocess.Popen([sys.executable, "-I", "-S", "-c", _BACKUP_FILE_READER,
                                            str(parent), entry.parts[-1], *(str(value) for value in parent_expected),
-                                           *(str(value) for value in expected)],
+                                           *(str(value) for value in expected), "sha256"],
                                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                           stderr=subprocess.DEVNULL, close_fds=True, pass_fds=(parent,))
                 archive_name = entry.root.joinpath(*entry.parts).relative_to(fabric).as_posix()
@@ -998,13 +1032,17 @@ def write_backup_file(output, entry, fabric):
                         if data:
                             target.write(data)
                         trailer.extend(chunk[len(data):])
-                        if len(trailer) > len(_BACKUP_READER_TRAILER):
+                        if len(trailer) > len(_BACKUP_READER_TRAILER) + _BACKUP_READER_DIGEST_BYTES:
                             raise ValueError("A backup file changed while it was copied; no archive was published.")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ValueError("A backup reader stopped making progress; no archive was published.")
                 status = reader.wait(timeout=min(_BACKUP_READER_IDLE_TIMEOUT, remaining))
-                if status != 0 or copied != entry.snapshot.st_size or bytes(trailer) != _BACKUP_READER_TRAILER:
+                digest = bytes(trailer[len(_BACKUP_READER_TRAILER):])
+                if (status != 0 or copied != entry.snapshot.st_size
+                        or not trailer.startswith(_BACKUP_READER_TRAILER)
+                        or len(trailer) != len(_BACKUP_READER_TRAILER) + _BACKUP_READER_DIGEST_BYTES
+                        or re.fullmatch(rb"[0-9a-f]{64}", digest) is None):
                     raise ValueError("A backup file changed while it was copied; no archive was published.")
                 if backup_file_identity(os.stat(entry.parts[-1], dir_fd=parent, follow_symlinks=False)) != expected:
                     raise ValueError("A backup file changed while it was copied; no archive was published.")
@@ -1028,6 +1066,7 @@ def write_backup_file(output, entry, fabric):
             os.close(parent)
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("A backup path changed or could not be read; no archive was published.") from error
+    return archive_name, digest.decode("ascii")
 
 
 def unlink_backup_lease_entry(path, descriptor):
@@ -1264,13 +1303,18 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                              0o600, dir_fd=backup_directory_fd)
         with os.fdopen(descriptor, "r+b") as stream:
             with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED, compresslevel=1, allowZip64=True) as output:
+                content_checks = {}
                 for file in files:
                     if isinstance(file, BackupEmptyDirectory):
-                        write_backup_empty_directory(output, file, fabric)
+                        archive_name = write_backup_empty_directory(output, file, fabric)
+                        content_checks[archive_name] = ("literal", "")
                     else:
-                        write_backup_file(output, file, fabric)
-                output.writestr("BACKUP_INFO.json", json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}))
-                expected_archive = backup_archive_index(output)
+                        archive_name, digest = write_backup_file(output, file, fabric)
+                        content_checks[archive_name] = ("sha256", digest)
+                info_data = json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}).encode("utf-8")
+                output.writestr("BACKUP_INFO.json", info_data)
+                content_checks["BACKUP_INFO.json"] = ("literal", info_data.hex())
+                expected_archive = backup_archive_index(output, content_checks)
             verify_world_session_lock(world, session_lock)
             if backup_inventory(backup_world_files(world) + backup_server_files(fabric)) != inventory:
                 raise ValueError("The world or server files changed during backup; no archive was published.")
