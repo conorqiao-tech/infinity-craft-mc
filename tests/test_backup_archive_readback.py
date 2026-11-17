@@ -98,7 +98,7 @@ class BackupArchiveReadbackTests(unittest.TestCase):
         with zipfile.ZipFile(archive_path, 'w') as archive:
             for index in range(1500):
                 archive.writestr('synthetic/%04d-' % index + 'x' * 60, b'')
-            expected = community.backup_archive_index(archive)
+            expected = community.backup_archive_index(archive, {entry.filename: ('literal', '') for entry in archive.infolist()})
         self.assertGreater(len(json.dumps(expected).encode()), 65536)
         state = community._BackupReaderState()
         with archive_path.open('rb') as stream:
@@ -115,7 +115,7 @@ class BackupArchiveReadbackTests(unittest.TestCase):
         archive_path = self.root / 'synthetic-input.zip'
         with zipfile.ZipFile(archive_path, 'w') as archive:
             archive.writestr('synthetic', b'data')
-            expected = community.backup_archive_index(archive)
+            expected = community.backup_archive_index(archive, {'synthetic': ('literal', b'data'.hex())})
         state = community._BackupReaderState()
         with archive_path.open('rb') as stream:
             previous = signal.signal(signal.SIGCHLD, signal.SIG_IGN)
