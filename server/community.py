@@ -532,6 +532,7 @@ _BACKUP_READER_BASE_TIMEOUT = 120
 _BACKUP_READER_MIN_BYTES_PER_SECOND = 64 * 1024
 _BACKUP_READER_TRAILER = b"INFINITY_BACKUP_FILE_OK_V1"
 _BACKUP_READER_DIGEST_BYTES = 64
+BACKUP_INFO_MAX_BYTES = 64 * 1024 * 1024
 
 _BACKUP_FILE_READER = r'''
 import os, stat, sys
@@ -1251,6 +1252,9 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                 raise ValueError("The launcher lock changed before backup; no archive was published.")
             lease_prepared = True
         fabric, world = world_folder(root, props)
+        archive_world = world.relative_to(fabric).as_posix()
+        if archive_world == "BACKUP_INFO.json" or archive_world.startswith("BACKUP_INFO.json/"):
+            raise ValueError("The world path conflicts with backup metadata; no archive was published.")
         try:
             world_info = world.stat()
         except FileNotFoundError:
@@ -1315,7 +1319,21 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
                     else:
                         archive_name, digest = write_backup_file(output, file, fabric)
                         content_checks[archive_name] = ("sha256", digest)
-                info_data = json.dumps({"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric))}).encode("utf-8")
+                # Keep source-reader digests in the existing info entry so a
+                # later read-only check can detect damage beyond ZIP CRCs.
+                manifest = {
+                    "format": 1,
+                    "algorithm": "sha256",
+                    "files": [{"path": name, "sha256": value}
+                              for name, (kind, value) in sorted(content_checks.items()) if kind == "sha256"],
+                    "empty_directories": sorted(name for name, (kind, _) in content_checks.items()
+                                                if kind == "literal" and name.endswith("/")),
+                }
+                info = {"format": 1, "created_utc": stamp, "world": str(world.relative_to(fabric)),
+                        "digest_manifest": manifest}
+                info_data = json.dumps(info, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii")
+                if len(info_data) > BACKUP_INFO_MAX_BYTES:
+                    raise ValueError("The backup digest manifest exceeds the supported limit; no archive was published.")
                 output.writestr("BACKUP_INFO.json", info_data)
                 content_checks["BACKUP_INFO.json"] = ("literal", info_data.hex())
                 expected_archive = backup_archive_index(output, content_checks)
