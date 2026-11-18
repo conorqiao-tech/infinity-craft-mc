@@ -95,6 +95,8 @@ If the server folder is observed inside the selected world, backup refuses befor
 
 New backups include source-reader SHA-256 digests in `BACKUP_INFO.json`, limited to 64 MiB of metadata. Before restoring one, run `python3 server/verify_backup.py PATH_TO_BACKUP.zip` as a separate process on a separate copy; it checks the recorded file digests without extracting or modifying the archive. Older backups do not have these digests and require separate review. The digest record is stored in the ZIP and is not a signature: a writer able to replace the archive can also change the record. This check does not prove an atomic source snapshot, trustworthy writers or safe extraction.
 
+Within one Python interpreter, the launcher refuses a second native world-lock acquisition while its first is active, even for another world. If closing the native lock is uncertain, the process refuses further acquisitions and preserves available evidence for host review. This guard covers the updated lock helper; it cannot stop unrelated file opens or other writers.
+
 To restore, stop the server, retain the current world under another name, extract a chosen backup **into a separate folder**, inspect its `BACKUP_INFO.json` for the world path, then copy that world into `fabric` and set `level-name` to its directory. Restore moderation files only if you want those older settings as well. Keep the same mod version initially. Never extract over a running world.
 
 ## What was checked

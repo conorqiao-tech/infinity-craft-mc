@@ -71,7 +71,7 @@ class RecoveryPolicyReaderTests(unittest.TestCase):
             self.assertEqual(self.contender(), 42)
             self.assertEqual(json.loads((self.root / 'saved-synthetic-policy').read_text()), self.value)
         finally:
-            os.close(held)
+            held.close()
         self.assertEqual(self.contender(), 0)
         self.assertEqual((self.world / 'level.dat').read_bytes(), b'synthetic level')
 
