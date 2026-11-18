@@ -51,7 +51,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
     def lose_lock(self,descriptor):
         other=os.open(self.world/'session.lock',os.O_RDONLY)
         os.close(other)
-        os.fstat(descriptor)
+        os.fstat(descriptor.fileno())
 
     def test_backup_refuses_when_other_process_acquires_lost_native_lock(self):
         real=community.acquire_world_session_lock
@@ -72,7 +72,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
             self.lose_lock(descriptor)
             with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
                 community.verify_world_session_lock(self.world,descriptor)
-        finally:os.close(descriptor)
+        finally:descriptor.close()
 
     def test_shared_downgrade_is_rejected(self):
         descriptor=community.acquire_world_session_lock(self.world)
@@ -80,7 +80,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
             fcntl.lockf(descriptor,fcntl.LOCK_SH|fcntl.LOCK_NB)
             with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
                 community.verify_world_session_lock(self.world,descriptor)
-        finally:os.close(descriptor)
+        finally:descriptor.close()
 
     def test_partially_unlocked_range_is_rejected(self):
         descriptor=community.acquire_world_session_lock(self.world)
@@ -88,7 +88,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
             fcntl.lockf(descriptor,fcntl.LOCK_UN,1,5,os.SEEK_SET)
             with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
                 community.verify_world_session_lock(self.world,descriptor)
-        finally:os.close(descriptor)
+        finally:descriptor.close()
 
     def test_normal_observer_keeps_native_record_lock_held(self):
         descriptor=community.acquire_world_session_lock(self.world)
@@ -99,7 +99,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
                   "except BlockingIOError:sys.exit(42)\nelse:sys.exit(0)")
             result=subprocess.run([sys.executable,'-c',code,str(self.world/'session.lock')],timeout=10)
             self.assertEqual(result.returncode,42)
-        finally:os.close(descriptor)
+        finally:descriptor.close()
 
     def test_observer_timeout_fails_closed_without_releasing_native_lock(self):
         descriptor=community.acquire_world_session_lock(self.world)
@@ -111,7 +111,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
                   "try:fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)\n"
                   "except BlockingIOError:sys.exit(42)\nelse:sys.exit(0)")
             self.assertEqual(subprocess.run([sys.executable,'-c',code,str(self.world/'session.lock')],timeout=10).returncode,42)
-        finally:os.close(descriptor)
+        finally:descriptor.close()
 
     def test_observer_rejects_substituted_inode_without_releasing_other_record_lock(self):
         descriptor=community.acquire_world_session_lock(self.world)
@@ -142,7 +142,7 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
                 self.assertEqual(real_run([sys.executable,'-c',code,str(path)],timeout=10).returncode,42)
         finally:
             os.close(decoy_fd)
-            os.close(descriptor)
+            descriptor.close()
 
     def test_recovery_refuses_lost_native_lock_before_moving_anything(self):
         (self.world/'data').mkdir()

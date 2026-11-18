@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from contextvars import ContextVar
+import builtins
 import errno
 import json
 import hashlib
@@ -13,6 +14,7 @@ import selectors
 import stat
 import subprocess
 import sys
+import threading
 import time
 import uuid
 import zipfile
@@ -215,7 +217,77 @@ def world_folder(root, props):
     return fabric, world
 
 
-SESSION_LOCK_AVAILABLE = sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
+SESSION_LOCK_AVAILABLE = (sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
+                          and hasattr(os, "register_at_fork"))
+
+# POSIX record locks belong to a process, not an individual descriptor.
+# Opening and closing the same inode a second time in this process can release
+# the first lock. Reserve one slot before opening any session.lock, even for a
+# different world, because paths can be substituted between checks. Share the
+# state between aliases of this module in the same Python interpreter.
+_WORLD_LOCK_STATE = builtins.__dict__.setdefault(
+    "_infinitycraft_world_session_lock_state_v1",
+    {"guard": threading.Lock(), "opening": object(), "poisoned": object(), "active": None},
+)
+
+
+def _world_lock_after_fork_in_child():
+    # A mutex owned by a vanished thread cannot be used in the child. POSIX
+    # record locks are not inherited, so an inherited active lease is unknown.
+    _WORLD_LOCK_STATE["guard"] = threading.Lock()
+    if _WORLD_LOCK_STATE["active"] is not None:
+        _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
+
+
+with _WORLD_LOCK_STATE["guard"]:
+    if not _WORLD_LOCK_STATE.get("fork_handler_registered"):
+        if hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=_world_lock_after_fork_in_child)
+        _WORLD_LOCK_STATE["fork_handler_registered"] = True
+
+
+class WorldSessionLockUncertain(RuntimeError):
+    """The process cannot confirm that its native-lock descriptor was closed."""
+
+
+class WorldSessionLock:
+    """Own one native-lock descriptor and its process-local reservation."""
+
+    def __init__(self, descriptor):
+        self._descriptor = descriptor
+        self._pid = os.getpid()
+        self._closed = False
+        self._close_uncertain = False
+        info = os.fstat(descriptor)
+        self._identity = (info.st_dev, info.st_ino)
+
+    def fileno(self):
+        if self._closed or self._pid != os.getpid():
+            raise ValueError("The Minecraft world lock is no longer available.")
+        return self._descriptor
+
+    def close(self):
+        with _WORLD_LOCK_STATE["guard"]:
+            if self._closed:
+                if self._close_uncertain:
+                    raise WorldSessionLockUncertain("The Minecraft world lock closure remains uncertain; keep evidence for review.")
+                return
+            if self._pid != os.getpid() or _WORLD_LOCK_STATE["active"] is not self:
+                raise ValueError("The Minecraft world lock is not owned by this process.")
+            # A failing or interrupted close is uncertain: do not retry the
+            # descriptor or permit another acquisition in this process.
+            self._closed = True
+            self._close_uncertain = True
+            _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
+            try:
+                info = os.fstat(self._descriptor)
+                if (info.st_dev, info.st_ino) != self._identity:
+                    raise WorldSessionLockUncertain("The Minecraft world-lock descriptor was replaced; keep evidence for review.")
+                os.close(self._descriptor)
+            except OSError as error:
+                raise WorldSessionLockUncertain("The Minecraft world lock could not be confirmed closed; a backup may already exist. Keep it and the launcher marker for review.") from error
+            self._close_uncertain = False
+            _WORLD_LOCK_STATE["active"] = None
 
 
 _WORLD_SESSION_LOCK_OBSERVER = r'''
@@ -261,7 +333,7 @@ except (OSError, ValueError):
 def _world_session_lock_identity(world, descriptor):
     """Check the descriptor and path without reopening the lock in this process."""
     try:
-        held = os.fstat(descriptor)
+        held = os.fstat(descriptor.fileno())
         current = os.stat(world / "session.lock", follow_symlinks=False)
         if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
                 or held.st_nlink != 1 or current.st_nlink != 1
@@ -297,23 +369,50 @@ def acquire_world_session_lock(world):
     if _EXCLUSIVE_RENAME is None:
         raise ValueError("This system cannot safely retire a recovery journal or publish a backup; keep the world stopped for review.")
     import fcntl
+    with _WORLD_LOCK_STATE["guard"]:
+        if _WORLD_LOCK_STATE["active"] is _WORLD_LOCK_STATE["poisoned"]:
+            raise WorldSessionLockUncertain("A Minecraft world lock is uncertain in this process; keep evidence for review.")
+        if _WORLD_LOCK_STATE["active"] is not None:
+            raise ValueError("A Minecraft world lock is already active in this process; keep the world stopped for review.")
+        _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["opening"]
+    descriptor = None
+    lease = None
+    open_uncertain = False
+    registered = False
     try:
-        descriptor = os.open(world / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-    except OSError as error:
-        raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.") from error
-    try:
-        _world_session_lock_identity(world, descriptor)
+        try:
+            open_uncertain = True
+            descriptor = os.open(world / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        except OSError as error:
+            open_uncertain = False
+            raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.") from error
+        open_uncertain = False
+        lease = WorldSessionLock(descriptor)
+        with _WORLD_LOCK_STATE["guard"]:
+            _WORLD_LOCK_STATE["active"] = lease
+        registered = True
+        _world_session_lock_identity(world, lease)
         try:
             # Java's FileChannel.tryLock and POSIX lockf use the same advisory
             # record lock on the tested local macOS filesystem. Hold it for the
             # full archive operation; it cannot constrain unrelated writers.
-            fcntl.lockf(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.lockf(lease.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as error:
             raise ValueError("Another Minecraft server may be using this world; stop it before backing up.") from error
-        verify_world_session_lock(world, descriptor)
-        return descriptor
+        verify_world_session_lock(world, lease)
+        return lease
     except BaseException:
-        os.close(descriptor)
+        if registered:
+            lease.close()
+        else:
+            with _WORLD_LOCK_STATE["guard"]:
+                if descriptor is not None:
+                    _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
+                    try:
+                        os.close(descriptor)
+                    except OSError as error:
+                        raise WorldSessionLockUncertain("The Minecraft world lock could not be confirmed closed; a backup may already exist. Keep it and the launcher marker for review.") from error
+                _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"] if open_uncertain else None
         raise
 
 
@@ -738,6 +837,9 @@ _ACTIVE_BACKUP_READERS = ContextVar("active_backup_readers", default=None)
 
 def _backup_error_requires_review(error):
     """Retain evidence when cleanup masks an interruption or uncertain reader."""
+    with _WORLD_LOCK_STATE["guard"]:
+        if _WORLD_LOCK_STATE["active"] is _WORLD_LOCK_STATE["poisoned"]:
+            return True
     pending = [error]
     seen = set()
     while pending:
@@ -745,7 +847,8 @@ def _backup_error_requires_review(error):
         if current is None or id(current) in seen:
             continue
         seen.add(id(current))
-        if isinstance(current, (BackupReaderUncertain, BackupArchiveUncertain, KeyboardInterrupt, SystemExit)):
+        if isinstance(current, (BackupReaderUncertain, BackupArchiveUncertain, WorldSessionLockUncertain,
+                                KeyboardInterrupt, SystemExit)):
             return True
         pending.extend((current.__cause__, current.__context__))
     return False
@@ -1386,7 +1489,7 @@ def _backup_with_reader_state(root, props, locked, lease_fd, reader_state):
             finally:
                 try:
                     if session_lock is not None:
-                        os.close(session_lock)
+                        session_lock.close()
                     session_lock_closed = True
                 finally:
                     if fd is not None:

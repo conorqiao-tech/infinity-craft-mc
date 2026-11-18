@@ -438,9 +438,9 @@ class BackupCopyIsolationTests(unittest.TestCase):
         original_script = community._BACKUP_FILE_READER
         def acquire(world):
             descriptor = original_acquire(world)
-            held = os.fstat(descriptor)
+            held = os.fstat(descriptor.fileno())
             check = ("import os,sys\n"
-                     f"try: info=os.fstat({descriptor})\n"
+                     f"try: info=os.fstat({descriptor.fileno()})\n"
                      "except OSError: pass\n"
                      f"else:\n if (info.st_dev,info.st_ino)==({held.st_dev},{held.st_ino}): sys.exit(25)\n")
             community._BACKUP_FILE_READER = check + original_script

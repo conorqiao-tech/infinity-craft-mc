@@ -1,6 +1,7 @@
 """Retain synthetic backup evidence if archive publication becomes uncertain."""
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -95,20 +96,35 @@ class ManualBackupPublicationFailureTests(unittest.TestCase):
         self.assert_retained_marker()
 
     def test_native_lock_close_failure_after_publication_keeps_marker(self):
-        native = (self.world / "session.lock").stat()
-        real_close = community.os.close
-        observed = []
-        def close(fd):
-            info = os.fstat(fd)
-            if (info.st_dev, info.st_ino) == (native.st_dev, native.st_ino) and not observed:
-                observed.append(True)
-                real_close(fd)
-                raise OSError("synthetic native lock close failure")
-            return real_close(fd)
-        with patch.object(community.os, "close", side_effect=close):
-            with self.assertRaisesRegex(OSError, "synthetic native lock close failure"):
-                community.backup(self.root, {"level-name": "world"})
-        self.assertEqual(observed, [True])
+        # This fault deliberately leaves the interpreter's lock reservation
+        # uncertain. Run it separately so later tests start in a fresh process.
+        code = r'''
+import os,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1]);import community
+root=Path(sys.argv[2]);native=(root/'fabric/world/session.lock').stat()
+actual_close=os.close;observed=[]
+def close(fd):
+    info=os.fstat(fd)
+    if (info.st_dev,info.st_ino)==(native.st_dev,native.st_ino) and not observed:
+        observed.append(True);actual_close(fd);raise OSError('synthetic native lock close failure')
+    return actual_close(fd)
+with patch.object(community.os,'close',side_effect=close):
+    try:community.backup(root,{'level-name':'world'})
+    except community.WorldSessionLockUncertain as error:
+        assert isinstance(error.__cause__,OSError)
+        assert 'synthetic native lock close failure' in str(error.__cause__)
+    else:raise AssertionError('uncertain close accepted')
+assert observed==[True]
+try:community.acquire_world_session_lock(root/'fabric/world')
+except community.WorldSessionLockUncertain:pass
+else:raise AssertionError('uncertainty was forgotten')
+'''
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
+                                 str(Path(community.__file__).parent), str(self.root)],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(list(self.backups.glob("*.zip"))), 1)
         self.assert_retained_marker()
 

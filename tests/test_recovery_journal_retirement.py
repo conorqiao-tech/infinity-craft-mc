@@ -425,7 +425,7 @@ else:
                                              str(displaced / 'fabric/world/session.lock')],
                                             timeout=10).returncode, 42)
         finally:
-            os.close(native_lock)
+            native_lock.close()
             os.close(descriptor)
 
     def test_retired_reader_rejects_names_outside_held_directory(self):

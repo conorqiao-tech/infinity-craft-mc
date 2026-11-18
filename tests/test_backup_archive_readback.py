@@ -176,7 +176,7 @@ class BackupArchiveReadbackTests(unittest.TestCase):
                                    str(self.world / 'session.lock')], timeout=10).returncode
         class Borrowed:
             def fileno(self):
-                return descriptor
+                return descriptor.fileno()
         state = community._BackupReaderState()
         try:
             self.assertEqual(contender(), 42)
@@ -185,7 +185,7 @@ class BackupArchiveReadbackTests(unittest.TestCase):
             self.assertEqual(state.unconfirmed, 0)
             self.assertEqual(contender(), 42)
         finally:
-            os.close(descriptor)
+            descriptor.close()
         self.assertEqual(contender(), 0)
 
     def test_unconfirmed_verifier_cleanup_retains_the_marker(self):

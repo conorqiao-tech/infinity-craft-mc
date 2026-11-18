@@ -596,7 +596,7 @@ def recover(root, emit=None, lease_fd=None):
         return _recover_with_world_lock(root, emit, path, record, world, rollback,
                                         session_lock, lease_fd, journal_identity, journal_bytes)
     finally:
-        os.close(session_lock)
+        session_lock.close()
 
 
 def _recovery_item(world, rollback, relative, kept_files):

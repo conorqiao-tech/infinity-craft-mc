@@ -55,7 +55,7 @@ class RecoveryDirectorySyncTests(unittest.TestCase):
             self.assertTrue(folder.is_symlink())
             self.assertTrue(displaced.is_dir())
         finally:
-            os.close(held)
+            held.close()
         self.assertEqual(self.contender(), 0)
         self.assertEqual((self.world / 'level.dat').read_bytes(), b'synthetic level')
 
@@ -90,7 +90,7 @@ class RecoveryDirectorySyncTests(unittest.TestCase):
                 refresh.sync_directory(path)
             self.assertEqual(self.contender(), 42)
         finally:
-            os.close(held)
+            held.close()
         self.assertEqual(self.contender(), 0)
 
     def test_fifo_is_refused_without_waiting_for_a_writer(self):
