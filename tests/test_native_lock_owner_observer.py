@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'server'))
 import community
 import server as launcher
 import world_refresh as refresh
+from native_lock_test_support import acquire_unlockable_holder, unlock_holder_for_test
 
 
 @unittest.skipUnless(sys.platform in ('darwin', 'linux') and os.name == 'posix', 'requires POSIX record locks')
@@ -48,51 +49,52 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
         self.assertEqual(child.stdout.readline().strip(),'LOCKED')
         return child
 
-    def lose_lock(self,descriptor):
-        other=os.open(self.world/'session.lock',os.O_RDONLY)
-        os.close(other)
-        os.fstat(descriptor.fileno())
-
     def test_backup_refuses_when_other_process_acquires_lost_native_lock(self):
-        real=community.acquire_world_session_lock
         def acquire(world):
-            descriptor=real(world)
-            self.lose_lock(descriptor)
-            self.holder()
-            return descriptor
-        with patch.object(community,'acquire_world_session_lock',side_effect=acquire):
-            with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
-                community.backup(self.root,{'level-name':'world'})
-        self.assertEqual(list((self.root/'backups').glob('*.zip')),[])
-        self.assertEqual((self.world/'level.dat').read_bytes(),b'synthetic level')
+            lease = acquire_unlockable_holder(world)
+            try:
+                unlock_holder_for_test(world, lease)
+                self.holder()
+            except BaseException:
+                lease.close()
+                raise
+            return lease
+        with patch.object(community, 'acquire_world_session_lock', side_effect=acquire):
+            with self.assertRaisesRegex(ValueError, 'world lock|Minecraft'):
+                community.backup(self.root, {'level-name': 'world'})
+        self.assertEqual(list((self.root/'backups').glob('*.zip')), [])
+        self.assertEqual((self.world/'level.dat').read_bytes(), b'synthetic level')
 
-    def test_missing_native_lock_is_rejected_while_descriptor_still_exists(self):
-        descriptor=community.acquire_world_session_lock(self.world)
+    def test_missing_native_lock_is_rejected_while_holder_still_exists(self):
+        lease = acquire_unlockable_holder(self.world)
         try:
-            self.lose_lock(descriptor)
-            with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
-                community.verify_world_session_lock(self.world,descriptor)
-        finally:descriptor.close()
+            unlock_holder_for_test(self.world, lease)
+            self.assertIsNone(lease._process.poll())
+            with self.assertRaisesRegex(ValueError, 'world lock|Minecraft'):
+                community.verify_world_session_lock(self.world, lease)
+        finally:
+            lease.close()
+
+    def assert_wrong_lock_coverage_is_rejected(self, command):
+        marker = '        print("ready", *identity, flush=True)'
+        script = community._WORLD_SESSION_LOCK_HOLDER
+        self.assertEqual(script.count(marker), 1)
+        script = script.replace(marker, '        ' + command + '\n' + marker)
+        with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', script):
+            with self.assertRaisesRegex(ValueError, 'world lock|Minecraft'):
+                community.acquire_world_session_lock(self.world)
 
     def test_shared_downgrade_is_rejected(self):
-        descriptor=community.acquire_world_session_lock(self.world)
-        try:
-            fcntl.lockf(descriptor,fcntl.LOCK_SH|fcntl.LOCK_NB)
-            with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
-                community.verify_world_session_lock(self.world,descriptor)
-        finally:descriptor.close()
+        self.assert_wrong_lock_coverage_is_rejected('fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)')
 
     def test_partially_unlocked_range_is_rejected(self):
-        descriptor=community.acquire_world_session_lock(self.world)
-        try:
-            fcntl.lockf(descriptor,fcntl.LOCK_UN,1,5,os.SEEK_SET)
-            with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):
-                community.verify_world_session_lock(self.world,descriptor)
-        finally:descriptor.close()
+        self.assert_wrong_lock_coverage_is_rejected('fcntl.lockf(fd, fcntl.LOCK_UN, 1, 5, os.SEEK_SET)')
 
-    def test_normal_observer_keeps_native_record_lock_held(self):
+    def test_parent_descriptor_close_keeps_native_holder_lock_held(self):
         descriptor=community.acquire_world_session_lock(self.world)
         try:
+            other = os.open(self.world / 'session.lock', os.O_RDONLY | os.O_NOFOLLOW)
+            os.close(other)
             community.verify_world_session_lock(self.world,descriptor)
             code=("import fcntl,sys;f=open(sys.argv[1],'r+b');\n"
                   "try:fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)\n"
@@ -154,12 +156,15 @@ class NativeLockOwnerObserverTests(unittest.TestCase):
         before=journal.read_bytes()
         lease=launcher.acquire_launcher_lock(launcher.parse_args([]),self.root)
         os.write(lease,str(os.getpid()).encode())
-        real=community.acquire_world_session_lock
         def acquire(world):
-            descriptor=real(world)
-            self.lose_lock(descriptor)
-            self.holder()
-            return descriptor
+            native = acquire_unlockable_holder(world)
+            try:
+                unlock_holder_for_test(world, native)
+                self.holder()
+            except BaseException:
+                native.close()
+                raise
+            return native
         try:
             with patch.object(community,'acquire_world_session_lock',side_effect=acquire):
                 with self.assertRaisesRegex(ValueError,'world lock|Minecraft'):

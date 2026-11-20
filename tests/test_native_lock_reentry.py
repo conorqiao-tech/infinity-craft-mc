@@ -94,24 +94,23 @@ class NativeLockReentryTests(unittest.TestCase):
             second.close()
         self.assertEqual(self.contender(), 0)
 
-    def test_concurrent_open_attempt_is_refused_during_first_open(self):
+    def test_concurrent_acquisition_is_refused_during_holder_start(self):
         entered, proceed = threading.Event(), threading.Event()
-        original = os.open
+        original = community.WorldSessionLock._start
         seen = []
         result = []
-        def slow_open(path, *args, **kwargs):
-            if Path(path) == self.world/'session.lock':
-                seen.append(str(path))
-                entered.set()
-                if not proceed.wait(10):
-                    raise RuntimeError('synthetic open checkpoint timed out')
-            return original(path, *args, **kwargs)
+        def slow_start(lease):
+            seen.append(lease)
+            entered.set()
+            if not proceed.wait(10):
+                raise RuntimeError('synthetic startup checkpoint timed out')
+            return original(lease)
         def first():
             try:
                 result.append(community.acquire_world_session_lock(self.world))
             except BaseException as error:
                 result.append(error)
-        with patch.object(community.os, 'open', side_effect=slow_open):
+        with patch.object(community.WorldSessionLock, '_start', slow_start):
             thread = threading.Thread(target=first)
             thread.start()
             try:
@@ -133,7 +132,11 @@ class NativeLockReentryTests(unittest.TestCase):
         self.assertEqual(self.contender(), 0)
 
     def test_failed_open_or_observation_allows_later_acquisition(self):
-        with patch.object(community.os, 'open', side_effect=OSError('synthetic open failure')):
+        script = community._WORLD_SESSION_LOCK_HOLDER
+        source = script.replace('fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)',
+                                'raise PermissionError("synthetic open failure")')
+        self.assertNotEqual(source, script)
+        with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', source):
             with self.assertRaisesRegex(ValueError, 'cannot be opened'):
                 community.acquire_world_session_lock(self.world)
         with patch.object(community, 'verify_world_session_lock', side_effect=ValueError('synthetic observer failure')):
@@ -187,7 +190,7 @@ import os,sys
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,sys.argv[1]);import community
-world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease.fileno()
+world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease._writer
 real_close=os.close
 def fail(target):
     if target==fd:raise OSError('synthetic uncertain close')
@@ -216,7 +219,7 @@ real_close(fd)
 import os,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1]);import community
-world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease.fileno()
+world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease._writer
 os.close(fd)
 other=world/'synthetic-other';other.write_bytes(b'untouched')
 replacement=os.open(other,os.O_RDONLY)
@@ -235,25 +238,57 @@ finally:os.close(fd)
                                  str(self.world)], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_interrupted_open_poisoning_is_confined_to_a_subprocess(self):
+    def test_interrupted_spawn_poisoning_is_confined_to_a_subprocess(self):
         code = r'''
 import os,sys
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,sys.argv[1]);import community
 world=Path(sys.argv[2])
-with patch.object(community.os,'open',side_effect=KeyboardInterrupt):
+with patch.object(community.subprocess,'Popen',side_effect=KeyboardInterrupt):
     try:community.acquire_world_session_lock(world)
     except KeyboardInterrupt:pass
     else:raise AssertionError('interrupt swallowed')
 with patch.object(community.os,'open',wraps=os.open) as opened:
     try:community.acquire_world_session_lock(world)
     except community.WorldSessionLockUncertain:pass
-    else:raise AssertionError('uncertain open was forgotten')
+    else:raise AssertionError('uncertain spawn was forgotten')
     opened.assert_not_called()
 '''
         result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
                                  str(self.world)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_child_without_a_start_grant_never_opens_the_lock(self):
+        code = r'''
+import subprocess,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1]);import community
+root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
+(world/'level.dat').write_bytes(b'synthetic level')
+real_popen=subprocess.Popen;seen=[]
+def spawn(*args,**kwargs):
+    child=real_popen(*args,**kwargs)
+    seen.append(child)
+    raise OSError('synthetic interruption after spawn, before handle handoff')
+try:
+    with patch.object(community.subprocess,'Popen',side_effect=spawn):
+        try:community.backup(root,{'level-name':'world'})
+        except community.WorldSessionLockUncertain:pass
+        else:raise AssertionError('uncertain startup accepted')
+    assert len(seen)==1 and seen[0].wait(timeout=10)!=0
+    assert not (world/'session.lock').exists()
+    assert (root/'launcher.lock').is_file()
+    assert not list((root/'backups').glob('*.zip'))
+finally:
+    for child in seen:
+        if child.poll() is None:child.kill()
+        child.wait(timeout=5)
+        child.stdout.close()
+'''
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
+                                 str(self.root / 'interrupted-spawn')], capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_fork_hook_refuses_before_opening_native_lock(self):
@@ -285,7 +320,7 @@ root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
 (world/'session.lock').write_bytes(b'synthetic lock');(world/'level.dat').write_bytes(b'synthetic level')
 actual_acquire=community.acquire_world_session_lock;actual_close=os.close;tracked=[]
 def acquire(path):
-    lease=actual_acquire(path);tracked.append(lease.fileno());return lease
+    lease=actual_acquire(path);tracked.append(lease._writer);return lease
 def close(fd):
     if tracked and fd==tracked[0]:raise OSError('synthetic uncertain close')
     return actual_close(fd)
@@ -337,6 +372,9 @@ try:
     pid=os.fork()
     if pid==0:
         try:
+            try:lease.close()
+            except ValueError:pass
+            else:os._exit(7)
             try:community.acquire_world_session_lock(world)
             except community.WorldSessionLockUncertain:os._exit(0)
             os._exit(9)

@@ -11,6 +11,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'server'))
 import community
+from native_lock_test_support import acquire_unlockable_holder, unlock_holder_for_test
 
 
 @unittest.skipUnless(os.name == 'posix', 'requires POSIX locks')
@@ -65,14 +66,18 @@ sys.stdin.read(1)
 
     def test_native_lock_lost_after_rename_retains_marker(self):
         actual_publish = community.publish_backup_no_replace
-        contenders = []
+        contenders, holders = [], []
+        def acquire(world):
+            lease = acquire_unlockable_holder(world)
+            holders.append(lease)
+            return lease
         def publish_then_release(source, destination, **kwargs):
             value = actual_publish(source, destination, **kwargs)
-            duplicate = os.open(self.world / 'session.lock', os.O_RDONLY | os.O_NOFOLLOW)
-            os.close(duplicate)  # Deliberately release this process's record lock.
+            unlock_holder_for_test(self.world, holders[0])
             contenders.append(self.hold_from_child(self.world / 'session.lock', record=True))
             return value
-        with patch.object(community, 'publish_backup_no_replace', side_effect=publish_then_release):
+        with patch.object(community, 'acquire_world_session_lock', side_effect=acquire), \
+             patch.object(community, 'publish_backup_no_replace', side_effect=publish_then_release):
             with self.assertRaisesRegex(community.BackupArchiveUncertain, 'may already'):
                 community.backup(self.root, {'level-name': 'world'})
         self.assertIsNone(contenders[0].poll())

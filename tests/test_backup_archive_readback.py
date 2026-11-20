@@ -166,7 +166,7 @@ class BackupArchiveReadbackTests(unittest.TestCase):
         self.assertIsNotNone(readers[0].poll())
         self.assert_unpublished_evidence()
 
-    def test_archive_reader_does_not_release_the_parent_native_lock(self):
+    def test_archive_reader_opening_native_lock_inode_does_not_release_holder_lock(self):
         descriptor = community.acquire_world_session_lock(self.world)
         code = ("import fcntl,sys;f=open(sys.argv[1],'r+b');\n"
                 "try:fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)\n"
@@ -174,14 +174,12 @@ class BackupArchiveReadbackTests(unittest.TestCase):
         def contender():
             return subprocess.run([sys.executable, '-I', '-S', '-c', code,
                                    str(self.world / 'session.lock')], timeout=10).returncode
-        class Borrowed:
-            def fileno(self):
-                return descriptor.fileno()
         state = community._BackupReaderState()
         try:
             self.assertEqual(contender(), 42)
-            with self.assertRaisesRegex(ValueError, 'verification'):
-                community.verify_staged_backup_archive(Borrowed(), [], state)
+            with (self.world / 'session.lock').open('rb') as borrowed:
+                with self.assertRaisesRegex(ValueError, 'verification'):
+                    community.verify_staged_backup_archive(borrowed, [], state)
             self.assertEqual(state.unconfirmed, 0)
             self.assertEqual(contender(), 42)
         finally:
