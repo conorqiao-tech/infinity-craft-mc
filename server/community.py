@@ -495,26 +495,33 @@ try:
         query = Flock()
         query.kind, query.whence, query.start, query.length = fcntl.F_WRLCK, os.SEEK_SET, 0, 0
         result = Flock.from_buffer_copy(fcntl.fcntl(fd, fcntl.F_GETLK, bytes(query)))
-        if (result.kind == fcntl.F_WRLCK and result.pid == int(sys.argv[4])
-                and result.whence == os.SEEK_SET and result.start == 0 and result.length == 0):
-            sys.exit(10)
-        sys.exit(20)
+        if (result.kind != fcntl.F_WRLCK or result.pid != int(sys.argv[4])
+                or result.whence != os.SEEK_SET or result.start != 0 or result.length != 0):
+            sys.exit(20)
     finally:
         os.close(fd)
+    if os.write(1, b"held\n") != 5:
+        sys.exit(30)
 except (OSError, ValueError):
     sys.exit(30)
 '''
+
+
+def _lock_observer_confirms(script, *arguments):
+    # A reaped child can appear to exit zero even when its status was lost.
+    # Require the exact reply emitted only after a successful observation.
+    result = subprocess.run([sys.executable, "-I", "-S", "-c", script, *map(str, arguments)],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
+    return result.returncode == 0 and result.stdout == b"held\n"
 
 
 def verify_world_session_lock(world, lease):
     """Observe the exclusive record lock; this does not prove continuous ownership."""
     try:
         (device, inode), owner = lease._observe_identity(world)
-        observer = subprocess.run([sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_OBSERVER,
-                                   str(world / "session.lock"), str(device), str(inode), str(owner)],
-                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
-        if observer.returncode != 10 or lease._observe_identity(world) != ((device, inode), owner):
+        if (not _lock_observer_confirms(_WORLD_SESSION_LOCK_OBSERVER, world / "session.lock", device, inode, owner)
+                or lease._observe_identity(world) != ((device, inode), owner)):
             raise ValueError("The Minecraft world lock is not confirmed; keep the world stopped for host review.")
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("The Minecraft world lock could not be confirmed; keep the world stopped for host review.") from error
@@ -1334,11 +1341,13 @@ try:
         try:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
-            sys.exit(10)  # The expected entry has an exclusive flock.
+            pass  # The expected entry has an exclusive flock.
         else:
             sys.exit(0)  # No exclusive lease; do not silently reacquire it.
     finally:
         os.close(fd)
+    if os.write(1, b"held\n") != 5:
+        sys.exit(30)
 except OSError:
     sys.exit(30)
 '''
@@ -1370,11 +1379,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
             # Open the path in a separate process. Closing another descriptor
             # for Minecraft's session.lock in this process can release its
             # POSIX record lock if an actor substitutes that inode here.
-            observer = subprocess.run([sys.executable, "-I", "-S", "-c", _LAUNCHER_LEASE_OBSERVER,
-                                       str(root / "launcher.lock"), str(held.st_dev), str(held.st_ino)],
-                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
-            if observer.returncode != 10:
+            if not _lock_observer_confirms(_LAUNCHER_LEASE_OBSERVER, root / "launcher.lock", held.st_dev, held.st_ino):
                 raise ValueError("The borrowed launcher lease is not confirmed; keep the world stopped for review.")
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # On Windows this only compares the descriptor to the entry. Backups

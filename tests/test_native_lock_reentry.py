@@ -291,6 +291,46 @@ finally:
                                  str(self.root / 'interrupted-spawn')], capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_lock_observers_require_replies_when_child_exit_status_can_be_lost(self):
+        code = r'''
+import fcntl,os,signal,sys,zipfile
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1]);import community
+root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
+(world/'level.dat').write_bytes(b'synthetic level')
+signal.signal(signal.SIGCHLD,signal.SIG_IGN)
+flag=os.open(root/'launcher.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+try:
+    fcntl.flock(flag,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    community.verify_borrowed_launcher_lease(root,flag)
+    native=community.acquire_world_session_lock(world)
+    try:
+        community.verify_world_session_lock(world,native)
+        with patch.object(community,'_WORLD_SESSION_LOCK_OBSERVER','raise SystemExit(17)'):
+            try:community.verify_world_session_lock(world,native)
+            except ValueError:pass
+            else:raise AssertionError('native observation accepted an empty reply')
+    finally:native.close()
+    with patch.object(community,'_LAUNCHER_LEASE_OBSERVER','raise SystemExit(17)'):
+        try:community.verify_borrowed_launcher_lease(root,flag)
+        except ValueError:pass
+        else:raise AssertionError('launcher observation accepted an empty reply')
+    fcntl.flock(flag,fcntl.LOCK_SH|fcntl.LOCK_NB)
+    try:community.verify_borrowed_launcher_lease(root,flag)
+    except ValueError:pass
+    else:raise AssertionError('launcher observation accepted a shared lease')
+    fcntl.flock(flag,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    archive=community.backup(root,{'level-name':'world'},locked=True,lease_fd=flag)
+    with zipfile.ZipFile(root/'backups'/archive) as backup:
+        assert backup.testzip() is None and backup.read('world/level.dat')==b'synthetic level'
+    assert (root/'launcher.lock').is_file()
+finally:os.close(flag)
+'''
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
+                                 str(self.root / 'reaped-observer')], capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_missing_fork_hook_refuses_before_opening_native_lock(self):
         code = r'''
 import os,sys
