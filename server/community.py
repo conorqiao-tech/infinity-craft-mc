@@ -347,9 +347,15 @@ class WorldSessionLock:
     def _close_pipe(self, attribute):
         descriptor = getattr(self, attribute)
         setattr(self, attribute, None)
-        if descriptor is not None:
+        if descriptor is None:
+            return
+        if attribute in self._pipe_identities:
             self._check_pipe(attribute, descriptor)
-            os.close(descriptor)
+        # If identification failed, the child was never given this pipe.
+        # Close the unshared end only if it is still a pipe.
+        elif not stat.S_ISFIFO(os.fstat(descriptor).st_mode):
+            raise OSError("The Minecraft world lock holder's control descriptor changed.")
+        os.close(descriptor)
 
     @staticmethod
     def _pipe_identity(descriptor):

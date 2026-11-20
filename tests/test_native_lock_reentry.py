@@ -291,6 +291,81 @@ finally:
                                  str(self.root / 'interrupted-spawn')], capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_pipe_identification_failure_closes_unshared_ends(self):
+        code = r'''
+import errno
+import os
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+root = Path(sys.argv[2])
+world = root / "fabric/world"
+world.mkdir(parents=True)
+(world / "level.dat").write_bytes(b"synthetic level")
+replacement = root / "synthetic replacement"
+replacement.write_bytes(b"keep replacement")
+case = sys.argv[3]
+failed_end = int(case != "reader")
+original_pipe = os.pipe
+original_fstat = os.fstat
+descriptors = []
+injected = False
+
+def create():
+    pair = original_pipe()
+    descriptors.extend(pair)
+    return pair
+
+def inspect(descriptor):
+    global injected
+    if descriptors and descriptor == descriptors[failed_end] and not injected:
+        injected = True
+        if case == "replacement":
+            reused = os.open(replacement, os.O_RDONLY)
+            try:
+                os.dup2(reused, descriptor)
+            finally:
+                os.close(reused)
+        raise OSError(errno.EIO, "synthetic pipe identification failure")
+    return original_fstat(descriptor)
+
+with patch.object(community.os, "pipe", create), patch.object(community.os, "fstat", inspect), \
+        patch.object(community.subprocess, "Popen", side_effect=AssertionError("holder was spawned")):
+    try:
+        community.backup(root, {"level-name": "world"})
+    except community.WorldSessionLockUncertain:
+        pass
+    else:
+        raise AssertionError("unconfirmed holder setup accepted")
+
+assert injected and len(descriptors) == 2
+assert (root / "launcher.lock").is_file()
+assert not (world / "session.lock").exists()
+assert not list((root / "backups").glob("*.zip"))
+for index, descriptor in enumerate(descriptors):
+    if case == "replacement" and index == failed_end:
+        assert os.read(descriptor, 16) == b"keep replacement"
+        os.close(descriptor)
+        continue
+    try:
+        original_fstat(descriptor)
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise AssertionError("unshared pipe descriptor was left open")
+'''
+        for case in ('reader', 'writer', 'replacement'):
+            with self.subTest(case=case):
+                result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
+                                         str(Path(community.__file__).parent),
+                                         str(self.root / case), case],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_lock_observers_require_replies_when_child_exit_status_can_be_lost(self):
         code = r'''
 import fcntl,os,signal,sys,zipfile
