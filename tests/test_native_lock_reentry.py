@@ -219,7 +219,7 @@ real_close(fd)
 import os,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1]);import community
-world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease._writer
+world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=getattr(lease,sys.argv[3])
 os.close(fd)
 other=world/'synthetic-other';other.write_bytes(b'untouched')
 replacement=os.open(other,os.O_RDONLY)
@@ -234,9 +234,12 @@ try:
     else:raise AssertionError('uncertain descriptor was forgotten')
 finally:os.close(fd)
 '''
-        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
-                                 str(self.world)], capture_output=True, text=True, timeout=15)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for attribute in ('_writer', '_reply_reader'):
+            with self.subTest(attribute=attribute):
+                result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
+                                         str(Path(community.__file__).parent), str(self.world), attribute],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_interrupted_spawn_poisoning_is_confined_to_a_subprocess(self):
         code = r'''
@@ -285,7 +288,7 @@ finally:
     for child in seen:
         if child.poll() is None:child.kill()
         child.wait(timeout=5)
-        child.stdout.close()
+        if child.stdout is not None:child.stdout.close()
 '''
         result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
                                  str(self.root / 'interrupted-spawn')], capture_output=True, text=True, timeout=20)
@@ -309,7 +312,9 @@ world.mkdir(parents=True)
 replacement = root / "synthetic replacement"
 replacement.write_bytes(b"keep replacement")
 case = sys.argv[3]
-failed_end = int(case != "reader")
+failed_end = {"reader": 0, "writer": 1, "reply-reader": 2, "reply-writer": 3,
+              "replacement": 1, "reply-replacement": 2}[case]
+replace_end = case.endswith("replacement")
 original_pipe = os.pipe
 original_fstat = os.fstat
 descriptors = []
@@ -322,9 +327,9 @@ def create():
 
 def inspect(descriptor):
     global injected
-    if descriptors and descriptor == descriptors[failed_end] and not injected:
+    if len(descriptors) > failed_end and descriptor == descriptors[failed_end] and not injected:
         injected = True
-        if case == "replacement":
+        if replace_end:
             reused = os.open(replacement, os.O_RDONLY)
             try:
                 os.dup2(reused, descriptor)
@@ -342,12 +347,12 @@ with patch.object(community.os, "pipe", create), patch.object(community.os, "fst
     else:
         raise AssertionError("unconfirmed holder setup accepted")
 
-assert injected and len(descriptors) == 2
+assert injected and len(descriptors) == (2 if failed_end < 2 else 4)
 assert (root / "launcher.lock").is_file()
 assert not (world / "session.lock").exists()
 assert not list((root / "backups").glob("*.zip"))
 for index, descriptor in enumerate(descriptors):
-    if case == "replacement" and index == failed_end:
+    if replace_end and index == failed_end:
         assert os.read(descriptor, 16) == b"keep replacement"
         os.close(descriptor)
         continue
@@ -358,7 +363,7 @@ for index, descriptor in enumerate(descriptors):
     else:
         raise AssertionError("unshared pipe descriptor was left open")
 '''
-        for case in ('reader', 'writer', 'replacement'):
+        for case in ('reader', 'writer', 'replacement', 'reply-reader', 'reply-writer', 'reply-replacement'):
             with self.subTest(case=case):
                 result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
                                          str(Path(community.__file__).parent),

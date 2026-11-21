@@ -302,18 +302,18 @@ if os.write(1, reply) != len(reply):
 '''
 
 
-def _read_world_lock_reply(process):
+def _read_world_lock_reply(descriptor):
     """Read a bounded response, including when the holder sends a partial line."""
     data = bytearray()
     limit = 128
     deadline = time.monotonic() + 5
     with selectors.DefaultSelector() as selector:
-        selector.register(process.stdout, selectors.EVENT_READ)
+        selector.register(descriptor, selectors.EVENT_READ)
         while len(data) < limit:
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not selector.select(remaining):
                 raise TimeoutError("Minecraft world lock holder reply timed out.")
-            block = os.read(process.stdout.fileno(), limit - len(data))
+            block = os.read(descriptor, limit - len(data))
             if not block:
                 break
             data.extend(block)
@@ -333,6 +333,8 @@ class WorldSessionLock:
         self._identity = None
         self._reader = None
         self._writer = None
+        self._reply_reader = None
+        self._reply_writer = None
         self._pipe_identities = {}
         self._process = None
         self._closed = False
@@ -354,7 +356,7 @@ class WorldSessionLock:
         # If identification failed, the child was never given this pipe.
         # Close the unshared end only if it is still a pipe.
         elif not stat.S_ISFIFO(os.fstat(descriptor).st_mode):
-            raise OSError("The Minecraft world lock holder's control descriptor changed.")
+            raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
         os.close(descriptor)
 
     @staticmethod
@@ -364,12 +366,19 @@ class WorldSessionLock:
 
     def _check_pipe(self, attribute, descriptor):
         if self._pipe_identity(descriptor) != self._pipe_identities[attribute]:
-            raise OSError("The Minecraft world lock holder's control descriptor changed.")
+            raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
 
     def _send(self, command):
         self._check_pipe("_writer", self._writer)
         if os.write(self._writer, command) != len(command):
             raise OSError("Incomplete command to the Minecraft world lock holder.")
+
+    def _receive(self):
+        descriptor = self._reply_reader
+        self._check_pipe("_reply_reader", descriptor)
+        reply = _read_world_lock_reply(descriptor)
+        self._check_pipe("_reply_reader", descriptor)
+        return reply
 
     def _start(self):
         try:
@@ -382,15 +391,19 @@ class WorldSessionLock:
             self._reader, self._writer = os.pipe()
             for attribute in ("_reader", "_writer"):
                 self._pipe_identities[attribute] = self._pipe_identity(getattr(self, attribute))
+            self._reply_reader, self._reply_writer = os.pipe()
+            for attribute in ("_reply_reader", "_reply_writer"):
+                self._pipe_identities[attribute] = self._pipe_identity(getattr(self, attribute))
             self._process = subprocess.Popen(
                 [sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_HOLDER,
                  str(self._path), str(self._pid)],
-                stdin=self._reader, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                stdin=self._reader, stdout=self._reply_writer, stderr=subprocess.DEVNULL,
                 close_fds=True, bufsize=0,
             )
             self._close_pipe("_reader")
+            self._close_pipe("_reply_writer")
             self._send(b"G")
-            reply = _read_world_lock_reply(self._process)
+            reply = self._receive()
             if reply in (b"busy\n", b"refused\n"):
                 if self._process.wait(timeout=5) != 0:
                     raise ValueError("The Minecraft world lock holder did not exit cleanly.")
@@ -413,7 +426,7 @@ class WorldSessionLock:
     def _dispose(self):
         process, self._process = self._process, None
         failures = []
-        for attribute in ("_writer", "_reader"):
+        for attribute in ("_writer", "_reader", "_reply_writer", "_reply_reader"):
             try:
                 self._close_pipe(attribute)
             except BaseException as error:
@@ -423,10 +436,6 @@ class WorldSessionLock:
                 if process.poll() is None:
                     process.kill()
                 process.wait(timeout=5)
-            except BaseException as error:
-                failures.append(error)
-            try:
-                process.stdout.close()
             except BaseException as error:
                 failures.append(error)
         if failures:
@@ -459,7 +468,7 @@ class WorldSessionLock:
                 if self._process.poll() is not None:
                     raise ValueError("The Minecraft world lock holder already exited.")
                 self._send(b"R")
-                if _read_world_lock_reply(self._process) != b"released\n" or self._process.wait(timeout=5) != 0:
+                if self._receive() != b"released\n" or self._process.wait(timeout=5) != 0:
                     raise ValueError("The Minecraft world lock holder did not confirm release.")
             except (OSError, subprocess.SubprocessError, ValueError) as error:
                 raise WorldSessionLockUncertain(
