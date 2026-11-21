@@ -103,14 +103,13 @@ import os,sys
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,sys.argv[1]);import community
-root=Path(sys.argv[2]);native=(root/'fabric/world/session.lock').stat()
-actual_close=os.close;observed=[]
-def close(fd):
-    info=os.fstat(fd)
-    if (info.st_dev,info.st_ino)==(native.st_dev,native.st_ino) and not observed:
-        observed.append(True);actual_close(fd);raise OSError('synthetic native lock close failure')
-    return actual_close(fd)
-with patch.object(community.os,'close',side_effect=close):
+root=Path(sys.argv[2]);observed=[]
+original_close_pipe=community.WorldSessionLock._close_pipe
+def close_pipe(lease, attribute):
+    original_close_pipe(lease, attribute)
+    if attribute=='_writer' and not observed:
+        observed.append(True);raise OSError('synthetic native lock close failure')
+with patch.object(community.WorldSessionLock,'_close_pipe',close_pipe):
     try:community.backup(root,{'level-name':'world'})
     except community.WorldSessionLockUncertain as error:
         assert isinstance(error.__cause__,OSError)

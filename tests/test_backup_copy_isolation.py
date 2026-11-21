@@ -433,14 +433,15 @@ class BackupCopyIsolationTests(unittest.TestCase):
                 process.wait(timeout=5)
                 process.stdout.close()
 
-    def test_reader_does_not_inherit_native_lock_descriptor(self):
+    def test_reader_does_not_inherit_native_lock_control_channel(self):
         original_acquire = community.acquire_world_session_lock
         original_script = community._BACKUP_FILE_READER
         def acquire(world):
             descriptor = original_acquire(world)
-            held = os.fstat(descriptor.fileno())
+            writer = descriptor._writer
+            held = os.fstat(writer)
             check = ("import os,sys\n"
-                     f"try: info=os.fstat({descriptor.fileno()})\n"
+                     f"try: info=os.fstat({writer})\n"
                      "except OSError: pass\n"
                      f"else:\n if (info.st_dev,info.st_ino)==({held.st_dev},{held.st_ino}): sys.exit(25)\n")
             community._BACKUP_FILE_READER = check + original_script

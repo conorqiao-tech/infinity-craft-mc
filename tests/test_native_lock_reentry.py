@@ -94,24 +94,23 @@ class NativeLockReentryTests(unittest.TestCase):
             second.close()
         self.assertEqual(self.contender(), 0)
 
-    def test_concurrent_open_attempt_is_refused_during_first_open(self):
+    def test_concurrent_acquisition_is_refused_during_holder_start(self):
         entered, proceed = threading.Event(), threading.Event()
-        original = os.open
+        original = community.WorldSessionLock._start
         seen = []
         result = []
-        def slow_open(path, *args, **kwargs):
-            if Path(path) == self.world/'session.lock':
-                seen.append(str(path))
-                entered.set()
-                if not proceed.wait(10):
-                    raise RuntimeError('synthetic open checkpoint timed out')
-            return original(path, *args, **kwargs)
+        def slow_start(lease):
+            seen.append(lease)
+            entered.set()
+            if not proceed.wait(10):
+                raise RuntimeError('synthetic startup checkpoint timed out')
+            return original(lease)
         def first():
             try:
                 result.append(community.acquire_world_session_lock(self.world))
             except BaseException as error:
                 result.append(error)
-        with patch.object(community.os, 'open', side_effect=slow_open):
+        with patch.object(community.WorldSessionLock, '_start', slow_start):
             thread = threading.Thread(target=first)
             thread.start()
             try:
@@ -133,7 +132,11 @@ class NativeLockReentryTests(unittest.TestCase):
         self.assertEqual(self.contender(), 0)
 
     def test_failed_open_or_observation_allows_later_acquisition(self):
-        with patch.object(community.os, 'open', side_effect=OSError('synthetic open failure')):
+        script = community._WORLD_SESSION_LOCK_HOLDER
+        source = script.replace('fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)',
+                                'raise PermissionError("synthetic open failure")')
+        self.assertNotEqual(source, script)
+        with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', source):
             with self.assertRaisesRegex(ValueError, 'cannot be opened'):
                 community.acquire_world_session_lock(self.world)
         with patch.object(community, 'verify_world_session_lock', side_effect=ValueError('synthetic observer failure')):
@@ -187,7 +190,7 @@ import os,sys
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,sys.argv[1]);import community
-world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease.fileno()
+world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease._writer
 real_close=os.close
 def fail(target):
     if target==fd:raise OSError('synthetic uncertain close')
@@ -216,7 +219,7 @@ real_close(fd)
 import os,sys
 from pathlib import Path
 sys.path.insert(0,sys.argv[1]);import community
-world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=lease.fileno()
+world=Path(sys.argv[2]);lease=community.acquire_world_session_lock(world);fd=getattr(lease,sys.argv[3])
 os.close(fd)
 other=world/'synthetic-other';other.write_bytes(b'untouched')
 replacement=os.open(other,os.O_RDONLY)
@@ -231,29 +234,181 @@ try:
     else:raise AssertionError('uncertain descriptor was forgotten')
 finally:os.close(fd)
 '''
-        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
-                                 str(self.world)], capture_output=True, text=True, timeout=15)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for attribute in ('_writer', '_reply_reader'):
+            with self.subTest(attribute=attribute):
+                result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
+                                         str(Path(community.__file__).parent), str(self.world), attribute],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_interrupted_open_poisoning_is_confined_to_a_subprocess(self):
+    def test_interrupted_spawn_poisoning_is_confined_to_a_subprocess(self):
         code = r'''
 import os,sys
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,sys.argv[1]);import community
 world=Path(sys.argv[2])
-with patch.object(community.os,'open',side_effect=KeyboardInterrupt):
+with patch.object(community.subprocess,'Popen',side_effect=KeyboardInterrupt):
     try:community.acquire_world_session_lock(world)
     except KeyboardInterrupt:pass
     else:raise AssertionError('interrupt swallowed')
 with patch.object(community.os,'open',wraps=os.open) as opened:
     try:community.acquire_world_session_lock(world)
     except community.WorldSessionLockUncertain:pass
-    else:raise AssertionError('uncertain open was forgotten')
+    else:raise AssertionError('uncertain spawn was forgotten')
     opened.assert_not_called()
 '''
         result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
                                  str(self.world)], capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_child_without_a_start_grant_never_opens_the_lock(self):
+        code = r'''
+import subprocess,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1]);import community
+root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
+(world/'level.dat').write_bytes(b'synthetic level')
+real_popen=subprocess.Popen;seen=[]
+def spawn(*args,**kwargs):
+    child=real_popen(*args,**kwargs)
+    seen.append(child)
+    raise OSError('synthetic interruption after spawn, before handle handoff')
+try:
+    with patch.object(community.subprocess,'Popen',side_effect=spawn):
+        try:community.backup(root,{'level-name':'world'})
+        except community.WorldSessionLockUncertain:pass
+        else:raise AssertionError('uncertain startup accepted')
+    assert len(seen)==1 and seen[0].wait(timeout=10)!=0
+    assert not (world/'session.lock').exists()
+    assert (root/'launcher.lock').is_file()
+    assert not list((root/'backups').glob('*.zip'))
+finally:
+    for child in seen:
+        if child.poll() is None:child.kill()
+        child.wait(timeout=5)
+        if child.stdout is not None:child.stdout.close()
+'''
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
+                                 str(self.root / 'interrupted-spawn')], capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_pipe_identification_failure_closes_unshared_ends(self):
+        code = r'''
+import errno
+import os
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+root = Path(sys.argv[2])
+world = root / "fabric/world"
+world.mkdir(parents=True)
+(world / "level.dat").write_bytes(b"synthetic level")
+replacement = root / "synthetic replacement"
+replacement.write_bytes(b"keep replacement")
+case = sys.argv[3]
+failed_end = {"reader": 0, "writer": 1, "reply-reader": 2, "reply-writer": 3,
+              "replacement": 1, "reply-replacement": 2}[case]
+replace_end = case.endswith("replacement")
+original_pipe = os.pipe
+original_fstat = os.fstat
+descriptors = []
+injected = False
+
+def create():
+    pair = original_pipe()
+    descriptors.extend(pair)
+    return pair
+
+def inspect(descriptor):
+    global injected
+    if len(descriptors) > failed_end and descriptor == descriptors[failed_end] and not injected:
+        injected = True
+        if replace_end:
+            reused = os.open(replacement, os.O_RDONLY)
+            try:
+                os.dup2(reused, descriptor)
+            finally:
+                os.close(reused)
+        raise OSError(errno.EIO, "synthetic pipe identification failure")
+    return original_fstat(descriptor)
+
+with patch.object(community.os, "pipe", create), patch.object(community.os, "fstat", inspect), \
+        patch.object(community.subprocess, "Popen", side_effect=AssertionError("holder was spawned")):
+    try:
+        community.backup(root, {"level-name": "world"})
+    except community.WorldSessionLockUncertain:
+        pass
+    else:
+        raise AssertionError("unconfirmed holder setup accepted")
+
+assert injected and len(descriptors) == (2 if failed_end < 2 else 4)
+assert (root / "launcher.lock").is_file()
+assert not (world / "session.lock").exists()
+assert not list((root / "backups").glob("*.zip"))
+for index, descriptor in enumerate(descriptors):
+    if replace_end and index == failed_end:
+        assert os.read(descriptor, 16) == b"keep replacement"
+        os.close(descriptor)
+        continue
+    try:
+        original_fstat(descriptor)
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise AssertionError("unshared pipe descriptor was left open")
+'''
+        for case in ('reader', 'writer', 'replacement', 'reply-reader', 'reply-writer', 'reply-replacement'):
+            with self.subTest(case=case):
+                result = subprocess.run([sys.executable, '-I', '-S', '-c', code,
+                                         str(Path(community.__file__).parent),
+                                         str(self.root / case), case],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_lock_observers_require_replies_when_child_exit_status_can_be_lost(self):
+        code = r'''
+import fcntl,os,signal,sys,zipfile
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,sys.argv[1]);import community
+root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
+(world/'level.dat').write_bytes(b'synthetic level')
+signal.signal(signal.SIGCHLD,signal.SIG_IGN)
+flag=os.open(root/'launcher.lock',os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+try:
+    fcntl.flock(flag,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    community.verify_borrowed_launcher_lease(root,flag)
+    native=community.acquire_world_session_lock(world)
+    try:
+        community.verify_world_session_lock(world,native)
+        with patch.object(community,'_WORLD_SESSION_LOCK_OBSERVER','raise SystemExit(17)'):
+            try:community.verify_world_session_lock(world,native)
+            except ValueError:pass
+            else:raise AssertionError('native observation accepted an empty reply')
+    finally:native.close()
+    with patch.object(community,'_LAUNCHER_LEASE_OBSERVER','raise SystemExit(17)'):
+        try:community.verify_borrowed_launcher_lease(root,flag)
+        except ValueError:pass
+        else:raise AssertionError('launcher observation accepted an empty reply')
+    fcntl.flock(flag,fcntl.LOCK_SH|fcntl.LOCK_NB)
+    try:community.verify_borrowed_launcher_lease(root,flag)
+    except ValueError:pass
+    else:raise AssertionError('launcher observation accepted a shared lease')
+    fcntl.flock(flag,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    archive=community.backup(root,{'level-name':'world'},locked=True,lease_fd=flag)
+    with zipfile.ZipFile(root/'backups'/archive) as backup:
+        assert backup.testzip() is None and backup.read('world/level.dat')==b'synthetic level'
+    assert (root/'launcher.lock').is_file()
+finally:os.close(flag)
+'''
+        result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
+                                 str(self.root / 'reaped-observer')], capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_fork_hook_refuses_before_opening_native_lock(self):
@@ -285,7 +440,7 @@ root=Path(sys.argv[2]);world=root/'fabric/world';world.mkdir(parents=True)
 (world/'session.lock').write_bytes(b'synthetic lock');(world/'level.dat').write_bytes(b'synthetic level')
 actual_acquire=community.acquire_world_session_lock;actual_close=os.close;tracked=[]
 def acquire(path):
-    lease=actual_acquire(path);tracked.append(lease.fileno());return lease
+    lease=actual_acquire(path);tracked.append(lease._writer);return lease
 def close(fd):
     if tracked and fd==tracked[0]:raise OSError('synthetic uncertain close')
     return actual_close(fd)
@@ -337,6 +492,9 @@ try:
     pid=os.fork()
     if pid==0:
         try:
+            try:lease.close()
+            except ValueError:pass
+            else:os._exit(7)
             try:community.acquire_world_session_lock(world)
             except community.WorldSessionLockUncertain:os._exit(0)
             os._exit(9)

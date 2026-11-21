@@ -220,11 +220,8 @@ def world_folder(root, props):
 SESSION_LOCK_AVAILABLE = (sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
                           and hasattr(os, "register_at_fork"))
 
-# POSIX record locks belong to a process, not an individual descriptor.
-# Opening and closing the same inode a second time in this process can release
-# the first lock. Reserve one slot before opening any session.lock, even for a
-# different world, because paths can be substituted between checks. Share the
-# state between aliases of this module in the same Python interpreter.
+# Preserve one active acquisition across aliases of this module. The holder
+# process owns the POSIX record lock so a close in the launcher cannot drop it.
 _WORLD_LOCK_STATE = builtins.__dict__.setdefault(
     "_infinitycraft_world_session_lock_state_v1",
     {"guard": threading.Lock(), "opening": object(), "poisoned": object(), "active": None},
@@ -247,45 +244,239 @@ with _WORLD_LOCK_STATE["guard"]:
 
 
 class WorldSessionLockUncertain(RuntimeError):
-    """The process cannot confirm that its native-lock descriptor was closed."""
+    """The native lock holder could not be started or released with confirmation."""
+
+
+_WORLD_SESSION_LOCK_HOLDER = r'''
+import errno, fcntl, os, selectors, stat, sys, time
+
+def receive(parent_pid, expected, timeout=None):
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    with selectors.DefaultSelector() as selector:
+        selector.register(0, selectors.EVENT_READ)
+        while os.getppid() == parent_pid:
+            remaining = deadline - time.monotonic() if deadline is not None else 0.1
+            if remaining <= 0:
+                return False
+            if selector.select(min(remaining, 0.1)):
+                return os.getppid() == parent_pid and os.read(0, 1) == expected
+    return False
+
+def hold(path, parent_pid):
+    # The parent sends the start byte only after it owns the process handle.
+    if not receive(parent_pid, b"G", timeout=5) or os.getppid() != parent_pid:
+        return None
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    except OSError:
+        return b"refused\n"
+    try:
+        info = os.fstat(fd)
+        current = os.stat(path, follow_symlinks=False)
+        identity = (info.st_dev, info.st_ino)
+        if (not stat.S_ISREG(info.st_mode) or not stat.S_ISREG(current.st_mode)
+                or info.st_nlink != 1 or current.st_nlink != 1
+                or identity != (current.st_dev, current.st_ino)):
+            return b"refused\n"
+        if os.getppid() != parent_pid:
+            return None
+        try:
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            if error.errno in (errno.EACCES, errno.EAGAIN):
+                return b"busy\n"
+            raise
+        if os.getppid() != parent_pid:
+            return None
+        print("ready", *identity, flush=True)
+        return b"released\n" if receive(parent_pid, b"R") else None
+    finally:
+        os.close(fd)
+
+reply = hold(sys.argv[1], int(sys.argv[2]))
+if reply is None:
+    sys.exit(1)
+# A terminal reply is possible only after the descriptor is closed.
+if os.write(1, reply) != len(reply):
+    sys.exit(1)
+'''
+
+
+def _read_world_lock_reply(descriptor):
+    """Read a bounded response, including when the holder sends a partial line."""
+    data = bytearray()
+    limit = 128
+    deadline = time.monotonic() + 5
+    with selectors.DefaultSelector() as selector:
+        selector.register(descriptor, selectors.EVENT_READ)
+        while len(data) < limit:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not selector.select(remaining):
+                raise TimeoutError("Minecraft world lock holder reply timed out.")
+            block = os.read(descriptor, limit - len(data))
+            if not block:
+                break
+            data.extend(block)
+            if b"\n" in data:
+                if data.endswith(b"\n") and data.count(b"\n") == 1:
+                    return bytes(data)
+                break
+    raise ValueError("Invalid or incomplete reply from the Minecraft world lock holder.")
 
 
 class WorldSessionLock:
-    """Own one native-lock descriptor and its process-local reservation."""
+    """Own the process that holds the native lock and its control channel."""
 
-    def __init__(self, descriptor):
-        self._descriptor = descriptor
+    def __init__(self, world):
+        self._path = world / "session.lock"
         self._pid = os.getpid()
+        self._identity = None
+        self._reader = None
+        self._writer = None
+        self._reply_reader = None
+        self._reply_writer = None
+        self._pipe_identities = {}
+        self._process = None
         self._closed = False
         self._close_uncertain = False
-        info = os.fstat(descriptor)
-        self._identity = (info.st_dev, info.st_ino)
 
-    def fileno(self):
-        if self._closed or self._pid != os.getpid():
-            raise ValueError("The Minecraft world lock is no longer available.")
-        return self._descriptor
+    def _path_identity(self):
+        info = os.stat(self._path, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ValueError("The Minecraft world lock must be a regular file with no aliases.")
+        return info.st_dev, info.st_ino
+
+    def _close_pipe(self, attribute):
+        descriptor = getattr(self, attribute)
+        setattr(self, attribute, None)
+        if descriptor is None:
+            return
+        if attribute in self._pipe_identities:
+            self._check_pipe(attribute, descriptor)
+        # If identification failed, the child was never given this pipe.
+        # Close the unshared end only if it is still a pipe.
+        elif not stat.S_ISFIFO(os.fstat(descriptor).st_mode):
+            raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
+        os.close(descriptor)
+
+    @staticmethod
+    def _pipe_identity(descriptor):
+        info = os.fstat(descriptor)
+        return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
+
+    def _check_pipe(self, attribute, descriptor):
+        if self._pipe_identity(descriptor) != self._pipe_identities[attribute]:
+            raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
+
+    def _send(self, command):
+        self._check_pipe("_writer", self._writer)
+        if os.write(self._writer, command) != len(command):
+            raise OSError("Incomplete command to the Minecraft world lock holder.")
+
+    def _receive(self):
+        descriptor = self._reply_reader
+        self._check_pipe("_reply_reader", descriptor)
+        reply = _read_world_lock_reply(descriptor)
+        self._check_pipe("_reply_reader", descriptor)
+        return reply
+
+    def _start(self):
+        try:
+            before = self._path_identity()
+        except FileNotFoundError:
+            before = None
+        except OSError as error:
+            raise ValueError("The Minecraft world lock cannot be checked safely.") from error
+        try:
+            self._reader, self._writer = os.pipe()
+            for attribute in ("_reader", "_writer"):
+                self._pipe_identities[attribute] = self._pipe_identity(getattr(self, attribute))
+            self._reply_reader, self._reply_writer = os.pipe()
+            for attribute in ("_reply_reader", "_reply_writer"):
+                self._pipe_identities[attribute] = self._pipe_identity(getattr(self, attribute))
+            self._process = subprocess.Popen(
+                [sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_HOLDER,
+                 str(self._path), str(self._pid)],
+                stdin=self._reader, stdout=self._reply_writer, stderr=subprocess.DEVNULL,
+                close_fds=True, bufsize=0,
+            )
+            self._close_pipe("_reader")
+            self._close_pipe("_reply_writer")
+            self._send(b"G")
+            reply = self._receive()
+            if reply in (b"busy\n", b"refused\n"):
+                if self._process.wait(timeout=5) != 0:
+                    raise ValueError("The Minecraft world lock holder did not exit cleanly.")
+            else:
+                match = re.fullmatch(rb"ready ([0-9]+) ([0-9]+)\n", reply)
+                if match is None:
+                    raise ValueError("Invalid Minecraft world lock holder readiness reply.")
+                self._identity = (int(match[1]), int(match[2]))
+                if before is not None and self._identity != before:
+                    raise ValueError("The Minecraft world lock changed during acquisition.")
+                return
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            raise WorldSessionLockUncertain(
+                "The Minecraft world lock holder could not be confirmed started; keep evidence for review."
+            ) from error
+        if reply == b"busy\n":
+            raise ValueError("Another Minecraft server may be using this world; stop it before backing up.")
+        raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.")
+
+    def _dispose(self):
+        process, self._process = self._process, None
+        failures = []
+        for attribute in ("_writer", "_reader", "_reply_writer", "_reply_reader"):
+            try:
+                self._close_pipe(attribute)
+            except BaseException as error:
+                failures.append(error)
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=5)
+            except BaseException as error:
+                failures.append(error)
+        if failures:
+            raise WorldSessionLockUncertain(
+                "The Minecraft world lock holder cleanup is uncertain; a backup may already exist. "
+                "Keep it and the launcher marker for review."
+            ) from failures[0]
+
+    def _observe_identity(self, world):
+        if (world / "session.lock" != self._path or self._pid != os.getpid()
+                or self._process is None or self._process.poll() is not None
+                or self._path_identity() != self._identity):
+            raise ValueError("The Minecraft world lock ownership changed; keep the world stopped for review.")
+        return self._identity, self._process.pid
 
     def close(self):
         with _WORLD_LOCK_STATE["guard"]:
+            if self._pid != os.getpid():
+                raise ValueError("The Minecraft world lock is not owned by this process.")
             if self._closed:
                 if self._close_uncertain:
                     raise WorldSessionLockUncertain("The Minecraft world lock closure remains uncertain; keep evidence for review.")
                 return
-            if self._pid != os.getpid() or _WORLD_LOCK_STATE["active"] is not self:
-                raise ValueError("The Minecraft world lock is not owned by this process.")
-            # A failing or interrupted close is uncertain: do not retry the
-            # descriptor or permit another acquisition in this process.
+            if _WORLD_LOCK_STATE["active"] is not self:
+                raise ValueError("The Minecraft world lock is not active in this process.")
             self._closed = True
             self._close_uncertain = True
             _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
             try:
-                info = os.fstat(self._descriptor)
-                if (info.st_dev, info.st_ino) != self._identity:
-                    raise WorldSessionLockUncertain("The Minecraft world-lock descriptor was replaced; keep evidence for review.")
-                os.close(self._descriptor)
-            except OSError as error:
-                raise WorldSessionLockUncertain("The Minecraft world lock could not be confirmed closed; a backup may already exist. Keep it and the launcher marker for review.") from error
+                if self._process.poll() is not None:
+                    raise ValueError("The Minecraft world lock holder already exited.")
+                self._send(b"R")
+                if self._receive() != b"released\n" or self._process.wait(timeout=5) != 0:
+                    raise ValueError("The Minecraft world lock holder did not confirm release.")
+            except (OSError, subprocess.SubprocessError, ValueError) as error:
+                raise WorldSessionLockUncertain(
+                    "The Minecraft world lock release is uncertain; a backup may already exist. "
+                    "Keep it and the launcher marker for review."
+                ) from error
+            finally:
+                self._dispose()
             self._close_uncertain = False
             _WORLD_LOCK_STATE["active"] = None
 
@@ -319,100 +510,62 @@ try:
         query = Flock()
         query.kind, query.whence, query.start, query.length = fcntl.F_WRLCK, os.SEEK_SET, 0, 0
         result = Flock.from_buffer_copy(fcntl.fcntl(fd, fcntl.F_GETLK, bytes(query)))
-        if (result.kind == fcntl.F_WRLCK and result.pid == int(sys.argv[4])
-                and result.whence == os.SEEK_SET and result.start == 0 and result.length == 0):
-            sys.exit(10)
-        sys.exit(20)
+        if (result.kind != fcntl.F_WRLCK or result.pid != int(sys.argv[4])
+                or result.whence != os.SEEK_SET or result.start != 0 or result.length != 0):
+            sys.exit(20)
     finally:
         os.close(fd)
+    if os.write(1, b"held\n") != 5:
+        sys.exit(30)
 except (OSError, ValueError):
     sys.exit(30)
 '''
 
 
-def _world_session_lock_identity(world, descriptor):
-    """Check the descriptor and path without reopening the lock in this process."""
-    try:
-        held = os.fstat(descriptor.fileno())
-        current = os.stat(world / "session.lock", follow_symlinks=False)
-        if (not stat.S_ISREG(held.st_mode) or not stat.S_ISREG(current.st_mode)
-                or held.st_nlink != 1 or current.st_nlink != 1
-                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
-            raise ValueError("The Minecraft world lock changed while preparing the backup; no archive was published.")
-        return held
-    except OSError as error:
-        raise ValueError("The Minecraft world lock changed or became unreadable; no archive was published.") from error
+def _lock_observer_confirms(script, *arguments):
+    # A reaped child can appear to exit zero even when its status was lost.
+    # Require the exact reply emitted only after a successful observation.
+    result = subprocess.run([sys.executable, "-I", "-S", "-c", script, *map(str, arguments)],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
+    return result.returncode == 0 and result.stdout == b"held\n"
 
 
-def verify_world_session_lock(world, descriptor):
+def verify_world_session_lock(world, lease):
     """Observe the exclusive record lock; this does not prove continuous ownership."""
-    held = _world_session_lock_identity(world, descriptor)
     try:
-        # F_GETLK ignores locks owned by its own process. Inspect from a child;
-        # opening and closing another descriptor in this process could release
-        # this process's record lock even while the original descriptor is open.
-        observer = subprocess.run([sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_OBSERVER,
-                                   str(world / "session.lock"), str(held.st_dev), str(held.st_ino), str(os.getpid())],
-                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                  stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
-        if observer.returncode != 10:
+        (device, inode), owner = lease._observe_identity(world)
+        if (not _lock_observer_confirms(_WORLD_SESSION_LOCK_OBSERVER, world / "session.lock", device, inode, owner)
+                or lease._observe_identity(world) != ((device, inode), owner)):
             raise ValueError("The Minecraft world lock is not confirmed; keep the world stopped for host review.")
-        _world_session_lock_identity(world, descriptor)
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError("The Minecraft world lock could not be confirmed; keep the world stopped for host review.") from error
 
 
 def acquire_world_session_lock(world):
-    """Hold Minecraft's advisory lock for a stopped-world backup on supported POSIX hosts."""
+    """Hold Minecraft's advisory lock in a separate process on supported POSIX hosts."""
     if not SESSION_LOCK_AVAILABLE:
         raise ValueError("This system cannot safely check the Minecraft world lock; use macOS or Linux to back up this world.")
     if _EXCLUSIVE_RENAME is None:
         raise ValueError("This system cannot safely retire a recovery journal or publish a backup; keep the world stopped for review.")
-    import fcntl
-    with _WORLD_LOCK_STATE["guard"]:
-        if _WORLD_LOCK_STATE["active"] is _WORLD_LOCK_STATE["poisoned"]:
-            raise WorldSessionLockUncertain("A Minecraft world lock is uncertain in this process; keep evidence for review.")
-        if _WORLD_LOCK_STATE["active"] is not None:
-            raise ValueError("A Minecraft world lock is already active in this process; keep the world stopped for review.")
-        _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["opening"]
-    descriptor = None
-    lease = None
-    open_uncertain = False
-    registered = False
+    lease = WorldSessionLock(world)
     try:
-        try:
-            open_uncertain = True
-            descriptor = os.open(world / "session.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        except OSError as error:
-            open_uncertain = False
-            raise ValueError("The Minecraft world lock cannot be opened safely; no backup was made.") from error
-        open_uncertain = False
-        lease = WorldSessionLock(descriptor)
         with _WORLD_LOCK_STATE["guard"]:
+            if _WORLD_LOCK_STATE["active"] is _WORLD_LOCK_STATE["poisoned"]:
+                raise WorldSessionLockUncertain("A Minecraft world lock is uncertain in this process; keep evidence for review.")
+            if _WORLD_LOCK_STATE["active"] is not None:
+                raise ValueError("A Minecraft world lock is already active in this process; keep the world stopped for review.")
             _WORLD_LOCK_STATE["active"] = lease
-        registered = True
-        _world_session_lock_identity(world, lease)
-        try:
-            # Java's FileChannel.tryLock and POSIX lockf use the same advisory
-            # record lock on the tested local macOS filesystem. Hold it for the
-            # full archive operation; it cannot constrain unrelated writers.
-            fcntl.lockf(lease.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as error:
-            raise ValueError("Another Minecraft server may be using this world; stop it before backing up.") from error
+        lease._start()
         verify_world_session_lock(world, lease)
         return lease
-    except BaseException:
-        if registered:
-            lease.close()
-        else:
-            with _WORLD_LOCK_STATE["guard"]:
-                if descriptor is not None:
-                    _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
-                    try:
-                        os.close(descriptor)
-                    except OSError as error:
-                        raise WorldSessionLockUncertain("The Minecraft world lock could not be confirmed closed; a backup may already exist. Keep it and the launcher marker for review.") from error
-                _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"] if open_uncertain else None
+    except BaseException as error:
+        with _WORLD_LOCK_STATE["guard"]:
+            if _WORLD_LOCK_STATE["active"] is lease:
+                _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
+                lease._dispose()
+                if not isinstance(error, (WorldSessionLockUncertain, KeyboardInterrupt, SystemExit)):
+                    _WORLD_LOCK_STATE["active"] = None
         raise
 
 
@@ -1203,11 +1356,13 @@ try:
         try:
             fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
-            sys.exit(10)  # The expected entry has an exclusive flock.
+            pass  # The expected entry has an exclusive flock.
         else:
             sys.exit(0)  # No exclusive lease; do not silently reacquire it.
     finally:
         os.close(fd)
+    if os.write(1, b"held\n") != 5:
+        sys.exit(30)
 except OSError:
     sys.exit(30)
 '''
@@ -1239,11 +1394,7 @@ def verify_borrowed_launcher_lease(root, descriptor):
             # Open the path in a separate process. Closing another descriptor
             # for Minecraft's session.lock in this process can release its
             # POSIX record lock if an actor substitutes that inode here.
-            observer = subprocess.run([sys.executable, "-I", "-S", "-c", _LAUNCHER_LEASE_OBSERVER,
-                                       str(root / "launcher.lock"), str(held.st_dev), str(held.st_ino)],
-                                      stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                      stderr=subprocess.DEVNULL, close_fds=True, timeout=5)
-            if observer.returncode != 10:
+            if not _lock_observer_confirms(_LAUNCHER_LEASE_OBSERVER, root / "launcher.lock", held.st_dev, held.st_ino):
                 raise ValueError("The borrowed launcher lease is not confirmed; keep the world stopped for review.")
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # On Windows this only compares the descriptor to the entry. Backups
