@@ -84,6 +84,14 @@ def publish(*args, **kwargs):
         os.kill(holder.pid, signal.SIGSTOP)
         wait_until_stopped(holder)
         events.append(('contender while stopped', contender()))
+    elif mode == 'kill-watchdog':
+        children = Path(f'/proc/{holder.pid}/task/{holder.pid}/children')
+        (watchdog_pid,) = map(int, children.read_text().split())
+        with os.fdopen(os.pidfd_open(watchdog_pid), 'rb') as watchdog:
+            signal.pidfd_send_signal(watchdog.fileno(), signal.SIGKILL)
+            import select
+            assert select.select([watchdog], [], [], 5)[0], 'watchdog did not exit'
+        events.append(('contender while launcher alive', contender()))
     elif mode == 'replace-reply':
         descriptor = lease._reply_reader
         reused = os.open(replacement_path, os.O_RDONLY)
@@ -119,6 +127,8 @@ try:
     if mode == 'suspend':
         assert ('contender while stopped', 42) in events, events
         assert elapsed < 20, elapsed
+    if mode == 'kill-watchdog':
+        assert ('contender while launcher alive', 42) in events, events
     if mode == 'replace-reply':
         assert os.pread(replacements[0], 16, 0) == b'keep replacement'
     assert (root / 'launcher.lock').is_file()
@@ -739,12 +749,29 @@ assert not thread.is_alive()
 
     @unittest.skipUnless(hasattr(os, 'fork'), 'requires fork')
     def test_launcher_death_releases_lock_while_descendant_keeps_control_writer(self):
+        self.assert_launcher_death_releases_lock(suspend_holder=False)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_launcher_death_releases_lock_while_holder_is_suspended(self):
+        self.assert_launcher_death_releases_lock(suspend_holder=True)
+
+    def assert_launcher_death_releases_lock(self, *, suspend_holder):
         code = r'''
-import os,sys,time
+import os,signal,sys,time
 from pathlib import Path
 sys.path.insert(0,sys.argv[1]);import community
 world=Path(sys.argv[2]);release=int(sys.argv[3])
 lease=community.acquire_world_session_lock(world)
+if sys.argv[4]=='stop':
+    os.kill(lease._process.pid,signal.SIGSTOP)
+    deadline=time.monotonic()+5
+    while True:
+        stopped,status=os.waitpid(lease._process.pid,os.WUNTRACED|os.WNOHANG)
+        if stopped:
+            assert os.WIFSTOPPED(status), status
+            break
+        assert time.monotonic()<deadline, 'holder did not stop'
+        time.sleep(0.01)
 writer=lease._writer;expected=lease._pipe_identities['_writer']
 child=os.fork()
 if child==0:
@@ -762,7 +789,7 @@ time.sleep(120)
         try:
             launcher = subprocess.Popen(
                 [sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
-                 str(self.world), str(release_read)],
+                 str(self.world), str(release_read), 'stop' if suspend_holder else 'run'],
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 pass_fds=(release_read,), start_new_session=True)
             os.close(release_read)
@@ -796,6 +823,40 @@ time.sleep(120)
                 self.reap_fixture_group(launcher.pid)
                 launcher.stdout.close()
 
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_linux_watchdog_must_arm_before_opening_world_lock(self):
+        code = r'''
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+root = Path(sys.argv[2])
+world = root / 'fabric/world'
+world.mkdir(parents=True)
+(world / 'level.dat').write_bytes(b'synthetic level')
+script = community._WORLD_SESSION_LOCK_HOLDER
+fault = script.replace('launcher_fd = os.pidfd_open(parent_pid)',
+                       'raise OSError("synthetic pidfd failure")', 1)
+assert fault != script
+with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', fault):
+    try:
+        community.backup(root, {'level-name': 'world'})
+    except community.WorldSessionLockUncertain as error:
+        assert 'launcher-death protection could not be armed' in str(error), str(error)
+    else:
+        raise AssertionError('backup succeeded without an armed watchdog')
+assert not (world / 'session.lock').exists()
+assert (root / 'launcher.lock').is_file()
+assert not list((root / 'backups').glob('*.zip'))
+'''
+        returncode, _, stderr, leftover = self.run_isolated(
+            code, Path(community.__file__).parent, self.root / 'unarmed-watchdog', timeout=30)
+        self.assertEqual(returncode, 0, stderr)
+        self.assertFalse(leftover, 'an unarmed fixture process outlived the backup')
+
     def assert_holder_fault_after_publication(self, mode):
         returncode, _, stderr, leftover = self.run_isolated(
             _HOLDER_FAULT_AFTER_PUBLICATION, Path(community.__file__).parent,
@@ -808,6 +869,10 @@ time.sleep(120)
 
     def test_holder_suspension_after_zip_publication_bounds_close_and_frees_lock(self):
         self.assert_holder_fault_after_publication('suspend')
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_watchdog_death_keeps_the_lock_until_the_launcher_releases(self):
+        self.assert_holder_fault_after_publication('kill-watchdog')
 
     def test_reply_reader_replacement_after_zip_publication_keeps_replacement(self):
         self.assert_holder_fault_after_publication('replace-reply')

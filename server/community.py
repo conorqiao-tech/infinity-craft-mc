@@ -256,6 +256,82 @@ class WorldSessionLockUncertain(RuntimeError):
 
 _WORLD_SESSION_LOCK_HOLDER = r'''
 import errno, fcntl, os, selectors, stat, sys, time
+from contextlib import ExitStack, contextmanager
+
+WATCH_LAUNCHER = r"""
+import selectors, signal, socket, sys
+
+launcher_fd, holder_fd, channel_fd = map(int, sys.argv[1:])
+with socket.socket(fileno=channel_fd) as channel, selectors.DefaultSelector() as selector:
+    selector.register(launcher_fd, selectors.EVENT_READ, "launcher")
+    selector.register(channel, selectors.EVENT_READ, "channel")
+    signal.pidfd_send_signal(holder_fd, 0)
+    channel.sendall(b"A")
+    while True:
+        events = selector.select()
+        if any(key.data == "launcher" for key, _ in events):
+            # Only confirmed launcher exit authorizes an asynchronous release.
+            # A monitor error must not drop a live launcher's world lock.
+            try:
+                signal.pidfd_send_signal(holder_fd, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            break
+        if events:
+            command = channel.recv(1)
+            if command == b"Q":  # The holder closed the native lock.
+                channel.sendall(b"D")
+            elif command:
+                raise ValueError("Invalid launcher watchdog shutdown request.")
+            break  # EOF also ends supervision once the holder is gone.
+"""
+
+@contextmanager
+def watch_launcher(parent_pid):
+    import signal, socket, subprocess
+
+    # The pidfds track processes, independent of the launcher's spawning thread.
+    # Check parentage on both sides of pidfd_open before trusting the handle.
+    with ExitStack() as resources:
+        if os.getppid() != parent_pid:
+            raise ProcessLookupError("Launcher exited before world lock setup.")
+        launcher_fd = os.pidfd_open(parent_pid)
+        resources.callback(os.close, launcher_fd)
+        if os.getppid() != parent_pid:
+            raise ProcessLookupError("Launcher exited during world lock setup.")
+        holder_fd = os.pidfd_open(os.getpid())
+        resources.callback(os.close, holder_fd)
+        holder_end, watch_end = socket.socketpair()
+        resources.enter_context(holder_end)
+        resources.enter_context(watch_end)
+        # The isolated holder must reap its own child, even if the launcher
+        # ignored SIGCHLD. The watchdog never inherits either launcher pipe.
+        signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+        watcher = subprocess.Popen(
+            [sys.executable, "-I", "-S", "-c", WATCH_LAUNCHER,
+             str(launcher_fd), str(holder_fd), str(watch_end.fileno())],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            pass_fds=(launcher_fd, holder_fd, watch_end.fileno()), start_new_session=True,
+        )
+        try:
+            watch_end.close()
+            holder_end.settimeout(4)
+            if holder_end.recv(1) != b"A":
+                raise ValueError("The launcher death watchdog did not arm.")
+            yield
+            holder_end.sendall(b"Q")
+            if holder_end.recv(1) != b"D":
+                raise ValueError("The launcher death watchdog did not confirm shutdown.")
+        finally:
+            holder_end.close()
+            try:
+                if watcher.wait(timeout=5) != 0:
+                    raise ValueError("The launcher death watchdog did not exit cleanly.")
+            except subprocess.TimeoutExpired:
+                watcher.kill()
+                watcher.wait(timeout=5)
+                raise
+
 
 def receive(parent_pid, expected, timeout=None):
     deadline = time.monotonic() + timeout if timeout is not None else None
@@ -269,9 +345,8 @@ def receive(parent_pid, expected, timeout=None):
                 return os.getppid() == parent_pid and os.read(0, 1) == expected
     return False
 
-def hold(path, parent_pid):
-    # The parent sends the start byte only after it owns the process handle.
-    if not receive(parent_pid, b"G", timeout=5) or os.getppid() != parent_pid:
+def hold_native(path, parent_pid):
+    if os.getppid() != parent_pid:
         return None
     try:
         fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
@@ -299,6 +374,20 @@ def hold(path, parent_pid):
         return b"released\n" if receive(parent_pid, b"R") else None
     finally:
         os.close(fd)
+
+def hold(path, parent_pid):
+    # The parent sends the start byte only after it owns the process handle.
+    if not receive(parent_pid, b"G", timeout=5) or os.getppid() != parent_pid:
+        return None
+    if sys.platform != "linux":
+        return hold_native(path, parent_pid)
+    with ExitStack() as resources:
+        try:
+            resources.enter_context(watch_launcher(parent_pid))
+        except (AttributeError, OSError, ValueError):
+            return b"watch-unavailable\n"
+        return hold_native(path, parent_pid)
+
 
 reply = hold(sys.argv[1], int(sys.argv[2]))
 if reply is None:
@@ -432,6 +521,12 @@ class WorldSessionLock:
             self._close_pipe("_reply_writer")
             self._send(b"G")
             reply = self._receive()
+            if reply == b"watch-unavailable\n":
+                raise WorldSessionLockUncertain(
+                    "Linux launcher-death protection could not be armed. "
+                    "A kernel and Python with working process file descriptor support are required; "
+                    "keep evidence for review."
+                )
             if reply in (b"busy\n", b"refused\n"):
                 if self._process.wait(timeout=5) != 0:
                     raise ValueError("The Minecraft world lock holder did not exit cleanly.")
