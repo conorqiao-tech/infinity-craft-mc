@@ -29,6 +29,11 @@ try:
 except ImportError:
     _ctypes = None
 
+try:
+    import fcntl as _fcntl
+except ImportError:
+    _fcntl = None
+
 
 def _load_exclusive_rename():
     """Resolve the native primitive before this process owns a world lock."""
@@ -218,7 +223,9 @@ def world_folder(root, props):
 
 
 SESSION_LOCK_AVAILABLE = (sys.platform in ("darwin", "linux") and hasattr(os, "O_NOFOLLOW")
-                          and hasattr(os, "register_at_fork"))
+                          and hasattr(os, "register_at_fork")
+                          and _fcntl is not None and hasattr(_fcntl, "F_GETFL"))
+_PIPE_ACCESS_MODE_MASK = getattr(os, "O_ACCMODE", os.O_RDONLY | os.O_WRONLY | os.O_RDWR)
 
 # Preserve one active acquisition across aliases of this module. The holder
 # process owns the POSIX record lock so a close in the launcher cannot drop it.
@@ -327,6 +334,13 @@ def _read_world_lock_reply(descriptor):
 class WorldSessionLock:
     """Own the process that holds the native lock and its control channel."""
 
+    _PIPE_ACCESS_MODES = {
+        "_reader": os.O_RDONLY,
+        "_writer": os.O_WRONLY,
+        "_reply_reader": os.O_RDONLY,
+        "_reply_writer": os.O_WRONLY,
+    }
+
     def __init__(self, world):
         self._path = world / "session.lock"
         self._pid = os.getpid()
@@ -354,23 +368,34 @@ class WorldSessionLock:
         if attribute in self._pipe_identities:
             self._check_pipe(attribute, descriptor)
         # If identification failed, the child was never given this pipe.
-        # Close the unshared end only if it is still a pipe.
-        elif not stat.S_ISFIFO(os.fstat(descriptor).st_mode):
+        # Close the unshared end only if it is still a pipe with the expected direction.
+        elif (not stat.S_ISFIFO(os.fstat(descriptor).st_mode)
+              or self._pipe_access_mode(descriptor) != self._PIPE_ACCESS_MODES[attribute]):
             raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
         os.close(descriptor)
 
     @staticmethod
+    def _pipe_access_mode(descriptor):
+        if _fcntl is None or not hasattr(_fcntl, "F_GETFL"):
+            raise OSError("The Minecraft world lock holder's pipe access mode cannot be checked.")
+        return _fcntl.fcntl(descriptor, _fcntl.F_GETFL) & _PIPE_ACCESS_MODE_MASK
+
+    @staticmethod
     def _pipe_identity(descriptor):
         info = os.fstat(descriptor)
-        return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
+        return (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode),
+                WorldSessionLock._pipe_access_mode(descriptor))
 
     def _check_pipe(self, attribute, descriptor):
         if self._pipe_identity(descriptor) != self._pipe_identities[attribute]:
             raise OSError("The Minecraft world lock holder's pipe descriptor changed.")
 
     def _send(self, command):
-        self._check_pipe("_writer", self._writer)
-        if os.write(self._writer, command) != len(command):
+        descriptor = self._writer
+        self._check_pipe("_writer", descriptor)
+        written = os.write(descriptor, command)
+        self._check_pipe("_writer", descriptor)
+        if written != len(command):
             raise OSError("Incomplete command to the Minecraft world lock holder.")
 
     def _receive(self):
@@ -394,10 +419,13 @@ class WorldSessionLock:
             self._reply_reader, self._reply_writer = os.pipe()
             for attribute in ("_reply_reader", "_reply_writer"):
                 self._pipe_identities[attribute] = self._pipe_identity(getattr(self, attribute))
+            reader, reply_writer = self._reader, self._reply_writer
+            self._check_pipe("_reader", reader)
+            self._check_pipe("_reply_writer", reply_writer)
             self._process = subprocess.Popen(
                 [sys.executable, "-I", "-S", "-c", _WORLD_SESSION_LOCK_HOLDER,
                  str(self._path), str(self._pid)],
-                stdin=self._reader, stdout=self._reply_writer, stderr=subprocess.DEVNULL,
+                stdin=reader, stdout=reply_writer, stderr=subprocess.DEVNULL,
                 close_fds=True, bufsize=0,
             )
             self._close_pipe("_reader")
@@ -439,6 +467,12 @@ class WorldSessionLock:
             except BaseException as error:
                 failures.append(error)
         if failures:
+            interrupt = next((error for error in failures
+                              if isinstance(error, (KeyboardInterrupt, SystemExit))), None)
+            if interrupt is not None:
+                if interrupt is failures[0]:
+                    raise interrupt
+                raise interrupt from failures[0]
             raise WorldSessionLockUncertain(
                 "The Minecraft world lock holder cleanup is uncertain; a backup may already exist. "
                 "Keep it and the launcher marker for review."
@@ -464,19 +498,28 @@ class WorldSessionLock:
             self._closed = True
             self._close_uncertain = True
             _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
+            interrupted = None
             try:
                 if self._process.poll() is not None:
                     raise ValueError("The Minecraft world lock holder already exited.")
                 self._send(b"R")
                 if self._receive() != b"released\n" or self._process.wait(timeout=5) != 0:
                     raise ValueError("The Minecraft world lock holder did not confirm release.")
+            except (KeyboardInterrupt, SystemExit) as error:
+                interrupted = error
+                raise
             except (OSError, subprocess.SubprocessError, ValueError) as error:
                 raise WorldSessionLockUncertain(
                     "The Minecraft world lock release is uncertain; a backup may already exist. "
                     "Keep it and the launcher marker for review."
                 ) from error
             finally:
-                self._dispose()
+                try:
+                    self._dispose()
+                except WorldSessionLockUncertain as cleanup_error:
+                    if interrupted is not None:
+                        raise interrupted from cleanup_error
+                    raise
             self._close_uncertain = False
             _WORLD_LOCK_STATE["active"] = None
 
@@ -563,7 +606,12 @@ def acquire_world_session_lock(world):
         with _WORLD_LOCK_STATE["guard"]:
             if _WORLD_LOCK_STATE["active"] is lease:
                 _WORLD_LOCK_STATE["active"] = _WORLD_LOCK_STATE["poisoned"]
-                lease._dispose()
+                try:
+                    lease._dispose()
+                except WorldSessionLockUncertain as cleanup_error:
+                    if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                        raise error from cleanup_error
+                    raise
                 if not isinstance(error, (WorldSessionLockUncertain, KeyboardInterrupt, SystemExit)):
                     _WORLD_LOCK_STATE["active"] = None
         raise

@@ -3,10 +3,13 @@ import os
 import importlib.util
 import json
 from pathlib import Path
+import select
+import signal
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +17,137 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'server'))
 import community
 import server as launcher
 import world_refresh as refresh
+
+
+# Fault one fixture-owned holder immediately after the ZIP receives its final
+# name. Runs in its own session so a stopped holder cannot outlive the test.
+_HOLDER_FAULT_AFTER_PUBLICATION = r'''
+import os, signal, subprocess, sys, time, zipfile
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+root = Path(sys.argv[2])
+mode = sys.argv[3]
+world = root / 'fabric/world'
+world.mkdir(parents=True)
+(world / 'session.lock').write_bytes(b'synthetic lock')
+(world / 'level.dat').write_bytes(b'synthetic level')
+replacement_path = root / 'synthetic replacement'
+replacement_path.write_bytes(b'keep replacement')
+actual_acquire = community.acquire_world_session_lock
+actual_publish = community.publish_backup_no_replace
+leases, holders, events, replacements = [], [], [], []
+
+
+def contender():
+    code = ("import fcntl,sys\n"
+            "f=open(sys.argv[1],'r+b')\n"
+            "try:fcntl.lockf(f,fcntl.LOCK_EX|fcntl.LOCK_NB)\n"
+            "except (BlockingIOError,PermissionError):sys.exit(42)\n"
+            "sys.exit(0)")
+    return subprocess.run([sys.executable, '-I', '-S', '-c', code, str(world / 'session.lock')],
+                          stdin=subprocess.DEVNULL, timeout=10).returncode
+
+
+def acquire(path):
+    lease = actual_acquire(path)
+    leases.append(lease)
+    holders.append(lease._process)
+    return lease
+
+
+def wait_until_stopped(holder):
+    deadline = time.monotonic() + 10
+    while True:
+        pid, status = os.waitpid(holder.pid, os.WUNTRACED | os.WNOHANG)
+        if pid == holder.pid:
+            if os.WIFSTOPPED(status):
+                return
+            raise AssertionError('synthetic holder exited instead of stopping: %r' % status)
+        if time.monotonic() >= deadline:
+            raise AssertionError('synthetic holder did not stop')
+        time.sleep(0.01)
+
+
+def publish(*args, **kwargs):
+    actual_publish(*args, **kwargs)
+    # The archive now has its final name; apply the fault at this checkpoint.
+    assert len(leases) == 1 and not events, (leases, events)
+    lease, holder = leases[0], holders[0]
+    if mode == 'kill':
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.wait(timeout=10)
+    elif mode == 'suspend':
+        os.kill(holder.pid, signal.SIGSTOP)
+        wait_until_stopped(holder)
+        events.append(('contender while stopped', contender()))
+    elif mode == 'replace-reply':
+        descriptor = lease._reply_reader
+        reused = os.open(replacement_path, os.O_RDONLY)
+        if reused != descriptor:
+            os.dup2(reused, descriptor, inheritable=False)
+            os.close(reused)
+        replacements.append(descriptor)
+    else:
+        raise AssertionError('unknown synthetic fault ' + mode)
+    events.append(mode)
+
+
+try:
+    started = time.monotonic()
+    error = None
+    with patch.object(community, 'acquire_world_session_lock', side_effect=acquire), \
+            patch.object(community, 'publish_backup_no_replace', side_effect=publish):
+        try:
+            community.backup(root, {'level-name': 'world'})
+        except BaseException as caught:
+            error = caught
+    elapsed = time.monotonic() - started
+    if error is None:
+        raise AssertionError('a holder fault after ZIP publication reported success')
+    assert events and events[-1] == mode, (events, repr(error))
+    if mode == 'kill':
+        assert isinstance(error, community.BackupPublishedLockUncertain), repr(error)
+        assert 'may already have been published' in str(error), str(error)
+    else:
+        assert isinstance(error, community.WorldSessionLockUncertain), repr(error)
+        assert 'a backup may already exist' in str(error), str(error)
+    assert community._backup_error_requires_review(error)
+    if mode == 'suspend':
+        assert ('contender while stopped', 42) in events, events
+        assert elapsed < 20, elapsed
+    if mode == 'replace-reply':
+        assert os.pread(replacements[0], 16, 0) == b'keep replacement'
+    assert (root / 'launcher.lock').is_file()
+    archives = sorted((root / 'backups').glob('*.zip'))
+    assert len(archives) == 1, archives
+    assert not list((root / 'backups').glob('*.partial'))
+    with zipfile.ZipFile(archives[0]) as archive:
+        assert archive.testzip() is None
+        assert archive.read('world/level.dat') == b'synthetic level'
+        assert 'BACKUP_INFO.json' in archive.namelist()
+    assert (world / 'level.dat').read_bytes() == b'synthetic level'
+    assert all(holder.poll() is not None for holder in holders), holders
+    assert contender() == 0
+    with patch.object(community.os, 'open', wraps=os.open) as opened:
+        try:
+            community.acquire_world_session_lock(world)
+        except community.WorldSessionLockUncertain:
+            pass
+        else:
+            raise AssertionError('an uncertain holder outcome was forgotten')
+        opened.assert_not_called()
+finally:
+    for descriptor in replacements:
+        os.close(descriptor)
+    for holder in holders:
+        if holder.poll() is None:
+            holder.kill()
+        holder.wait(timeout=10)
+'''
 
 
 @unittest.skipUnless(community.SESSION_LOCK_AVAILABLE and community._EXCLUSIVE_RENAME is not None,
@@ -532,6 +666,151 @@ assert not thread.is_alive()
         result = subprocess.run([sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
                                  str(self.world)], capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    @staticmethod
+    def reap_fixture_group(group, grace=5.0):
+        """Kill only members left in a fixture-created session; return whether any remained."""
+        def present():
+            try:
+                os.killpg(group, 0)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return False  # Not a group this user owns, so never signal it.
+            return True
+        deadline = time.monotonic() + grace
+        while present():
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+        else:
+            return False
+        try:
+            os.killpg(group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + grace
+        while present() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        return True
+
+    def run_isolated(self, code, *arguments, timeout):
+        """Run a script in a fixture-owned session; signal only that session if it overruns."""
+        process = subprocess.Popen([sys.executable, '-I', '-S', '-c', code, *map(str, arguments)],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True, start_new_session=True)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except BaseException:
+            self.reap_fixture_group(process.pid, grace=0)
+            process.communicate(timeout=10)
+            raise
+        finally:
+            leftover = self.reap_fixture_group(process.pid)
+        return process.returncode, stdout, stderr, leftover
+
+    def read_fixture_reports(self, stream, count, timeout):
+        descriptor = stream.fileno()
+        data = b''
+        deadline = time.monotonic() + timeout
+        while data.count(b'\n') < count:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self.fail('the fixture did not report readiness: %r' % data)
+            readable, _, _ = select.select([descriptor], [], [], remaining)
+            if readable:
+                block = os.read(descriptor, 4096)
+                if not block:
+                    self.fail('the fixture exited before reporting readiness: %r' % data)
+                data += block
+        return {fields[0]: fields[1:] for fields in (line.split() for line in data.decode('ascii').splitlines())}
+
+    @staticmethod
+    def wait_for_eof(stream, timeout):
+        descriptor = stream.fileno()
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            readable, _, _ = select.select([descriptor], [], [], remaining)
+            if readable and not os.read(descriptor, 4096):
+                return True
+
+    @unittest.skipUnless(hasattr(os, 'fork'), 'requires fork')
+    def test_launcher_death_releases_lock_while_descendant_keeps_control_writer(self):
+        code = r'''
+import os,sys,time
+from pathlib import Path
+sys.path.insert(0,sys.argv[1]);import community
+world=Path(sys.argv[2]);release=int(sys.argv[3])
+lease=community.acquire_world_session_lock(world)
+writer=lease._writer;expected=lease._pipe_identities['_writer']
+child=os.fork()
+if child==0:
+    try:
+        kept=lease._pipe_identity(writer)==expected
+        os.write(1,('descendant %d %d\n'%(os.getpid(),int(kept))).encode())
+        os.read(release,1)
+    finally:
+        os._exit(0)
+os.write(1,('launcher %d %d\n'%(os.getpid(),lease._process.pid)).encode())
+time.sleep(120)
+'''
+        release_read, release_write = os.pipe()
+        launcher = None
+        try:
+            launcher = subprocess.Popen(
+                [sys.executable, '-I', '-S', '-c', code, str(Path(community.__file__).parent),
+                 str(self.world), str(release_read)],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                pass_fds=(release_read,), start_new_session=True)
+            os.close(release_read)
+            release_read = None
+            reports = self.read_fixture_reports(launcher.stdout, 2, timeout=15)
+            self.assertEqual(sorted(reports), ['descendant', 'launcher'])
+            self.assertEqual(reports['descendant'][1], '1', 'the descendant did not keep the control writer')
+            self.assertEqual(self.contender(), 42)
+            # Only the fixture launcher, a direct unreaped child, is signalled.
+            os.kill(launcher.pid, signal.SIGKILL)
+            launcher.wait(timeout=10)
+            deadline = time.monotonic() + 10
+            while self.contender() != 0:
+                self.assertLess(time.monotonic(), deadline, 'the holder kept the lock after launcher death')
+                time.sleep(0.05)
+            # The descendant still holds the control writer and this stdout pipe.
+            output = launcher.stdout.fileno()
+            readable, _, _ = select.select([output], [], [], 0)
+            self.assertFalse(readable and os.read(output, 4096) == b'',
+                             'the descendant exited before the lock was released')
+        finally:
+            if release_read is not None:
+                os.close(release_read)
+            os.close(release_write)  # EOF releases the descendant.
+            if launcher is not None:
+                if launcher.poll() is None:
+                    launcher.kill()
+                launcher.wait(timeout=10)
+                self.wait_for_eof(launcher.stdout, timeout=10)
+                # Orphans are reaped by the system; kill only this fixture session if any remain.
+                self.reap_fixture_group(launcher.pid)
+                launcher.stdout.close()
+
+    def assert_holder_fault_after_publication(self, mode):
+        returncode, _, stderr, leftover = self.run_isolated(
+            _HOLDER_FAULT_AFTER_PUBLICATION, Path(community.__file__).parent,
+            self.root / ('fault-' + mode), mode, timeout=90)
+        self.assertEqual(returncode, 0, stderr)
+        self.assertFalse(leftover, 'a fixture process outlived the synthetic backup')
+
+    def test_holder_death_immediately_after_zip_publication_keeps_evidence(self):
+        self.assert_holder_fault_after_publication('kill')
+
+    def test_holder_suspension_after_zip_publication_bounds_close_and_frees_lock(self):
+        self.assert_holder_fault_after_publication('suspend')
+
+    def test_reply_reader_replacement_after_zip_publication_keeps_replacement(self):
+        self.assert_holder_fault_after_publication('replace-reply')
 
 
 if __name__ == '__main__':
