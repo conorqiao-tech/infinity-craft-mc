@@ -36,6 +36,7 @@ ALIASES = {
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
     **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
+    'beehive_front': 'beehive_front', 'beehive_front_honey': 'beehive_front_honey',
     'loom_top': 'loom_top', 'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
     'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
@@ -190,7 +191,36 @@ def loom_top():
     dot(tile, 8, 6, (75, 91, 99))
     return tile
 
+def hive_front(full):
+    # Three cedar rails and a dark flight entrance stay aligned at both honey levels.
+    tile = field((166, 122, 78), 58)
+    for y in (3, 8, 13):
+        for x in range(16):
+            dot(tile, x, y, (111, 77, 56))
+            dot(tile, x, y + 1, (186, 146, 98))
+    for x, y in ((2, 1), (6, 6), (11, 11), (4, 15)):
+        line(tile, [(x, y), (x + 1, y), (x + 2, y)], (149, 103, 66))
+    # Teal corner pins and the shallow landing board mark a crafted Infinity hive.
+    for x in (1, 14):
+        dot(tile, x, 1, (60, 109, 105))
+        dot(tile, x, 2, (100, 144, 128))
+    for x in range(4, 12):
+        dot(tile, x, 8, (63, 48, 43))
+        dot(tile, x, 9, (82, 60, 47))
+    for x in range(3, 13):
+        dot(tile, x, 10, (203, 165, 110))
+        dot(tile, x, 11, (130, 90, 64))
+    if full:
+        # Amber beads spill below the landing board so readiness reads by shape as well as hue.
+        for x, depth in ((4, 2), (5, 4), (6, 2), (8, 1), (9, 2), (10, 3), (11, 1)):
+            for y in range(9, 10 + depth):
+                dot(tile, x, y, (213, 123, 34) if y < 9 + depth else (164, 88, 33))
+        line(tile, [(4, 9), (5, 10), (5, 11), (9, 9), (10, 10)], (255, 207, 88))
+    return tile
+
 def make(name):
+    if name in ('beehive_front', 'beehive_front_honey'):
+        return hive_front(name == 'beehive_front_honey')
     if name == 'loom_top':
         return loom_top()
     if name.endswith('_ore'):
@@ -400,8 +430,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,9,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,9,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,10,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,10,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 

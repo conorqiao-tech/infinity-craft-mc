@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -169,6 +169,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.APIARY) return InfinityApiary.view(p);
         if (page == Page.RELAY) return InfinityRelay.view(p);
         if (page == Page.SURVEY) return InfinityOreSurvey.view(p);
         if (page == Page.SIGNAL_FLAGS) return TidewatchFlags.view(p);
@@ -193,6 +194,7 @@ final class InfinityJourney {
             choices.add(new Choice(Items.DIAMOND_ORE, "Infinity Ore Survey • mining", () -> open(p, Page.SURVEY)));
             choices.add(new Choice(Items.IRON_SWORD, "Infinity Defender • hostile encounters", () -> open(p, Page.DEFENDER)));
             choices.add(new Choice(Items.TROPICAL_FISH, "Infinity Tidewatch • fish field journal", () -> open(p, Page.TIDEWATCH)));
+            choices.add(new Choice(Items.HONEYCOMB, "Infinity Apiary • inspect a hive", InfinityApiary.COMB_TEXTURE, () -> open(p, Page.APIARY)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
