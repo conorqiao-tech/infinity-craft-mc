@@ -91,6 +91,17 @@ final class CommonsMenu {
             choices.add(new Choice(Items.COMPASS,"Claim Wayfinder gift • "+gift(p,3),()->result(p,CommonsEvents.claim(p,3),Page.ATLAS)));
             choices.add(new Choice(Items.NAME_TAG,"Wear Wayfinder title + star motes",()->{CommonsEvents.title(p,3);open(p,Page.ATLAS);}));
             choices.add(new Choice(Items.BUNDLE,"Open Pack Organizer",()->open(p,Page.PACK)));
+            var trailhead = AtlasTrailhead.read(p);
+            if (trailhead == null && GameModes.state(p).contains(AtlasTrailhead.KEY)) {
+                content += "\nSaved trailhead needs host review.";
+            } else {
+                content += "\n" + (trailhead == null
+                    ? "Mark a personal trailhead here in Survival or Hardcore to find your way back."
+                    : trailhead.navigation(p));
+                choices.add(new Choice(Items.MAP, trailhead == null ? "Mark my trailhead here" : "Replace my saved trailhead with this location",
+                    () -> result(p, AtlasTrailhead.mark(p, trailhead), Page.ATLAS)));
+                if (trailhead != null) choices.add(new Choice(Items.SPYGLASS, "Refresh trailhead bearing", () -> open(p, Page.ATLAS)));
+            }
         }else if(page==Page.PACK){
             title="Review Pack Organizer";var review=PlayerWorkshop.review(p);
             arrangement=review.after().stream().map(ItemStack::copy).toList();

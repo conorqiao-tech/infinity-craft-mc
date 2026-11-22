@@ -8,6 +8,8 @@
 
 **Infinity Wheat Harvest.** In **Infinity Journey**, choose **Neighbor • Commons pantry** to open **Infinity Harvest Together**, then select **Start Infinity Wheat Harvest**. Harvest eight fully grown wheat crops in Survival or Hardcore. Each ripe crop counts once when you break it, and the same menu keeps your progress between sessions. Collect your wheat normally or offer it through a pantry delivery.
 
+**Personal trailhead.** Open the **Expedition Atlas** in Survival or Hardcore and choose **Mark my trailhead here**. The Atlas saves the block coordinates and dimension with your character. Open the Atlas again or choose **Refresh trailhead bearing** for a compass direction and approximate horizontal distance back to that spot. In another dimension the Atlas shows where you left it. Use **Replace my saved trailhead with this location** to move your mark.
+
 **Infinity Defender** is an optional Survival/Hardcore combat challenge in Infinity Journey. Start it and personally defeat one of each of eight hostile families. Spawned hostiles can count. Pausing keeps progress, and all eight unlock a repeatable decorative banner in an empty slot. This path does not select targets or alter creatures, helpers, damage or drops.
 
 **The Odyssey ruins** appear sparsely in newly generated Overworld, Nether and End terrain. Twenty-one biome palettes dress the original circuit shape, with one chest holding the lower chest's exact loot and its original book. A matching starting prophecy arrives in an empty inventory slot; recover it through **Infinity Menu → The Odyssey • your prophecy**. See [ODYSSEY.md](ODYSSEY.md), including the owner's explicitly selected automatic repeating command.

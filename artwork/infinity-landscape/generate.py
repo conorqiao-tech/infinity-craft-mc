@@ -43,6 +43,7 @@ ALIASES = {
 ITEM_ALIASES = {
     'iron_ingot': 'iron_ingot', 'gold_ingot': 'gold_ingot',
     'copper_ingot': 'copper_ingot', 'netherite_ingot': 'netherite_ingot',
+    'map': 'map_empty', 'spyglass': 'spyglass',
     'diamond': 'diamond', 'emerald': 'emerald', 'coal': 'coal',
     'redstone': 'redstone_dust', 'amethyst_shard': 'amethyst_shard',
     'raw_iron': 'raw_iron', 'raw_gold': 'raw_gold', 'raw_copper': 'raw_copper',
@@ -209,8 +210,35 @@ def make(name):
     line(tile, [(2,3),(3,3),(4,4),(9,2),(10,2),(10,3),(12,9),(13,9),(5,12),(6,12),(7,13)], accents[name])
     return tile
 
+def wayfinding_icon(name):
+    # Each row is one row of ink, parchment, brass or glass on a 16px canvas.
+    colors = {
+        '.': (0, 0, 0, 0), 'k': (62, 47, 57, 255), 'd': (138, 86, 57, 255),
+        'b': (203, 136, 69, 255), 'h': (246, 199, 116, 255),
+        'p': (238, 210, 154, 255), 'f': (205, 168, 120, 255),
+        'w': (253, 233, 186, 255), 't': (48, 135, 132, 255),
+        'g': (104, 209, 193, 255), 'l': (207, 248, 231, 255),
+    }
+    if name == 'map':
+        rows = (
+            '................', '.....kk.........', '...kkppkk...kk..', '.kkpwppffkkkppk.',
+            '.kpwpppfffpppwk.', '.kppgtpfffpwwpk.', '.kptltpfffpppdk.', '.kpptgpfffppbpk.',
+            '.kpppppfffppbpk.', '.kwppppfffbbppk.', '.kpppppfffpppwk.', '.kpppkkffppdpwk.',
+            '.kppk..kkfpppkk.', '.kkk.....kkpk...', '...........k....', '................',
+        )
+    else:
+        rows = (
+            '................', '...........kkk..', '..........khltk.', '.........khllgtk',
+            '........kbhgggtk', '.......khbdttdk.', '......kdhhbbdk..', '.....kbddhbdk...',
+            '....kbhbdddk....', '...kdhhbdkk.....', '...kbdhhdk......', '..kgkbbdk.......',
+            '.klgtkdk........', '.ktgtdk.........', '..kkdk..........', '................',
+        )
+    return [[colors[ink] for ink in row] for row in rows]
+
 def make_item(name):
-    """Draw recognizable, transparent material icons without source artwork."""
+    """Draw recognizable, transparent inventory icons without source artwork."""
+    if name in ('map', 'spyglass'):
+        return wayfinding_icon(name)
     colors = {
         'iron_ingot': (190, 200, 207), 'gold_ingot': (229, 179, 55),
         'copper_ingot': (188, 112, 76), 'netherite_ingot': (72, 65, 78),
@@ -264,10 +292,10 @@ def main():
         'min_format': [100,2], 'max_format': [100,2]}}, indent=2)+'\n').encode())
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
-        'description':'Original optional Infinity terrain and materials preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,5,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,5,0]}]}
+        'description':'Original optional Infinity terrain and items preview; no behavior pack.',
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,6,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,6,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
-    print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'material textures for each edition.')
+    print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 
 if __name__ == '__main__': main()

@@ -2,11 +2,11 @@
   "format_version": 2,
   "header": {
     "name": "Infinity Landscape Preview",
-    "description": "Original optional Infinity terrain and materials preview; no behavior pack.",
+    "description": "Original optional Infinity terrain and items preview; no behavior pack.",
     "uuid": "990f020c-69dd-5741-a371-e0e124581ed1",
     "version": [
       0,
-      5,
+      6,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "8424dd19-7d9f-50a9-8f40-594f4a222341",
       "version": [
         0,
-        5,
+        6,
         0
       ]
     }
