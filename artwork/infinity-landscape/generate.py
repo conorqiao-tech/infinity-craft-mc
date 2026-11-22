@@ -36,7 +36,7 @@ ALIASES = {
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
     **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
-    'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
+    'loom_top': 'loom_top', 'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
     'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
@@ -172,7 +172,27 @@ def cut_copper():
         dot(tile, x, y + 1, (137, 86, 64))
     return tile
 
+def loom_top():
+    # Framed warp threads give way to alternating bands of finished cloth.
+    tile = field((110, 73, 57), 41)
+    for x in range(2, 14):
+        for y in range(2, 14):
+            thread = (219, 205, 167) if x % 2 == 0 else (64, 57, 65)
+            if y >= 7:
+                band = ((56, 129, 128), (64, 81, 113), (184, 106, 86))[(y - 7) // 2 % 3]
+                thread = tuple(value + 19 for value in band) if (x + y) % 2 else band
+            dot(tile, x, y, thread)
+    for x in range(1, 15):
+        dot(tile, x, 1, (187, 143, 98))
+        dot(tile, x, 14, (73, 51, 52))
+    line(tile, [(5, 8), (6, 7), (7, 7), (8, 6), (9, 6), (10, 5)], (233, 179, 102))
+    line(tile, [(6, 8), (7, 8), (8, 7), (9, 7)], (123, 83, 60))
+    dot(tile, 8, 6, (75, 91, 99))
+    return tile
+
 def make(name):
+    if name == 'loom_top':
+        return loom_top()
     if name.endswith('_ore'):
         deep = name.startswith('deepslate_')
         ore = name[len('deepslate_'):] if deep else name
@@ -380,8 +400,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,8,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,8,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,9,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,9,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 

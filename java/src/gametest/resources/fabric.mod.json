@@ -97,7 +97,8 @@
       "dev.convergence.InfinityCreativeLoopGameTests",
       "dev.convergence.InfinityOreSurveyGameTests",
       "dev.convergence.InfinityDefenderGameTests",
-      "dev.convergence.InfinityTidewatchGameTests"
+      "dev.convergence.InfinityTidewatchGameTests",
+      "dev.convergence.TidewatchFlagGameTests"
     ]
   },
   "mixins": [
@@ -170,7 +171,8 @@
       "dev.convergence.InfinityCreativeLoopGameTests",
       "dev.convergence.InfinityOreSurveyGameTests",
       "dev.convergence.InfinityDefenderGameTests",
-      "dev.convergence.InfinityTidewatchGameTests"
+      "dev.convergence.InfinityTidewatchGameTests",
+      "dev.convergence.TidewatchFlagGameTests"
     ]
   },
   "depends": {

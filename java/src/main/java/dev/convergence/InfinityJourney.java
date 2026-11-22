@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -171,6 +171,7 @@ final class InfinityJourney {
     static View view(ServerPlayer p, Page page) {
         if (page == Page.RELAY) return InfinityRelay.view(p);
         if (page == Page.SURVEY) return InfinityOreSurvey.view(p);
+        if (page == Page.SIGNAL_FLAGS) return TidewatchFlags.view(p);
         if (page == Page.TIDEWATCH) return InfinityTidewatch.view(p);
         if (page == Page.DEFENDER) return InfinityDefender.view(p);
         var choices = new ArrayList<Choice>();
@@ -237,6 +238,9 @@ final class InfinityJourney {
         for (int i = 0; i < cards.size() && i < 8; i++)
             CreativeStudio.icon(chest, i, Items.WRITTEN_BOOK, view.title() + " • " + (i + 1), cards.get(i).toArray(String[]::new));
         chest.setItem(17, emblem(p, true));
+        if (page == Page.SIGNAL_FLAGS) {
+            for (var design : TidewatchFlags.Design.values()) chest.setItem(9 + design.ordinal(), design.banner(p));
+        }
         for (int i = 0; i < view.choices().size(); i++) {
             var choice = view.choices().get(i); CreativeStudio.icon(chest, 27 + i, choice.icon(), choice.label());
         }

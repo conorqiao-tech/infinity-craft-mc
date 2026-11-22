@@ -10,6 +10,8 @@
 
 **Infinity Tidewatch.** Open **Infinity Menu → Infinity Journey → Infinity Tidewatch** to record cod, salmon, tropical fish and pufferfish. In Survival or Hardcore, select the species while a living fish is in water within eight blocks with a clear view. A clear glass aquarium window lets you record a fish through it. Each species fills one entry in your personal journal, and you can return later to finish the collection.
 
+**Tidewatch signal flags.** Each recorded fish unlocks a banner design. Aim at a loom, open **Infinity Tidewatch → Signal flags**, and choose **Weave** in Survival or Hardcore. Each flag uses one plain white banner and one dye of each color shown. Shoal uses cyan and blue, Upstream uses red and gray, Reef uses orange and light blue, and Caution uses black and yellow. Carry the supplies in your hotbar or main inventory. Place the woven flag on the ground or hang it on a wall like any banner.
+
 **Personal trailhead.** Open the **Expedition Atlas** in Survival or Hardcore and choose **Mark my trailhead here**. The Atlas saves the block coordinates and dimension with your character. Open the Atlas again or choose **Refresh trailhead bearing** for a compass direction and approximate horizontal distance back to that spot. In another dimension the Atlas shows where you left it. Use **Replace my saved trailhead with this location** to move your mark.
 
 **Infinity Defender** is an optional Survival/Hardcore combat challenge in Infinity Journey. Start it and personally defeat one of each of eight hostile families. Spawned hostiles can count. Pausing keeps progress, and all eight unlock a repeatable decorative banner in an empty slot. This path does not select targets or alter creatures, helpers, damage or drops.

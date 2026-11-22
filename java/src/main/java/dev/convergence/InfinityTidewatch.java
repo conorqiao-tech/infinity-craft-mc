@@ -95,6 +95,8 @@ final class InfinityTidewatch {
                     InfinityJourney.open(player, InfinityJourney.Page.TIDEWATCH);
                 }));
             }
+            choices.add(new InfinityJourney.Choice(Items.LOOM, "Signal flags • weave at a loom",
+                () -> InfinityJourney.open(player, InfinityJourney.Page.SIGNAL_FLAGS)));
             if (seen == COMPLETE) body.append("Field journal complete. You have recorded all four fish.");
         }
         choices.add(new InfinityJourney.Choice(Items.ARROW, "Back to Infinity Journey", () -> InfinityJourney.open(player)));

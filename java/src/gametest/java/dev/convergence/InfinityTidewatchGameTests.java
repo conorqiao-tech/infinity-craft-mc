@@ -4,6 +4,7 @@ import com.google.gson.JsonParser;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -98,28 +99,42 @@ public class InfinityTidewatchGameTests {
     @GameTest public void hardcoreRealmRecordsSightingsIntoThePersonalJournal(GameTestHelper c) {
         var f = new CommonsGameTests();
         var p = f.survival(c, "tide-hardcore");
+        GameModes.switchNow(p, GameModes.Mode.HARDCORE, null);
+        var level = p.level();
+        var chunk = p.chunkPosition();
+        var at = new BlockPos(chunk.getMinBlockX() + 8, level.getMaxY() - 4, chunk.getMinBlockZ() + 8);
+        var pool = at.offset(2, 0, 0);
+        var before = level.getBlockState(pool);
+        var salmon = InfinityTidewatch.Species.SALMON.type.create(level, EntitySpawnReason.COMMAND);
+        Runnable cleanup = () -> {
+            salmon.discard();
+            level.setBlock(pool, before, 2);
+            InfinityJourneyGameTests.cleanup(f, p);
+        };
         try {
-            GameModes.switchNow(p, GameModes.Mode.HARDCORE, null);
-            c.assertValueEqual(GameModes.of(p.level()), GameModes.Mode.HARDCORE, "Entered the native Hardcore realm");
-            var level = p.level();
-            var at = p.blockPosition().above(12);
+            c.assertValueEqual(GameModes.of(level), GameModes.Mode.HARDCORE, "Entered the native Hardcore realm");
             p.setPos(at.getX() + .5, at.getY(), at.getZ() + .5);
-            var pool = at.offset(2, 0, 0);
-            var before = level.getBlockState(pool);
-            var salmon = InfinityTidewatch.Species.SALMON.type.create(level, EntitySpawnReason.COMMAND);
+            level.setBlock(pool, Blocks.WATER.defaultBlockState(), 2);
+            salmon.setPos(pool.getX() + .5, pool.getY(), pool.getZ() + .5);
+            salmon.setNoAi(true);
+            salmon.setNoGravity(true);
+            c.assertTrue(level.addFreshEntity(salmon), "The fixture salmon enters the Hardcore level");
+        } catch (RuntimeException | Error failure) {
+            cleanup.run();
+            throw failure;
+        }
+        // A freshly entered realm can accept the fish before the native spatial query can find it.
+        c.onEachTick(() -> {
+            boolean tracked = level.getEntitiesOfClass(AbstractFish.class, salmon.getBoundingBox()).contains(salmon);
+            if (!tracked && c.getTick() < 40) return;
             try {
-                level.setBlock(pool, Blocks.WATER.defaultBlockState(), 2);
-                salmon.setPos(pool.getX() + .5, pool.getY(), pool.getZ() + .5);
-                level.addFreshEntity(salmon);
+                c.assertTrue(tracked, "The native entity index exposes the fixture salmon");
                 InfinityJourney.open(p, InfinityJourney.Page.TIDEWATCH);
                 click(p, "Record Salmon");
                 c.assertValueEqual(InfinityTidewatch.sightings(f.reloadDisk(p)), 2, "Hardcore sightings persist on the character");
-            } finally {
-                salmon.discard();
-                level.setBlock(pool, before, 2);
-            }
-        } finally { InfinityJourneyGameTests.cleanup(f, p); }
-        c.succeed();
+            } finally { cleanup.run(); }
+            c.succeed();
+        });
     }
 
     @GameTest public void rangeModeAndUnreadableJournalRefuseSightings(GameTestHelper c) {
