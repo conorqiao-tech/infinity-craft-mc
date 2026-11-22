@@ -35,6 +35,7 @@ ALIASES = {
     'cherry_planks': 'cherry_planks', 'bamboo_planks': 'bamboo_planks',
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
+    'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
 
@@ -73,6 +74,35 @@ def stone(seed=1):
     line(tile, [(3,12),(4,12),(5,12),(5,13),(6,13)], (96, 154, 156))
     return tile
 
+def amethyst_cluster():
+    # Five joined crystal tips with transparent gaps. The broad base meets the
+    # supporting block when Minecraft projects the sprite onto its crossed planes.
+    palette = {
+        '.': (0, 0, 0, 0), 's': (74, 48, 108, 255), 'v': (130, 79, 170, 255),
+        'l': (193, 144, 222, 255), 'h': (236, 208, 249, 255), 't': (159, 235, 218, 255),
+    }
+    rows = (
+        '................', '.......h........', '......hlv.......', '......hlvs......',
+        '...l..tlvs......', '..hlv.llvs...h..', '..hlvsllvs..hlv.', '..vlvsllvs..tlvs',
+        'h.vlvsllvs.hlvs.', 'hl.vvslvvs.lvs..', 'hlv.vslvvslvvs..', '.lvsslvsstlvvs..',
+        '.vlvsllsvlvvsl..', '..vvslvllvvslvs.', '...svvvvsvvvvvs.', '..ssvvssvvssvss.',
+    )
+    return [[palette[shade] for shade in row] for row in rows]
+
+def amethyst_block():
+    tile = field((132, 88, 160), 18)
+    # Fracture planes repeat across adjacent blocks. Keep the polished teal
+    # reflections sparse so the host stone reads as violet next to the buds.
+    for ox, oy in ((1, 3), (9, 11)):
+        for dy, (left, right) in enumerate(((3, 4), (2, 5), (1, 6), (0, 6), (1, 5), (2, 4))):
+            for dx in range(left, right + 1):
+                shade = (92, 59, 127) if dx >= 4 else (169, 122, 195)
+                if dx == left and dy < 4:
+                    shade = (205, 163, 224)
+                dot(tile, (ox + dx) % 16, (oy + dy) % 16, shade)
+        dot(tile, (ox + 3) % 16, oy, (159, 220, 209))
+    return tile
+
 def make(name):
     if name.endswith('_ore'):
         deep = name.startswith('deepslate_')
@@ -98,6 +128,8 @@ def make(name):
             for dx,dy in shape: dot(tile,x+dx,y+dy,dark)
             for dx,dy in shape[:2]: dot(tile,x+dx,y+dy,light)
         return tile
+    if name == 'amethyst_block': return amethyst_block()
+    if name == 'amethyst_cluster': return amethyst_cluster()
     if name == 'stone': return stone()
     if name == 'cobblestone':
         tile = field((91, 95, 113), 2)
@@ -192,6 +224,8 @@ def main():
         data = png(16,16,make(name))
         write(JAVA / 'assets/minecraft/textures/block' / (name + '.png'), data)
         write(BEDROCK / 'textures/blocks' / (alias + '.png'), data)
+    write(JAVA / 'assets/minecraft/textures/block/amethyst_cluster.png.mcmeta',
+          (json.dumps({'texture': {'mipmap_strategy': 'strict_cutout'}}, indent=2)+'\n').encode())
     for name, alias in ITEM_ALIASES.items():
         data = png(16,16,make_item(name))
         write(JAVA / 'assets/minecraft/textures/item' / (name + '.png'), data)
@@ -201,8 +235,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and materials preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,3,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,3,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,4,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,4,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'material textures for each edition.')
 

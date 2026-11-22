@@ -4,6 +4,8 @@
 
 **Infinity Ore Survey** is an optional Survival/Hardcore mining challenge in Infinity Journey. Start it and break each of eight ore types; normal and deepslate variants count together, and Nether gold counts as gold. Player-placed ores count as well. Pausing keeps progress, and completing the survey unlocks a repeatable decorative banner in an empty slot. The survey does not change ordinary drops, experience or the block-breaking rules.
 
+**Geode bonus.** While the Ore Survey is active, harvest a fully grown amethyst cluster to mark a bonus discovery in the survey. Player-placed clusters count. Buds can keep growing, and the banner still requires the original eight ores.
+
 **Infinity Defender** is an optional Survival/Hardcore combat challenge in Infinity Journey. Start it and personally defeat one of each of eight hostile families. Spawned hostiles can count. Pausing keeps progress, and all eight unlock a repeatable decorative banner in an empty slot. This path does not select targets or alter creatures, helpers, damage or drops.
 
 **The Odyssey ruins** appear sparsely in newly generated Overworld, Nether and End terrain. Twenty-one biome palettes dress the original circuit shape, with one chest holding the lower chest's exact loot and its original book. A matching starting prophecy arrives in an empty inventory slot; recover it through **Infinity Menu → The Odyssey • your prophecy**. See [ODYSSEY.md](ODYSSEY.md), including the owner's explicitly selected automatic repeating command.

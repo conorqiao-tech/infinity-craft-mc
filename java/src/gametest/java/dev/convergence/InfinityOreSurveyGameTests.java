@@ -69,6 +69,35 @@ public class InfinityOreSurveyGameTests {
         } finally { cleanup(f, p); } c.succeed();
     }
 
+    @GameTest public void matureAmethystRecordsAnOptionalGeodeBonus(GameTestHelper c) {
+        var f = new CommonsGameTests(); var p = f.survival(c, "survey-geode");
+        try {
+            var pos = c.absolutePos(new BlockPos(4, 3, 4));
+            p.level().setBlock(pos.below(), Blocks.AMETHYST_BLOCK.defaultBlockState(), 3);
+            p.getInventory().setItem(0, new ItemStack(Items.IRON_PICKAXE));
+            var legacy = new CompoundTag();
+            legacy.putInt("format", 1);
+            legacy.putInt("found", InfinityOreSurvey.ALL);
+            legacy.putBoolean("active", false);
+            GameModes.state(p).put(InfinityOreSurvey.KEY, legacy);
+            c.assertTrue(breakOre(p, pos, Blocks.AMETHYST_CLUSTER), "Paused players can harvest their cluster");
+            c.assertFalse(InfinityOreSurvey.state(p).contains("amethystCluster"), "Paused harvesting has no bonus");
+            c.assertValueEqual(InfinityOreSurvey.setActive(p, true), 1, "An existing eight-ore save can resume");
+            c.assertTrue(breakOre(p, pos, Blocks.LARGE_AMETHYST_BUD), "The growing bud breaks normally");
+            p.setGameMode(GameType.CREATIVE);
+            c.assertTrue(breakOre(p, pos, Blocks.AMETHYST_CLUSTER), "The Creative cluster breaks normally");
+            c.assertFalse(InfinityOreSurvey.state(p).contains("amethystCluster"), "Buds and Creative breaks do not record the bonus");
+            p.setGameMode(GameType.SURVIVAL);
+            c.assertTrue(breakOre(p, pos, Blocks.AMETHYST_CLUSTER), "The mature cluster breaks in Survival");
+            c.assertTrue(InfinityOreSurvey.state(f.reloadDisk(p)).getBooleanOr("amethystCluster", false),
+                "The successful native break persists the bonus to the player save");
+            c.assertTrue(InfinityOreSurvey.view(p).content().contains("✓ Geode bonus"), "The shared menu shows the discovery");
+            c.assertFalse(InfinityOreSurvey.observe(p, Blocks.AMETHYST_CLUSTER.defaultBlockState()), "Duplicate clusters give no new credit");
+            c.assertValueEqual(InfinityOreSurvey.found(p), InfinityOreSurvey.ALL, "The eight previously recorded ores are retained");
+            c.assertValueEqual(InfinityOreSurvey.giveBanner(p), 1, "The original banner remains available");
+        } finally { cleanup(f, p); } c.succeed();
+    }
+
     @GameTest public void unknownDataAndFullInventoryArePreserved(GameTestHelper c) {
         var f = new CommonsGameTests(); var p = f.survival(c, "survey-data");
         try {
