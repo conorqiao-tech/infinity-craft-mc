@@ -31,7 +31,9 @@ PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'j
 PAIRS.update({f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)})
 ITEMS = {name:name for name in ('iron_ingot','gold_ingot','copper_ingot','netherite_ingot',
                                 'diamond','emerald','coal','amethyst_shard','raw_iron','raw_gold','raw_copper')}
-ITEMS.update({'redstone': 'redstone_dust', 'map': 'map_empty', 'spyglass': 'spyglass'})
+ITEMS.update({'redstone': 'redstone_dust', 'map': 'map_empty', 'spyglass': 'spyglass',
+              'cod':'fish_raw', 'salmon':'fish_salmon_raw',
+              'tropical_fish':'fish_clownfish_raw', 'pufferfish':'fish_pufferfish_raw'})
 
 class InfinityLandscapePreviewTests(unittest.TestCase):
     def test_source_and_server_texture_credits_match(self):
@@ -47,12 +49,12 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 75); self.assertEqual(len(b.namelist()), 74)
+                self.assertEqual(len(j.namelist()), 79); self.assertEqual(len(b.namelist()), 78)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
-                self.assertEqual(manifest['header']['version'], [0,7,0])
+                self.assertEqual(manifest['header']['version'], [0,8,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
                 self.assertEqual(manifest['modules'][0]['version'], manifest['header']['version'])
                 cluster_path = 'assets/minecraft/textures/block/amethyst_cluster.png'

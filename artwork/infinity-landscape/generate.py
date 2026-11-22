@@ -45,6 +45,8 @@ ITEM_ALIASES = {
     'iron_ingot': 'iron_ingot', 'gold_ingot': 'gold_ingot',
     'copper_ingot': 'copper_ingot', 'netherite_ingot': 'netherite_ingot',
     'map': 'map_empty', 'spyglass': 'spyglass',
+    'cod': 'fish_raw', 'salmon': 'fish_salmon_raw',
+    'tropical_fish': 'fish_clownfish_raw', 'pufferfish': 'fish_pufferfish_raw',
     'diamond': 'diamond', 'emerald': 'emerald', 'coal': 'coal',
     'redstone': 'redstone_dust', 'amethyst_shard': 'amethyst_shard',
     'raw_iron': 'raw_iron', 'raw_gold': 'raw_gold', 'raw_copper': 'raw_copper',
@@ -274,8 +276,54 @@ def wayfinding_icon(name):
         )
     return [[colors[ink] for ink in row] for row in rows]
 
+# Silhouettes are drawn facing right. Each set of inks describes the back,
+# flank, belly, fins and highlights of a different fish.
+FISH_SPRITES = {
+    'cod': (
+        ('334e4c', '859875', 'c3ba81', 'eee0ad', '538c84'),
+        (
+            '................', '................', '................', '.....kk..k......',
+            '....kaakkaak....', '.kk.kabbbbaakk..', '.kakababaabbcbk.', '..kaabbabbbbbkkk',
+            '..kbbbbbbbcbbcba', '.kakbccccccdcbk.', '.kk..kbccdcdkk..', '......kaakkk....',
+            '.......kk.......', '................', '................', '................',
+        )),
+    'salmon': (
+        ('304956', '587e7b', 'c56c60', 'ecd3b4', '79c9bf'),
+        (
+            '................', '................', '................', '........kkk.....',
+            '.k.....kaak.....', '.kk..kkaaaakkk..', '.kakkaaadaadack.', '..kabbabbabbcbkk',
+            '.kakbbbbbbbbbcba', '.kk.kbcccccccbk.', '.k...kkackkkkk..', '......kkk.......',
+            '................', '................', '................', '................',
+        )),
+    'tropical_fish': (
+        ('4d425a', 'd47547', 'ffa65b', 'f5dfae', '83d6d0'),
+        (
+            '................', '................', '......kkk.......', '.....kbbakk.....',
+            '....kbbccbbkk...', '.kk.kabccbbcck..', '.kbkkbbccbbccbk.', '.kbakbbddbbcckdk',
+            '.kaakbbccbbccbbk', '.kbkkbbccbbccbk.', '.kk.kabccbbcck..', '.....kbbbaaak...',
+            '......kbbkkk....', '.......kk.......', '................', '................',
+        )),
+    'pufferfish': (
+        ('51485c', 'a37742', 'e7ab4d', 'f7d990', '74d0c1'),
+        (
+            '................', '.......k........', '....k.kbk.k.....', '....kbabkkbk....',
+            '...kabbbabbkk...', '.kkababbabbbak..', '..kbbbabbbbdcbk.', '.kabbbbbbcckcbk.',
+            '.kkbbbbccccccbbk', '..kbbacccccccbk.', '.kkkbccdccdcck..', '...kbbccccccbk..',
+            '...kkbkkbbkbkk..', '....kk..kk.k....', '................', '................',
+        )),
+}
+
+def fish_icon(name):
+    inks, rows = FISH_SPRITES[name]
+    colors = {'.': (0, 0, 0, 0)}
+    for symbol, rgb in zip('kabcd', inks):
+        colors[symbol] = tuple(bytes.fromhex(rgb)) + (255,)
+    return [[colors[symbol] for symbol in row] for row in rows]
+
 def make_item(name):
     """Draw recognizable, transparent inventory icons without source artwork."""
+    if name in FISH_SPRITES:
+        return fish_icon(name)
     if name in ('map', 'spyglass'):
         return wayfinding_icon(name)
     colors = {
@@ -332,8 +380,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,7,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,7,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,8,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,8,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 
