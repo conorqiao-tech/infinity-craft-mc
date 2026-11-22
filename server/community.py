@@ -313,24 +313,32 @@ def watch_launcher(parent_pid):
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             pass_fds=(launcher_fd, holder_fd, watch_end.fileno()), start_new_session=True,
         )
+        armed = False
         try:
             watch_end.close()
             holder_end.settimeout(4)
             if holder_end.recv(1) != b"A":
                 raise ValueError("The launcher death watchdog did not arm.")
+            armed = True
             yield
             holder_end.sendall(b"Q")
             if holder_end.recv(1) != b"D":
                 raise ValueError("The launcher death watchdog did not confirm shutdown.")
         finally:
             holder_end.close()
-            try:
-                if watcher.wait(timeout=5) != 0:
-                    raise ValueError("The launcher death watchdog did not exit cleanly.")
-            except subprocess.TimeoutExpired:
+            if not armed:
+                # An unarmed watchdog may never read its socket. Terminate it
+                # before waiting, so the launcher cannot time out during graceful cleanup.
                 watcher.kill()
                 watcher.wait(timeout=5)
-                raise
+            else:
+                try:
+                    if watcher.wait(timeout=5) != 0:
+                        raise ValueError("The launcher death watchdog did not exit cleanly.")
+                except subprocess.TimeoutExpired:
+                    watcher.kill()
+                    watcher.wait(timeout=5)
+                    raise
 
 
 def receive(parent_pid, expected, timeout=None):
@@ -398,11 +406,11 @@ if os.write(1, reply) != len(reply):
 '''
 
 
-def _read_world_lock_reply(descriptor):
+def _read_world_lock_reply(descriptor, *, timeout=5):
     """Read a bounded response, including when the holder sends a partial line."""
     data = bytearray()
     limit = 128
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + timeout
     with selectors.DefaultSelector() as selector:
         selector.register(descriptor, selectors.EVENT_READ)
         while len(data) < limit:
@@ -487,10 +495,10 @@ class WorldSessionLock:
         if written != len(command):
             raise OSError("Incomplete command to the Minecraft world lock holder.")
 
-    def _receive(self):
+    def _receive(self, *, timeout=5):
         descriptor = self._reply_reader
         self._check_pipe("_reply_reader", descriptor)
-        reply = _read_world_lock_reply(descriptor)
+        reply = _read_world_lock_reply(descriptor, timeout=timeout)
         self._check_pipe("_reply_reader", descriptor)
         return reply
 
@@ -520,7 +528,8 @@ class WorldSessionLock:
             self._close_pipe("_reader")
             self._close_pipe("_reply_writer")
             self._send(b"G")
-            reply = self._receive()
+            # Allow for both interpreter starts, arming, and cancellation/reaping.
+            reply = self._receive(timeout=15 if sys.platform == "linux" else 5)
             if reply == b"watch-unavailable\n":
                 raise WorldSessionLockUncertain(
                     "Linux launcher-death protection could not be armed. "

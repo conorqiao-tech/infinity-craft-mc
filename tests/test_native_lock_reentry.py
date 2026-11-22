@@ -857,12 +857,141 @@ assert not list((root / 'backups').glob('*.zip'))
         self.assertEqual(returncode, 0, stderr)
         self.assertFalse(leftover, 'an unarmed fixture process outlived the backup')
 
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_linux_watchdog_that_never_arms_is_reaped_before_backup_returns(self):
+        code = r'''
+import ctypes, os, select, signal, sys
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+# Adopt a leaked watchdog so the old implementation cannot leave it behind.
+libc = ctypes.CDLL(None, use_errno=True)
+prctl = libc.prctl
+prctl.argtypes = [ctypes.c_int] + [ctypes.c_ulong] * 4
+if prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+    raise OSError(ctypes.get_errno(), 'could not become fixture subreaper')
+
+root = Path(sys.argv[2])
+world = root / 'fabric/world'
+world.mkdir(parents=True)
+(world / 'level.dat').write_bytes(b'synthetic level')
+pid_file = root / 'watchdog.pid'
+script = community._WORLD_SESSION_LOCK_HOLDER
+fault = script.replace('    channel.sendall(b"A")',
+    f'    with open({str(pid_file)!r}, "w") as report:\n'
+    '        import os\n'
+    '        report.write(str(os.getpid()))\n'
+    '    selector = selectors.DefaultSelector()\n'
+    '    selector.select(20)\n'
+    '    sys.exit(1)', 1)
+assert fault != script
+error = None
+try:
+    with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', fault):
+        community.backup(root, {'level-name': 'world'})
+except community.WorldSessionLockUncertain as caught:
+    error = str(caught)
+finally:
+    watchdog = int(pid_file.read_text())
+    try:
+        adopted, _ = os.waitpid(watchdog, os.WNOHANG)
+    except ChildProcessError:
+        reaped_by_holder = True
+    else:
+        reaped_by_holder = False
+        if not adopted:
+            # The unreaped child cannot have a reused PID.
+            with os.fdopen(os.pidfd_open(watchdog), 'rb') as pidfd:
+                signal.pidfd_send_signal(pidfd.fileno(), signal.SIGKILL)
+                assert select.select([pidfd], [], [], 5)[0], 'watchdog cleanup timed out'
+            os.waitpid(watchdog, 0)
+
+assert not (world / 'session.lock').exists()
+assert (root / 'launcher.lock').is_file()
+assert not list((root / 'backups').glob('*.zip'))
+assert reaped_by_holder, f'watchdog was still an unreaped child when backup returned: {error}'
+assert error and 'launcher-death protection could not be armed' in error, error
+print('Watchdog reaped before the backup call returned; no native lock or ZIP; marker retained.')
+'''
+        returncode, stdout, stderr, leftover = self.run_isolated(
+            code, Path(community.__file__).parent, self.root / 'stalled-watchdog', timeout=25)
+        self.assertEqual(returncode, 0, stderr)
+        self.assertIn('Watchdog reaped before the backup call returned', stdout)
+        self.assertFalse(leftover, 'a stalled fixture process outlived the backup')
+
     def assert_holder_fault_after_publication(self, mode):
         returncode, _, stderr, leftover = self.run_isolated(
             _HOLDER_FAULT_AFTER_PUBLICATION, Path(community.__file__).parent,
             self.root / ('fault-' + mode), mode, timeout=90)
         self.assertEqual(returncode, 0, stderr)
         self.assertFalse(leftover, 'a fixture process outlived the synthetic backup')
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_linux_unacknowledged_watchdog_is_reaped_before_backup_fails(self):
+        code = r'''
+import ctypes, os, select, signal, sys
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, sys.argv[1])
+import community
+
+root = Path(sys.argv[2])
+world = root / 'fabric/world'
+world.mkdir(parents=True)
+(world / 'level.dat').write_bytes(b'synthetic level')
+pid_file = root / 'watchdog.pid'
+
+# Adopt an unreaped watchdog if the fixture holder exits first. A child that
+# still exists at the backup boundary can then be identified and cleaned up.
+prctl = ctypes.CDLL(None, use_errno=True).prctl
+assert prctl(36, 1, 0, 0, 0) == 0, ctypes.get_errno()  # PR_SET_CHILD_SUBREAPER
+script = community._WORLD_SESSION_LOCK_HOLDER
+stalled = script.replace(
+    '    channel.sendall(b"A")',
+    '    import os, time\n'
+    f'    with open({str(pid_file)!r}, "w") as report:\n'
+    '        print(os.getpid(), file=report)\n'
+    '    time.sleep(45)\n'
+    '    sys.exit(0)',
+    1,
+)
+assert stalled != script
+error = None
+try:
+    with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', stalled):
+        community.backup(root, {'level-name': 'world'})
+except community.WorldSessionLockUncertain as caught:
+    error = caught
+finally:
+    pid = int(pid_file.read_text())
+    try:
+        os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError:
+        pass  # The holder reaped it before the failed backup returned.
+    else:
+        # The subreaper owns this unreaped child, so its PID cannot be reused.
+        with os.fdopen(os.pidfd_open(pid), 'rb') as watchdog:
+            try:
+                signal.pidfd_send_signal(watchdog.fileno(), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            assert select.select([watchdog], [], [], 5)[0], 'watchdog cleanup timed out'
+        os.waitpid(pid, 0)
+        raise AssertionError(f'backup returned before watchdog {pid} was reaped: {error}')
+
+assert error is not None and 'launcher-death protection could not be armed' in str(error), repr(error)
+assert not (world / 'session.lock').exists()
+assert (root / 'launcher.lock').is_file()
+assert not list((root / 'backups').glob('*.zip'))
+'''
+        returncode, _, stderr, leftover = self.run_isolated(
+            code, Path(community.__file__).parent, self.root / 'stalled-watchdog', timeout=25)
+        self.assertEqual(returncode, 0, stderr)
+        self.assertFalse(leftover, 'a fixture process outlived the failed backup')
 
     def test_holder_death_immediately_after_zip_publication_keeps_evidence(self):
         self.assert_holder_fault_after_publication('kill')
