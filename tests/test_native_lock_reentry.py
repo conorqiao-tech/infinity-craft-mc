@@ -931,8 +931,19 @@ print('Watchdog reaped before the backup call returned; no native lock or ZIP; m
 
     @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
     def test_linux_unacknowledged_watchdog_is_reaped_before_backup_fails(self):
+        self.assert_stalled_watchdog_reaped('startup')
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_linux_watchdog_missing_shutdown_ack_is_reaped_before_backup_returns(self):
+        self.assert_stalled_watchdog_reaped('before-shutdown-ack')
+
+    @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux death watchdog')
+    def test_linux_watchdog_stalled_after_shutdown_ack_is_reaped_before_backup_returns(self):
+        self.assert_stalled_watchdog_reaped('after-shutdown-ack')
+
+    def assert_stalled_watchdog_reaped(self, stage):
         code = r'''
-import ctypes, os, select, signal, sys
+import ctypes, fcntl, os, select, signal, sys, zipfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -944,22 +955,23 @@ world = root / 'fabric/world'
 world.mkdir(parents=True)
 (world / 'level.dat').write_bytes(b'synthetic level')
 pid_file = root / 'watchdog.pid'
+stage = sys.argv[3]
 
 # Adopt an unreaped watchdog if the fixture holder exits first. A child that
 # still exists at the backup boundary can then be identified and cleaned up.
 prctl = ctypes.CDLL(None, use_errno=True).prctl
 assert prctl(36, 1, 0, 0, 0) == 0, ctypes.get_errno()  # PR_SET_CHILD_SUBREAPER
 script = community._WORLD_SESSION_LOCK_HOLDER
-stalled = script.replace(
-    '    channel.sendall(b"A")',
-    '    import os, time\n'
-    f'    with open({str(pid_file)!r}, "w") as report:\n'
-    '        print(os.getpid(), file=report)\n'
-    '    time.sleep(45)\n'
-    '    sys.exit(0)',
-    1,
-)
-assert stalled != script
+target = '    channel.sendall(b"A")' if stage == 'startup' else '                channel.sendall(b"D")'
+indent = target[:len(target) - len(target.lstrip())]
+fault = ['import os, time', f'with open({str(pid_file)!r}, "w") as report:', '    print(os.getpid(), file=report)']
+if stage == 'after-shutdown-ack':
+    # Separate the launcher's deadline from the old holder's five-second exit
+    # wait. The acknowledgement still arrives within the socket timeout.
+    fault.extend(['time.sleep(1)', target.strip()])
+fault.extend(['time.sleep(45)', 'sys.exit(0)'])
+assert script.count(target) == 1
+stalled = script.replace(target, '\n'.join(indent + line for line in fault))
 error = None
 try:
     with patch.object(community, '_WORLD_SESSION_LOCK_HOLDER', stalled):
@@ -969,7 +981,7 @@ except community.WorldSessionLockUncertain as caught:
 finally:
     pid = int(pid_file.read_text())
     try:
-        os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+        adopted_state = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
     except ChildProcessError:
         pass  # The holder reaped it before the failed backup returned.
     else:
@@ -981,15 +993,26 @@ finally:
                 pass
             assert select.select([watchdog], [], [], 5)[0], 'watchdog cleanup timed out'
         os.waitpid(pid, 0)
-        raise AssertionError(f'backup returned before watchdog {pid} was reaped: {error}')
+        condition = 'alive' if adopted_state is None else 'a zombie'
+        raise AssertionError(f'{stage}: backup returned with watchdog {pid} still {condition}: {error}')
 
-assert error is not None and 'launcher-death protection could not be armed' in str(error), repr(error)
-assert not (world / 'session.lock').exists()
 assert (root / 'launcher.lock').is_file()
-assert not list((root / 'backups').glob('*.zip'))
+if stage == 'startup':
+    assert 'launcher-death protection could not be armed' in str(error), repr(error)
+    assert not (world / 'session.lock').exists()
+    assert not list((root / 'backups').glob('*.zip'))
+else:
+    assert 'world lock release is uncertain' in str(error), repr(error)
+    archive, = (root / 'backups').glob('*.zip')
+    with zipfile.ZipFile(archive) as published:
+        assert published.testzip() is None
+        assert published.read('world/level.dat') == b'synthetic level'
+    with (world / 'session.lock').open('r+b') as lock:
+        fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    print(f'{stage}: watchdog reaped before backup returned; ZIP verified, native lock free, launcher marker retained.')
 '''
         returncode, _, stderr, leftover = self.run_isolated(
-            code, Path(community.__file__).parent, self.root / 'stalled-watchdog', timeout=25)
+            code, Path(community.__file__).parent, self.root / 'stalled-watchdog', stage, timeout=25)
         self.assertEqual(returncode, 0, stderr)
         self.assertFalse(leftover, 'a fixture process outlived the failed backup')
 

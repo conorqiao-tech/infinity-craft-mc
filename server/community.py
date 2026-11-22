@@ -313,32 +313,25 @@ def watch_launcher(parent_pid):
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             pass_fds=(launcher_fd, holder_fd, watch_end.fileno()), start_new_session=True,
         )
-        armed = False
         try:
             watch_end.close()
             holder_end.settimeout(4)
             if holder_end.recv(1) != b"A":
                 raise ValueError("The launcher death watchdog did not arm.")
-            armed = True
             yield
+            holder_end.settimeout(3)
             holder_end.sendall(b"Q")
             if holder_end.recv(1) != b"D":
                 raise ValueError("The launcher death watchdog did not confirm shutdown.")
+            if watcher.wait(timeout=2) != 0:
+                raise ValueError("The launcher death watchdog did not exit cleanly.")
         finally:
             holder_end.close()
-            if not armed:
-                # An unarmed watchdog may never read its socket. Terminate it
-                # before waiting, so the launcher cannot time out during graceful cleanup.
+            # Both acknowledgements and a clean exit are required. If any step
+            # failed, reap the child before propagating the failure to the launcher.
+            if watcher.returncode is None:
                 watcher.kill()
                 watcher.wait(timeout=5)
-            else:
-                try:
-                    if watcher.wait(timeout=5) != 0:
-                        raise ValueError("The launcher death watchdog did not exit cleanly.")
-                except subprocess.TimeoutExpired:
-                    watcher.kill()
-                    watcher.wait(timeout=5)
-                    raise
 
 
 def receive(parent_pid, expected, timeout=None):
@@ -495,9 +488,12 @@ class WorldSessionLock:
         if written != len(command):
             raise OSError("Incomplete command to the Minecraft world lock holder.")
 
-    def _receive(self, *, timeout=5):
+    def _receive(self):
         descriptor = self._reply_reader
         self._check_pipe("_reply_reader", descriptor)
+        # The Linux holder may need to kill and reap its watchdog on either
+        # handshake. Leave that cleanup inside the launcher's reply deadline.
+        timeout = 15 if sys.platform == "linux" else 5
         reply = _read_world_lock_reply(descriptor, timeout=timeout)
         self._check_pipe("_reply_reader", descriptor)
         return reply
@@ -528,8 +524,7 @@ class WorldSessionLock:
             self._close_pipe("_reader")
             self._close_pipe("_reply_writer")
             self._send(b"G")
-            # Allow for both interpreter starts, arming, and cancellation/reaping.
-            reply = self._receive(timeout=15 if sys.platform == "linux" else 5)
+            reply = self._receive()
             if reply == b"watch-unavailable\n":
                 raise WorldSessionLockUncertain(
                     "Linux launcher-death protection could not be armed. "
