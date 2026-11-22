@@ -67,6 +67,16 @@ final class CommonsMenu {
             choices.add(new Choice(Items.DIAMOND_HOE,"Claim Harvest Guardian gift • "+gift(p,2),()->result(p,CommonsEvents.claim(p,2),Page.HARVEST)));
             choices.add(new Choice(Items.NAME_TAG,"Wear Harvest Guardian title + garden motes",()->{CommonsEvents.title(p,2);open(p,Page.HARVEST);}));
             choices.add(new Choice(Items.FLOWERING_AZALEA,"Review lantern garden • Creative, aim at ground",()->{if(CommonsEvents.preview(p,true)==0){fail(p);open(p,Page.HARVEST);}}));
+            if (!GameModes.state(p).contains(CommonsEvents.WHEAT_HARVEST)) {
+                content += "\nStart Infinity Wheat Harvest and break eight fully grown wheat crops in Survival or Hardcore.";
+                choices.add(new Choice(Items.WHEAT_SEEDS, "Start Infinity Wheat Harvest",
+                    () -> result(p, CommonsEvents.startWheatHarvest(p), Page.HARVEST)));
+            } else {
+                int count = CommonsEvents.wheatHarvested(p);
+                if (count < 0) content += "\nWheat Harvest progress needs host review.";
+                else if (count == CommonsEvents.WHEAT_GOAL) content += "\n✓ Infinity Wheat Harvest complete • eight ripe crops.";
+                else content += "\nInfinity Wheat Harvest • " + count + "/" + CommonsEvents.WHEAT_GOAL + " ripe wheat crops harvested.";
+            }
         }else if(page==Page.UNITY){
             title="Infinity Together";
             content="Help the village pantry with other players. Deliver at least 16 food items yourself in Survival or Hardcore; at least two distinct players must have contributed any food. Earlier saved pantry deliveries count.\nYour contribution: "+CommonsEvents.contribution(p)+"/16 • contributors: "+CommonsEvents.pantry(p).contributors()+"/2.\nClaim an original Unity Lantern banner and Unity Builder title once. One empty inventory slot is needed. No timer, rank or permissions change.\nGift: "+gift(p,4);

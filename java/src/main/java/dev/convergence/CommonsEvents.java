@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -12,6 +13,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.IntTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -21,6 +23,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
 import net.minecraft.world.level.block.entity.BannerPatterns;
@@ -37,6 +40,8 @@ public final class CommonsEvents {
         new Food("Potatoes",Items.POTATO,16),new Food("Beetroot",Items.BEETROOT,16),new Food("Bread",Items.BREAD,8),
         new Food("Baked potatoes",Items.BAKED_POTATO,8),new Food("Cookies",Items.COOKIE,8),new Food("Pumpkin pie",Items.PUMPKIN_PIE,4));
     static final String KEY="circuit_commons", SAMPLE="commons_test_sample";
+    static final String WHEAT_HARVEST = "infinity_wheat_harvest";
+    static final int WHEAT_GOAL = 8;
     record Quote(ServerPlayer player,ServerGamePacketListenerImpl connection,ServerLevel world,GameModes.Mode mode,
                  int food,int amount,int previous,List<ItemStack> inventory) {}
     record Trial(ServerPlayer player,ServerGamePacketListenerImpl connection,ServerLevel world,BlockPos origin,String token,int expires) {}
@@ -56,6 +61,29 @@ public final class CommonsEvents {
         return emptyScreen(p)&&!p.isCreative()&&(mode==GameModes.Mode.SURVIVAL||mode==GameModes.Mode.HARDCORE)&&GameModes.of(p.level())==mode;
     }
     static void say(ServerPlayer p,String text){CommunityServer.say(p,text);}
+
+    static int wheatHarvested(ServerPlayer p) {
+        var root = GameModes.state(p);
+        if (!(root.get(WHEAT_HARVEST) instanceof IntTag)) return -1;
+        int count = root.getIntOr(WHEAT_HARVEST, -1);
+        return count >= 0 && count <= WHEAT_GOAL ? count : -1;
+    }
+    static int startWheatHarvest(ServerPlayer p) {
+        var root = GameModes.state(p);
+        if (root.contains(WHEAT_HARVEST) || p.gameMode.getGameModeForPlayer() != GameType.SURVIVAL || !harvestAllowed(p)) return 0;
+        root.putInt(WHEAT_HARVEST, 0);
+        PlayerPersistence.save(p);
+        return 1;
+    }
+    private static void recordWheatHarvest(ServerPlayer p) {
+        int count = wheatHarvested(p);
+        if (count < 0 || count == WHEAT_GOAL || p.gameMode.getGameModeForPlayer() != GameType.SURVIVAL || !harvestAllowed(p)) return;
+        int next = count + 1;
+        GameModes.state(p).putInt(WHEAT_HARVEST, next);
+        PlayerPersistence.save(p);
+        say(p, next == WHEAT_GOAL ? "Infinity Wheat Harvest complete! All eight ripe crops recorded."
+            : "Infinity Wheat Harvest • " + next + "/" + WHEAT_GOAL + " ripe crops.");
+    }
 
     /** A derived, monotonic index of saved personal contributions; never an inventory or claim authority. */
     static final class Pantry extends SavedData {
@@ -295,6 +323,16 @@ public final class CommonsEvents {
     }
     static void register(){
         CommonsMenu.register();
+        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, entity) -> {
+            if (!state.is(Blocks.WHEAT) || !((CropBlock) Blocks.WHEAT).isMaxAge(state)
+                    || !(player instanceof ServerPlayer p) || p.level() != world) return;
+            try {
+                recordWheatHarvest(p);
+            } catch (RuntimeException error) {
+                System.err.println("[Infinity] Wheat Harvest progress could not be confirmed: " + error);
+                say(p, "Wheat Harvest progress could not be confirmed. Check Harvest Together.");
+            }
+        });
         UseItemCallback.EVENT.register((player,world,hand)->{
             if(player instanceof ServerPlayer p&&seedlight(p,p.getItemInHand(hand))){releaseSeedlight(p,p.getItemInHand(hand));return InteractionResult.SUCCESS;}
             return InteractionResult.PASS;

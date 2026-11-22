@@ -39,6 +39,50 @@ public class CommonsGameTests {
             c.assertTrue(((CommonsMenu.Handler)p.containerMenu).view.content().contains("village"),"Shared pantry counts are visible");
         }finally{cleanup(p);}c.succeed();
     }
+    @GameTest public void wheatHarvestCountsOnlyRipeSurvivalBreaksAfterJoining(GameTestHelper c) {
+        var p = survival(c, "commons-wheat");
+        try {
+            var pos = c.absolutePos(new BlockPos(4, 3, 4));
+            var wheat = (CropBlock) Blocks.WHEAT;
+            var ripe = wheat.getStateForAge(wheat.getMaxAge());
+            p.level().setBlock(pos.below(), Blocks.FARMLAND.defaultBlockState(), 3);
+            p.level().setBlock(pos, ripe, 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "Ripe wheat can be harvested before joining");
+            c.assertFalse(GameModes.state(p).contains(CommonsEvents.WHEAT_HARVEST), "Harvesting before joining creates no goal");
+
+            CommonsMenu.open(p, CommonsMenu.Page.HARVEST);
+            var view = ((CommonsMenu.Handler) p.containerMenu).view;
+            var labels = view.choices().stream().map(CommonsMenu.Choice::label).toList();
+            int start = labels.indexOf("Start Infinity Wheat Harvest");
+            c.assertTrue(start >= 0, "The Java harvest menu offers the goal");
+            p.closeContainer();
+            var forms = new ArrayList<org.geysermc.cumulus.form.Form>();
+            CommonsMenu.form(p, CommonsMenu.Page.HARVEST, null, form -> { forms.add(form); return true; });
+            reply(forms.getFirst(), Integer.toString(start));
+            p.closeContainer();
+            c.assertValueEqual(CommonsEvents.wheatHarvested(p), 0, "The Bedrock form starts the same goal");
+            p.level().setBlock(pos, wheat.getStateForAge(wheat.getMaxAge() - 1), 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "An immature wheat crop breaks normally");
+            p.setGameMode(GameType.CREATIVE);
+            p.level().setBlock(pos, ripe, 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "A Creative harvest still breaks the crop");
+            c.assertValueEqual(CommonsEvents.wheatHarvested(p), 0, "Immature crops and Creative breaks give no credit");
+
+            p.setGameMode(GameType.SURVIVAL);
+            for (int i = 1; i <= CommonsEvents.WHEAT_GOAL + 1; i++) {
+                p.level().setBlock(pos, ripe, 3);
+                c.assertTrue(p.gameMode.destroyBlock(pos), "A native Survival harvest succeeds");
+                c.assertValueEqual(CommonsEvents.wheatHarvested(p), Math.min(i, CommonsEvents.WHEAT_GOAL), "Each crop counts up to the goal");
+            }
+            c.assertValueEqual(CommonsEvents.wheatHarvested(reloadDisk(p)), CommonsEvents.WHEAT_GOAL, "Disk reload retains completion");
+            c.assertValueEqual(CommonsEvents.contribution(p), 0, "Harvesting does not donate the player's wheat");
+            c.assertTrue(CommonsMenu.view(p, CommonsMenu.Page.HARVEST, null).content().contains("✓ Infinity Wheat Harvest complete"),
+                "The shared harvest menu records completion");
+            c.assertValueEqual(CommonsEvents.startWheatHarvest(p), 0, "A repeated start cannot reset the completed goal");
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
     @GameTest public void exactDeliveryPreservesNamedFoodAndCannotReplay(GameTestHelper c){
         var p=survival(c,"pantry-plain");try{
             var named=new ItemStack(Items.WHEAT,9);named.set(DataComponents.CUSTOM_NAME,Component.literal("My saved seed collection"));

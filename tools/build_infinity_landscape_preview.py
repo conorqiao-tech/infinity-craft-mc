@@ -16,7 +16,7 @@ def files_for(edition):
     files = sorted(p for p in directory.rglob('*') if p.is_file())
     if any(p.is_symlink() or any(parent.is_symlink() for parent in p.parents if parent != directory.parent) for p in files):
         raise ValueError('Linked preview source is not supported')
-    expected_files = 63 if edition == 'java' else 62  # Java also supplies cluster mipmap metadata.
+    expected_files = 71 if edition == 'java' else 70  # Java also supplies cluster mipmap metadata.
     if len(files) != expected_files:
         raise ValueError(f'Expected {expected_files} preview files for {edition}')
     manifest = directory / ('pack.mcmeta' if edition == 'java' else 'manifest.json')

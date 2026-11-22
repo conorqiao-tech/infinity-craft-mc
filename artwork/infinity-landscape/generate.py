@@ -35,6 +35,7 @@ ALIASES = {
     'cherry_planks': 'cherry_planks', 'bamboo_planks': 'bamboo_planks',
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
+    **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
     'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
@@ -103,6 +104,34 @@ def amethyst_block():
         dot(tile, (ox + 3) % 16, oy, (159, 220, 209))
     return tile
 
+def wheat(stage):
+    tile = [[(0, 0, 0, 0) for _ in range(16)] for _ in range(16)]
+    height = (3, 5, 7, 9, 11, 13, 14, 15)[stage]
+    stem, leaf, tip = (41, 99, 82), (56, 154, 122), (125, 200, 156)
+    if stage == 7:
+        stem, leaf, tip = (149, 102, 49), (211, 160, 64), (255, 224, 136)
+    for x, inset, lean in ((3, 2, -1), (8, 0, 1), (13, 1, -1)):
+        top = 16 - height + inset
+        for y in range(top, 16):
+            dot(tile, x, y, stem)
+        # Each stalk keeps its own rooted silhouette as the blades unfold.
+        for depth in range(2, 16 - top, 4):
+            base = 16 - depth
+            side = lean if depth % 8 == 2 else -lean
+            dot(tile, x + side, base, leaf)
+            dot(tile, x + 2 * side, base - 1, tip)
+            if stage >= 3:
+                dot(tile, x + 2 * side, base - 2, leaf)
+        dot(tile, x, top, tip)
+        if stage >= 4:
+            # The ear fills from the tip down. Only the ripe stage turns gold.
+            for tier in range(stage - 3):
+                y = top + tier * 2 + 1
+                dot(tile, x + lean, y, tip)
+                dot(tile, x - lean, y, leaf)
+                dot(tile, x, y + 1, leaf)
+    return tile
+
 def make(name):
     if name.endswith('_ore'):
         deep = name.startswith('deepslate_')
@@ -128,6 +157,7 @@ def make(name):
             for dx,dy in shape: dot(tile,x+dx,y+dy,dark)
             for dx,dy in shape[:2]: dot(tile,x+dx,y+dy,light)
         return tile
+    if name.startswith('wheat_stage'): return wheat(int(name.removeprefix('wheat_stage')))
     if name == 'amethyst_block': return amethyst_block()
     if name == 'amethyst_cluster': return amethyst_cluster()
     if name == 'stone': return stone()
@@ -235,8 +265,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and materials preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,4,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,4,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,5,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,5,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'material textures for each edition.')
 
