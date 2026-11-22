@@ -51,7 +51,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 /** Native items and chest controls keep the Studio usable through Geyser. */
 final class CreativeStudio {
     enum Brush { PLANE, LINE, SPHERE, CUBE, RING }
-    enum Stamp { ARCH, PAVILION, TREE, EXCHANGE, HARVEST_GARDEN, INFINITY_LOOP }
+    enum Stamp { ARCH, PAVILION, TREE, EXCHANGE, HARVEST_GARDEN, INFINITY_LOOP, INFINITY_ORRERY }
     record Palette(String name, Block wall, Block accent, Block light) {}
     static final List<Palette> PALETTES = List.of(
         new Palette("Aurora", Blocks.QUARTZ_BLOCK, Blocks.CONCRETE.cyan(), Blocks.SEA_LANTERN),
@@ -245,7 +245,7 @@ final class CreativeStudio {
     static String stampLabel(Stamp stamp){return switch(stamp){
         case ARCH->"Arch"; case PAVILION->"Pavilion"; case TREE->"Tree";
         case EXCHANGE->"Builder Exchange"; case HARVEST_GARDEN->"Harvest Garden";
-        case INFINITY_LOOP->"Infinity Loop";
+        case INFINITY_LOOP->"Infinity Loop"; case INFINITY_ORRERY->"Infinity Orrery";
     };}
     static Map<BlockPos,BlockState> stamp(ServerPlayer p,BlockPos origin){
         var palette=palette(p);var blocks=new LinkedHashMap<BlockPos,BlockState>();
@@ -265,6 +265,20 @@ final class CreativeStudio {
                 {0,1},{0,2},{1,0},{1,3},{2,0},{2,3},{3,1},{3,2}};
             for(var point:outline)blocks.put(origin.offset(point[0],point[1],0),
                 (point[0]==0?palette.light():point[1]==0||point[1]==3?palette.accent():palette.wall()).defaultBlockState());
+        }else if(kind==Stamp.INFINITY_ORRERY){
+            // Two intersecting orbital planes share a gold sun three blocks above the ground.
+            int[][] ring = {{-1,-3},{0,-3},{1,-3},{2,-2},{3,-1},{3,0},{3,1},{2,2},
+                {1,3},{0,3},{-1,3},{-2,2},{-3,1},{-3,0},{-3,-1},{-2,-2}};
+            var center = origin.above(3);
+            var copper = Blocks.CUT_COPPER.waxed().unaffected().defaultBlockState();
+            for (var point : ring) {
+                blocks.put(center.offset(point[0], point[1], 0), palette.accent().defaultBlockState());
+                blocks.put(center.offset(point[0], 0, point[1]), copper);
+            }
+            blocks.put(origin.above(), palette.wall().defaultBlockState());
+            blocks.put(origin.above(2), palette.wall().defaultBlockState());
+            blocks.put(center, Blocks.GOLD_BLOCK.defaultBlockState());
+            blocks.put(center.offset(2, 0, -2), palette.light().defaultBlockState());
         }else{
             for(int y=0;y<4;y++)blocks.put(origin.offset(0,y,0),palette.wall().defaultBlockState());
             for(int x=-2;x<=2;x++)for(int z=-2;z<=2;z++)if(Math.abs(x)+Math.abs(z)<=3)blocks.put(origin.offset(x,4,z),palette.accent().defaultBlockState());
@@ -310,7 +324,7 @@ final class CreativeStudio {
         if(!ServerMenu.allowed(p)||p.containerMenu!=p.inventoryMenu||!p.containerMenu.getCarried().isEmpty())return 0;
         var view=new SimpleContainer(54);
         if(preview!=null){
-            icon(view,4,Items.STRUCTURE_BLOCK,palette(p).name()+" "+Stamp.values()[option(p,"stamp",Stamp.values().length)],
+            icon(view,4,Items.STRUCTURE_BLOCK,palette(p).name()+" "+stampLabel(Stamp.values()[option(p,"stamp",Stamp.values().length)]),
                 preview.blocks().size()+" blocks at "+preview.origin().toShortString(),"Only the shown empty footprint will change.","Confirm within 30 seconds; Undo is available.");
             icon(view,CONFIRM,Items.DYE.lime(),"Confirm building");icon(view,CANCEL,Items.DYE.red(),"Cancel preview");
         }else{

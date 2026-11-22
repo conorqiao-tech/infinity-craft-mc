@@ -80,4 +80,4 @@ show actual packed sprites at inventory sizes, not captured gameplay.
 
 ## Infinity Landscape preview
 
-Fifty-seven paired Java and Bedrock terrain tiles and fourteen paired item icons in `artwork/infinity-landscape/` are original, deterministic pixel art drawn from blank colors by the included generator. They do not reuse vanilla or third-party artwork. They are a standalone partial preview and are not included in the existing server packs.
+Fifty-nine paired Java and Bedrock terrain tiles and fourteen paired item icons in `artwork/infinity-landscape/` are original, deterministic pixel art drawn from blank colors by the included generator. They do not reuse vanilla or third-party artwork. They are a standalone partial preview and are not included in the existing server packs.

@@ -25,6 +25,7 @@ PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'j
               'cherry_planks':'cherry_planks', 'bamboo_planks':'bamboo_planks',
               'crimson_planks':'huge_fungus/crimson_planks', 'warped_planks':'huge_fungus/warped_planks',
               'granite':'stone_granite', 'diorite':'stone_diorite', 'andesite':'stone_andesite',
+              'gold_block':'gold_block', 'cut_copper':'cut_copper',
               'amethyst_block':'amethyst_block', 'amethyst_cluster':'amethyst_cluster',
               'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal'})
 PAIRS.update({f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)})
@@ -46,12 +47,12 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 73); self.assertEqual(len(b.namelist()), 72)
+                self.assertEqual(len(j.namelist()), 75); self.assertEqual(len(b.namelist()), 74)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
-                self.assertEqual(manifest['header']['version'], [0,6,0])
+                self.assertEqual(manifest['header']['version'], [0,7,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
                 self.assertEqual(manifest['modules'][0]['version'], manifest['header']['version'])
                 cluster_path = 'assets/minecraft/textures/block/amethyst_cluster.png'
@@ -63,7 +64,7 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
                     self.assertEqual(data, b.read('textures/blocks/'+alias+'.png'))
                     self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n')
                     self.assertEqual(struct.unpack('>IIBB', data[16:26]), (16,16,8,6))
-                    if name in ('amethyst_cluster', 'amethyst_block'):
+                    if name in ('amethyst_cluster', 'amethyst_block', 'gold_block', 'cut_copper'):
                         size = struct.unpack('>I', data[33:37])[0]
                         raw = zlib.decompress(data[41:41+size])
                         alpha = {raw[y*65+1+x*4+3] for y in range(16) for x in range(16)}

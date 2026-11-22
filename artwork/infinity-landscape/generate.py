@@ -36,6 +36,7 @@ ALIASES = {
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
     **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
+    'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
     'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
@@ -133,6 +134,42 @@ def wheat(stage):
                 dot(tile, x, y + 1, leaf)
     return tile
 
+def gold_block():
+    # One continuous plate with a polished diagonal and a recessed orbital ring.
+    tile = field((221, 166, 61), 27)
+    for y in range(16):
+        for x in range(16):
+            if x == 15 or y == 15:
+                dot(tile, x, y, (163, 109, 45))
+            elif x == 0 or y == 0:
+                dot(tile, x, y, (248, 205, 102))
+            elif 6 <= x + y <= 11:
+                dot(tile, x, y, (242, 191 + noise(x, y, 6), 81))
+    line(tile, [(3,9), (3,10), (4,11), (5,11), (6,11), (7,10), (8,10),
+                (9,9), (10,9), (11,8), (12,7), (12,6)], (178, 123, 47))
+    line(tile, [(12,5), (11,4), (10,4), (9,4), (8,5), (7,5), (6,6),
+                (5,6), (4,7), (3,8)], (248, 209, 113))
+    line(tile, [(10,4), (11,4), (11,5)], (255, 228, 157))
+    return tile
+
+def cut_copper():
+    # Four cut plates retain the copper grid at building scale. The rivets
+    # catch a touch of teal light without turning the fresh copper green.
+    tile = field((188, 113, 76), 34)
+    for y in range(16):
+        for x in range(16):
+            u, v = x % 8, y % 8
+            if u == 7 or v == 7:
+                dot(tile, x, y, (113, 69, 60))
+            elif u == 0 or v == 0:
+                dot(tile, x, y, (222, 150, 101))
+            elif u + v in (4, 5):
+                dot(tile, x, y, (206, 131, 87))
+    for x, y in ((5, 2), (13, 10)):
+        dot(tile, x, y, (138, 190, 171))
+        dot(tile, x, y + 1, (137, 86, 64))
+    return tile
+
 def make(name):
     if name.endswith('_ore'):
         deep = name.startswith('deepslate_')
@@ -159,6 +196,8 @@ def make(name):
             for dx,dy in shape[:2]: dot(tile,x+dx,y+dy,light)
         return tile
     if name.startswith('wheat_stage'): return wheat(int(name.removeprefix('wheat_stage')))
+    if name == 'gold_block': return gold_block()
+    if name == 'cut_copper': return cut_copper()
     if name == 'amethyst_block': return amethyst_block()
     if name == 'amethyst_cluster': return amethyst_cluster()
     if name == 'stone': return stone()
@@ -293,8 +332,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,6,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,6,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,7,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,7,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 
