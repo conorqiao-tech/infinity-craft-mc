@@ -37,7 +37,7 @@ ALIASES = {
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
     **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
     'beehive_front': 'beehive_front', 'beehive_front_honey': 'beehive_front_honey',
-    'loom_top': 'loom_top', 'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
+    'note_block': 'noteblock', 'loom_top': 'loom_top', 'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
     'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
@@ -218,7 +218,30 @@ def hive_front(full):
         line(tile, [(4, 9), (5, 10), (5, 11), (9, 9), (10, 10)], (255, 207, 88))
     return tile
 
+def soundboard():
+    tile = field((128, 78, 57), 67)
+    # Walnut case with beveled corners and a woven dark teal grille.
+    for y in range(16):
+        for x in range(16):
+            if x in (0, 15) or y in (0, 15):
+                dot(tile, x, y, (79, 50, 48) if x == 15 or y == 15 else (172, 116, 77))
+            elif 2 <= x <= 13 and 2 <= y <= 13:
+                dot(tile, x, y, (47, 80, 81) if (x + y) % 2 else (39, 65, 70))
+    for x in (1, 14):
+        for y in (1, 14):
+            dot(tile, x, y, (217, 167, 95))
+    # Four suspended brass reeds descend in length from left to right.
+    for x, bottom in ((4, 12), (6, 10), (8, 8), (10, 6)):
+        for y in range(4, bottom + 1):
+            dot(tile, x + 1, y, (104, 79, 57))
+            dot(tile, x, y, (229, 184, 107) if y < bottom else (255, 218, 145))
+    for x in range(3, 13):
+        dot(tile, x, 3, (114, 171, 156))
+    return tile
+
 def make(name):
+    if name == 'note_block':
+        return soundboard()
     if name in ('beehive_front', 'beehive_front_honey'):
         return hive_front(name == 'beehive_front_honey')
     if name == 'loom_top':
@@ -430,8 +453,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,10,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,10,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,11,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,11,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 

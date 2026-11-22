@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -169,6 +169,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.CHIMES) return InfinityChimes.view(p);
         if (page == Page.APIARY) return InfinityApiary.view(p);
         if (page == Page.RELAY) return InfinityRelay.view(p);
         if (page == Page.SURVEY) return InfinityOreSurvey.view(p);
@@ -195,6 +196,7 @@ final class InfinityJourney {
             choices.add(new Choice(Items.IRON_SWORD, "Infinity Defender • hostile encounters", () -> open(p, Page.DEFENDER)));
             choices.add(new Choice(Items.TROPICAL_FISH, "Infinity Tidewatch • fish field journal", () -> open(p, Page.TIDEWATCH)));
             choices.add(new Choice(Items.HONEYCOMB, "Infinity Apiary • inspect a hive", InfinityApiary.COMB_TEXTURE, () -> open(p, Page.APIARY)));
+            choices.add(new Choice(Items.NOTE_BLOCK, "Infinity Chimes • personal score", InfinityChimes.BLOCK_TEXTURE, () -> open(p, Page.CHIMES)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
@@ -304,14 +306,17 @@ final class InfinityJourney {
     }
     static void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            InfinityChimes.disconnected(handler);
             var ticket = ACTIVE.get(handler.player.getUUID());
             if (ticket != null && ticket.connection() == handler) { ACTIVE.remove(handler.player.getUUID(), ticket); DELIVERIES.remove(handler.player.getUUID()); }
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            InfinityChimes.stopped(server);
             ACTIVE.entrySet().removeIf(e -> e.getValue().world().getServer() == server);
             DELIVERIES.entrySet().removeIf(e -> e.getValue().ticket().world().getServer() == server);
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            InfinityChimes.tick(server);
             for (var entry : DELIVERIES.entrySet()) {
                 var delivery = entry.getValue();
                 if (delivery.ticket().world().getServer() != server || server.getTickCount() < delivery.due()) continue;
