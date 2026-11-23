@@ -19,21 +19,21 @@ final class StarLoom {
 
     enum Chart {
         KITE("kite", "Kite", InfinityJourney.Page.KITE, 0b101_011_100, 0b010_101_010, 2,
-            Items.BANNER.blue(), "6 blue wool, 1 stick, 1 cyan dye and 1 white dye"),
+            Items.BANNER.blue(), 0x60DCE9, 6, "6 blue wool, 1 stick, 1 cyan dye and 1 white dye"),
         HALF_MOON("half_moon", "Half Moon", InfinityJourney.Page.HALF_MOON, 0b111_100_110, 0b010_110_010, 4,
-            Items.BANNER.purple(), "6 purple wool, 1 stick, 1 yellow dye and 1 purple dye"),
+            Items.BANNER.purple(), 0xC6A6FF, 10, "6 purple wool, 1 stick, 1 yellow dye and 1 purple dye"),
         EMBER_PEAKS("ember_peaks", "Ember Peaks", InfinityJourney.Page.EMBER_PEAKS, 0b001_111_110, 0b101_111_111, 6,
-            Items.BANNER.black(), "6 black wool, 1 stick, 1 yellow dye and 1 orange dye");
+            Items.BANNER.black(), 0xFF9857, 13, "6 black wool, 1 stick, 1 yellow dye and 1 orange dye");
 
         final String label, key, materials;
         final InfinityJourney.Page page;
-        final int start, goal, par;
+        final int start, goal, par, ink, note;
         final Item banner;
         final ResourceKey<Recipe<?>> recipe;
 
-        Chart(String id, String label, InfinityJourney.Page page, int start, int goal, int par, Item banner, String materials) {
+        Chart(String id, String label, InfinityJourney.Page page, int start, int goal, int par, Item banner, int ink, int note, String materials) {
             this.label = label; this.page = page; this.start = start; this.goal = goal; this.par = par;
-            this.banner = banner; this.materials = materials;
+            this.banner = banner; this.ink = ink; this.note = note; this.materials = materials;
             key = "infinity_star_loom_v1_" + id;
             recipe = ResourceKey.create(Registries.RECIPE, Identifier.fromNamespaceAndPath("convergence", "star_loom/" + id));
         }
@@ -61,7 +61,7 @@ final class StarLoom {
 
     // The top-left star is the high bit, so a binary chart reads like the visible rows.
     private static int bit(int cell) { return 1 << (8 - cell); }
-    private static boolean lit(int board, int cell) { return (board & bit(cell)) != 0; }
+    static boolean lit(int board, int cell) { return (board & bit(cell)) != 0; }
     private static String coordinate(int cell) { return "" + (char)('A' + cell / 3) + (1 + cell % 3); }
     private static String state(int board, int cell) { return lit(board, cell) ? "lit" : "dark"; }
 
@@ -97,6 +97,8 @@ final class StarLoom {
             String best = run != null && run.best() > 0 ? " • best " + run.best() : "";
             choices.add(new InfinityJourney.Choice(chart.banner, chart.label + " • par " + chart.par + best, () -> InfinityJourney.open(p, chart.page)));
         }
+        choices.add(new InfinityJourney.Choice(Items.AMETHYST_SHARD, "Banner Concert • play your banners", "textures/items/amethyst_shard",
+            () -> InfinityJourney.open(p, InfinityJourney.Page.BANNER_CONCERT)));
         choices.add(new InfinityJourney.Choice(Items.ARROW, "Back to Infinity Journey", () -> InfinityJourney.open(p)));
         return new InfinityJourney.View("Infinity Star Loom", "Match a constellation by flipping stars. Each chart remembers your board and personal best. Solve one to learn its banner recipe.", choices);
     }

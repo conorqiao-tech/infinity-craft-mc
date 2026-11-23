@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -173,6 +173,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.BANNER_CONCERT) return BannerConcert.view(p);
         if (page == Page.STAR_LOOM) return StarLoom.gallery(p);
         var chart = StarLoom.Chart.forPage(page);
         if (chart != null) return StarLoom.board(p, chart);
