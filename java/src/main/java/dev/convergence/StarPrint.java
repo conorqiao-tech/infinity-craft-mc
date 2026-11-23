@@ -1,0 +1,150 @@
+package dev.convergence;
+
+import java.util.ArrayList;
+import java.util.List;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.IntArrayTag;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.phys.Vec3;
+
+record StarPrint(String composer, List<StarLoom.Chart> notes) {
+    private static final String KEY = "infinity_star_print_v1";
+
+    StarPrint { notes = List.copyOf(notes); }
+
+    static StarPrint read(ItemStack paper) {
+        if (!paper.is(Items.PAPER)) return null;
+        var data = paper.get(DataComponents.CUSTOM_DATA);
+        if (data == null) return null;
+        var tag = data.copyTag().getCompound(KEY).orElse(null);
+        if (tag == null || !(tag.get("notes") instanceof IntArrayTag pitches)) return null;
+        String by = tag.getStringOr("composer", "");
+        var notes = MirrorComposer.decode(pitches);
+        if (by.isBlank() || by.length() > 64 || notes == null || notes.size() < 2) return null;
+        return new StarPrint(by, notes);
+    }
+
+    private ItemStack paper() {
+        var paper = CommonsEvents.named(Items.PAPER, 1, "Star Print • " + composer,
+            "Written by " + composer, MirrorComposer.names(notes), "Use to open the printed score.");
+        var score = new CompoundTag();
+        score.putString("composer", composer);
+        score.putIntArray("notes", notes.stream().mapToInt(chart -> chart.note).toArray());
+        var tag = new CompoundTag();
+        tag.put(KEY, score);
+        paper.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        return paper;
+    }
+
+    static void register() {
+        UseItemCallback.EVENT.register((player, world, hand) -> {
+            if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND || read(p.getMainHandItem()) == null)
+                return InteractionResult.PASS;
+            if (InfinityJourney.emptyScreen(p)) InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS);
+            return InteractionResult.SUCCESS_SERVER;
+        });
+    }
+
+    static InfinityJourney.View view(ServerPlayer p) {
+        var choices = new ArrayList<InfinityJourney.Choice>();
+        var held = p.getMainHandItem();
+        var print = read(held);
+        String body;
+        if (print != null) {
+            body = "Held print • " + print.composer + "\n" + MirrorComposer.names(print.notes)
+                + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your personal draft stays in Mirror Composer.";
+            if (ConcertStage.current(p) == null) {
+                choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
+                    if (print.stillHeld(p)) print.unfold(p);
+                }));
+                choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Perform held print", () -> {
+                    if (print.stillHeld(p)) MirrorComposer.perform(p, print.notes, "Star Print by " + print.composer);
+                }));
+            } else body += "\nFinish or stop your current performance first.";
+        } else {
+            var notes = MirrorComposer.score(p);
+            body = "Print a copy of your melody on one plain sheet of paper. Give it to another player to hear or perform.";
+            if (notes == null) body += "\nYour saved motif needs host review.";
+            else if (notes.size() < 2) body += "\nWrite at least two notes in Mirror Composer, or hold a Star Print to read it.";
+            else {
+                body += "\nMy draft • " + MirrorComposer.names(notes);
+                if (!ItemStack.isSameItemSameComponents(held, new ItemStack(Items.PAPER)))
+                    body += "\nHold plain paper in your main hand to print.";
+                else if (held.getCount() > 1 && p.getInventory().getFreeSlot() < 0)
+                    body += "\nMake room for the remaining paper, or hold a single sheet.";
+                else {
+                    int slot = p.getInventory().getSelectedSlot();
+                    var sheets = held.copy();
+                    choices.add(new InfinityJourney.Choice(Items.PAPER, "Print my draft • 1 paper", () -> stamp(p, notes, slot, sheets)));
+                }
+            }
+        }
+        choices.add(new InfinityJourney.Choice(Items.ARROW, "Back to Mirror Composer", () -> InfinityJourney.open(p, InfinityJourney.Page.MIRROR_COMPOSER)));
+        return new InfinityJourney.View("Mirror Composer • Star Prints", body, choices);
+    }
+
+    private static void stamp(ServerPlayer p, List<StarLoom.Chart> expected, int slot, ItemStack sheets) {
+        if (!InfinityJourney.emptyScreen(p)) return;
+        var inventory = p.getInventory();
+        if (inventory.getSelectedSlot() == slot && ItemStack.matches(sheets, p.getMainHandItem()) && expected.equals(MirrorComposer.score(p))) {
+            int spare = inventory.getFreeSlot();
+            if (sheets.getCount() == 1 || spare >= 0) {
+                var result = new StarPrint(p.getGameProfile().name(), expected).paper();
+                if (sheets.getCount() > 1) inventory.setItem(spare, sheets.copyWithCount(sheets.getCount() - 1));
+                p.setItemInHand(InteractionHand.MAIN_HAND, result);
+                inventory.setChanged();
+                PlayerPersistence.save(p);
+            }
+        }
+        InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS);
+    }
+
+    private boolean stillHeld(ServerPlayer p) {
+        if (!InfinityJourney.emptyScreen(p) || ConcertStage.current(p) != null) return false;
+        if (equals(read(p.getMainHandItem()))) return true;
+        InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS);
+        return false;
+    }
+
+    private void unfold(ServerPlayer p) {
+        var forward = p.getLookAngle().normalize();
+        double yaw = Math.toRadians(p.getYRot());
+        var right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
+        var up = right.cross(forward).normalize();
+        var center = p.getEyePosition().add(forward.scale(1.6));
+        var stars = new ArrayList<Vec3>(notes.size());
+        for (int i = 0; i < notes.size(); i++) {
+            double offset = (i - (notes.size() - 1) * .5) * .25;
+            stars.add(center.add(right.scale(offset)).add(up.scale((notes.get(i).note - 10) * .055)));
+        }
+        InfinityChimes.play(p, notes.stream().mapToInt(chart -> chart.note).boxed().toList(), beat -> {
+            // Redraw the written prefix as each chime sounds so the whole phrase is visible on its final beat.
+            for (int i = 0; i <= beat; i++) {
+                var point = stars.get(i);
+                if (i > 0) {
+                    var previous = stars.get(i - 1);
+                    for (int j = 1; j <= 3; j++) dot(p, previous.lerp(point, j / 4.0), 0x8198B5, .32f);
+                }
+                dot(p, point, notes.get(i).ink, .8f);
+            }
+            var active = stars.get(beat);
+            for (int sign : new int[]{-1, 1}) {
+                dot(p, active.add(right.scale(sign * .06)), 0xFFD68B, .5f);
+                dot(p, active.add(up.scale(sign * .06)), 0xFFD68B, .5f);
+            }
+            ConcertStage.overlay(p, "Star Print • " + (beat + 1) + "/" + notes.size() + " • " + notes.get(beat).label);
+        });
+    }
+
+    private static void dot(ServerPlayer p, Vec3 pos, int color, float size) {
+        p.level().sendParticles(p, new DustParticleOptions(color, size), false, false, pos.x, pos.y, pos.z, 1, 0, 0, 0, 0);
+    }
+}

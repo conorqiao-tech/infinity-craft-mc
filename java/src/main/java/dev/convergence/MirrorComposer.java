@@ -22,18 +22,25 @@ final class MirrorComposer extends ConcertStage {
     private static final int MAX_NOTES = 6;
     private static final int BEAT_TICKS = 12;
     private final List<StarLoom.Chart> motif;
+    private final String title;
     private int beat, due;
 
-    private MirrorComposer(ServerPlayer p, List<StarLoom.Chart> motif) {
+    private MirrorComposer(ServerPlayer p, List<StarLoom.Chart> motif, String title) {
         super(p, motif);
         this.motif = List.copyOf(motif);
+        this.title = title;
     }
 
     // Store the pitches the player actually wrote, independently of enum ordering.
     static List<StarLoom.Chart> score(ServerPlayer p) {
         var tag = GameModes.state(p).get(KEY);
         if (tag == null) return List.of();
-        if (!(tag instanceof IntArrayTag pitches) || pitches.size() > MAX_NOTES) return null;
+        if (!(tag instanceof IntArrayTag pitches)) return null;
+        return decode(pitches);
+    }
+
+    static List<StarLoom.Chart> decode(IntArrayTag pitches) {
+        if (pitches.size() > MAX_NOTES) return null;
         var notes = new ArrayList<StarLoom.Chart>();
         for (int pitch : pitches.getAsIntArray()) {
             var chart = Arrays.stream(StarLoom.Chart.values()).filter(c -> c.note == pitch).findFirst().orElse(null);
@@ -43,7 +50,7 @@ final class MirrorComposer extends ConcertStage {
         return List.copyOf(notes);
     }
 
-    private static String names(List<StarLoom.Chart> notes) {
+    static String names(List<StarLoom.Chart> notes) {
         return notes.stream().map(chart -> chart.label).collect(Collectors.joining(" → "));
     }
     private static List<StarLoom.Chart> returning(List<StarLoom.Chart> notes) {
@@ -61,6 +68,7 @@ final class MirrorComposer extends ConcertStage {
             if (!notes.isEmpty()) body += "\nOut • " + names(notes);
             if (notes.size() >= 2) body += "\nReturn • " + names(returning(notes));
             if (run instanceof MirrorComposer show) {
+                body += "\nOn stage • " + show.title;
                 body += show.linking() ? "\nStill to link • " + show.unlinked() : "\nYour banners are performing.";
                 choices.add(new InfinityJourney.Choice(Items.FEATHER, "Stop performance", () -> {
                     if (current(p) == show) leave(p);
@@ -83,13 +91,19 @@ final class MirrorComposer extends ConcertStage {
                         () -> edit(p, notes, shorter, shorter)));
                 }
                 if (notes.size() >= 2) choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Perform on my banners", () -> {
-                    if (notes.equals(score(p))) start(p, new MirrorComposer(p, notes), "Mirror Composer");
+                    if (notes.equals(score(p))) perform(p, notes, "Mirror Composer");
                     else InfinityJourney.open(p, InfinityJourney.Page.MIRROR_COMPOSER);
                 }));
             }
         }
+        choices.add(new InfinityJourney.Choice(Items.PAPER, "Star Prints • print or read a score",
+            () -> InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS)));
         choices.add(new InfinityJourney.Choice(Items.ARROW, "Back to Echo Challenge", () -> InfinityJourney.open(p, InfinityJourney.Page.ECHO_CHALLENGE)));
         return new InfinityJourney.View("Star Loom • Mirror Composer", body, choices);
+    }
+
+    static void perform(ServerPlayer p, List<StarLoom.Chart> notes, String title) {
+        start(p, new MirrorComposer(p, notes, title), title);
     }
 
     private static void edit(ServerPlayer p, List<StarLoom.Chart> expected, List<StarLoom.Chart> next, List<StarLoom.Chart> preview) {
@@ -122,7 +136,7 @@ final class MirrorComposer extends ConcertStage {
 
     @Override void linked(ServerPlayer p) {
         due = world.getServer().getTickCount() + BEAT_TICKS;
-        overlay(p, "Mirror Composer • Watch your banners");
+        overlay(p, title + " • Watch your banners");
     }
 
     @Override boolean playback(ServerPlayer p, int now) {
@@ -144,7 +158,7 @@ final class MirrorComposer extends ConcertStage {
         overlay(p, direction + " • " + chart.label);
         if (beat == 2 * turn) {
             BannerConcert.finale(p, pos);
-            CommunityServer.say(p, "Mirror Composer • Your melody is back home. Back in free play.");
+            CommunityServer.say(p, title + " • The melody is back home. Back in free play.");
             return false;
         }
         due = now + (beat == turn ? 2 * BEAT_TICKS : BEAT_TICKS);
