@@ -101,7 +101,8 @@
       "dev.convergence.TidewatchFlagGameTests",
       "dev.convergence.InfinityApiaryGameTests",
       "dev.convergence.InfinityChimesGameTests",
-      "dev.convergence.InfinityGlassworksGameTests"
+      "dev.convergence.InfinityGlassworksGameTests",
+      "dev.convergence.StarLoomGameTests"
     ]
   },
   "mixins": [
@@ -179,7 +180,8 @@
       "dev.convergence.InfinityApiaryGameTests",
       "dev.convergence.SpawnSafetyGameTests",
       "dev.convergence.InfinityChimesGameTests",
-      "dev.convergence.InfinityGlassworksGameTests"
+      "dev.convergence.InfinityGlassworksGameTests",
+      "dev.convergence.StarLoomGameTests"
     ]
   },
   "depends": {
