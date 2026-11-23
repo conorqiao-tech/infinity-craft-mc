@@ -87,6 +87,9 @@ final class BannerConcert {
                 String label = (song == run.song ? "Restart " : "Play ") + song.title;
                 choices.add(new InfinityJourney.Choice(Items.AMETHYST_SHARD, label, "textures/items/amethyst_shard", () -> select(p, run, song)));
             }
+            if (run.song == Song.FREE)
+                choices.add(new InfinityJourney.Choice(Items.ECHO_SHARD, "Echo Challenge • repeat the call",
+                    () -> InfinityJourney.open(p, InfinityJourney.Page.ECHO_CHALLENGE)));
             if (run.song != Song.FREE)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Return to free play", () -> select(p, run, Song.FREE)));
         }
@@ -100,13 +103,14 @@ final class BannerConcert {
             InfinityJourney.open(p, InfinityJourney.Page.BANNER_CONCERT);
             return;
         }
+        EchoChallenge.leave(p);
         var run = expected.start(song);
         write(p, run);
         CommunityServer.say(p, song == Song.FREE ? "Banner Concert • free play" : "Tap a banner with your amethyst shard. " + run.cue());
     }
 
     // Match what is woven into the placed banner, including equivalent hand-woven or renamed copies.
-    private static StarLoom.Chart identify(ServerPlayer p, BannerBlockEntity banner) {
+    static StarLoom.Chart identify(ServerPlayer p, BannerBlockEntity banner) {
         var base = Items.BANNER.pick(banner.getBaseColor());
         for (var chart : StarLoom.Chart.values()) {
             if (chart.banner != base) continue;
@@ -128,20 +132,20 @@ final class BannerConcert {
             if (chart == null) return InteractionResult.PASS;
             var run = read(p);
             if (run == null) return InteractionResult.PASS;
-            if (!p.getCooldowns().isOnCooldown(p.getMainHandItem())) {
+            if (!EchoChallenge.listening(p) && !p.getCooldowns().isOnCooldown(p.getMainHandItem())) {
                 p.getCooldowns().addCooldown(p.getMainHandItem(), 5);
-                play(p, hit.getBlockPos(), chart, run);
+                if (!EchoChallenge.tap(p, hit.getBlockPos(), chart)) play(p, hit.getBlockPos(), chart, run);
             }
             return InteractionResult.SUCCESS_SERVER;
         });
     }
 
-    private static void play(ServerPlayer p, BlockPos pos, StarLoom.Chart chart, Performance run) {
-        var center = Vec3.atCenterOf(pos).add(0, 1.25, 0);
-        var towardPlayer = new Vec3(p.getX() - center.x, 0, p.getZ() - center.z).normalize();
-        if (towardPlayer.lengthSqr() < .01) towardPlayer = new Vec3(0, 0, 1);
-        center = center.add(towardPlayer.scale(.55));
-        var right = new Vec3(towardPlayer.z, 0, -towardPlayer.x);
+    private record Projection(Vec3 center, Vec3 right) {}
+
+    static void showNote(ServerPlayer p, BlockPos pos, StarLoom.Chart chart) {
+        var frame = projection(p, pos);
+        var center = frame.center();
+        var right = frame.right();
         var ink = new DustParticleOptions(chart.ink, 1.15f);
         for (int cell = 0; cell < 9; cell++) {
             if (StarLoom.lit(chart.goal, cell))
@@ -149,7 +153,19 @@ final class BannerConcert {
         }
         p.connection.send(new ClientboundSoundPacket(SoundEvents.NOTE_BLOCK_CHIME, SoundSource.RECORDS,
             center.x, center.y, center.z, 1f, NoteBlock.getPitchFromNote(chart.note), p.getRandom().nextLong()));
+    }
 
+    private static Projection projection(ServerPlayer p, BlockPos pos) {
+        var center = Vec3.atCenterOf(pos).add(0, 1.25, 0);
+        var towardPlayer = new Vec3(p.getX() - center.x, 0, p.getZ() - center.z).normalize();
+        if (towardPlayer.lengthSqr() < .01) towardPlayer = new Vec3(0, 0, 1);
+        center = center.add(towardPlayer.scale(.55));
+        var right = new Vec3(towardPlayer.z, 0, -towardPlayer.x);
+        return new Projection(center, right);
+    }
+
+    private static void play(ServerPlayer p, BlockPos pos, StarLoom.Chart chart, Performance run) {
+        showNote(p, pos, chart);
         if (run.song == Song.FREE) {
             p.sendOverlayMessage(Component.literal(chart.label + " • Free play"));
             return;
@@ -166,12 +182,17 @@ final class BannerConcert {
             write(p, new Performance(Song.FREE, 0, false, run.finished | mark, run.missed ? run.flawless : run.flawless | mark));
             PlayerPersistence.save(p);
             CommunityServer.say(p, run.song.title + (run.missed ? " • Played!" : " • Flawless!") + " Back in free play.");
-            var gold = new DustParticleOptions(0xFFD070, .9f);
-            var teal = new DustParticleOptions(0x66DAD1, .9f);
-            for (int i = 0; i < 24; i++) {
-                double angle = i * Math.PI / 12;
-                dot(p, i < 12 ? gold : teal, center, right, .86 * Math.sin(angle), .64 + .28 * Math.sin(2 * angle));
-            }
+            finale(p, pos);
+        }
+    }
+
+    static void finale(ServerPlayer p, BlockPos pos) {
+        var frame = projection(p, pos);
+        var gold = new DustParticleOptions(0xFFD070, .9f);
+        var teal = new DustParticleOptions(0x66DAD1, .9f);
+        for (int i = 0; i < 24; i++) {
+            double angle = i * Math.PI / 12;
+            dot(p, i < 12 ? gold : teal, frame.center(), frame.right(), .86 * Math.sin(angle), .64 + .28 * Math.sin(2 * angle));
         }
     }
 

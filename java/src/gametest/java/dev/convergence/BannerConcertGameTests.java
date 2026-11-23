@@ -34,7 +34,7 @@ import net.minecraft.world.phys.Vec3;
 import org.geysermc.cumulus.form.Form;
 
 public class BannerConcertGameTests {
-    private static final class Stage implements AutoCloseable {
+    static final class Stage implements AutoCloseable {
         final ServerPlayer p;
         final BlockPos origin;
         final Map<BlockPos, BlockState> before = new LinkedHashMap<>();
@@ -76,7 +76,7 @@ public class BannerConcertGameTests {
         }
     }
 
-    private static void choose(ServerPlayer p, String label) {
+    static void choose(ServerPlayer p, String label) {
         var menu = (InfinityJourney.Handler)p.containerMenu;
         for (int i = 0; i < menu.view.choices().size(); i++) {
             if (menu.view.choices().get(i).label().startsWith(label)) {
@@ -137,11 +137,11 @@ public class BannerConcertGameTests {
         c.succeed();
     }
 
-    private static List<ClientboundLevelParticlesPacket> dust(List<Packet<?>> packets) {
+    static List<ClientboundLevelParticlesPacket> dust(List<Packet<?>> packets) {
         return packets.stream().filter(ClientboundLevelParticlesPacket.class::isInstance).map(ClientboundLevelParticlesPacket.class::cast)
             .filter(packet -> packet.particle() instanceof DustParticleOptions).toList();
     }
-    private static List<Float> pitches(List<Packet<?>> packets) {
+    static List<Float> pitches(List<Packet<?>> packets) {
         return packets.stream().filter(ClientboundSoundPacket.class::isInstance).map(ClientboundSoundPacket.class::cast)
             .filter(packet -> packet.getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)).map(ClientboundSoundPacket::getPitch).toList();
     }

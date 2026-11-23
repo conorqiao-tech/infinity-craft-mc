@@ -103,7 +103,8 @@
       "dev.convergence.InfinityChimesGameTests",
       "dev.convergence.InfinityGlassworksGameTests",
       "dev.convergence.StarLoomGameTests",
-      "dev.convergence.BannerConcertGameTests"
+      "dev.convergence.BannerConcertGameTests",
+      "dev.convergence.EchoChallengeGameTests"
     ]
   },
   "mixins": [
@@ -183,7 +184,8 @@
       "dev.convergence.InfinityChimesGameTests",
       "dev.convergence.InfinityGlassworksGameTests",
       "dev.convergence.StarLoomGameTests",
-      "dev.convergence.BannerConcertGameTests"
+      "dev.convergence.BannerConcertGameTests",
+      "dev.convergence.EchoChallengeGameTests"
     ]
   },
   "depends": {
