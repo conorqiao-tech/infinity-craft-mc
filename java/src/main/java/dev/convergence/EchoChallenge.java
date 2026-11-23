@@ -17,13 +17,24 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.entity.BannerBlockEntity;
 
 final class EchoChallenge {
-    private static final String BEST = "infinity_echo_best_v1";
+    private enum Style {
+        CLASSIC("Echo Challenge", "Echo", "infinity_echo_best_v1"),
+        MIRROR("Mirror Echo", "Reverse order", "infinity_mirror_echo_best_v1");
+
+        final String title, cue, bestKey;
+        Style(String title, String cue, String bestKey) {
+            this.title = title;
+            this.cue = cue;
+            this.bestKey = bestKey;
+        }
+    }
     private static final int BEAT_TICKS = 20;
     private static final List<StarLoom.Chart> CHARTS = List.of(StarLoom.Chart.values());
     // All interactions, including form replies, run on the server thread.
     private static final Map<ServerPlayer, EchoChallenge> ACTIVE = new ConcurrentHashMap<>();
 
     private enum Phase { LINK, LISTEN, ECHO }
+    private final Style style;
     private final ServerLevel world;
     private final GameModes.Mode mode;
     private final GameType gameType;
@@ -32,21 +43,22 @@ final class EchoChallenge {
     private Phase phase = Phase.LINK;
     private int beat, due;
 
-    private EchoChallenge(ServerPlayer p) {
+    private EchoChallenge(ServerPlayer p, Style style) {
+        this.style = style;
         world = p.level();
         mode = GameModes.current(p);
         gameType = p.gameMode();
     }
 
-    private static int best(ServerPlayer p) {
+    private static int best(ServerPlayer p, Style style) {
         var state = GameModes.state(p);
-        if (!state.contains(BEST)) return 0;
-        if (!(state.get(BEST) instanceof IntTag)) return -1;
-        int value = state.getIntOr(BEST, -1);
+        if (!state.contains(style.bestKey)) return 0;
+        if (!(state.get(style.bestKey) instanceof IntTag)) return -1;
+        int value = state.getIntOr(style.bestKey, -1);
         return value >= 0 && value <= 3 ? value : -1;
     }
 
-    private boolean valid(ServerPlayer p) {
+    boolean valid(ServerPlayer p) {
         return world == p.level() && ServerMenu.allowed(p) && mode == GameModes.current(p) && gameType == p.gameMode();
     }
 
@@ -54,21 +66,23 @@ final class EchoChallenge {
         var run = ACTIVE.get(p);
         var concert = BannerConcert.read(p);
         var choices = new ArrayList<InfinityJourney.Choice>();
-        String body = "Tap one of each Star Loom banner with an amethyst shard to link your stage. Watch and listen, then tap the same banners in order. The call grows from three notes to five. Take as long as you need to answer.";
-        int best = best(p);
-        if (best < 0) body += "\nYour saved Echo record needs host review.";
-        else if (concert == null || concert.song() != BannerConcert.Song.FREE) body += "\nReturn to free play to start a challenge.";
+        String body = "Link one of each Star Loom banner with your amethyst shard. In Echo Challenge, copy the call in order. In Mirror Echo, start with the last banner you heard and play the call backwards. Each round adds one note. Answer at your own pace.";
+        if (concert == null || concert.song() != BannerConcert.Song.FREE) body += "\nReturn to free play to start a challenge.";
         else {
-            body += "\nPersonal best • " + best + "/3 rounds";
-            if (run == null) {
-                choices.add(new InfinityJourney.Choice(Items.ECHO_SHARD, "Start Echo Challenge", () -> {
-                    if (ACTIVE.containsKey(p) || !InfinityJourney.emptyScreen(p) || best(p) < 0) return;
-                    var current = BannerConcert.read(p);
-                    if (current == null || current.song() != BannerConcert.Song.FREE) return;
-                    ACTIVE.put(p, new EchoChallenge(p));
-                    CommunityServer.say(p, "Link your stage • Tap Kite, Half Moon and Ember Peaks once each with your amethyst shard.");
-                }));
-            } else {
+            for (var style : Style.values()) {
+                int record = best(p, style);
+                if (record < 0) {
+                    body += "\nYour saved " + style.title + " record needs host review.";
+                    continue;
+                }
+                body += "\n" + (style == Style.CLASSIC ? "Personal best" : "Mirror best") + " • " + record + "/3 rounds";
+                if (run == null) {
+                    var icon = style == Style.CLASSIC ? Items.ECHO_SHARD : Items.SPYGLASS;
+                    choices.add(new InfinityJourney.Choice(icon, "Start " + style.title, () -> start(p, style)));
+                }
+            }
+            if (run != null) {
+                body += "\nPlaying " + run.style.title;
                 if (run.phase == Phase.LINK) body += "\nStill to link • " + run.unlinked();
                 else {
                     body += "\nRound " + (run.call.size() - 2) + "/3 • " + run.call.size() + " notes";
@@ -77,12 +91,24 @@ final class EchoChallenge {
                     }));
                 }
                 choices.add(new InfinityJourney.Choice(Items.FEATHER, "Leave challenge", () -> {
-                    if (ACTIVE.remove(p, run)) CommunityServer.say(p, "Echo Challenge ended • Free play");
+                    if (ACTIVE.get(p) == run) {
+                        leave(p);
+                        CommunityServer.say(p, run.style.title + " ended • Free play");
+                    }
                 }));
             }
         }
         choices.add(new InfinityJourney.Choice(Items.ARROW, "Back to Banner Concert", () -> InfinityJourney.open(p, InfinityJourney.Page.BANNER_CONCERT)));
         return new InfinityJourney.View("Banner Concert • Echo Challenge", body, choices);
+    }
+
+    private static void start(ServerPlayer p, Style style) {
+        if (ACTIVE.containsKey(p) || !InfinityJourney.emptyScreen(p) || best(p, style) < 0) return;
+        var current = BannerConcert.read(p);
+        if (current == null || current.song() != BannerConcert.Song.FREE) return;
+        MirrorEchoTrail.cancel(p);
+        ACTIVE.put(p, new EchoChallenge(p, style));
+        CommunityServer.say(p, style.title + " • Tap Kite, Half Moon and Ember Peaks once each to link your stage.");
     }
 
     private String unlinked() {
@@ -91,6 +117,12 @@ final class EchoChallenge {
 
     private void appendNote(ServerPlayer p) {
         int index;
+        if (style == Style.MIRROR && call.size() == 2) {
+            // All three banners open the mirror game, so the first call always changes when reversed.
+            for (var chart : CHARTS) {
+                if (!call.contains(chart)) { call.add(chart); return; }
+            }
+        }
         if (call.isEmpty()) index = p.getRandom().nextInt(CHARTS.size());
         else {
             // Choose uniformly among the other charts, so successive flashes stay distinct.
@@ -135,27 +167,32 @@ final class EchoChallenge {
 
     private void answer(ServerPlayer p, BlockPos pos, StarLoom.Chart chart) {
         BannerConcert.showNote(p, pos, chart);
-        if (call.get(beat) != chart) {
+        int index = style == Style.MIRROR ? call.size() - 1 - beat : beat;
+        if (call.get(index) != chart) {
             listen(p, "Miss • Listen again");
             return;
         }
+        if (style == Style.MIRROR) {
+            if (beat == 0) MirrorEchoTrail.star(p, pos);
+            else MirrorEchoTrail.connect(p, stage.get(call.get(index + 1)), pos, this);
+        }
         beat++;
         if (beat < call.size()) {
-            overlay(p, "Echo " + pips());
+            overlay(p, style.cue + " " + pips());
             return;
         }
         String completed = pips();
         int cleared = call.size() - 2;
-        int previousBest = best(p);
+        int previousBest = best(p, style);
         if (previousBest >= 0 && cleared > previousBest) {
-            GameModes.state(p).putInt(BEST, cleared);
+            GameModes.state(p).putInt(style.bestKey, cleared);
             PlayerPersistence.save(p);
         }
         if (cleared == 3) {
-            overlay(p, "Echo " + completed + " • Complete!");
+            overlay(p, style.cue + " " + completed + " • Complete!");
             BannerConcert.finale(p, pos);
-            leave(p);
-            CommunityServer.say(p, "Echo Challenge complete! All three rounds matched. Back in free play.");
+            ACTIVE.remove(p); // Let the final mirror arc reach the last banner.
+            CommunityServer.say(p, style.title + " complete! All three rounds matched. Back in free play.");
         } else {
             appendNote(p);
             listen(p, completed + " • Round " + cleared + " matched! Listen");
@@ -167,7 +204,7 @@ final class EchoChallenge {
         if (beat == call.size()) {
             beat = 0;
             phase = Phase.ECHO;
-            overlay(p, "Your turn • Echo " + pips());
+            overlay(p, "Your turn • " + style.cue + " " + pips());
         } else {
             var chart = call.get(beat);
             var pos = stage.get(chart);
@@ -185,10 +222,17 @@ final class EchoChallenge {
     }
 
     private static void overlay(ServerPlayer p, String text) { p.sendOverlayMessage(Component.literal(text)); }
-    static void leave(ServerPlayer p) { ACTIVE.remove(p); }
-    static void stopped(MinecraftServer server) { ACTIVE.values().removeIf(run -> run.world.getServer() == server); }
+    static void leave(ServerPlayer p) {
+        ACTIVE.remove(p);
+        MirrorEchoTrail.cancel(p);
+    }
+    static void stopped(MinecraftServer server) {
+        ACTIVE.values().removeIf(run -> run.world.getServer() == server);
+        MirrorEchoTrail.stopped(server);
+    }
 
     static void tick(MinecraftServer server) {
+        MirrorEchoTrail.tick(server);
         if (ACTIVE.isEmpty()) return;
         ACTIVE.entrySet().removeIf(entry -> {
             var run = entry.getValue();

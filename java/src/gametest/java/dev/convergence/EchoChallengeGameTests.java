@@ -18,7 +18,7 @@ import static dev.convergence.BannerConcertGameTests.dust;
 import static dev.convergence.BannerConcertGameTests.pitches;
 
 public class EchoChallengeGameTests {
-    private static List<String> overlays(List<Packet<?>> packets) {
+    static List<String> overlays(List<Packet<?>> packets) {
         return packets.stream().filter(ClientboundSystemChatPacket.class::isInstance).map(ClientboundSystemChatPacket.class::cast)
             .filter(ClientboundSystemChatPacket::overlay).map(packet -> packet.content().getString()).toList();
     }
