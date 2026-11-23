@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "convergence:glassworks",
+  "ingredients": [
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane",
+    "minecraft:purple_stained_glass_pane"
+  ],
+  "result": {
+    "id": "minecraft:purple_stained_glass",
+    "count": 3
+  }
+}

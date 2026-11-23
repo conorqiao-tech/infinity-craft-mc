@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "convergence:glassworks",
+  "ingredients": [
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane",
+    "minecraft:white_stained_glass_pane"
+  ],
+  "result": {
+    "id": "minecraft:white_stained_glass",
+    "count": 3
+  }
+}
