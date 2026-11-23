@@ -105,7 +105,8 @@
       "dev.convergence.StarLoomGameTests",
       "dev.convergence.BannerConcertGameTests",
       "dev.convergence.EchoChallengeGameTests",
-      "dev.convergence.MirrorEchoGameTests"
+      "dev.convergence.MirrorEchoGameTests",
+      "dev.convergence.MirrorComposerGameTests"
     ]
   },
   "mixins": [
@@ -187,7 +188,8 @@
       "dev.convergence.StarLoomGameTests",
       "dev.convergence.BannerConcertGameTests",
       "dev.convergence.EchoChallengeGameTests",
-      "dev.convergence.MirrorEchoGameTests"
+      "dev.convergence.MirrorEchoGameTests",
+      "dev.convergence.MirrorComposerGameTests"
     ]
   },
   "depends": {

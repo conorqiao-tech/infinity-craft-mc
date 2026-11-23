@@ -103,7 +103,7 @@ final class BannerConcert {
             InfinityJourney.open(p, InfinityJourney.Page.BANNER_CONCERT);
             return;
         }
-        EchoChallenge.leave(p);
+        ConcertStage.leave(p);
         var run = expected.start(song);
         write(p, run);
         CommunityServer.say(p, song == Song.FREE ? "Banner Concert • free play" : "Tap a banner with your amethyst shard. " + run.cue());
@@ -132,9 +132,9 @@ final class BannerConcert {
             if (chart == null) return InteractionResult.PASS;
             var run = read(p);
             if (run == null) return InteractionResult.PASS;
-            if (!EchoChallenge.listening(p) && !p.getCooldowns().isOnCooldown(p.getMainHandItem())) {
+            if (!ConcertStage.listening(p) && !p.getCooldowns().isOnCooldown(p.getMainHandItem())) {
                 p.getCooldowns().addCooldown(p.getMainHandItem(), 5);
-                if (!EchoChallenge.tap(p, hit.getBlockPos(), chart)) play(p, hit.getBlockPos(), chart, run);
+                if (!ConcertStage.tap(p, hit.getBlockPos(), chart)) play(p, hit.getBlockPos(), chart, run);
             }
             return InteractionResult.SUCCESS_SERVER;
         });

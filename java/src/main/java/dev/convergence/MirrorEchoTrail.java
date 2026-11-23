@@ -10,7 +10,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** A four-tick arc reaches the next banner before the shard's five-tick cooldown ends. */
 final class MirrorEchoTrail {
-    private record Arc(EchoChallenge run, MinecraftServer server, Vec3 from, Vec3 to, int started) {}
+    private record Arc(ConcertStage run, MinecraftServer server, Vec3 from, Vec3 to, int started) {}
     private static final Map<ServerPlayer, Arc> ARCS = new ConcurrentHashMap<>();
     private static final int STEPS = 8;
 
@@ -24,7 +24,7 @@ final class MirrorEchoTrail {
         flare(p, tip);
     }
 
-    static void connect(ServerPlayer p, BlockPos from, BlockPos to, EchoChallenge run) {
+    static void connect(ServerPlayer p, BlockPos from, BlockPos to, ConcertStage run) {
         var server = p.level().getServer();
         ARCS.put(p, new Arc(run, server, above(from), above(to), server.getTickCount()));
     }

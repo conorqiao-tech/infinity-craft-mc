@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT, ECHO_CHALLENGE }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT, ECHO_CHALLENGE, MIRROR_COMPOSER }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -173,6 +173,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.MIRROR_COMPOSER) return MirrorComposer.view(p);
         if (page == Page.ECHO_CHALLENGE) return EchoChallenge.view(p);
         if (page == Page.BANNER_CONCERT) return BannerConcert.view(p);
         if (page == Page.STAR_LOOM) return StarLoom.gallery(p);
@@ -252,6 +253,7 @@ final class InfinityJourney {
         for (int i = 0; i < cards.size() && i < 8; i++)
             CreativeStudio.icon(chest, i, Items.WRITTEN_BOOK, view.title() + " • " + (i + 1), cards.get(i).toArray(String[]::new));
         chest.setItem(17, emblem(p, true));
+        if (page == Page.MIRROR_COMPOSER) MirrorComposer.draw(p, chest);
         if (page == Page.SIGNAL_FLAGS) {
             for (var design : TidewatchFlags.Design.values()) chest.setItem(9 + design.ordinal(), design.banner(p));
         }
@@ -318,19 +320,19 @@ final class InfinityJourney {
     }
     static void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            EchoChallenge.leave(handler.player);
+            ConcertStage.leave(handler.player);
             InfinityChimes.disconnected(handler);
             var ticket = ACTIVE.get(handler.player.getUUID());
             if (ticket != null && ticket.connection() == handler) { ACTIVE.remove(handler.player.getUUID(), ticket); DELIVERIES.remove(handler.player.getUUID()); }
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
-            EchoChallenge.stopped(server);
+            ConcertStage.stopped(server);
             InfinityChimes.stopped(server);
             ACTIVE.entrySet().removeIf(e -> e.getValue().world().getServer() == server);
             DELIVERIES.entrySet().removeIf(e -> e.getValue().ticket().world().getServer() == server);
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            EchoChallenge.tick(server);
+            ConcertStage.tick(server);
             InfinityChimes.tick(server);
             for (var entry : DELIVERIES.entrySet()) {
                 var delivery = entry.getValue();

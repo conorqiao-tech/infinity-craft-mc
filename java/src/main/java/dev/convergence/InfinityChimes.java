@@ -73,8 +73,11 @@ final class InfinityChimes {
         PlayerPersistence.save(p);
     }
 
-    private static void play(ServerPlayer p, List<Integer> notes) {
-        PLAYING.remove(p);
+    static void stopPlayback(ServerPlayer p) { PLAYING.remove(p); }
+
+    static void play(ServerPlayer p, List<Integer> notes) {
+        stopPlayback(p);
+        if (notes.isEmpty()) return;
         sound(p, notes.getFirst());
         if (notes.size() > 1) PLAYING.put(p, new Playback(p.connection, p.level(), p.level().getServer().getTickCount(), notes));
     }
