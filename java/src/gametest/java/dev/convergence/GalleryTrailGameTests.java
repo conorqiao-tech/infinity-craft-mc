@@ -28,11 +28,10 @@ import static dev.convergence.EchoChallengeGameTests.overlays;
 import static dev.convergence.StarLoom.Chart.*;
 
 public class GalleryTrailGameTests {
-    private static ItemFrame exhibit(ServerPlayer author, BlockPos pos, StarLoom.Chart first, StarLoom.Chart last) {
+    static ItemFrame exhibit(ServerPlayer author, BlockPos pos, StarLoom.Chart... notes) {
         InfinityJourney.open(author, InfinityJourney.Page.MIRROR_COMPOSER);
         while (!MirrorComposer.score(author).isEmpty()) choose(author, "Undo last note");
-        choose(author, "Add " + first.label);
-        choose(author, "Add " + last.label);
+        for (var note : notes) choose(author, "Add " + note.label);
         author.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PAPER));
         choose(author, "Star Prints");
         choose(author, "Print my draft");
@@ -43,12 +42,12 @@ public class GalleryTrailGameTests {
         return frame;
     }
 
-    private static void visit(ServerPlayer p, ItemFrame frame, boolean crouch) {
+    static void visit(ServerPlayer p, ItemFrame frame, boolean crouch) {
         p.setPos(frame.position().add(0, -1, -1.3));
         p.connection.handleInteract(new ServerboundInteractPacket(frame.getId(), InteractionHand.MAIN_HAND, Vec3.ZERO, crouch));
     }
 
-    private static List<Vec3> particles(List<Packet<?>> packets, ParticleType<?> type) {
+    static List<Vec3> particles(List<Packet<?>> packets, ParticleType<?> type) {
         return packets.stream().filter(ClientboundLevelParticlesPacket.class::isInstance).map(ClientboundLevelParticlesPacket.class::cast)
             .filter(pkt -> pkt.particle().getType() == type).map(pkt -> new Vec3(pkt.x(), pkt.y(), pkt.z())).toList();
     }
@@ -109,7 +108,8 @@ public class GalleryTrailGameTests {
                     && hints.contains("Trail 1/3 • Already visited. Find another print opening on Half Moon.")
                     && hints.contains("Trail 1/3 • Opens on Ember Peaks. Find one opening on Half Moon.")
                     && hints.contains("Trail 2/3 • Find a print opening on Ember Peaks")
-                    && hints.contains("Gallery Trail complete • 3/3"), "Clues survive a duplicate and a wrong note");
+                    && hints.contains("Gallery Trail complete • 3/3")
+                    && hints.contains("Encore • Use a plain feather on this last frame. Sneak for reverse."), "Clues survive a duplicate and a wrong note");
                 var expected = List.of(KITE, HALF_MOON, HALF_MOON, EMBER_PEAKS, EMBER_PEAKS, KITE);
                 c.assertValueEqual(notes, expected.stream().map(chart -> NoteBlock.getPitchFromNote(chart.note)).toList(), "Each accepted score plays once");
                 c.assertTrue(link.contains(GalleryTrail.framePoint(frames.getFirst())) && link.contains(GalleryTrail.framePoint(frames.get(1))),

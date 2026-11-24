@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.attachment.v1.AttachmentRegistry;
 import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
 import net.minecraft.core.Direction;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.Identifier;
@@ -40,6 +41,7 @@ final class GalleryTrail {
 
     static void visit(ServerPlayer p, ItemFrame frame, StarPrint print) {
         var route = p.getAttachedOrElse(ROUTE, List.of());
+        if (route.size() == GOAL) route = List.of();
         var next = new Stop(frame.getUUID(), framePoint(frame), frame.getDirection(), print);
         boolean changed = !p.isShiftKeyDown() && route.stream().anyMatch(stop -> !stop.stillDisplayed(p));
         if (p.isShiftKeyDown() || changed) route = List.of();
@@ -62,8 +64,7 @@ final class GalleryTrail {
         var stops = new ArrayList<>(route);
         stops.add(next);
         boolean complete = stops.size() == GOAL;
-        if (complete) p.removeAttached(ROUTE);
-        else p.setAttached(ROUTE, List.copyOf(stops));
+        p.setAttached(ROUTE, List.copyOf(stops));
         String progress = complete ? "Gallery Trail complete • 3/3" : "Trail " + stops.size() + "/" + GOAL
             + " • Find a print opening on " + print.notes().getLast().label;
         ConcertStage.overlay(p, changed ? "Display changed • " + progress : progress);
@@ -72,13 +73,66 @@ final class GalleryTrail {
             if (complete && beat == notes.size() - 1) {
                 for (int i = 0; i < stops.size(); i++) {
                     var here = stops.get(i);
-                    drawLink(p, here.point, stops.get((i + 1) % stops.size()).point, 1);
+                    drawLink(p, here.point, stops.get((i + 1) % stops.size()).point, 1, 0);
                     halo(p, here);
                 }
+                ConcertStage.overlay(p, "Encore • Use a plain feather on this last frame. Sneak for reverse.");
             } else {
-                if (stops.size() > 1) drawLink(p, stops.get(stops.size() - 2).point, next.point, (beat + 1.0) / notes.size());
+                if (stops.size() > 1) drawLink(p, stops.get(stops.size() - 2).point, next.point, (beat + 1.0) / notes.size(), 0);
                 spark(p, ParticleTypes.GLOW, next.point);
             }
+        });
+    }
+
+    static boolean encoreReady(ServerPlayer p) {
+        return p.getAttachedOrElse(ROUTE, List.of()).size() == GOAL;
+    }
+
+    private record Beat(StarLoom.Chart note, int from, int to) {}
+
+    static void conduct(ServerPlayer p, ItemFrame frame) {
+        var route = p.getAttachedOrElse(ROUTE, List.of());
+        if (route.size() != GOAL) return;
+        if (!route.getLast().frameId.equals(frame.getUUID())) {
+            ConcertStage.overlay(p, "Use the feather on the last frame of your trail.");
+            return;
+        }
+        boolean reverse = p.isShiftKeyDown();
+        var beats = new ArrayList<Beat>();
+        for (int part = 0; part < route.size(); part++) {
+            int from = reverse ? route.size() - 1 - part : part;
+            var notes = route.get(from).print.notes();
+            if (reverse) notes = notes.reversed();
+            // The outgoing frame already sounds the next frame's opening note.
+            for (int i = part == 0 ? 0 : 1; i < notes.size(); i++) {
+                boolean handoff = i == notes.size() - 1 && part < route.size() - 1;
+                int to = handoff ? from + (reverse ? -1 : 1) : from;
+                beats.add(new Beat(notes.get(i), from, to));
+            }
+        }
+        InfinityChimes.play(p, beats.stream().map(beat -> beat.note.note).toList(), () -> {
+            if (p.getAttached(ROUTE) != route) return false;
+            if (route.stream().anyMatch(stop -> !stop.stillDisplayed(p))) {
+                p.removeAttached(ROUTE);
+                ConcertStage.overlay(p, "Encore ended • The display changed. Solve a new trail.");
+                return false;
+            }
+            return true;
+        }, i -> {
+            var beat = beats.get(i);
+            var from = route.get(beat.from);
+            var to = route.get(beat.to);
+            var ink = new DustParticleOptions(beat.note.ink, 1f);
+            spark(p, ink, from.point);
+            String frames = "Frame " + (beat.from + 1);
+            if (beat.from != beat.to) {
+                drawLink(p, from.point, to.point, 1, .45);
+                spark(p, ParticleTypes.GLOW, from.point);
+                spark(p, ParticleTypes.GLOW, to.point);
+                spark(p, ink, to.point);
+                frames += " to " + (beat.to + 1);
+            }
+            ConcertStage.overlay(p, (reverse ? "Reverse encore" : "Encore") + " • " + frames + " • " + beat.note.label);
         });
     }
 
@@ -92,10 +146,12 @@ final class GalleryTrail {
         }
     }
 
-    private static void drawLink(ServerPlayer p, Vec3 from, Vec3 to, double fraction) {
+    private static void drawLink(ServerPlayer p, Vec3 from, Vec3 to, double fraction, double arcHeight) {
         int steps = Math.max(2, (int)Math.ceil(from.distanceTo(to) * 2));
-        for (int i = 0; i <= Math.ceil(steps * fraction); i++)
-            spark(p, ParticleTypes.END_ROD, from.lerp(to, (double)i / steps));
+        for (int i = 0; i <= Math.ceil(steps * fraction); i++) {
+            double t = (double)i / steps;
+            spark(p, ParticleTypes.END_ROD, from.lerp(to, t).add(0, 4 * arcHeight * t * (1 - t), 0));
+        }
     }
 
     private static void spark(ServerPlayer p, ParticleOptions particle, Vec3 point) {

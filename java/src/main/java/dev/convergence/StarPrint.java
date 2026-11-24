@@ -54,11 +54,13 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
-            if (!compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;
+            boolean feather = held.is(Items.FEATHER) && held.getComponentsPatch().isEmpty() && GalleryTrail.encoreReady(p);
+            if (!feather && !compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;
             var print = read(frame.getItem());
             if (print == null) return InteractionResult.PASS;
             if (InfinityJourney.emptyScreen(p)) {
                 if (ConcertStage.current(p) != null) ConcertStage.overlay(p, "Finish your banner performance to play this print.");
+                else if (feather) GalleryTrail.conduct(p, frame);
                 else if (compass) GalleryTrail.visit(p, frame, print);
                 else print.playFrame(p, frame);
             }
@@ -81,7 +83,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             body = "Held print • " + print.composer + "\n" + MirrorComposer.names(print.notes)
                 + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your own melody stays saved."
                 + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping."
-                + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh.";
+                + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh."
+                + "\nEncore: after the third frame, use a plain feather on that frame for the whole medley. Turn on Sneak first to play backward.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);

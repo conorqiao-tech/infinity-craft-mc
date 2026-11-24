@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
@@ -29,7 +30,7 @@ final class InfinityChimes {
     private static final int BEAT_TICKS = 8;
     private static final List<String> NAMES = List.of("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B");
     private record Sample(BlockPos pos, int pitch) {}
-    private record Playback(ServerGamePacketListenerImpl connection, ServerLevel world, int start, List<Integer> notes, IntConsumer onBeat) {}
+    private record Playback(ServerGamePacketListenerImpl connection, ServerLevel world, int start, List<Integer> notes, BooleanSupplier canPlay, IntConsumer onBeat) {}
     private static final Map<ServerPlayer, Playback> PLAYING = new ConcurrentHashMap<>();
 
     private InfinityChimes() {}
@@ -81,11 +82,15 @@ final class InfinityChimes {
     }
 
     static void play(ServerPlayer p, List<Integer> notes, IntConsumer onBeat) {
+        play(p, notes, () -> true, onBeat);
+    }
+
+    static void play(ServerPlayer p, List<Integer> notes, BooleanSupplier canPlay, IntConsumer onBeat) {
         stopPlayback(p);
-        if (notes.isEmpty()) return;
+        if (notes.isEmpty() || !canPlay.getAsBoolean()) return;
         sound(p, notes.getFirst());
         onBeat.accept(0);
-        if (notes.size() > 1) PLAYING.put(p, new Playback(p.connection, p.level(), p.level().getServer().getTickCount(), notes, onBeat));
+        if (notes.size() > 1) PLAYING.put(p, new Playback(p.connection, p.level(), p.level().getServer().getTickCount(), notes, canPlay, onBeat));
     }
 
     static void tick(MinecraftServer server) {
@@ -99,6 +104,7 @@ final class InfinityChimes {
             if (elapsed <= 0 || elapsed % BEAT_TICKS != 0) return false;
             int index = elapsed / BEAT_TICKS;
             if (index < tune.notes().size()) {
+                if (!tune.canPlay().getAsBoolean()) return true;
                 sound(p, tune.notes().get(index));
                 tune.onBeat().accept(index);
             }

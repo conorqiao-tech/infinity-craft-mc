@@ -109,7 +109,8 @@
       "dev.convergence.MirrorComposerGameTests",
       "dev.convergence.StarPrintGameTests",
       "dev.convergence.ScoreGalleryGameTests",
-      "dev.convergence.GalleryTrailGameTests"
+      "dev.convergence.GalleryTrailGameTests",
+      "dev.convergence.TrailEncoreGameTests"
     ]
   },
   "mixins": [
@@ -195,7 +196,8 @@
       "dev.convergence.MirrorComposerGameTests",
       "dev.convergence.StarPrintGameTests",
       "dev.convergence.ScoreGalleryGameTests",
-      "dev.convergence.GalleryTrailGameTests"
+      "dev.convergence.GalleryTrailGameTests",
+      "dev.convergence.TrailEncoreGameTests"
     ]
   },
   "depends": {
