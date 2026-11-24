@@ -2,7 +2,9 @@ package dev.convergence;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.nbt.CompoundTag;
@@ -10,6 +12,7 @@ import net.minecraft.nbt.IntArrayTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
@@ -45,6 +48,18 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
     }
 
     static void register() {
+        UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
+            if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
+                || hand != InteractionHand.MAIN_HAND || !p.getMainHandItem().is(Items.AMETHYST_SHARD)
+                || p.isSpectator()) return InteractionResult.PASS;
+            var print = read(frame.getItem());
+            if (print == null) return InteractionResult.PASS;
+            if (InfinityJourney.emptyScreen(p)) {
+                if (ConcertStage.current(p) == null) print.playFrame(p, frame);
+                else ConcertStage.overlay(p, "Finish your banner performance to play this print.");
+            }
+            return InteractionResult.SUCCESS_SERVER;
+        });
         UseItemCallback.EVENT.register((player, world, hand) -> {
             if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND || read(p.getMainHandItem()) == null)
                 return InteractionResult.PASS;
@@ -60,7 +75,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         String body;
         if (print != null) {
             body = "Held print • " + print.composer + "\n" + MirrorComposer.names(print.notes)
-                + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your personal draft stays in Mirror Composer.";
+                + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your own melody stays saved."
+                + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);
@@ -120,12 +136,29 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         var right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
         var up = right.cross(forward).normalize();
         var center = p.getEyePosition().add(forward.scale(1.6));
+        project(p, notes, center, right, up, "Star Print");
+    }
+
+    private void playFrame(ServerPlayer p, ItemFrame frame) {
+        var normal = frame.getDirection().getUnitVec3();
+        // Floor and ceiling displays read from the visitor's side of the frame.
+        var right = frame.getDirection().getAxis() == Direction.Axis.Y
+            ? p.getDirection().getClockWise().getUnitVec3()
+            : new Vec3(0, 1, 0).cross(normal);
+        var up = normal.cross(right);
+        var center = frame.getBoundingBox().getCenter().add(normal.scale(.12));
+        boolean reverse = p.isShiftKeyDown();
+        String title = (reverse ? "Score Gallery ← " : "Score Gallery → ") + composer;
+        project(p, reverse ? notes.reversed() : notes, center, right.scale(reverse ? -.52 : .52), up.scale(.52), title);
+    }
+
+    private static void project(ServerPlayer p, List<StarLoom.Chart> notes, Vec3 center, Vec3 right, Vec3 up, String title) {
         var stars = new ArrayList<Vec3>(notes.size());
         for (int i = 0; i < notes.size(); i++) {
             double offset = (i - (notes.size() - 1) * .5) * .25;
             stars.add(center.add(right.scale(offset)).add(up.scale((notes.get(i).note - 10) * .055)));
         }
-        InfinityChimes.play(p, notes.stream().mapToInt(chart -> chart.note).boxed().toList(), beat -> {
+        InfinityChimes.play(p, notes.stream().map(chart -> chart.note).toList(), beat -> {
             // Redraw the written prefix as each chime sounds so the whole phrase is visible on its final beat.
             for (int i = 0; i <= beat; i++) {
                 var point = stars.get(i);
@@ -140,7 +173,7 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 dot(p, active.add(right.scale(sign * .06)), 0xFFD68B, .5f);
                 dot(p, active.add(up.scale(sign * .06)), 0xFFD68B, .5f);
             }
-            ConcertStage.overlay(p, "Star Print • " + (beat + 1) + "/" + notes.size() + " • " + notes.get(beat).label);
+            ConcertStage.overlay(p, title + " • " + (beat + 1) + "/" + notes.size() + " • " + notes.get(beat).label);
         });
     }
 
