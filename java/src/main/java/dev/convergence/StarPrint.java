@@ -55,14 +55,20 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             var held = p.getMainHandItem();
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
             boolean feather = held.is(Items.FEATHER) && held.getComponentsPatch().isEmpty() && GalleryTrail.encoreReady(p);
-            if (!feather && !compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;
+            boolean stick = EncoreDuet.hasBaton(p) && GalleryTrail.encoreReady(p);
+            if (!stick && !feather && !compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;
             var print = read(frame.getItem());
-            if (print == null) return InteractionResult.PASS;
+            if (print == null && !(stick && GalleryTrail.route(p).stream().anyMatch(s -> s.frameId().equals(frame.getUUID()))))
+                return InteractionResult.PASS;
             if (InfinityJourney.emptyScreen(p)) {
                 if (ConcertStage.current(p) != null) ConcertStage.overlay(p, "Finish your banner performance to play this print.");
-                else if (feather) GalleryTrail.conduct(p, frame);
-                else if (compass) GalleryTrail.visit(p, frame, print);
-                else print.playFrame(p, frame);
+                else if (stick) EncoreDuet.tap(p, frame);
+                else {
+                    EncoreDuet.leave(p);
+                    if (feather) GalleryTrail.conduct(p, frame);
+                    else if (compass) GalleryTrail.visit(p, frame, print);
+                    else print.playFrame(p, frame);
+                }
             }
             return InteractionResult.SUCCESS_SERVER;
         });
@@ -84,7 +90,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your own melody stays saved."
                 + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping."
                 + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh."
-                + "\nEncore: after the third frame, use a plain feather on that frame for the whole medley. Turn on Sneak first to play backward.";
+                + "\nEncore: after the third frame, use a plain feather on that frame for the whole medley. Turn on Sneak first to play backward."
+                + "\nDuet: both solve the same trail, then tap its last frame with plain sticks. Take turns tapping the marked frame.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);

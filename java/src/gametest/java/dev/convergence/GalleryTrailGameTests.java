@@ -109,7 +109,7 @@ public class GalleryTrailGameTests {
                     && hints.contains("Trail 1/3 • Opens on Ember Peaks. Find one opening on Half Moon.")
                     && hints.contains("Trail 2/3 • Find a print opening on Ember Peaks")
                     && hints.contains("Gallery Trail complete • 3/3")
-                    && hints.contains("Encore • Use a plain feather on this last frame. Sneak for reverse."), "Clues survive a duplicate and a wrong note");
+                    && hints.contains("Last frame • Feather for solo (Sneak reverses) • Each use a plain stick for a duet."), "Clues survive a duplicate and a wrong note");
                 var expected = List.of(KITE, HALF_MOON, HALF_MOON, EMBER_PEAKS, EMBER_PEAKS, KITE);
                 c.assertValueEqual(notes, expected.stream().map(chart -> NoteBlock.getPitchFromNote(chart.note)).toList(), "Each accepted score plays once");
                 c.assertTrue(link.contains(GalleryTrail.framePoint(frames.getFirst())) && link.contains(GalleryTrail.framePoint(frames.get(1))),
@@ -139,8 +139,9 @@ public class GalleryTrailGameTests {
             p.setGameMode(GameType.SURVIVAL);
             var root = p.blockPosition().atY(p.level().getMaxY() - 15);
             var a = exhibit(p, root, KITE, HALF_MOON); frames.add(a);
-            var b = exhibit(p, root.offset(12, 0, 0), HALF_MOON, EMBER_PEAKS); frames.add(b);
-            var far = exhibit(p, root.offset(13, 0, 0), HALF_MOON, KITE); frames.add(far);
+            // Keep the radius boundary independent of the test world's random chunk alignment.
+            var b = exhibit(p, root.below(12), HALF_MOON, EMBER_PEAKS); frames.add(b);
+            var far = exhibit(p, root.below(13), HALF_MOON, KITE); frames.add(far);
             var special = new ItemStack(Items.COMPASS);
             special.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
             p.setItemInHand(InteractionHand.MAIN_HAND, special);

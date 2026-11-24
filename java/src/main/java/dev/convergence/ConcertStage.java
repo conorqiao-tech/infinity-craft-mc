@@ -35,6 +35,7 @@ abstract class ConcertStage {
         if (!InfinityJourney.emptyScreen(p) || current(p) != null) return;
         var concert = BannerConcert.read(p);
         if (concert == null || concert.song() != BannerConcert.Song.FREE) return;
+        EncoreDuet.leave(p);
         MirrorEchoTrail.cancel(p);
         InfinityChimes.stopPlayback(p);
         ACTIVE.put(p, run);

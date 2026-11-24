@@ -110,7 +110,8 @@
       "dev.convergence.StarPrintGameTests",
       "dev.convergence.ScoreGalleryGameTests",
       "dev.convergence.GalleryTrailGameTests",
-      "dev.convergence.TrailEncoreGameTests"
+      "dev.convergence.TrailEncoreGameTests",
+      "dev.convergence.EncoreDuetGameTests"
     ]
   },
   "mixins": [
@@ -197,7 +198,8 @@
       "dev.convergence.StarPrintGameTests",
       "dev.convergence.ScoreGalleryGameTests",
       "dev.convergence.GalleryTrailGameTests",
-      "dev.convergence.TrailEncoreGameTests"
+      "dev.convergence.TrailEncoreGameTests",
+      "dev.convergence.EncoreDuetGameTests"
     ]
   },
   "depends": {

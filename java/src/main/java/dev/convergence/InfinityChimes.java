@@ -8,12 +8,14 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.nbt.IntArrayTag;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.Item;
@@ -63,7 +65,11 @@ final class InfinityChimes {
     }
 
     private static void sound(ServerPlayer p, int pitch) {
-        p.connection.send(new ClientboundSoundPacket(SoundEvents.NOTE_BLOCK_CHIME, SoundSource.RECORDS,
+        sound(p, pitch, SoundEvents.NOTE_BLOCK_CHIME);
+    }
+
+    static void sound(ServerPlayer p, int pitch, Holder<SoundEvent> instrument) {
+        p.connection.send(new ClientboundSoundPacket(instrument, SoundSource.RECORDS,
             p.getX(), p.getY(), p.getZ(), 1f, NoteBlock.getPitchFromNote(pitch), p.getRandom().nextLong()));
     }
 
