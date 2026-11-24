@@ -11,6 +11,17 @@ final class DuetCoda {
 
     private Choice chime;
     private Choice bell;
+    private CodaPostcard lastChord;
+
+    void stamp(ServerPlayer player) {
+        if (lastChord == null) {
+            ConcertStage.overlay(player, "Finish a chord together, then stamp it here with plain paper.");
+        } else if (StarPrint.inkSheet(player, lastChord.paper())) {
+            ConcertStage.overlay(player, "Coda Postcard stamped • Use it to listen, or give it to a friend.");
+        } else {
+            ConcertStage.overlay(player, "Make room for the remaining paper, or hold a single sheet.");
+        }
+    }
 
     void choose(ServerPlayer player, ServerPlayer partner, boolean lead, GalleryTrail.Stop stop) {
         var notes = stop.print().notes();
@@ -27,11 +38,14 @@ final class DuetCoda {
             return;
         }
 
+        lastChord = new CodaPostcard((lead ? player : partner).getGameProfile().name(), chime.note,
+            (lead ? partner : player).getGameProfile().name(), bell.note);
         for (var listener : List.of(player, partner)) {
             InfinityChimes.sound(listener, chime.note.note, SoundEvents.NOTE_BLOCK_CHIME);
             InfinityChimes.sound(listener, bell.note.note, SoundEvents.NOTE_BLOCK_BELL);
             drawLoops(listener, chime, bell);
-            ConcertStage.overlay(listener, "Coda • Chime: " + chime.note.label + " + Bell: " + bell.note.label + " • Pick again!");
+            ConcertStage.overlay(listener, "Coda • Chime: " + chime.note.label + " + Bell: " + bell.note.label
+                + " • Pick again or stamp paper at the last frame.");
         }
         chime = null;
         bell = null;

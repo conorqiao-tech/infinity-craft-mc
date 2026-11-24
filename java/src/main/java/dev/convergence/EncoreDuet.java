@@ -76,14 +76,19 @@ final class EncoreDuet {
         return p.level().getServer().getPlayerList().getPlayer(lead.equals(p.getUUID()) ? reply : lead);
     }
 
-    static boolean useCodaInk(ServerPlayer p, ItemFrame frame) {
+    static boolean useCodaItem(ServerPlayer p, ItemFrame frame) {
         var pair = p.getAttached(DUET);
         if (pair == null || pair.coda == null) return false;
+        boolean paper = p.getMainHandItem().is(Items.PAPER);
+        if (paper && !pair.route.getLast().frameId().equals(frame.getUUID())) return false;
         for (var stop : pair.route) {
             if (!stop.frameId().equals(frame.getUUID())) continue;
             if (InfinityJourney.emptyScreen(p)) {
                 var other = pair.availablePartner(p);
-                if (other != null) pair.coda.choose(p, other, pair.lead.equals(p.getUUID()), stop);
+                if (other != null) {
+                    if (paper) pair.coda.stamp(p);
+                    else pair.coda.choose(p, other, pair.lead.equals(p.getUUID()), stop);
+                }
             }
             return true;
         }

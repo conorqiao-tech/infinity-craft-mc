@@ -26,7 +26,7 @@ import static dev.convergence.GalleryTrailGameTests.*;
 import static dev.convergence.StarLoom.Chart.*;
 
 public class EncoreDuetGameTests {
-    private static final class Gallery implements AutoCloseable {
+    static final class Gallery implements AutoCloseable {
         final List<ItemFrame> frames = new ArrayList<>();
         final List<NativePlayConnection> wires = new ArrayList<>();
         final List<ServerPlayer> players = new ArrayList<>();
@@ -74,7 +74,7 @@ public class EncoreDuetGameTests {
         }
     }
 
-    private static List<ClientboundSoundPacket> music(List<Packet<?>> packets) {
+    static List<ClientboundSoundPacket> music(List<Packet<?>> packets) {
         return packets.stream().filter(ClientboundSoundPacket.class::isInstance).map(ClientboundSoundPacket.class::cast)
             .filter(s -> s.getSound().equals(SoundEvents.NOTE_BLOCK_CHIME) || s.getSound().equals(SoundEvents.NOTE_BLOCK_BELL)).toList();
     }
@@ -180,7 +180,7 @@ public class EncoreDuetGameTests {
                         && dots.stream().anyMatch(p -> p.y > center.y + .20) && dots.stream().anyMatch(p -> p.y < center.y - .20)
                         && (!sameFrame || dots.stream().allMatch(p -> p.distanceTo(center) < .5)),
                         "Two frames get a spanning figure eight and a shared frame gets a compact one");
-                    c.assertTrue(overlays(packets).contains("Coda • Chime: " + lead.label + " + Bell: " + reply.label + " • Pick again!"),
+                    c.assertTrue(overlays(packets).contains("Coda • Chime: " + lead.label + " + Bell: " + reply.label + " • Pick again or stamp paper at the last frame."),
                         "The chord names both roles and pitches");
                 }
                 var observer = g.drain(2);

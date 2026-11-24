@@ -53,7 +53,7 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
-            if (held.is(Items.GLOW_INK_SAC) && held.getComponentsPatch().isEmpty() && EncoreDuet.useCodaInk(p, frame))
+            if ((held.is(Items.GLOW_INK_SAC) || held.is(Items.PAPER)) && held.getComponentsPatch().isEmpty() && EncoreDuet.useCodaItem(p, frame))
                 return InteractionResult.SUCCESS_SERVER;
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
             boolean feather = held.is(Items.FEATHER) && held.getComponentsPatch().isEmpty() && GalleryTrail.encoreReady(p);
@@ -75,8 +75,14 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             return InteractionResult.SUCCESS_SERVER;
         });
         UseItemCallback.EVENT.register((player, world, hand) -> {
-            if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND || read(p.getMainHandItem()) == null)
+            if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND)
                 return InteractionResult.PASS;
+            var postcard = CodaPostcard.read(p.getMainHandItem());
+            if (postcard != null) {
+                postcard.playIfHeld(p);
+                return InteractionResult.SUCCESS_SERVER;
+            }
+            if (read(p.getMainHandItem()) == null) return InteractionResult.PASS;
             if (InfinityJourney.emptyScreen(p)) InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS);
             return InteractionResult.SUCCESS_SERVER;
         });
@@ -86,15 +92,22 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         var choices = new ArrayList<InfinityJourney.Choice>();
         var held = p.getMainHandItem();
         var print = read(held);
+        var postcard = CodaPostcard.read(held);
         String body;
-        if (print != null) {
+        if (postcard != null) {
+            body = "Coda Postcard\n" + postcard.credits() + "\nHold and use it to hear the chord anywhere.";
+            if (ConcertStage.current(p) == null)
+                choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
+            else body += "\nFinish or stop your current performance first.";
+        } else if (print != null) {
             body = "Held print • " + print.composer + "\n" + MirrorComposer.names(print.notes)
                 + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your own melody stays saved."
                 + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping."
                 + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh."
                 + "\nEncore: after the third frame, use a plain feather on that frame for the whole medley. Turn on Sneak first to play backward."
                 + "\nDuet: both solve the same trail, then tap its last frame with plain sticks. Take turns tapping the marked frame."
-                + "\nCoda: after the duet, each tap any trail frame with a plain glow ink sac. Tap for its last note, or Sneak and tap for its first. Pick again for another chord.";
+                + "\nCoda: after the duet, each tap any trail frame with a plain glow ink sac. Tap for its last note, or Sneak and tap for its first."
+                + "\nTap the last frame with plain paper to stamp your latest chord onto a Coda Postcard.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);
@@ -129,16 +142,24 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         if (!InfinityJourney.emptyScreen(p)) return;
         var inventory = p.getInventory();
         if (inventory.getSelectedSlot() == slot && ItemStack.matches(sheets, p.getMainHandItem()) && expected.equals(MirrorComposer.score(p))) {
-            int spare = inventory.getFreeSlot();
-            if (sheets.getCount() == 1 || spare >= 0) {
-                var result = new StarPrint(p.getGameProfile().name(), expected).paper();
-                if (sheets.getCount() > 1) inventory.setItem(spare, sheets.copyWithCount(sheets.getCount() - 1));
-                p.setItemInHand(InteractionHand.MAIN_HAND, result);
-                inventory.setChanged();
-                PlayerPersistence.save(p);
-            }
+            inkSheet(p, new StarPrint(p.getGameProfile().name(), expected).paper());
         }
         InfinityJourney.open(p, InfinityJourney.Page.STAR_PRINTS);
+    }
+
+    static boolean inkSheet(ServerPlayer p, ItemStack result) {
+        var sheets = p.getMainHandItem();
+        if (!ItemStack.isSameItemSameComponents(sheets, new ItemStack(Items.PAPER))) return false;
+        var inventory = p.getInventory();
+        if (sheets.getCount() > 1) {
+            int spare = inventory.getFreeSlot();
+            if (spare < 0) return false;
+            inventory.setItem(spare, sheets.copyWithCount(sheets.getCount() - 1));
+        }
+        p.setItemInHand(InteractionHand.MAIN_HAND, result);
+        inventory.setChanged();
+        PlayerPersistence.save(p);
+        return true;
     }
 
     private boolean stillHeld(ServerPlayer p) {
