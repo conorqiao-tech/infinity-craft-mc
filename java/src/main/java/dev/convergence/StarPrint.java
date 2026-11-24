@@ -53,6 +53,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
+            if (held.is(Items.GLOW_INK_SAC) && held.getComponentsPatch().isEmpty() && EncoreDuet.useCodaInk(p, frame))
+                return InteractionResult.SUCCESS_SERVER;
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
             boolean feather = held.is(Items.FEATHER) && held.getComponentsPatch().isEmpty() && GalleryTrail.encoreReady(p);
             boolean stick = EncoreDuet.hasBaton(p) && GalleryTrail.encoreReady(p);
@@ -91,7 +93,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping."
                 + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh."
                 + "\nEncore: after the third frame, use a plain feather on that frame for the whole medley. Turn on Sneak first to play backward."
-                + "\nDuet: both solve the same trail, then tap its last frame with plain sticks. Take turns tapping the marked frame.";
+                + "\nDuet: both solve the same trail, then tap its last frame with plain sticks. Take turns tapping the marked frame."
+                + "\nCoda: after the duet, each tap any trail frame with a plain glow ink sac. Tap for its last note, or Sneak and tap for its first. Pick again for another chord.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);

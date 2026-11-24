@@ -23,6 +23,7 @@ final class EncoreDuet {
     private final List<GalleryTrail.Beat> notes;
     private int played;
     private int lastPrompt;
+    private DuetCoda coda;
 
     private EncoreDuet(ServerPlayer first, ServerPlayer second, List<GalleryTrail.Stop> route) {
         lead = first.getUUID();
@@ -43,7 +44,10 @@ final class EncoreDuet {
                 var pair = player.getAttached(DUET);
                 if (pair != null && pair.lead.equals(player.getUUID()) && server.getTickCount() - pair.lastPrompt >= 30) {
                     var partner = pair.availablePartner(player);
-                    if (partner != null) pair.prompt(player, partner);
+                    if (partner != null) {
+                        if (pair.coda == null) pair.prompt(player, partner);
+                        else pair.lastPrompt = server.getTickCount();
+                    }
                 }
             }
         });
@@ -64,12 +68,26 @@ final class EncoreDuet {
         var other = duet.partner(p);
         if (other != null && other.getAttached(DUET) == duet) {
             other.removeAttached(DUET);
-            ConcertStage.overlay(other, "Duet ended • Pair again at the last frame.");
+            ConcertStage.overlay(other, (duet.coda == null ? "Duet ended" : "Coda closed") + " • Pair again at the last frame.");
         }
     }
 
     private ServerPlayer partner(ServerPlayer p) {
         return p.level().getServer().getPlayerList().getPlayer(lead.equals(p.getUUID()) ? reply : lead);
+    }
+
+    static boolean useCodaInk(ServerPlayer p, ItemFrame frame) {
+        var pair = p.getAttached(DUET);
+        if (pair == null || pair.coda == null) return false;
+        for (var stop : pair.route) {
+            if (!stop.frameId().equals(frame.getUUID())) continue;
+            if (InfinityJourney.emptyScreen(p)) {
+                var other = pair.availablePartner(p);
+                if (other != null) pair.coda.choose(p, other, pair.lead.equals(p.getUUID()), stop);
+            }
+            return true;
+        }
+        return false;
     }
 
     static void tap(ServerPlayer p, ItemFrame frame) {
@@ -79,9 +97,16 @@ final class EncoreDuet {
             return;
         }
         var duet = p.getAttached(DUET);
-        if (duet != null) {
+        if (duet != null && duet.coda == null) {
             duet.play(p, frame);
             return;
+        }
+        if (duet != null) {
+            if (!duet.route.getLast().frameId().equals(frame.getUUID())) {
+                ConcertStage.overlay(p, "Pick a coda note with glow ink, or tap the last frame with a stick to pair again.");
+                return;
+            }
+            leave(p);
         }
         var route = GalleryTrail.route(p);
         if (!GalleryTrail.encoreReady(p)) return;
@@ -147,10 +172,10 @@ final class EncoreDuet {
             prompt(p, other);
             return;
         }
+        coda = new DuetCoda();
         for (var listener : List.of(p, other)) {
-            listener.removeAttached(DUET);
             for (var stop : route) GalleryTrail.halo(listener, stop);
-            ConcertStage.overlay(listener, "Duet complete • " + played + " notes together");
+            ConcertStage.overlay(listener, "Duet complete • " + played + " notes together • Glow ink on a frame picks its last note. Sneak for its first.");
         }
     }
 
