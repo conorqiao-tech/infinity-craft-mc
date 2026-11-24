@@ -48,15 +48,19 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
     }
 
     static void register() {
+        GalleryTrail.register();
         UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
-                || hand != InteractionHand.MAIN_HAND || !p.getMainHandItem().is(Items.AMETHYST_SHARD)
-                || p.isSpectator()) return InteractionResult.PASS;
+                || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
+            var held = p.getMainHandItem();
+            boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
+            if (!compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;
             var print = read(frame.getItem());
             if (print == null) return InteractionResult.PASS;
             if (InfinityJourney.emptyScreen(p)) {
-                if (ConcertStage.current(p) == null) print.playFrame(p, frame);
-                else ConcertStage.overlay(p, "Finish your banner performance to play this print.");
+                if (ConcertStage.current(p) != null) ConcertStage.overlay(p, "Finish your banner performance to play this print.");
+                else if (compass) GalleryTrail.visit(p, frame, print);
+                else print.playFrame(p, frame);
             }
             return InteractionResult.SUCCESS_SERVER;
         });
@@ -76,7 +80,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         if (print != null) {
             body = "Held print • " + print.composer + "\n" + MirrorComposer.names(print.notes)
                 + "\nUnfold to hear the written notes. Perform to play this paper out and back on linked banners. Your own melody stays saved."
-                + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping.";
+                + "\nUse an amethyst shard on a framed print to play it. Crouch first for reverse. On touch, turn on Sneak before tapping."
+                + "\nGallery Trail: use a plain compass on three different frames. Match the last note to the next opening note. Crouch and tap to start fresh.";
             if (ConcertStage.current(p) == null) {
                 choices.add(new InfinityJourney.Choice(Items.PAPER, "Unfold held print", () -> {
                     if (print.stillHeld(p)) print.unfold(p);
@@ -146,7 +151,7 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             ? p.getDirection().getClockWise().getUnitVec3()
             : new Vec3(0, 1, 0).cross(normal);
         var up = normal.cross(right);
-        var center = frame.getBoundingBox().getCenter().add(normal.scale(.12));
+        var center = GalleryTrail.framePoint(frame);
         boolean reverse = p.isShiftKeyDown();
         String title = (reverse ? "Score Gallery ← " : "Score Gallery → ") + composer;
         project(p, reverse ? notes.reversed() : notes, center, right.scale(reverse ? -.52 : .52), up.scale(.52), title);
