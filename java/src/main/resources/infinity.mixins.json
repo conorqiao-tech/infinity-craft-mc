@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CommonsTitleMixin",
+    "ApiaryHarvestMixin",
     "ModePlayerMixin",
     "ModeRespawnMixin",
     "PlayerSaveAccess",

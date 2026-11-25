@@ -49,8 +49,10 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER }
-    record Choice(Item icon, String label, Runnable action) {}
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES }
+    record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
+        Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
+    }
     record View(String title, String content, List<Choice> choices) {}
     record Ticket(UUID nonce, ServerPlayer player, ServerGamePacketListenerImpl connection,
                   ServerLevel world, GameModes.Mode mode, GameType nativeMode, long screenEpoch, int expires) {
@@ -167,8 +169,12 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.CHIMES) return InfinityChimes.view(p);
+        if (page == Page.APIARY) return InfinityApiary.view(p);
         if (page == Page.RELAY) return InfinityRelay.view(p);
         if (page == Page.SURVEY) return InfinityOreSurvey.view(p);
+        if (page == Page.SIGNAL_FLAGS) return TidewatchFlags.view(p);
+        if (page == Page.TIDEWATCH) return InfinityTidewatch.view(p);
         if (page == Page.DEFENDER) return InfinityDefender.view(p);
         var choices = new ArrayList<Choice>();
         int ready = eligible(p), done = attuned(p);
@@ -188,6 +194,9 @@ final class InfinityJourney {
             choices.add(new Choice(Items.REDSTONE_TORCH, "Infinity Circuit Relay • all courses", () -> open(p, Page.RELAY)));
             choices.add(new Choice(Items.DIAMOND_ORE, "Infinity Ore Survey • mining", () -> open(p, Page.SURVEY)));
             choices.add(new Choice(Items.IRON_SWORD, "Infinity Defender • hostile encounters", () -> open(p, Page.DEFENDER)));
+            choices.add(new Choice(Items.TROPICAL_FISH, "Infinity Tidewatch • fish field journal", () -> open(p, Page.TIDEWATCH)));
+            choices.add(new Choice(Items.HONEYCOMB, "Infinity Apiary • inspect a hive", InfinityApiary.COMB_TEXTURE, () -> open(p, Page.APIARY)));
+            choices.add(new Choice(Items.NOTE_BLOCK, "Infinity Chimes • personal score", InfinityChimes.BLOCK_TEXTURE, () -> open(p, Page.CHIMES)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
@@ -233,6 +242,9 @@ final class InfinityJourney {
         for (int i = 0; i < cards.size() && i < 8; i++)
             CreativeStudio.icon(chest, i, Items.WRITTEN_BOOK, view.title() + " • " + (i + 1), cards.get(i).toArray(String[]::new));
         chest.setItem(17, emblem(p, true));
+        if (page == Page.SIGNAL_FLAGS) {
+            for (var design : TidewatchFlags.Design.values()) chest.setItem(9 + design.ordinal(), design.banner(p));
+        }
         for (int i = 0; i < view.choices().size(); i++) {
             var choice = view.choices().get(i); CreativeStudio.icon(chest, 27 + i, choice.icon(), choice.label());
         }
@@ -269,7 +281,10 @@ final class InfinityJourney {
             p.level().getServer().getTickCount() + 1800);
         ACTIVE.put(p.getUUID(), ticket);
         var form = SimpleForm.builder().title(view.title()).content(view.content());
-        for (var choice : view.choices()) form.button(choice.label());
+        for (var choice : view.choices()) {
+            if (choice.bedrockTexture() == null) form.button(choice.label());
+            else form.button(choice.label(), org.geysermc.cumulus.util.FormImage.Type.PATH, choice.bedrockTexture());
+        }
         form.validResultHandler(r -> response(ticket, () -> {
             int i = r.clickedButtonId(); if (i >= 0 && i < view.choices().size()) view.choices().get(i).action().run();
         })).closedOrInvalidResultHandler(() -> response(ticket, () -> {}));
@@ -291,14 +306,17 @@ final class InfinityJourney {
     }
     static void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            InfinityChimes.disconnected(handler);
             var ticket = ACTIVE.get(handler.player.getUUID());
             if (ticket != null && ticket.connection() == handler) { ACTIVE.remove(handler.player.getUUID(), ticket); DELIVERIES.remove(handler.player.getUUID()); }
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            InfinityChimes.stopped(server);
             ACTIVE.entrySet().removeIf(e -> e.getValue().world().getServer() == server);
             DELIVERIES.entrySet().removeIf(e -> e.getValue().ticket().world().getServer() == server);
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            InfinityChimes.tick(server);
             for (var entry : DELIVERIES.entrySet()) {
                 var delivery = entry.getValue();
                 if (delivery.ticket().world().getServer() != server || server.getTickCount() < delivery.due()) continue;

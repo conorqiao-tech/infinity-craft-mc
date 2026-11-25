@@ -25,10 +25,16 @@ PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'j
               'cherry_planks':'cherry_planks', 'bamboo_planks':'bamboo_planks',
               'crimson_planks':'huge_fungus/crimson_planks', 'warped_planks':'huge_fungus/warped_planks',
               'granite':'stone_granite', 'diorite':'stone_diorite', 'andesite':'stone_andesite',
-              'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal'})
+              'gold_block':'gold_block', 'cut_copper':'cut_copper',
+              'amethyst_block':'amethyst_block', 'amethyst_cluster':'amethyst_cluster',
+              'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal', 'loom_top':'loom_top',
+              'note_block':'noteblock', 'beehive_front':'beehive_front', 'beehive_front_honey':'beehive_front_honey'})
+PAIRS.update({f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)})
 ITEMS = {name:name for name in ('iron_ingot','gold_ingot','copper_ingot','netherite_ingot',
                                 'diamond','emerald','coal','amethyst_shard','raw_iron','raw_gold','raw_copper')}
-ITEMS['redstone'] = 'redstone_dust'
+ITEMS.update({'redstone': 'redstone_dust', 'map': 'map_empty', 'spyglass': 'spyglass',
+              'cod':'fish_raw', 'salmon':'fish_salmon_raw',
+              'tropical_fish':'fish_clownfish_raw', 'pufferfish':'fish_pufferfish_raw'})
 
 class InfinityLandscapePreviewTests(unittest.TestCase):
     def test_source_and_server_texture_credits_match(self):
@@ -44,20 +50,56 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 60); self.assertEqual(len(b.namelist()), 60)
+                self.assertEqual(len(j.namelist()), 83); self.assertEqual(len(b.namelist()), 82)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
-                self.assertEqual(manifest['header']['version'], [0,3,0])
+                self.assertEqual(manifest['header']['version'], [0,11,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
+                self.assertEqual(manifest['modules'][0]['version'], manifest['header']['version'])
+                cluster_path = 'assets/minecraft/textures/block/amethyst_cluster.png'
+                cluster_meta = json.loads(j.read(cluster_path + '.mcmeta'))
+                self.assertEqual(cluster_meta['texture']['mipmap_strategy'], 'strict_cutout')
                 textures = {}
                 for name, alias in PAIRS.items():
                     data = j.read('assets/minecraft/textures/block/'+name+'.png')
                     self.assertEqual(data, b.read('textures/blocks/'+alias+'.png'))
                     self.assertEqual(data[:8], b'\x89PNG\r\n\x1a\n')
                     self.assertEqual(struct.unpack('>IIBB', data[16:26]), (16,16,8,6))
+                    if name in ('amethyst_cluster', 'amethyst_block', 'gold_block', 'cut_copper', 'loom_top', 'note_block', 'beehive_front', 'beehive_front_honey'):
+                        size = struct.unpack('>I', data[33:37])[0]
+                        raw = zlib.decompress(data[41:41+size])
+                        alpha = {raw[y*65+1+x*4+3] for y in range(16) for x in range(16)}
+                        self.assertEqual(alpha, {0, 255} if name == 'amethyst_cluster' else {255})
+                        if name.startswith('beehive_front'):
+                            bright_honey = bytes((255, 207, 88, 255))
+                            pixels = [raw[y*65+1+x*4:y*65+5+x*4] for y in range(16) for x in range(16)]
+                            self.assertEqual(bright_honey in pixels, name == 'beehive_front_honey')
                     textures[name] = hashlib.sha256(data).digest()
+                heights = []
+                gold_pixels = []
+                for stage in range(8):
+                    data = j.read(f'assets/minecraft/textures/block/wheat_stage{stage}.png')
+                    size = struct.unpack('>I', data[33:37])[0]
+                    raw = zlib.decompress(data[41:41+size])
+                    self.assertEqual(len(raw), 16 * 65)
+                    top = 16
+                    gold = 0
+                    for y in range(16):
+                        for x in range(16):
+                            start = 65*y + 1 + 4*x
+                            red, green, blue, alpha = raw[start:start+4]
+                            self.assertIn(alpha, (0, 255))
+                            if alpha:
+                                top = min(top, y)
+                                if red > green > blue:
+                                    gold += 1
+                    heights.append(16 - top)
+                    gold_pixels.append(gold)
+                self.assertTrue(all(a < b for a, b in zip(heights, heights[1:])), heights)
+                self.assertEqual(gold_pixels[:7], [0] * 7)
+                self.assertGreater(gold_pixels[7], 40)
                 self.assertEqual(len(set(textures.values())), len(PAIRS), 'Every terrain tile must remain visually distinct')
                 items = {}
                 for name, alias in ITEMS.items():
@@ -72,7 +114,7 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
                     alpha = {raw[y*65+1+x*4+3] for y in range(16) for x in range(16)}
                     self.assertEqual(alpha, {0,255}, name)
                     items[name] = hashlib.sha256(data).digest()
-                self.assertEqual(len(set(items.values())), len(ITEMS), 'Every material icon must remain distinct')
+                self.assertEqual(len(set(items.values())), len(ITEMS), 'Every item icon must remain distinct')
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
             self.assertEqual(before, {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)})
 

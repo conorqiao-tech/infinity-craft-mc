@@ -35,12 +35,19 @@ ALIASES = {
     'cherry_planks': 'cherry_planks', 'bamboo_planks': 'bamboo_planks',
     'crimson_planks': 'huge_fungus/crimson_planks', 'warped_planks': 'huge_fungus/warped_planks',
     'granite': 'stone_granite', 'diorite': 'stone_diorite', 'andesite': 'stone_andesite',
+    **{f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)},
+    'beehive_front': 'beehive_front', 'beehive_front_honey': 'beehive_front_honey',
+    'note_block': 'noteblock', 'loom_top': 'loom_top', 'gold_block': 'gold_block', 'cut_copper': 'cut_copper',
+    'amethyst_block': 'amethyst_block', 'amethyst_cluster': 'amethyst_cluster',
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
 
 ITEM_ALIASES = {
     'iron_ingot': 'iron_ingot', 'gold_ingot': 'gold_ingot',
     'copper_ingot': 'copper_ingot', 'netherite_ingot': 'netherite_ingot',
+    'map': 'map_empty', 'spyglass': 'spyglass',
+    'cod': 'fish_raw', 'salmon': 'fish_salmon_raw',
+    'tropical_fish': 'fish_clownfish_raw', 'pufferfish': 'fish_pufferfish_raw',
     'diamond': 'diamond', 'emerald': 'emerald', 'coal': 'coal',
     'redstone': 'redstone_dust', 'amethyst_shard': 'amethyst_shard',
     'raw_iron': 'raw_iron', 'raw_gold': 'raw_gold', 'raw_copper': 'raw_copper',
@@ -73,7 +80,172 @@ def stone(seed=1):
     line(tile, [(3,12),(4,12),(5,12),(5,13),(6,13)], (96, 154, 156))
     return tile
 
+def amethyst_cluster():
+    # Five joined crystal tips with transparent gaps. The broad base meets the
+    # supporting block when Minecraft projects the sprite onto its crossed planes.
+    palette = {
+        '.': (0, 0, 0, 0), 's': (74, 48, 108, 255), 'v': (130, 79, 170, 255),
+        'l': (193, 144, 222, 255), 'h': (236, 208, 249, 255), 't': (159, 235, 218, 255),
+    }
+    rows = (
+        '................', '.......h........', '......hlv.......', '......hlvs......',
+        '...l..tlvs......', '..hlv.llvs...h..', '..hlvsllvs..hlv.', '..vlvsllvs..tlvs',
+        'h.vlvsllvs.hlvs.', 'hl.vvslvvs.lvs..', 'hlv.vslvvslvvs..', '.lvsslvsstlvvs..',
+        '.vlvsllsvlvvsl..', '..vvslvllvvslvs.', '...svvvvsvvvvvs.', '..ssvvssvvssvss.',
+    )
+    return [[palette[shade] for shade in row] for row in rows]
+
+def amethyst_block():
+    tile = field((132, 88, 160), 18)
+    # Fracture planes repeat across adjacent blocks. Keep the polished teal
+    # reflections sparse so the host stone reads as violet next to the buds.
+    for ox, oy in ((1, 3), (9, 11)):
+        for dy, (left, right) in enumerate(((3, 4), (2, 5), (1, 6), (0, 6), (1, 5), (2, 4))):
+            for dx in range(left, right + 1):
+                shade = (92, 59, 127) if dx >= 4 else (169, 122, 195)
+                if dx == left and dy < 4:
+                    shade = (205, 163, 224)
+                dot(tile, (ox + dx) % 16, (oy + dy) % 16, shade)
+        dot(tile, (ox + 3) % 16, oy, (159, 220, 209))
+    return tile
+
+def wheat(stage):
+    tile = [[(0, 0, 0, 0) for _ in range(16)] for _ in range(16)]
+    height = (3, 5, 7, 9, 11, 13, 14, 15)[stage]
+    stem, leaf, tip = (41, 99, 82), (56, 154, 122), (125, 200, 156)
+    if stage == 7:
+        stem, leaf, tip = (149, 102, 49), (211, 160, 64), (255, 224, 136)
+    for x, inset, lean in ((3, 2, -1), (8, 0, 1), (13, 1, -1)):
+        top = 16 - height + inset
+        for y in range(top, 16):
+            dot(tile, x, y, stem)
+        # Each stalk keeps its own rooted silhouette as the blades unfold.
+        for depth in range(2, 16 - top, 4):
+            base = 16 - depth
+            side = lean if depth % 8 == 2 else -lean
+            dot(tile, x + side, base, leaf)
+            dot(tile, x + 2 * side, base - 1, tip)
+            if stage >= 3:
+                dot(tile, x + 2 * side, base - 2, leaf)
+        dot(tile, x, top, tip)
+        if stage >= 4:
+            # The ear fills from the tip down. Only the ripe stage turns gold.
+            for tier in range(stage - 3):
+                y = top + tier * 2 + 1
+                dot(tile, x + lean, y, tip)
+                dot(tile, x - lean, y, leaf)
+                dot(tile, x, y + 1, leaf)
+    return tile
+
+def gold_block():
+    # One continuous plate with a polished diagonal and a recessed orbital ring.
+    tile = field((221, 166, 61), 27)
+    for y in range(16):
+        for x in range(16):
+            if x == 15 or y == 15:
+                dot(tile, x, y, (163, 109, 45))
+            elif x == 0 or y == 0:
+                dot(tile, x, y, (248, 205, 102))
+            elif 6 <= x + y <= 11:
+                dot(tile, x, y, (242, 191 + noise(x, y, 6), 81))
+    line(tile, [(3,9), (3,10), (4,11), (5,11), (6,11), (7,10), (8,10),
+                (9,9), (10,9), (11,8), (12,7), (12,6)], (178, 123, 47))
+    line(tile, [(12,5), (11,4), (10,4), (9,4), (8,5), (7,5), (6,6),
+                (5,6), (4,7), (3,8)], (248, 209, 113))
+    line(tile, [(10,4), (11,4), (11,5)], (255, 228, 157))
+    return tile
+
+def cut_copper():
+    # Four cut plates retain the copper grid at building scale. The rivets
+    # catch a touch of teal light without turning the fresh copper green.
+    tile = field((188, 113, 76), 34)
+    for y in range(16):
+        for x in range(16):
+            u, v = x % 8, y % 8
+            if u == 7 or v == 7:
+                dot(tile, x, y, (113, 69, 60))
+            elif u == 0 or v == 0:
+                dot(tile, x, y, (222, 150, 101))
+            elif u + v in (4, 5):
+                dot(tile, x, y, (206, 131, 87))
+    for x, y in ((5, 2), (13, 10)):
+        dot(tile, x, y, (138, 190, 171))
+        dot(tile, x, y + 1, (137, 86, 64))
+    return tile
+
+def loom_top():
+    # Framed warp threads give way to alternating bands of finished cloth.
+    tile = field((110, 73, 57), 41)
+    for x in range(2, 14):
+        for y in range(2, 14):
+            thread = (219, 205, 167) if x % 2 == 0 else (64, 57, 65)
+            if y >= 7:
+                band = ((56, 129, 128), (64, 81, 113), (184, 106, 86))[(y - 7) // 2 % 3]
+                thread = tuple(value + 19 for value in band) if (x + y) % 2 else band
+            dot(tile, x, y, thread)
+    for x in range(1, 15):
+        dot(tile, x, 1, (187, 143, 98))
+        dot(tile, x, 14, (73, 51, 52))
+    line(tile, [(5, 8), (6, 7), (7, 7), (8, 6), (9, 6), (10, 5)], (233, 179, 102))
+    line(tile, [(6, 8), (7, 8), (8, 7), (9, 7)], (123, 83, 60))
+    dot(tile, 8, 6, (75, 91, 99))
+    return tile
+
+def hive_front(full):
+    # Three cedar rails and a dark flight entrance stay aligned at both honey levels.
+    tile = field((166, 122, 78), 58)
+    for y in (3, 8, 13):
+        for x in range(16):
+            dot(tile, x, y, (111, 77, 56))
+            dot(tile, x, y + 1, (186, 146, 98))
+    for x, y in ((2, 1), (6, 6), (11, 11), (4, 15)):
+        line(tile, [(x, y), (x + 1, y), (x + 2, y)], (149, 103, 66))
+    # Teal corner pins and the shallow landing board mark a crafted Infinity hive.
+    for x in (1, 14):
+        dot(tile, x, 1, (60, 109, 105))
+        dot(tile, x, 2, (100, 144, 128))
+    for x in range(4, 12):
+        dot(tile, x, 8, (63, 48, 43))
+        dot(tile, x, 9, (82, 60, 47))
+    for x in range(3, 13):
+        dot(tile, x, 10, (203, 165, 110))
+        dot(tile, x, 11, (130, 90, 64))
+    if full:
+        # Amber beads spill below the landing board so readiness reads by shape as well as hue.
+        for x, depth in ((4, 2), (5, 4), (6, 2), (8, 1), (9, 2), (10, 3), (11, 1)):
+            for y in range(9, 10 + depth):
+                dot(tile, x, y, (213, 123, 34) if y < 9 + depth else (164, 88, 33))
+        line(tile, [(4, 9), (5, 10), (5, 11), (9, 9), (10, 10)], (255, 207, 88))
+    return tile
+
+def soundboard():
+    tile = field((128, 78, 57), 67)
+    # Walnut case with beveled corners and a woven dark teal grille.
+    for y in range(16):
+        for x in range(16):
+            if x in (0, 15) or y in (0, 15):
+                dot(tile, x, y, (79, 50, 48) if x == 15 or y == 15 else (172, 116, 77))
+            elif 2 <= x <= 13 and 2 <= y <= 13:
+                dot(tile, x, y, (47, 80, 81) if (x + y) % 2 else (39, 65, 70))
+    for x in (1, 14):
+        for y in (1, 14):
+            dot(tile, x, y, (217, 167, 95))
+    # Four suspended brass reeds descend in length from left to right.
+    for x, bottom in ((4, 12), (6, 10), (8, 8), (10, 6)):
+        for y in range(4, bottom + 1):
+            dot(tile, x + 1, y, (104, 79, 57))
+            dot(tile, x, y, (229, 184, 107) if y < bottom else (255, 218, 145))
+    for x in range(3, 13):
+        dot(tile, x, 3, (114, 171, 156))
+    return tile
+
 def make(name):
+    if name == 'note_block':
+        return soundboard()
+    if name in ('beehive_front', 'beehive_front_honey'):
+        return hive_front(name == 'beehive_front_honey')
+    if name == 'loom_top':
+        return loom_top()
     if name.endswith('_ore'):
         deep = name.startswith('deepslate_')
         ore = name[len('deepslate_'):] if deep else name
@@ -98,6 +270,11 @@ def make(name):
             for dx,dy in shape: dot(tile,x+dx,y+dy,dark)
             for dx,dy in shape[:2]: dot(tile,x+dx,y+dy,light)
         return tile
+    if name.startswith('wheat_stage'): return wheat(int(name.removeprefix('wheat_stage')))
+    if name == 'gold_block': return gold_block()
+    if name == 'cut_copper': return cut_copper()
+    if name == 'amethyst_block': return amethyst_block()
+    if name == 'amethyst_cluster': return amethyst_cluster()
     if name == 'stone': return stone()
     if name == 'cobblestone':
         tile = field((91, 95, 113), 2)
@@ -147,8 +324,81 @@ def make(name):
     line(tile, [(2,3),(3,3),(4,4),(9,2),(10,2),(10,3),(12,9),(13,9),(5,12),(6,12),(7,13)], accents[name])
     return tile
 
+def wayfinding_icon(name):
+    # Each row is one row of ink, parchment, brass or glass on a 16px canvas.
+    colors = {
+        '.': (0, 0, 0, 0), 'k': (62, 47, 57, 255), 'd': (138, 86, 57, 255),
+        'b': (203, 136, 69, 255), 'h': (246, 199, 116, 255),
+        'p': (238, 210, 154, 255), 'f': (205, 168, 120, 255),
+        'w': (253, 233, 186, 255), 't': (48, 135, 132, 255),
+        'g': (104, 209, 193, 255), 'l': (207, 248, 231, 255),
+    }
+    if name == 'map':
+        rows = (
+            '................', '.....kk.........', '...kkppkk...kk..', '.kkpwppffkkkppk.',
+            '.kpwpppfffpppwk.', '.kppgtpfffpwwpk.', '.kptltpfffpppdk.', '.kpptgpfffppbpk.',
+            '.kpppppfffppbpk.', '.kwppppfffbbppk.', '.kpppppfffpppwk.', '.kpppkkffppdpwk.',
+            '.kppk..kkfpppkk.', '.kkk.....kkpk...', '...........k....', '................',
+        )
+    else:
+        rows = (
+            '................', '...........kkk..', '..........khltk.', '.........khllgtk',
+            '........kbhgggtk', '.......khbdttdk.', '......kdhhbbdk..', '.....kbddhbdk...',
+            '....kbhbdddk....', '...kdhhbdkk.....', '...kbdhhdk......', '..kgkbbdk.......',
+            '.klgtkdk........', '.ktgtdk.........', '..kkdk..........', '................',
+        )
+    return [[colors[ink] for ink in row] for row in rows]
+
+# Silhouettes are drawn facing right. Each set of inks describes the back,
+# flank, belly, fins and highlights of a different fish.
+FISH_SPRITES = {
+    'cod': (
+        ('334e4c', '859875', 'c3ba81', 'eee0ad', '538c84'),
+        (
+            '................', '................', '................', '.....kk..k......',
+            '....kaakkaak....', '.kk.kabbbbaakk..', '.kakababaabbcbk.', '..kaabbabbbbbkkk',
+            '..kbbbbbbbcbbcba', '.kakbccccccdcbk.', '.kk..kbccdcdkk..', '......kaakkk....',
+            '.......kk.......', '................', '................', '................',
+        )),
+    'salmon': (
+        ('304956', '587e7b', 'c56c60', 'ecd3b4', '79c9bf'),
+        (
+            '................', '................', '................', '........kkk.....',
+            '.k.....kaak.....', '.kk..kkaaaakkk..', '.kakkaaadaadack.', '..kabbabbabbcbkk',
+            '.kakbbbbbbbbbcba', '.kk.kbcccccccbk.', '.k...kkackkkkk..', '......kkk.......',
+            '................', '................', '................', '................',
+        )),
+    'tropical_fish': (
+        ('4d425a', 'd47547', 'ffa65b', 'f5dfae', '83d6d0'),
+        (
+            '................', '................', '......kkk.......', '.....kbbakk.....',
+            '....kbbccbbkk...', '.kk.kabccbbcck..', '.kbkkbbccbbccbk.', '.kbakbbddbbcckdk',
+            '.kaakbbccbbccbbk', '.kbkkbbccbbccbk.', '.kk.kabccbbcck..', '.....kbbbaaak...',
+            '......kbbkkk....', '.......kk.......', '................', '................',
+        )),
+    'pufferfish': (
+        ('51485c', 'a37742', 'e7ab4d', 'f7d990', '74d0c1'),
+        (
+            '................', '.......k........', '....k.kbk.k.....', '....kbabkkbk....',
+            '...kabbbabbkk...', '.kkababbabbbak..', '..kbbbabbbbdcbk.', '.kabbbbbbcckcbk.',
+            '.kkbbbbccccccbbk', '..kbbacccccccbk.', '.kkkbccdccdcck..', '...kbbccccccbk..',
+            '...kkbkkbbkbkk..', '....kk..kk.k....', '................', '................',
+        )),
+}
+
+def fish_icon(name):
+    inks, rows = FISH_SPRITES[name]
+    colors = {'.': (0, 0, 0, 0)}
+    for symbol, rgb in zip('kabcd', inks):
+        colors[symbol] = tuple(bytes.fromhex(rgb)) + (255,)
+    return [[colors[symbol] for symbol in row] for row in rows]
+
 def make_item(name):
-    """Draw recognizable, transparent material icons without source artwork."""
+    """Draw recognizable, transparent inventory icons without source artwork."""
+    if name in FISH_SPRITES:
+        return fish_icon(name)
+    if name in ('map', 'spyglass'):
+        return wayfinding_icon(name)
     colors = {
         'iron_ingot': (190, 200, 207), 'gold_ingot': (229, 179, 55),
         'copper_ingot': (188, 112, 76), 'netherite_ingot': (72, 65, 78),
@@ -192,6 +442,8 @@ def main():
         data = png(16,16,make(name))
         write(JAVA / 'assets/minecraft/textures/block' / (name + '.png'), data)
         write(BEDROCK / 'textures/blocks' / (alias + '.png'), data)
+    write(JAVA / 'assets/minecraft/textures/block/amethyst_cluster.png.mcmeta',
+          (json.dumps({'texture': {'mipmap_strategy': 'strict_cutout'}}, indent=2)+'\n').encode())
     for name, alias in ITEM_ALIASES.items():
         data = png(16,16,make_item(name))
         write(JAVA / 'assets/minecraft/textures/item' / (name + '.png'), data)
@@ -200,10 +452,10 @@ def main():
         'min_format': [100,2], 'max_format': [100,2]}}, indent=2)+'\n').encode())
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
-        'description':'Original optional Infinity terrain and materials preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,3,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,3,0]}]}
+        'description':'Original optional Infinity terrain and items preview; no behavior pack.',
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,11,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,11,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
-    print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'material textures for each edition.')
+    print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 
 if __name__ == '__main__': main()

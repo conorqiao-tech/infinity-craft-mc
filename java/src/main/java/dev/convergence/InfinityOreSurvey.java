@@ -32,9 +32,11 @@ final class InfinityOreSurvey {
         var saved = root.getCompound(KEY).orElse(null);
         if (saved == null || !(saved.get("format") instanceof IntTag) || saved.getIntOr("format", -1) != 1
             || saved.contains("found") && !(saved.get("found") instanceof IntTag)
-            || saved.contains("active") && !(saved.get("active") instanceof ByteTag)) return false;
+            || saved.contains("active") && !(saved.get("active") instanceof ByteTag)
+            || saved.contains("amethystCluster") && !(saved.get("amethystCluster") instanceof ByteTag)) return false;
         int found = saved.getIntOr("found", 0); byte active = saved.getByteOr("active", (byte) 0);
-        return found >= 0 && found <= ALL && (active == 0 || active == 1);
+        byte cluster = saved.getByteOr("amethystCluster", (byte) 0);
+        return found >= 0 && found <= ALL && (active == 0 || active == 1) && (cluster == 0 || cluster == 1);
     }
     static int found(ServerPlayer p) { return writable(p) ? state(p).getIntOr("found", 0) : 0; }
     static boolean active(ServerPlayer p) { return writable(p) && state(p).getBooleanOr("active", false); }
@@ -56,15 +58,28 @@ final class InfinityOreSurvey {
     }
     static boolean observe(ServerPlayer p, BlockState block) {
         int index = ore(block);
-        if (index < 0 || !active(p)) return false;
+        boolean cluster = block.is(Blocks.AMETHYST_CLUSTER);
+        if ((index < 0 && !cluster) || !active(p)) return false;
         var mode = GameModes.current(p);
         if (!ServerMenu.allowed(p) || p.gameMode.getGameModeForPlayer() != GameType.SURVIVAL
             || (mode != GameModes.Mode.SURVIVAL && mode != GameModes.Mode.HARDCORE) || GameModes.of(p.level()) != mode) return false;
-        int before = found(p), bit = 1 << index;
-        if ((before & bit) != 0) return false;
-        var next = state(p).copy(); next.putInt("format", 1); next.putInt("found", before | bit);
+        var saved = state(p);
+        CompoundTag next;
+        String result;
+        if (cluster) {
+            if (saved.getBooleanOr("amethystCluster", false)) return false;
+            next = saved.copy();
+            next.putBoolean("amethystCluster", true);
+            result = "Amethyst geode bonus recorded!";
+        } else {
+            int before = saved.getIntOr("found", 0), bit = 1 << index;
+            if ((before & bit) != 0) return false;
+            next = saved.copy();
+            next.putInt("found", before | bit);
+            result = NAMES.get(index) + " recorded! " + Integer.bitCount(before | bit) + "/8 ores.";
+        }
         GameModes.state(p).put(KEY, next); PlayerPersistence.save(p);
-        CommunityServer.say(p, "Infinity Ore Survey • " + NAMES.get(index) + " recorded! " + Integer.bitCount(before | bit) + "/8 ores.");
+        CommunityServer.say(p, "Infinity Ore Survey • " + result);
         p.level().sendParticles(p, ParticleTypes.END_ROD, false, false, p.getX(), p.getY() + 1, p.getZ(), 6, .3, .3, .3, .01);
         return true;
     }
@@ -91,6 +106,8 @@ final class InfinityOreSurvey {
         var body = new StringBuilder("Start the survey, then break one of each listed ore in Survival or Hardcore. Normal and deepslate variants count together; Nether gold also counts. Placed ores count too. The survey changes no blocks, drops or experience. Pausing keeps progress.\n\n");
         if (!writable(p)) body.append("Saved survey data needs host review; it is preserved and changes are unavailable.\n\n");
         for (int i = 0; i < NAMES.size(); i++) body.append((mask & (1 << i)) != 0 ? "✓ " : "○ ").append(NAMES.get(i)).append('\n');
+        body.append(writable(p) && state(p).getBooleanOr("amethystCluster", false) ? "✓ " : "○ ")
+            .append("Geode bonus • break a fully grown amethyst cluster. Placed clusters count.");
         boolean activeAtView = active(p);
         choices.add(new InfinityJourney.Choice(Items.IRON_PICKAXE, activeAtView ? "Pause survey • progress stays" : "Start or resume survey", () -> {
             if (active(p) != activeAtView || setActive(p, !activeAtView) == 0) CommunityServer.say(p, "Survey state changed or is unavailable; reopen the survey.");

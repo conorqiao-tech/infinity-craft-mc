@@ -39,6 +39,50 @@ public class CommonsGameTests {
             c.assertTrue(((CommonsMenu.Handler)p.containerMenu).view.content().contains("village"),"Shared pantry counts are visible");
         }finally{cleanup(p);}c.succeed();
     }
+    @GameTest public void wheatHarvestCountsOnlyRipeSurvivalBreaksAfterJoining(GameTestHelper c) {
+        var p = survival(c, "commons-wheat");
+        try {
+            var pos = c.absolutePos(new BlockPos(4, 3, 4));
+            var wheat = (CropBlock) Blocks.WHEAT;
+            var ripe = wheat.getStateForAge(wheat.getMaxAge());
+            p.level().setBlock(pos.below(), Blocks.FARMLAND.defaultBlockState(), 3);
+            p.level().setBlock(pos, ripe, 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "Ripe wheat can be harvested before joining");
+            c.assertFalse(GameModes.state(p).contains(CommonsEvents.WHEAT_HARVEST), "Harvesting before joining creates no goal");
+
+            CommonsMenu.open(p, CommonsMenu.Page.HARVEST);
+            var view = ((CommonsMenu.Handler) p.containerMenu).view;
+            var labels = view.choices().stream().map(CommonsMenu.Choice::label).toList();
+            int start = labels.indexOf("Start Infinity Wheat Harvest");
+            c.assertTrue(start >= 0, "The Java harvest menu offers the goal");
+            p.closeContainer();
+            var forms = new ArrayList<org.geysermc.cumulus.form.Form>();
+            CommonsMenu.form(p, CommonsMenu.Page.HARVEST, null, form -> { forms.add(form); return true; });
+            reply(forms.getFirst(), Integer.toString(start));
+            p.closeContainer();
+            c.assertValueEqual(CommonsEvents.wheatHarvested(p), 0, "The Bedrock form starts the same goal");
+            p.level().setBlock(pos, wheat.getStateForAge(wheat.getMaxAge() - 1), 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "An immature wheat crop breaks normally");
+            p.setGameMode(GameType.CREATIVE);
+            p.level().setBlock(pos, ripe, 3);
+            c.assertTrue(p.gameMode.destroyBlock(pos), "A Creative harvest still breaks the crop");
+            c.assertValueEqual(CommonsEvents.wheatHarvested(p), 0, "Immature crops and Creative breaks give no credit");
+
+            p.setGameMode(GameType.SURVIVAL);
+            for (int i = 1; i <= CommonsEvents.WHEAT_GOAL + 1; i++) {
+                p.level().setBlock(pos, ripe, 3);
+                c.assertTrue(p.gameMode.destroyBlock(pos), "A native Survival harvest succeeds");
+                c.assertValueEqual(CommonsEvents.wheatHarvested(p), Math.min(i, CommonsEvents.WHEAT_GOAL), "Each crop counts up to the goal");
+            }
+            c.assertValueEqual(CommonsEvents.wheatHarvested(reloadDisk(p)), CommonsEvents.WHEAT_GOAL, "Disk reload retains completion");
+            c.assertValueEqual(CommonsEvents.contribution(p), 0, "Harvesting does not donate the player's wheat");
+            c.assertTrue(CommonsMenu.view(p, CommonsMenu.Page.HARVEST, null).content().contains("✓ Infinity Wheat Harvest complete"),
+                "The shared harvest menu records completion");
+            c.assertValueEqual(CommonsEvents.startWheatHarvest(p), 0, "A repeated start cannot reset the completed goal");
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
     @GameTest public void exactDeliveryPreservesNamedFoodAndCannotReplay(GameTestHelper c){
         var p=survival(c,"pantry-plain");try{
             var named=new ItemStack(Items.WHEAT,9);named.set(DataComponents.CUSTOM_NAME,Component.literal("My saved seed collection"));
@@ -174,6 +218,76 @@ public class CommonsGameTests {
             c.assertValueEqual(CommonsEvents.blueprint(at,true).values().stream().filter(s->s.is(Blocks.FARMLAND)).count(),4L,"Garden has four real crop plots");
         }finally{fixtures.cleanup(p);}c.succeed();
     }
+    @GameTest public void atlasTrailheadMarksReplacesAndGuidesFromBothMenus(GameTestHelper c) {
+        var p = survival(c, "atlas-trail");
+        try {
+            c.assertValueEqual(PlayerWorkshop.stamp(p), 1, "An existing biome stamp is saved");
+            var start = p.blockPosition();
+            CommonsMenu.open(p, CommonsMenu.Page.ATLAS);
+            var labels = ((CommonsMenu.Handler) p.containerMenu).view.choices().stream().map(CommonsMenu.Choice::label).toList();
+            int mark = labels.indexOf("Mark my trailhead here");
+            c.assertTrue(mark >= 0, "Java offers the first mark");
+            p.containerMenu.clicked(10 + mark, 0, ContainerInput.PICKUP, p);
+            p.closeContainer();
+            var first = AtlasTrailhead.read(p);
+            c.assertTrue(first != null && first.pos().equals(start), "Mark uses the player's current block");
+            c.assertValueEqual(first, AtlasTrailhead.read(reloadDisk(p)), "Dimension and coordinates survive disk reload");
+
+            p.setPos(start.getX() + 3, start.getY() + 8, start.getZ() + 4);
+            c.assertTrue(first.navigation(p).contains("northwest • about 5 blocks horizontally"), "Diagonal heading and 3-4-5 distance ignore elevation");
+            p.setPos(start.getX() - 7, start.getY(), start.getZ());
+            c.assertTrue(first.navigation(p).contains("east • about 7 blocks horizontally"), "Increasing X is east");
+            p.setPos(start.getX(), start.getY() + 4, start.getZ());
+            c.assertTrue(first.navigation(p).contains("at its X/Z coordinates"), "Matching X/Z at a different elevation is reported accurately");
+
+            p.setPos(start.getX(), start.getY(), start.getZ() - 6);
+            var view = CommonsMenu.view(p, CommonsMenu.Page.ATLAS, null);
+            c.assertTrue(view.content().contains("south • about 6 blocks horizontally"), "The shared Atlas view shows the return bearing");
+            int replace = view.choices().stream().map(CommonsMenu.Choice::label).toList().indexOf("Replace my saved trailhead with this location");
+            c.assertTrue(replace >= 0, "Replacing an existing mark is explicit");
+            var forms = new ArrayList<org.geysermc.cumulus.form.Form>();
+            CommonsMenu.form(p, CommonsMenu.Page.ATLAS, null, form -> { forms.add(form); return true; });
+            reply(forms.getFirst(), Integer.toString(replace));
+            p.closeContainer();
+            var second = AtlasTrailhead.read(p);
+            c.assertTrue(second != null && second.pos().equals(p.blockPosition()), "An encoded Bedrock response replaces the mark");
+            c.assertValueEqual(AtlasTrailhead.mark(p, first), 0, "A stale replacement cannot overwrite a newer mark");
+            p.setGameMode(GameType.CREATIVE);
+            c.assertValueEqual(AtlasTrailhead.mark(p, second), 0, "Creative cannot replace the mark");
+            c.assertValueEqual(AtlasTrailhead.read(reloadDisk(p)), second, "Rejected actions preserve the saved mark");
+            c.assertValueEqual(PlayerWorkshop.stamps(p), 1, "Marking does not change existing stamp progress");
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
+    @GameTest public void atlasTrailheadPreservesUnknownRecordsAndSeparatesDimensions(GameTestHelper c) {
+        var p = survival(c, "atlas-dim");
+        try {
+            c.assertValueEqual(AtlasTrailhead.mark(p, null), 1, "A first mark succeeds");
+            var root = GameModes.state(p);
+            var tag = root.getCompound(AtlasTrailhead.KEY).orElseThrow();
+            tag.putString("dimension", "minecraft:the_nether");
+            var status = CommonsMenu.view(p, CommonsMenu.Page.ATLAS, null).content();
+            c.assertTrue(status.contains("minecraft:the_nether") && status.contains("Return to that dimension") && !status.contains("horizontally"),
+                "The Atlas names the other dimension and omits a same-world distance");
+            var valid = tag.copy();
+            for (int fault = 0; fault < 4; fault++) {
+                var data = valid.copy();
+                if (fault == 0) data.putInt("format", 2);
+                if (fault == 1) data.putString("x", "unknown");
+                if (fault == 2) data.putInt("y", Integer.MAX_VALUE);
+                if (fault == 3) data.putString("dimension", "not a dimension!");
+                root.put(AtlasTrailhead.KEY, data);
+                var before = data.copy();
+                c.assertTrue(AtlasTrailhead.read(p) == null, "Invalid records give no directions");
+                c.assertTrue(CommonsMenu.view(p, CommonsMenu.Page.ATLAS, null).content().contains("needs host review"), "The Atlas reports the saved record");
+                c.assertValueEqual(AtlasTrailhead.mark(p, null), 0, "Mark refuses to replace invalid data");
+                c.assertValueEqual(root.getCompound(AtlasTrailhead.KEY).orElseThrow(), before, "The complete record is preserved");
+            }
+        } finally { cleanup(p); }
+        c.succeed();
+    }
+
     @GameTest public void atlasRecordsActualBiomeOnceAndCreativeCannotSpoofIt(GameTestHelper c){
         var p=survival(c,"atlas-stamp");try{
             c.assertValueEqual(PlayerWorkshop.stamp(p),1,"Actual current biome grants a saved stamp");

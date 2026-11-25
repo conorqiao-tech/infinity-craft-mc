@@ -96,7 +96,11 @@
       "dev.convergence.InfinityRelayGameTests",
       "dev.convergence.InfinityCreativeLoopGameTests",
       "dev.convergence.InfinityOreSurveyGameTests",
-      "dev.convergence.InfinityDefenderGameTests"
+      "dev.convergence.InfinityDefenderGameTests",
+      "dev.convergence.InfinityTidewatchGameTests",
+      "dev.convergence.TidewatchFlagGameTests",
+      "dev.convergence.InfinityApiaryGameTests",
+      "dev.convergence.InfinityChimesGameTests"
     ]
   },
   "mixins": [
@@ -168,7 +172,11 @@
       "dev.convergence.InfinityRelayGameTests",
       "dev.convergence.InfinityCreativeLoopGameTests",
       "dev.convergence.InfinityOreSurveyGameTests",
-      "dev.convergence.InfinityDefenderGameTests"
+      "dev.convergence.InfinityDefenderGameTests",
+      "dev.convergence.InfinityTidewatchGameTests",
+      "dev.convergence.TidewatchFlagGameTests",
+      "dev.convergence.InfinityApiaryGameTests",
+      "dev.convergence.InfinityChimesGameTests"
     ]
   },
   "depends": {

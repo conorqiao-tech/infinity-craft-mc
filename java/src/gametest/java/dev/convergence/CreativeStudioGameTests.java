@@ -62,7 +62,7 @@ public class CreativeStudioGameTests {
         var at=c.absolutePos(new BlockPos(2,180,2));p.setPos(at.getX()+.5,at.getY(),at.getZ()+.5);
         return p;
     }
-    private BlockPos previewGround(ServerPlayer p){
+    BlockPos previewGround(ServerPlayer p){
         var ground=p.blockPosition().offset(0,-1,4);
         for(var pos:BlockPos.betweenClosed(ground.offset(-3,1,-1),ground.offset(3,6,1)))
             p.level().setBlock(pos,Blocks.AIR.defaultBlockState(),3);
