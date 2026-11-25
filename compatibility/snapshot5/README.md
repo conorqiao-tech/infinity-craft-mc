@@ -71,14 +71,16 @@ notes, including unfinished roster `.previous.tmp` and `.previous.publish.tmp`
 files, in either copy and checks that any existing helper roster `.previous`
 backup has identical bytes in both. It also rejects helper-like entities in
 the supported legacy `entities` lists of terrain chunks in both copies. Terrain
-chunks must have native data version 5125, `minecraft:full` status and matching
-region coordinates; older or unsupported chunks require manual review. Orphan
+chunks must match their region coordinates. The conversion verifier recognizes
+only the exact flat-record layouts and observed statuses for native data versions
+4671, 5023 and 5125. Legacy and partial records must have no embedded entities;
+unknown versions, statuses, and nested or ambiguous layouts require manual review. Orphan
 external chunk files, unexpected region entries, links, unreadable data and
 exceeded scan limits also require review. Saved helper position and motion must
 be three native doubles; motion components must be finite and at most 10 in
 absolute value. Position may change by up to one block, and motion values may
 change within that bound, so the receipt does not assert identical movement.
-Receipt format 7 records these bounded checks; earlier receipts must be
+Receipt format 8 records these bounded checks; earlier receipts must be
 regenerated. An absent `.previous` file does
 not establish that a backup exists. These checks do not inspect every possible
 entity-bearing container, resolve pending helpers, or prove native entity

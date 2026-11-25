@@ -22,6 +22,15 @@ MAP = {
     "admin_role_lifecycle.md": "server/ADMIN_ROLE_LIFECYCLE.md",
     "astral_wilds.md": "server/ASTRAL_WILDS.md",
     "armor_repair.md": "server/ARMOR_REPAIR.md",
+    "armor_attachment_repair.md": "server/ARMOR_ATTACHMENT_REPAIR.md",
+    "armor_motion_repair.md": "server/ARMOR_MOTION_REPAIR.md",
+    "armor_visibility_repair.md": "server/ARMOR_VISIBILITY_REPAIR.md",
+    "helper_combos.md": "server/HELPER_COMBOS.md",
+    "helper_controls.md": "server/HELPER_CONTROLS.md",
+    "relic_art.md": "server/RELIC_ART.md",
+    "wing_appearance_repair.md": "server/WING_APPEARANCE_REPAIR.md",
+    "winged_chestplate.md": "server/WINGED_CHESTPLATE.md",
+    "snapshot5_compatibility.md": "compatibility/snapshot5/README.md",
     "creative_studio.md": "server/CREATIVE_STUDIO.md",
     "elemental_forge.md": "server/ELEMENTAL_FORGE.md",
     "commons.md": "server/COMMONS.md",
@@ -52,8 +61,9 @@ LINK = re.compile(r"\]\(([^)]+)\)")
 SOURCE_GUIDES = {
     Path(relative).name: name
     for name, relative in MAP.items()
-    if name.endswith(".md")
+    if name.endswith(".md") and relative.startswith("server/")
 }
+SOURCE_GUIDES["../compatibility/snapshot5/README.md"] = "snapshot5_compatibility.md"
 
 
 def digest(path):
@@ -83,7 +93,7 @@ def validate_guide_links(target):
     for guide in target.glob("*.md"):
         for match in LINK.finditer(guide.read_text()):
             destination = match.group(1).split("#", 1)[0]
-            if destination.endswith((".md", ".txt")) and destination not in published:
+            if "://" not in destination and destination.endswith((".md", ".txt")) and destination not in published:
                 raise ValueError(f"Broken download guide link: {guide.name} -> {destination}")
 
 

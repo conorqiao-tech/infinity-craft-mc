@@ -10,7 +10,8 @@ import shutil
 import xml.etree.ElementTree as ET
 import zipfile
 from generate_odyssey_assets import verify as verify_odyssey
-from prepare_crossplay import ROOT, VERSION, expected_native_tests, expected_launcher_tests
+from prepare_crossplay import ROOT, VERSION, expected_native_tests
+from release_python_tests import verify_receipt as verify_launcher_receipt
 from verify_owned_equipment import creative_capture_counts, verify_owned_equipment
 from snapshot5_dependencies import MINECRAFT, snapshot_inputs, verify_lock
 
@@ -350,11 +351,12 @@ def main():
     tests = list(ET.parse(report).getroot().iter("testcase"))
     assert len(tests) == expected_native_tests() and all(t.find("failure") is None and t.find("error") is None and t.find("skipped") is None for t in tests)
     assert report.stat().st_mtime >= max(p.stat().st_mtime for p in (ROOT / "java/src").rglob("*") if p.is_file())
-    testlog_file = ROOT / "research/launcher-tests.log"
-    testlog = testlog_file.read_text()
-    assert f"Ran {expected_launcher_tests()} tests" in testlog and re.search(r"^OK$", testlog, re.MULTILINE)
-    assert testlog_file.stat().st_mtime >= max(p.stat().st_mtime for p in [
-        *(ROOT / "server").glob("*.py"), *(ROOT / "tests").glob("test_*.py")])
+    launcher_receipts = {}
+    for platform in ("darwin", "linux"):
+        path = ROOT / "research" / f"launcher-{platform}.json"
+        data = path.read_bytes()
+        verify_launcher_receipt(ROOT, json.loads(data, object_pairs_hook=unique_keys), platform)
+        launcher_receipts[f"checks/launcher-{platform}.json"] = data
     mod = ROOT / f"server/fabric/mods/Infinity-Armor-{VERSION}.jar"
     # Bind every package to the exact tested source, mod and report, including ordinary releases.
     provenance = json.loads((ROOT / "research/integration/provenance.json").read_text())
@@ -421,7 +423,7 @@ def main():
     entries = {name: (server / name).read_bytes() for name in ["README.md", "VALIDATION.md", "THIRD_PARTY.md",
         "TEXTURE_CREDITS.md", "server.py", "dependencies.lock.json", "Start-Mac.command", "start.sh", "start.bat",
         "runtime.py", "runtime.lock.json", "dashboard.py", "dashboard.html", "bootstrap.sh", "bootstrap.ps1", "START_HERE.txt",
-        "community.py", "world_refresh.py", "terrain_storage.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "ELEMENTAL_FORGE.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "COMMONS.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "CONTRIBUTORS.md", "HOLIDAY_UPDATES.md", "HOSTING.md", "infinity.service.example",
+        "community.py", "world_refresh.py", "terrain_storage.py", "verify_backup.py", "owner_rules.py", "WORLD_REFRESH.md", "MODES.md", "LOBBIES.md", "MEMBERSHIPS.md", "SUBSCRIPTIONS.md", "REWARDS.md", "TRADING.md", "AGENTS_GUIDE.md", "EXPANSION.md", "ELEMENTAL_FORGE.md", "CREATIVE_STUDIO.md", "CREATIVE_INVENTORY.md", "COMMONS.md", "EXPERIENCE_POLISH.md", "ORIGINAL_ARTWORK.md", "RELIABILITY.md", "EXPLORATION.md", "ODYSSEY.md", "PLAYER_TRADING.md", "CONTRIBUTORS.md", "HOLIDAY_UPDATES.md", "HOSTING.md", "infinity.service.example",
         "Start-Pinggy-Mac.command", "Stop-Pinggy-Mac.command", "PINGGY_JOINING.md", "pinggy_install.py", "pinggy_joining.py", "remote_joining.py", "remote_tunnels.py",
         "Start-Dynu-Mac.command", "DYNU_JOINING.md", "dynu_joining.py",
         "ASTRAL_WILDS.md", "INFINI_ECONOMY.md", "ADMIN_ROLE_LIFECYCLE.md"]}
@@ -442,7 +444,7 @@ def main():
     entries["checks/snapshot5-integration.json"] = (json.dumps(snapshot_integration, indent=2) + "\n").encode()
     entries["checks/java-gametest-results.xml"] = report.read_bytes()
     entries["checks/native-provenance.json"] = (ROOT / "research/integration/provenance.json").read_bytes()
-    entries["checks/launcher-tests.txt"] = testlog.encode()
+    entries.update(launcher_receipts)
     for name in ("build.json", "startup.json", "ready.json"):
         entries["checks/creative-bridge-" + name] = (creative_checks / name).read_bytes()
     entries.update(wire_entries)
@@ -507,8 +509,8 @@ def main():
     for name in ["tools/verify_snapshot5_integration.py", "tools/typed_nbt.py", "tools/build_snapshot5_dependencies.py", "tools/snapshot5_dependencies.py", "tools/native_checks/Snapshot5ViaFixture.java",
         "tools/combined_wing_resources.py", "tools/check_winged_chest.py", "tools/creative-bridge-proof/WingedChestProof.java",
         "java/build.gradle", "java/settings.gradle", "java/gradle.properties", "java/gradlew", "java/gradlew.bat",
-        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
-        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/package_armor_attachment_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py", "tests/fixtures/armor_native_pose_contract.json",
+        "TEXTURE_CREDITS.md", "TEXTURE_SHA256.json", "docs/CROSSPLAY_SOURCE.md", "tools/check_crossplay.py", "tools/check_native_gametests.py", "tools/prepare_crossplay.py", "tools/crossplay_resources.py", "tools/build_creative_bridge.py", "geyser-extension/extension.yml",
+        "tools/smoke_geyser.py", "tools/verify_owned_equipment.py", "tools/verify_armor_equipment.py", "tools/package_armor_visibility_repair.py", "tools/package_armor_motion_repair.py", "tools/package_armor_attachment_repair.py", "tools/creative-bridge-proof/ArmorEquipmentProof.java", "tools/smoke_creative_wire.py", "tools/native_checks/CreativeBridgeWireGameTests.java", "tools/smoke_creative_persistence.py", "tools/native_checks/CreativeBridgePersistenceGameTests.java", "tools/check_git_identity.py", ".claude/settings.json", "CLAUDE.md", ".githooks/commit-msg", ".githooks/pre-merge-commit", ".githooks/pre-push", "tools/generate_creative_assets.py", "tools/generate_odyssey_assets.py", "tools/package_crossplay.py", "tools/release_python_tests.py", "tools/gametest-framework.sha256", "tools/smoke_fullstack.py", "tools/benchmark_helpers.py", "tools/benchmark_capacity.py", "tests/fixtures/armor_native_pose_contract.json",
         *(p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "tests").glob("test_*.py")))]:
         source[name] = (ROOT / name).read_bytes()
     if options.launcher_patch:

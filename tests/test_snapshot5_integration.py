@@ -490,6 +490,37 @@ class TerrainEvidenceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.scan()
 
+    def test_reviewed_conversion_accepts_only_exact_empty_legacy_and_partial_layouts(self):
+        def raw(fields):
+            return b"\x0a" + nbt_text("") + nbt_body(dict(xPos=0, zPos=0, **fields))
+
+        for fields, label in (
+            (dict(DataVersion=4671, Status="minecraft:full"), "4671:minecraft:full"),
+            (dict(DataVersion=5023, Status="minecraft:biomes"), "5023:minecraft:biomes"),
+            (dict(DataVersion=5125, status="minecraft:noise_biomes"), "5125:minecraft:noise_biomes"),
+        ):
+            with self.subTest(fields=fields):
+                self.region(raw(fields))
+                self.assertEqual(gate.verify_terrain_helper_evidence(
+                    real_storage, self.world, {self.flagged}, reviewed_conversion=True
+                )["reviewed_layout_counts"], {label: 1})
+                with self.assertRaises(ValueError):
+                    self.scan()
+                self.region(raw(dict(fields, entities=[rider("minecraft:chicken")])))
+                with self.assertRaisesRegex(ValueError, "embedded entities"):
+                    gate.verify_terrain_helper_evidence(
+                        real_storage, self.world, {self.flagged}, reviewed_conversion=True)
+
+        for fields in (dict(DataVersion=5024, Status="minecraft:full"),
+                       dict(DataVersion=5023, Status="minecraft:full", status="minecraft:full"),
+                       dict(DataVersion=4671, Status="minecraft:full", Entities=[]),
+                       dict(DataVersion=5125, status="minecraft:features"),
+                       dict(DataVersion=5023, Status="minecraft:full", Level={})):
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, "terrain schema"):
+                self.region(raw(fields))
+                gate.verify_terrain_helper_evidence(
+                    real_storage, self.world, {self.flagged}, reviewed_conversion=True)
+
     def test_same_numeric_data_version_with_wrong_native_type_is_rejected(self):
         raw = synthetic_terrain_nbt([])
         before = b"\x03" + nbt_text("DataVersion") + struct.pack(">i", 5125)

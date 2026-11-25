@@ -85,9 +85,16 @@ def publish(*args, **kwargs):
         wait_until_stopped(holder)
         events.append(('contender while stopped', contender()))
     elif mode == 'kill-watchdog':
-        children = Path(f'/proc/{holder.pid}/task/{holder.pid}/children')
-        (watchdog_pid,) = map(int, children.read_text().split())
+        def watchdog_children():
+            # Some Linux containers do not expose /proc/<pid>/task/<pid>/children.
+            # Resolve the one direct child of this test's own holder instead.
+            rows = subprocess.check_output(
+                ['ps', '-e', '-o', 'pid=', '-o', 'ppid='], text=True, timeout=5)
+            return [pid for pid, parent in (map(int, row.split()) for row in rows.splitlines())
+                    if parent == holder.pid]
+        (watchdog_pid,) = watchdog_children()
         with os.fdopen(os.pidfd_open(watchdog_pid), 'rb') as watchdog:
+            assert holder.poll() is None and watchdog_children() == [watchdog_pid]
             signal.pidfd_send_signal(watchdog.fileno(), signal.SIGKILL)
             import select
             assert select.select([watchdog], [], [], 5)[0], 'watchdog did not exit'

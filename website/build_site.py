@@ -2,6 +2,7 @@
 from pathlib import Path
 from html import escape
 import json
+from shutil import copyfile
 root=Path(__file__).parent
 catalogue=json.loads((root/'catalogue.json').read_text())
 places=[]
@@ -37,3 +38,8 @@ html=((root/'site-template.html').read_text()
       .replace('$TRADE_ROWS','\n'.join(rows))
       .replace('$SUPPORT_PLANS','\n'.join(support)))
 (root/'dist/index.html').write_text(html)
+# Reproduce the two guide previews from their original tracked artwork.
+preview_art = root.parent / 'artwork' / 'refresh19'
+for source, target in (('armor-front-preview.png', 'armor-refresh19.png'),
+                       ('inventory-preview.png', 'gear-refresh19.png')):
+    copyfile(preview_art / source, root / 'dist' / 'assets' / target)

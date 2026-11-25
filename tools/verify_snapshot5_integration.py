@@ -46,6 +46,15 @@ HELPER_RECOVERY_SUFFIXES = (".recovery-required", ".recovery-required.tmp", ".re
                             ".recovery-retiring.tmp", ".tmp", ".previous.tmp", ".previous.publish.tmp")
 HELPER_BACKUP_LIMIT = 8 * 1024 * 1024
 TERRAIN_DATA_VERSION = 5125
+# Exact layouts observed in the retained, disposable conversion fixture. No
+# data fixer runs inside the evidence reader; it only checks native records.
+REVIEWED_CONVERSION_STATUS = {
+    4671: (b"Status", {b"minecraft:full"}),
+    5023: (b"Status", {b"minecraft:full", b"minecraft:structure_starts", b"minecraft:biomes",
+                      b"minecraft:terrain", b"minecraft:initialize_light"}),
+    5125: (b"status", {b"minecraft:full", b"minecraft:structure_starts", b"minecraft:noise_biomes",
+                      b"minecraft:terrain", b"minecraft:initialize_light"}),
+}
 TERRAIN_FILE_LIMIT = 4096
 TERRAIN_PATH_LIMIT = 200_000
 TERRAIN_CHUNK_LIMIT = 100_000
@@ -443,14 +452,15 @@ def reject_terrain_helper(node, flagged, depth, count):
             reject_terrain_helper(rider, flagged, depth + 1, count)
 
 
-def verify_terrain_helper_evidence(storage, world, flagged):
-    """Reject helper-like entities in supported current-version terrain chunks.
+def verify_terrain_helper_evidence(storage, world, flagged, *, reviewed_conversion=False):
+    """Reject hidden helper state in terrain, without modifying any world bytes.
 
-    Older/data-fix-dependent or non-full terrain chunks require manual review.
-    Reading copied bytes does not prove world completeness or disk durability.
+    The exact legacy and partial layouts reviewed for the conversion fixture
+    additionally require no embedded entities. Unknown layouts fail closed.
     """
     regions, external = terrain_region_files(world)
     used_external, chunks, decoded_bytes = set(), 0, 0
+    layouts = {}
     try:
         for path in regions:
             for record in storage.region_records(path):
@@ -464,13 +474,19 @@ def verify_terrain_helper_evidence(storage, world, flagged):
                 chunk = typed_nbt.parse(raw)
                 require(chunk.kind == 10, "malformed terrain chunk")
                 fields = chunk.payload
-                version, status = fields.get(b"DataVersion"), fields.get(b"status")
-                require(isinstance(version, typed_nbt.Tag) and version.kind == 3
-                        and typed_nbt.plain(version) == TERRAIN_DATA_VERSION
-                        and isinstance(status, typed_nbt.Tag) and status.kind == 8
-                        and status.payload == b"minecraft:full"
-                        and b"Level" not in fields and b"Entities" not in fields,
+                version = fields.get(b"DataVersion")
+                data_version = typed_nbt.plain(version) if isinstance(version, typed_nbt.Tag) and version.kind == 3 else None
+                layout = (REVIEWED_CONVERSION_STATUS.get(data_version) if reviewed_conversion else
+                          (b"status", {b"minecraft:full"}) if data_version == TERRAIN_DATA_VERSION else None)
+                status = fields.get(layout[0]) if layout else None
+                require(layout is not None and isinstance(status, typed_nbt.Tag) and status.kind == 8
+                        and status.payload in layout[1] and b"Level" not in fields
+                        and (b"Status" if layout[0] == b"status" else b"status") not in fields
+                        and b"Entities" not in fields,
                         "terrain schema or version requires manual review")
+                full_current = data_version == TERRAIN_DATA_VERSION and status.payload == b"minecraft:full"
+                label = f"{data_version}:{status.payload.decode('ascii')}"
+                layouts[label] = layouts.get(label, 0) + 1
                 for key, expected in zip((b"xPos", b"zPos"), record[1]):
                     value = fields.get(key)
                     require(isinstance(value, typed_nbt.Tag) and value.kind == 3
@@ -480,13 +496,18 @@ def verify_terrain_helper_evidence(storage, world, flagged):
                     require(entities.kind == 9, "malformed terrain entity list")
                     child, values = entities.payload
                     require(child == 10 or (not values and child == 0), "malformed terrain entity list")
+                    require(full_current or not values,
+                            "embedded entities in legacy or partial terrain require manual review")
                     count = [0]
                     for entity in values:
                         reject_terrain_helper(entity, flagged, 0, count)
         require(used_external == external, "orphan or unlisted external terrain chunk requires manual review")
     except (OSError, zlib.error):
         raise ValueError("Snapshot integration: could not read copied terrain") from None
-    return {"regions": len(regions), "chunks": chunks, "supported_data_version": TERRAIN_DATA_VERSION}
+    result = {"regions": len(regions), "chunks": chunks, "supported_data_version": TERRAIN_DATA_VERSION}
+    if reviewed_conversion:
+        result["reviewed_layout_counts"] = dict(sorted(layouts.items()))
+    return result
 
 
 def validate_helper_registrations(registrations):
@@ -793,8 +814,8 @@ def native_world(root, base, label, evidence):
             verify_offline_player_save(level["Player"], flagged)
     # Native chunk loading can also revive entities from legacy terrain data.
     # Never mistake an entity-region match for a complete identity inventory.
-    terrain = {"before": verify_terrain_helper_evidence(storage, before, flagged),
-               "after": verify_terrain_helper_evidence(storage, after, flagged)}
+    terrain = {"before": verify_terrain_helper_evidence(storage, before, flagged, reviewed_conversion=True),
+               "after": verify_terrain_helper_evidence(storage, after, flagged, reviewed_conversion=True)}
     def entities(world):
         found = {}
         for file in world.rglob("entities/r.*.mca"):
@@ -935,7 +956,7 @@ def collect(root=ROOT):
         "bridge_integration": digest(base / "upstream-bridge/integration-proof.json"), "translated_play": digest(positive_path),
         "app_run": digest(base / "snapshot5-crossplay-lab/final-app-run.json"), "ack_result": digest(base / "viafabric-ack-runtime/result-final.json"), "ack_report": digest(ack_xml)})
     world = native_world(root, base, mods, evidence)
-    return {"format_version": 7, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
+    return {"format_version": 8, "version": VERSION, "minecraft": MINECRAFT, "protocol": PROTOCOL, "experimental": True,
             "snapshot5_inputs": inputs, "source_hashes": {name: digest(root / name) for name in SOURCE_FILES},
             "dependency_lock_sha256": digest(root / "server/dependencies.lock.json"), "runtime_mod_sha256": mods,
             "native_tests": len(native_names), "codec_tests": len(names),
