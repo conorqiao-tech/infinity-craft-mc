@@ -142,6 +142,14 @@ Lobby visuals use themed vanilla-block arches, colored glass, banners, lighted c
 
 ## Build and validate
 
+For a developer-only native test run with a prepared research runtime and a warm Gradle cache, use:
+
+```sh
+python3 tools/check_native_gametests.py --java /path/to/java --cached-runtime research/integration --jobs 2
+```
+
+This runs every regular Fabric GameTest in the manifest's shared or exclusive groups, with a fresh world per group. The default group runs alone before other groups can run concurrently. The raw Gradle `runGametest` task loads all registrations into one server and does not enforce those isolation groups. Do not use that task alone as the full-suite gate. The developer runner does not prepare, verify, or install a live release. Use the full crossplay workflow below for release evidence.
+
 Use Java 25, Python 3.9+, and network access for checksum-pinned dependencies. The project pins Gradle 9.7.1 and Loom 1.18.2 for unobfuscated Minecraft 26.4 Snapshot 5 with the pinned public-source ports in [snapshot compatibility](../compatibility/snapshot5/README.md). `JAVA_HOME` must point to Java 25 when invoking Gradle directly.
 
 ```sh

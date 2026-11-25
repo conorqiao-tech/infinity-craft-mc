@@ -176,7 +176,8 @@
       "dev.convergence.InfinityTidewatchGameTests",
       "dev.convergence.TidewatchFlagGameTests",
       "dev.convergence.InfinityApiaryGameTests",
-      "dev.convergence.InfinityChimesGameTests"
+      "dev.convergence.InfinityChimesGameTests",
+      "dev.convergence.SpawnSafetyGameTests"
     ]
   },
   "depends": {
