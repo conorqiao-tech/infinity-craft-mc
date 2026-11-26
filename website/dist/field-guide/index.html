@@ -188,7 +188,29 @@ button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499
 .ex figcaption{grid-column:1/-1;font-size:15px;color:var(--soft);margin-top:6px}
 .ex figcaption b{color:var(--ink)}
 @media(prefers-reduced-motion:reduce){.pc.hit{animation:none}.pc.miss{animation:none;outline:3px solid var(--orange);outline-offset:4px}.th.go path{animation:none;stroke-dasharray:none;stroke-dashoffset:0}.mid.go{animation:none;opacity:1}}
-@media(max-width:760px){.pp-low,.pairsGuide{grid-template-columns:minmax(0,1fr)}}
+.tag.pr{background:#e6defa;color:#3b2a7a}
+.toolbar .btn{flex:0 1 auto;padding:0 14px;min-height:44px}
+.btn[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.btn[aria-pressed=true]{background:var(--mint);border-color:var(--mint);color:#06281d;font-weight:700}
+.btn:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.circuit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px 20px;align-items:center;margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.circuit h3,.circ h3{font-size:22px;line-height:1.1;margin:0 0 6px}
+h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
+.circuit p{margin:0 0 10px;color:var(--soft);font-size:15px}
+.circuit p b,.exline b{color:var(--ink)}
+.cfig{position:relative;height:270px;border-radius:14px;background:linear-gradient(180deg,#101444,#1a1f5c)}
+.cfig.small{height:230px}
+.cfig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ct{font:700 14px Figtree,sans-serif;fill:#eef0ff;paint-order:stroke;stroke:#14184c;stroke-width:4px}
+.cn{font:700 15px "Pixelify Sans",sans-serif;fill:#14123a}
+.cn.dim{fill:#7c82c4}
+.edge path{fill:none;stroke-linecap:round}
+.edge.go path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .5s ease-out forwards;animation-delay:inherit}
+.seal.go{opacity:0;animation:fade .45s 1.15s ease-out forwards}
+.pairsGuide .circ{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center;border-top:1px solid var(--line);padding-top:16px}
+.exline{margin:0;color:var(--soft);font-size:15px}
+@media(prefers-reduced-motion:reduce){.edge.go path{animation:none;stroke-dasharray:none;stroke-dashoffset:0}.seal.go{animation:none;opacity:1}}
+@media(max-width:760px){.pp-low,.pairsGuide,.circuit,.pairsGuide .circ{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:560px){.loom{grid-template-columns:minmax(0,1fr)}.lfig{height:96px}.ex{grid-template-columns:minmax(0,1fr)}.ex svg{height:40px}}
 </style>
@@ -198,7 +220,7 @@ button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499
 <header>
 <div>
 <h1>InfinityCraft <span>Field Guide</span></h1>
-<p class="sub">Explore the gallery preview and play with two note-block voices.</p>
+<p class="sub">Explore the postcard gallery and play its chords and circuits.</p>
 </div>
 <a class="home" href="/">Infinity Armor Hub ↗</a>
 </header>
@@ -275,6 +297,19 @@ button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499
 <div class="lcard" id="exB"></div>
 <figcaption>Example: tap the first postcard, then Sneak-tap the second. The second now opens on Half Moon, so the pair links through <b>Half Moon</b> and sounds <b>Kite chime + Ember Peaks bell</b>.</figcaption>
 </figure>
+<div class="circ">
+<div>
+<h3>Postcard Circuit <small>optional</small></h3>
+<ol>
+<li>After an echo-shard pair links, tap the third signed frame with plain prismarine crystals.</li>
+<li>All three frames must be within 12 blocks of each other.</li>
+<li>Sneak while tapping to swap that frame's chime and bell.</li>
+<li>The third frame's chime must match the second frame's bell, and its bell must match the first frame's chime.</li>
+</ol>
+<p class="exline">Example: card 1, Sneak-tap card 2, then prismarine crystals on card 3 normally. The circuit closes and sounds <b>Kite chime, Half Moon harp and Ember Peaks bell</b> together.</p>
+</div>
+<div class="cfig small" role="img" aria-label="Example circuit triangle: corner 1 Kite chime, corner 2 Half Moon harp, corner 3 Ember Peaks bell, with a glowing hollow seal in the center"><svg id="gsvg"></svg></div>
+</div>
 </section>
 </section>
 
@@ -329,6 +364,7 @@ button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499
 <div><h2>Postcard Pairs</h2><p>Tap a signed card to anchor it and preview its chord. Then tap a different card whose opening chime matches the anchor's ending bell.</p></div>
 <div class="toolbar">
 <label class="snd" for="swap"><input type="checkbox" id="swap"> Swap voices for next tap</label>
+<button class="btn" id="closeBtn" type="button" aria-disabled="true" aria-pressed="false" aria-describedby="cHint">Close the circuit</button>
 <label class="snd" for="sound2"><input type="checkbox" id="sound2" checked> Sound</label>
 </div>
 </div>
@@ -344,7 +380,15 @@ button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499
 <p class="lres" id="lres">No linked pair yet. Your last result stays here while you play again.</p>
 </div>
 </div>
-<p class="note">Practice for the Postcard Pairs development preview. In game you tap with a plain echo shard and Sneak to swap; here the Swap checkbox stands in for Sneak and turns itself off after one tap.</p>
+<section class="circuit" aria-labelledby="cTitle">
+<div>
+<h3 id="cTitle">Postcard Circuit <small>optional</small></h3>
+<p id="cHint">Link a fresh pair to unlock Close the circuit.</p>
+<p id="cres">No closed circuit yet. The third card's chime must match the second card's bell, and its bell must match the first card's chime.</p>
+</div>
+<div class="cfig" id="cfig" role="img" aria-label="No closed circuit yet"><svg id="csvg"></svg></div>
+</section>
+<p class="note">Practice for the Postcard Pairs development preview. In game you tap with a plain echo shard and Sneak to swap, and close a circuit by tapping the third frame with plain prismarine crystals. Swap reverses one tap. Close the circuit selects the crystals and stays armed after a miss until you close the loop or disarm it.</p>
 </section>
 </div>
 
@@ -521,9 +565,10 @@ const CARDS=[{id:1,a:"kite",b:"moon"},{id:2,a:"ember",b:"moon"},{id:3,a:"ember",
 const ori=(id,sw)=>{const c=CARDS.find(x=>x.id===id)||CARDS[0];return {id:c.id,sw:!!sw,open:sw?c.b:c.a,end:sw?c.a:c.b}};
 const nm=id=>byId(id).name;
 const okRef=r=>r&&typeof r==="object"&&CARDS.some(c=>c.id===r.id);
-let armed=false;
+let armed=false,closing=false;
 let P=store.pairs&&typeof store.pairs==="object"?store.pairs:{};
-P={anchor:okRef(P.anchor)?P.anchor:null,result:P.result&&okRef(P.result.first)&&okRef(P.result.second)?P.result:null};
+P={anchor:okRef(P.anchor)?P.anchor:null,result:P.result&&okRef(P.result.first)&&okRef(P.result.second)?P.result:null,chance:!!P.chance,circuit:P.circuit&&okRef(P.circuit.a)&&okRef(P.circuit.b)&&okRef(P.circuit.c)?P.circuit:null};
+if(!P.result)P.chance=false;
 state.pairs=P;
 const saveP=()=>{state.pairs=P;save()};
 function voice(id,role,mk){const o=byId(id);return `<span class="voice" style="--c:${o.c}"><i></i><b>${o.name}</b><small>${role} · ${pitch(o.n)}</small>${mk||""}</span>`}
@@ -535,13 +580,26 @@ $("gallery").innerHTML=CARDS.map(c=>`<button type="button" class="pc" id="pc${c.
 function sayP(msg,kind){const s=$("pStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
 function bump(el,cls){el.classList.remove('hit','miss');void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),600)}
 function relText(a,b){const d=byId(b).n-byId(a).n;return d===0?"level, same note":`${d>0?"rising":"falling"} ${INT[Math.abs(d)]||Math.abs(d)+" notes"}`}
-function renderPairs(anim){
+const avail=()=>!!(P.chance&&P.result);
+function targets(){const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);return {A,B,txt:`${nm(B.end)} chime (card ${B.id}'s bell) and ${nm(A.open)} bell (card ${A.id}'s chime)`}}
+function renderPairs(anim,animC){
+ const inPair=id=>avail()&&(P.result.first.id===id||P.result.second.id===id);
  CARDS.forEach(c=>{
   const b=$("pc"+c.id),anc=P.anchor&&P.anchor.id===c.id,o=anc?ori(c.id,P.anchor.sw):ori(c.id,armed);
-  b.innerHTML=face(o,null,(anc?'<span class="tag anc">Anchored</span>':'')+(o.sw?'<span class="tag sw">Swapped</span>':''));
+  b.innerHTML=face(o,null,(anc?'<span class="tag anc">Anchored</span>':'')+(inPair(c.id)?'<span class="tag pr">In pair</span>':'')+(o.sw?'<span class="tag sw">Swapped</span>':''));
   b.setAttribute('aria-pressed',anc?"true":"false");
-  b.setAttribute('aria-label',`Card ${c.id}: ${nm(o.open)} chime to ${nm(o.end)} bell${o.sw?", swapped":""}${anc?". Anchored; tap again to clear":""}`);
+  b.setAttribute('aria-label',`Card ${c.id}: ${nm(o.open)} chime to ${nm(o.end)} bell${o.sw?", swapped":""}${anc?". Anchored; tap again to clear":""}${inPair(c.id)?". In the linked pair":""}`);
  });
+ const cb=$("closeBtn");
+ cb.setAttribute('aria-disabled',avail()?"false":"true");cb.setAttribute('aria-pressed',closing?"true":"false");
+ cb.textContent=closing?"Circuit armed: tap third card":"Close the circuit";
+ $("cHint").innerHTML=!avail()?"Link a fresh pair to unlock Close the circuit.":closing?`Choose the third card. The third card needs <b>${targets().txt}</b>. Press the button again to disarm.`:"Unlocked. Press Close the circuit, then tap the third card. A fresh normal anchor discards this chance.";
+ if(P.circuit){
+  const v=circVoices(P.circuit);
+  $("cres").innerHTML=`Last closed circuit: <b>${v.map(x=>`${nm(x.id)} ${x.role}`).join(", ")}</b>, through card ${P.circuit.a.id}${P.circuit.a.sw?" (swapped)":""}, card ${P.circuit.b.id}${P.circuit.b.sw?" (swapped)":""} and card ${P.circuit.c.id}${P.circuit.c.sw?" (swapped)":""}.`;
+  $("cfig").setAttribute('aria-label',`Closed circuit triangle: ${v.map((x,i)=>`corner ${i+1} ${nm(x.id)} ${x.role}`).join(", ")}, with a glowing hollow seal in the center`);
+ }else{$("cfig").setAttribute('aria-label',"No closed circuit yet")}
+ drawCircuit($("csvg"),P.circuit,!!animC);
  $("swap").checked=armed;$("sound2").checked=state.sound;
  if(P.result){
   const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);
@@ -570,13 +628,68 @@ function drawLoom(anim){
  s.innerHTML=th(p1,c1)+th(p2,c2)+`<g class="mid${anim?" go":""}"><circle cx="${W/2}" cy="${H/2}" r="20" fill="${cm}" opacity=".25"/><circle cx="${W/2}" cy="${H/2}" r="11" fill="${cm}"/><circle cx="${W/2}" cy="${H/2}" r="4.5" fill="#fff"/></g>`;
 }
 const loomRO=new ResizeObserver(()=>drawLoom(false));loomRO.observe($("lfig"));
+const harpPitch=n=>PC[n%12]+(n<6?3:n<18?4:5);
+function circVoices(c){const A=ori(c.a.id,c.a.sw),B=ori(c.b.id,c.b.sw);return [{id:A.open,role:"chime",p:pitch(byId(A.open).n)},{id:A.end,role:"harp",p:harpPitch(byId(A.end).n)},{id:B.end,role:"bell",p:pitch(byId(B.end).n)}]}
+const EXC={a:{id:1,sw:false},b:{id:2,sw:true},c:{id:3,sw:false}};
+function drawCircuit(s,circ,anim){
+ const W=s.clientWidth,H=s.clientHeight;if(!W||!H)return;
+ const top=48,bot=56,side=Math.max(80,W*.1),h=Math.max(60,H-top-bot),b=Math.min(W-2*side,h*1.3),cx=W/2;
+ const Q=[[cx,top],[cx+b/2,top+h],[cx-b/2,top+h]],G=[cx,top+h*2/3],rs=Math.max(13,Math.min(b,h)*.13);
+ const L=(a,z)=>`M${a[0]} ${a[1]}L${z[0]} ${z[1]}`;
+ if(!circ){
+  s.innerHTML=`<path d="${L(Q[0],Q[1])}${L(Q[1],Q[2])}${L(Q[2],Q[0])}" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="6 6"/>`+Q.map((q,i)=>`<circle cx="${q[0]}" cy="${q[1]}" r="17" fill="#1b2056" stroke="#3d4596" stroke-width="2"/><text class="cn dim" x="${q[0]}" y="${q[1]+5}" text-anchor="middle">${i+1}</text>`).join('')+`<circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="4 5"/>`;
+  return;
+ }
+ const v=circVoices(circ),col=v.map(x=>byId(x.id).c),go=anim?" go":"";
+ const edge=(a,z,c,i)=>{const d=L(a,z);return `<g class="edge${go}" style="animation-delay:${i*.35}s"><path d="${d}" pathLength="1" stroke="${c}" stroke-width="14" opacity=".16"/><path d="${d}" pathLength="1" stroke="${c}" stroke-width="6" opacity=".4"/><path d="${d}" pathLength="1" stroke="${c}" stroke-width="2.5"/><path d="${d}" pathLength="1" stroke="#fff" stroke-width="1" opacity=".7"/></g>`};
+ const seal=`<g class="seal${go}"><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#7cf5c4" stroke-width="16" opacity=".14"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#7cf5c4" stroke-width="7" opacity=".35"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#c9fff0" stroke-width="3"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs*.55}" fill="none" stroke="#fff" stroke-width="1" opacity=".6"/></g>`;
+ const short=W<460;
+ const corner=(q,i)=>{const x=v[i],ly=i===0?q[1]-27:q[1]+38;return `<circle cx="${q[0]}" cy="${q[1]}" r="17" fill="${col[i]}" stroke="#0e1030" stroke-width="3"/><text class="cn" x="${q[0]}" y="${q[1]+5}" text-anchor="middle">${i+1}</text><text class="ct" x="${q[0]}" y="${ly}" text-anchor="middle">${nm(x.id)} ${x.role}${short?"":" · "+x.p}</text>`};
+ s.innerHTML=edge(Q[0],Q[1],col[0],0)+edge(Q[1],Q[2],col[1],1)+edge(Q[2],Q[0],col[2],2)+seal+Q.map(corner).join('');
+}
+const circRO=new ResizeObserver(()=>{drawCircuit($("csvg"),P.circuit,false);drawCircuit($("gsvg"),EXC,false)});
+circRO.observe($("cfig"));circRO.observe($("gsvg").parentNode);
+function playTrio(c,hp,b){
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw new Error("no audio");
+ if(!ctx)ctx=new AC();
+ if(ctx.state==="suspended")ctx.resume();
+ const t=ctx.currentTime+.03;
+ tone(hz(c.n),t,[[1,.6,1],[2,.25,.5],[3,.1,.3]],1.2,.16);
+ tone(hz(hp.n)/4,t,[[1,.7,1],[2,.35,.6],[3,.15,.4],[4,.06,.25]],1.5,.24);
+ tone(hz(b.n),t,[[1,.55,1],[2,.2,.7],[2.76,.18,.5],[5.4,.08,.25]],2.2,.15);
+}
+function circuitTap(id,sw){
+ const {A,B,txt}=targets(),C=ori(id,sw),btn=$("pc"+id);
+ if(id===A.id||id===B.id){renderPairs();bump(btn,"miss");sayP(`Card ${id} is already in this pair. The third card needs ${txt}. Still armed: tap a different card.`,"quiet");return}
+ if(C.open!==B.end||C.end!==A.open){
+  renderPairs();bump(btn,"miss");
+  const o=ori(id,!sw),tip=o.open===B.end&&o.end===A.open?` Tip: ${sw?"untick":"tick"} Swap voices for next tap and try card ${id} again.`:"";
+  sayP(`Not closed. Card ${id}${sw?" (swapped)":""} is ${nm(C.open)} chime to ${nm(C.end)} bell. Targets: ${txt}. Still armed: try again.${tip}`,"quiet");
+  return;
+ }
+ P.circuit={a:{id:A.id,sw:A.sw},b:{id:B.id,sw:B.sw},c:{id,sw}};P.chance=false;closing=false;saveP();renderPairs(false,true);
+ [A.id,B.id,id].forEach(i=>bump($("pc"+i),"hit"));
+ const v=circVoices(P.circuit);
+ const path=`${nm(A.open)} chime, ${nm(A.end)} harp, ${nm(B.end)} bell, then back to ${nm(A.open)}, through card ${A.id}${A.sw?" (swapped)":""}, card ${B.id}${B.sw?" (swapped)":""} and card ${id}${sw?" (swapped)":""}.`;
+ if(!state.sound){sayP("Circuit closed silently: "+path+" No audio played.","live");return}
+ try{playTrio(byId(v[0].id),byId(v[1].id),byId(v[2].id));sayP("Circuit closed! Now playing three voices: "+path,"live")}
+ catch(e){sayP("Circuit closed. Audio isn't available here: "+path,"quiet")}
+}
+$("closeBtn").addEventListener('click',()=>{
+ if(!avail()){sayP("Close the circuit unlocks after a fresh two-card link.","");return}
+ closing=!closing;renderPairs();
+ sayP(closing?`Circuit armed. Tap the third card: it needs ${targets().txt}. Swap voices works on this tap.`:"Circuit disarmed. Your chance is still open; press Close the circuit to arm it again.","");
+});
 function tap(id){
  const sw=armed;armed=false;
+ if(closing&&avail()){circuitTap(id,sw);return}
  const btn=$("pc"+id);
  if(P.anchor&&P.anchor.id===id){P.anchor=null;saveP();renderPairs();sayP(`Cleared the anchor on card ${id}. Tap any card to start again.`,"");return}
  if(!P.anchor){
+  const lost=P.chance;P.chance=false;closing=false;
   P.anchor={id,sw};saveP();renderPairs();bump(btn,"hit");
-  const o=ori(id,sw),msg=`Anchored card ${id}${sw?" (swapped)":""}: ${nm(o.open)} chime to ${nm(o.end)} bell. Next, tap a different card that opens on ${nm(o.end)}.`;
+  const o=ori(id,sw),msg=`${lost?"Circuit chance discarded. ":""}Anchored card ${id}${sw?" (swapped)":""}: ${nm(o.open)} chime to ${nm(o.end)} bell. Next, tap a different card that opens on ${nm(o.end)}.`;
   if(!state.sound){sayP("Silent preview. "+msg+" No audio played.","quiet");return}
   try{playAudio({c:byId(o.open),b:byId(o.end)});sayP("Previewing. "+msg,"live")}catch(e){sayP("Audio isn't available here, so this is a visual preview. "+msg,"quiet")}
   return;
@@ -588,11 +701,11 @@ function tap(id){
   sayP(`No link. Card ${id}${sw?" (swapped)":""} opens on ${nm(C.open)}, but the target is ${nm(A.end)} (${pitch(byId(A.end).n)}), the anchor's ending bell. Card ${A.id} stays anchored.${tip}`,"quiet");
   return;
  }
- P.result={first:{id:A.id,sw:A.sw},second:{id:C.id,sw:C.sw}};P.anchor=null;saveP();renderPairs(true);
+ P.result={first:{id:A.id,sw:A.sw},second:{id:C.id,sw:C.sw}};P.anchor=null;P.chance=true;closing=false;saveP();renderPairs(true);
  bump(btn,"hit");bump($("pc"+A.id),"hit");
  const r=`Linked card ${A.id} to card ${id} through ${nm(A.end)} (${pitch(byId(A.end).n)}). Result: ${nm(A.open)} chime + ${nm(C.end)} bell.`;
- if(!state.sound){sayP("Silent link. "+r+" No audio played. Anchor cleared, so you can play again.","live");return}
- try{playAudio({c:byId(A.open),b:byId(C.end)});sayP("Now playing. "+r+" Anchor cleared, so you can play again.","live")}
+ if(!state.sound){sayP("Silent link. "+r+" No audio played. Anchor cleared, so you can play again. Close the circuit is now unlocked.","live");return}
+ try{playAudio({c:byId(A.open),b:byId(C.end)});sayP("Now playing. "+r+" Anchor cleared, so you can play again. Close the circuit is now unlocked.","live")}
  catch(e){sayP("Audio isn't available here. "+r+" Anchor cleared, so you can play again.","quiet")}
 }
 $("gallery").addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)tap(+b.dataset.card)});
