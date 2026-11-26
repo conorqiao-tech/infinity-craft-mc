@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InfinityCraft Field Guide</title>
+<link rel="canonical" href="https://infinity-armor-hub.vercel.app/field-guide/">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/guide-192.png">
+<meta name="theme-color" content="#09151d">
+<script src="/register-guide.js" defer></script>
+<style>
+/* VOICE everyday companion for a game server, calm night tone with playful pixel accents
+   IDEA a pocket field guide tucked into the Infinity Armor Hub: item frames on a gallery wall, and a note-block tuning bench
+   PICTURE Guide: three item frames joined by a trail; Studio: a live stage with a chime bar on the left, a bell ring on the right and the slope between them
+   COLOUR aurora night ground #0e1030 fixed in both themes, ink #eef0ff, cyan #4fe3f0, lavender #b9a4ff, orange #ff9a3c, mint #7cf5c4 accent
+   TYPE Pixelify Sans for titles and labels + Figtree for text
+   LAYOUT laptop: one 980px column, studio stage left and pickers right; phone: title, tabs, picture, controls stacked */
+:root{color-scheme:dark;--bg:#0e1030;--bg2:#161a46;--panel:#1b2056;--line:#343b86;--ink:#eef0ff;--soft:#b9bde8;--cyan:#4fe3f0;--lav:#b9a4ff;--orange:#ff9a3c;--mint:#7cf5c4;--wood:#8a5a32;--wood2:#c48a52}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);background-image:radial-gradient(120% 60% at 80% -10%,#2b2a7a 0,transparent 60%),radial-gradient(90% 50% at 0% 0%,#123f55 0,transparent 55%);background-repeat:no-repeat;color:var(--ink);font:16px/1.55 Figtree,system-ui,sans-serif;overflow-x:clip;min-height:100vh}
+a{color:var(--cyan)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.wrap{max-width:980px;margin:0 auto;padding:20px max(16px,4vw) 40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px}
+h1,h2,h3,.px{font-family:"Pixelify Sans",Figtree,system-ui,sans-serif;letter-spacing:-.01em}
+h1{font-size:clamp(30px,6vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+h1 span{color:var(--cyan)}
+.sub{margin:6px 0 0;color:var(--soft);max-width:60ch}
+.home{font-size:15px;white-space:nowrap;padding:10px 0}
+.tabs{display:flex;gap:6px;margin:20px 0 18px;padding:5px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;width:max-content;max-width:100%}
+.tabs button{font:600 17px "Pixelify Sans",Figtree,sans-serif;color:var(--soft);background:transparent;border:0;border-radius:10px;padding:10px 20px;min-height:44px;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--cyan);color:#06213a}
+.tabs button:hover:not([aria-selected=true]){color:var(--ink);background:#ffffff12}
+[role=tabpanel][hidden]{display:none}
+[role=tabpanel]{border-radius:16px}
+[role=tabpanel]:focus{outline:none}
+[role=tabpanel]:focus-visible{outline:2px solid var(--mint);outline-offset:4px}
+/* Guide */
+.trail{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.trail::before{content:"";position:absolute;left:12%;right:12%;top:68px;border-top:3px dashed #7cf5c466;z-index:0}
+.stop{position:relative;z-index:1;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.frame{width:104px;height:104px;margin:0 auto 4px;padding:10px;border-radius:6px;background:linear-gradient(145deg,var(--wood2),var(--wood));box-shadow:inset 0 0 0 4px #5e3b1f,0 6px 0 #0007}
+.frame div{width:100%;height:100%;background:#2a1a10;border-radius:2px;display:grid;place-items:center;gap:2px;grid-auto-flow:column}
+.frame svg{width:52px;height:52px;image-rendering:pixelated}
+.frame.two svg{width:40px;height:40px}
+.stop h2{font-size:24px;line-height:1.05;margin:0;text-align:center}
+.need{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:0;padding:0;list-style:none}
+.need li{font-size:13px;font-weight:700;padding:3px 10px;border-radius:99px;background:#7cf5c41f;color:var(--mint);white-space:nowrap}
+.stop ol{margin:0;padding-left:1.3em;color:var(--ink)}
+.stop ol li{margin:4px 0}
+.stop ol li::marker{color:var(--cyan);font-weight:700}
+.tie{margin-top:auto;font:600 15px Figtree,sans-serif;background:transparent;color:var(--lav);border:1px solid var(--lav);border-radius:10px;min-height:44px;cursor:pointer}
+.tie:hover{background:#b9a4ff22}
+.back{margin-top:18px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 18px;padding:16px 18px;border-radius:16px;background:var(--bg2);border:1px solid var(--line)}
+.back p{margin:0;color:var(--soft);max-width:56ch}
+.back a{font-weight:700;white-space:nowrap;padding:10px 0}
+/* Studio */
+.studio{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:stretch}
+.stage{position:relative;background:linear-gradient(180deg,#101444,#1a1f5c);border:1px solid var(--line);border-radius:18px;padding:16px 18px 14px;display:flex;flex-direction:column;min-height:360px}
+.rel{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rel strong{font:700 clamp(30px,5vw,40px)/1 "Pixelify Sans",sans-serif;color:var(--mint)}
+.rel span{color:var(--soft);font-size:15px}
+.field{position:relative;flex:1;margin-top:12px;min-height:240px}
+.tick{position:absolute;z-index:1;left:0;right:0;border-top:1px dashed #ffffff22;font-size:13px;color:var(--soft)}
+.tick b{position:absolute;left:50%;transform:translate(-50%,-50%);background:#141850;padding:0 6px;font-weight:600;white-space:nowrap}
+.field svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.bar{position:absolute;bottom:0;left:12%;width:46px;border-radius:8px 8px 3px 3px;transition:height .45s cubic-bezier(.3,1.4,.5,1),background .3s}
+.ring{position:absolute;right:12%;width:58px;height:58px;margin:-29px -29px 0 0;transform:translateX(-50%);border-radius:50%;border:9px solid;background:transparent;transition:top .45s cubic-bezier(.3,1.4,.5,1),border-color .3s}
+.ring::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:3px solid currentColor;opacity:0}
+.cap{display:flex;justify-content:space-between;margin-top:10px;font-size:14px;color:var(--soft)}
+.cap b{color:var(--ink)}
+.on .bar{animation:glow .9s ease-out}
+.on .ring::after{animation:ripple .9s ease-out}
+@keyframes glow{0%{filter:brightness(1.8);box-shadow:0 0 30px currentColor}100%{filter:none;box-shadow:none}}
+@keyframes ripple{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(2.2)}}
+@media(prefers-reduced-motion:reduce){.bar,.ring{transition:none}.on .bar,.on .ring::after{animation:none}.on .bar{outline:3px solid var(--mint);outline-offset:3px}.on .ring{box-shadow:0 0 0 4px var(--mint)}}
+.picks{display:flex;flex-direction:column;gap:14px}
+fieldset{margin:0;border:1px solid var(--line);border-radius:16px;padding:12px 14px 14px;background:var(--panel)}
+legend{font:700 18px "Pixelify Sans",sans-serif;padding:0 6px}
+legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.opt{position:relative;display:block;cursor:pointer}
+.opt input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.opt span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);background:var(--bg2);font-size:13px;color:var(--soft)}
+.opt span b{display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink);line-height:1.2}
+.opt span i{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}
+.opt input:checked+span{border-color:var(--c);background:color-mix(in srgb,var(--c) 18%,var(--bg2))}
+.opt input:focus-visible+span{outline:3px solid var(--mint);outline-offset:2px}
+.opt:hover span{border-color:color-mix(in srgb,var(--c) 60%,var(--line))}
+.play{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.go{flex:1 1 180px;font:700 19px "Pixelify Sans",sans-serif;min-height:52px;border:0;border-radius:14px;background:var(--mint);color:#06281d;cursor:pointer;box-shadow:0 4px 0 #2a9d78}
+.go:active{transform:translateY(2px);box-shadow:0 2px 0 #2a9d78}
+.snd{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);font-size:15px;cursor:pointer}
+.snd input{width:20px;height:20px;accent-color:var(--mint);margin:0}
+.status{min-height:52px;margin:0;padding:10px 14px;border-radius:12px;background:#00000033;border-left:4px solid var(--line);font-size:15px;color:var(--soft)}
+.status.live{border-color:var(--mint);color:var(--ink)}
+.status.quiet{border-color:var(--lav);color:var(--ink)}
+.note{font-size:13px;color:var(--soft);margin:14px 0 0}
+.preview{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px;padding:10px 14px;border-radius:12px;background:#ff9a3c1a;border:1px solid #ff9a3c66;font-size:15px}
+.pill{font:700 13px Figtree,sans-serif;padding:3px 10px;border-radius:99px;background:var(--orange);color:#2b1300;white-space:nowrap}
+.chain{display:flex;align-items:center;justify-content:center;gap:4px;margin:2px 0;font-size:13px;color:var(--soft)}
+.chain span{display:grid;place-items:center;width:44px;height:36px;border-radius:4px;background:#2a1a10;box-shadow:inset 0 0 0 3px var(--wood2);color:var(--ink);font-weight:700}
+.chain i{font-style:normal;color:var(--mint)}
+.hub{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+.hub a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);text-decoration:none;font-weight:600;white-space:nowrap}
+.hub a:hover{border-color:var(--cyan)}
+.ghost{margin-top:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:18px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
+.card{position:relative;padding:16px 18px;border-radius:12px;background:#f4efe2;color:#2a2440;box-shadow:0 6px 0 #0006}
+.card h2{font-size:24px;line-height:1.05;margin:0 0 4px;color:#2a2440}
+.card .meta{margin:0 0 12px;font-size:14px;color:#5a5270}
+.stamp{position:absolute;top:12px;right:12px;width:58px;height:66px;display:grid;place-items:center;border:3px dashed #8a7fb0;border-radius:6px;background:#e6defa}
+.stamp svg{width:40px;height:44px}
+.slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.slot{padding:8px 10px;border-radius:10px;background:#ffffffaa;border:2px dashed #b9b0d0;min-height:76px}
+.slot small{display:block;font-size:13px;color:#5a5270}
+.slot b{display:block;font:700 18px "Pixelify Sans",sans-serif;color:#2a2440}
+.slot em{display:block;font-style:normal;font-size:14px;font-weight:700;margin-top:2px}
+.slot.ok{border-style:solid;border-color:#1e9e74}.slot.ok em{color:#137a58}
+.slot.up em,.slot.down em{color:#b5520a}
+.clue{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border-radius:10px;background:#e6defa;font-size:14px}
+.clue[hidden]{display:none}
+.clue svg{flex:none;width:72px;height:40px;overflow:visible}
+.gctl{display:flex;flex-direction:column;gap:10px}
+.gctl .row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{flex:1 1 130px;font:600 16px Figtree,sans-serif;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--lav)}
+.btn.main{background:var(--lav);color:#1d1240;border-color:var(--lav);font-weight:700}
+.gctl p.how{margin:0;font-size:15px;color:var(--soft)}
+.ghostOn .stamp{animation:glow .9s ease-out}
+@media(prefers-reduced-motion:reduce){.ghostOn .stamp{animation:none;outline:3px solid var(--mint)}}
+@media(max-width:760px){.ghost{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.trail{grid-template-columns:minmax(0,1fr)}.trail::before{left:50%;right:auto;top:40px;bottom:40px;border-top:0;border-left:3px dashed #7cf5c466}.studio{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:420px){.opt span{min-height:72px;padding:8px}.opt span b{font-size:14px}.tabs{width:100%}.tabs button{flex:1;padding:10px 8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div>
+<h1>InfinityCraft <span>Field Guide</span></h1>
+<p class="sub">Explore the gallery preview and play with two note-block voices.</p>
+</div>
+<a class="home" href="/">Infinity Armor Hub ↗</a>
+</header>
+
+<div class="tabs" role="tablist" aria-label="Field guide sections">
+<button role="tab" id="tab-guide" aria-controls="guide" aria-selected="true">Guide</button>
+<button role="tab" id="tab-studio" aria-controls="studio" aria-selected="false" tabindex="-1">Coda Studio</button>
+</div>
+
+<section id="guide" role="tabpanel" aria-labelledby="tab-guide">
+<p class="preview"><span class="pill">Development preview</span> The Minecraft gallery features below are still in development and may change before release.</p>
+<div class="trail">
+<article class="stop">
+<div class="frame" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="#e8d9b0"/><rect x="3" y="3" width="10" height="10" fill="#5fb7e8"/><rect x="3" y="9" width="10" height="4" fill="#4caf6a"/><rect x="6" y="7" width="4" height="2" fill="#4caf6a"/><rect x="10" y="4" width="2" height="2" fill="#ffe27a"/><rect x="5" y="11" width="2" height="1" fill="#2e7d48"/></svg></div></div>
+<h2>Gallery Trail</h2>
+<ul class="need" aria-label="Played with"><li>Three different prints</li></ul>
+<div class="chain" role="img" aria-label="Print 1 last note leads to print 2 opening note, print 2 last note leads to print 3 opening note"><span>1</span><i>→</i><span>2</span><i>→</i><span>3</span></div>
+<ol>
+<li>Each player solves the same sequence of three different prints.</li>
+<li>Match each print's last note to the next print's opening note.</li>
+<li>Keep chaining until all three prints are linked.</li>
+</ol>
+</article>
+<article class="stop">
+<div class="frame" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="#9b6a3a"><rect x="3" y="11" width="2" height="2"/><rect x="5" y="9" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="9" y="5" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/></g><g fill="#6b4524"><rect x="3" y="13" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="11" y="5" width="2" height="1"/></g></svg></div></div>
+<h2>Encore Duet</h2>
+<ul class="need" aria-label="You need"><li>Plain sticks</li></ul>
+<ol>
+<li>Both players use plain sticks on the last frame to start the duet.</li>
+<li>Then take turns tapping the marked frames.</li>
+</ol>
+</article>
+<article class="stop">
+<div class="frame two" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="5" y="3" width="6" height="2" fill="#1f8f8a"/><rect x="3" y="5" width="10" height="7" fill="#2fd1c4"/><rect x="4" y="12" width="8" height="2" fill="#1f8f8a"/><rect x="5" y="6" width="2" height="2" fill="#c9fff7"/><rect x="9" y="8" width="2" height="2" fill="#7cf5c4"/></svg><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="3" y="2" width="10" height="12" fill="#f2efe4"/><rect x="11" y="2" width="2" height="2" fill="#cfc9b4"/><g fill="#b8b29c"><rect x="5" y="5" width="6" height="1"/><rect x="5" y="8" width="6" height="1"/><rect x="5" y="11" width="4" height="1"/></g></svg></div></div>
+<h2>Coda Postcards</h2>
+<ul class="need" aria-label="You need"><li>Plain glow ink</li><li>Plain paper</li></ul>
+<ol>
+<li>After completing the duet, each player taps a score with plain glow ink.</li>
+<li>Tap normally to pick its closing note, or Sneak and tap to pick its opening note.</li>
+<li>After both players have picked, either one can stamp plain paper on the last frame.</li>
+</ol>
+<button class="tie" type="button" data-go="studio">Try a chord in Coda Studio</button>
+</article>
+</div>
+<div class="back">
+<p>Note blocks and chimes are covered in the full exploration guide on the hub.</p>
+<a href="/downloads/exploration.md">Open the existing guide ↗</a>
+</div>
+<nav aria-label="Infinity Armor Hub sections">
+<ul class="hub">
+<li><a href="/#explore">Explore the server ↗</a></li>
+<li><a href="/#gear">Gear and tools ↗</a></li>
+<li><a href="/#rewards">Rewards ↗</a></li>
+<li><a href="/#ranks">Ranks ↗</a></li>
+<li><a href="/#play">How to play ↗</a></li>
+</ul>
+</nav>
+</section>
+
+<section id="studio" role="tabpanel" aria-labelledby="tab-studio" hidden>
+<div class="studio">
+<div class="stage" id="stage">
+<div class="rel"><strong id="relWord">Rising</strong><span id="relInt">perfect fifth, up 7 semitones</span></div>
+<div class="field" id="field" aria-hidden="true">
+<div id="ticks"></div>
+<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line id="link" x1="0" y1="0" x2="0" y2="0" stroke="#7cf5c4" stroke-width="3" stroke-dasharray="6 6" vector-effect="non-scaling-stroke" stroke-linecap="round"/></svg>
+<div class="bar" id="bar"></div>
+<div class="ring" id="ring"></div>
+</div>
+<div class="cap"><span>Chime: <b id="capC">Kite</b></span><span>Bell: <b id="capB">Ember Peaks</b></span></div>
+</div>
+<div class="picks">
+<fieldset id="fsChime"><legend>Chime <small>left bar</small></legend><div class="opts"></div></fieldset>
+<fieldset id="fsBell"><legend>Bell <small>right ring</small></legend><div class="opts"></div></fieldset>
+<div class="play">
+<button class="go" id="go" type="button">Play together</button>
+<label class="snd" for="sound"><input type="checkbox" id="sound" checked> Sound</label>
+</div>
+<p class="status" id="status" role="status" aria-live="polite">Pick a chime and a bell, then press Play together.</p>
+</div>
+</div>
+<section class="ghost" id="ghost" aria-labelledby="ghostTitle">
+<div class="card" id="gcard">
+<div class="stamp" aria-hidden="true"><svg viewBox="0 0 40 44"><path d="M6 40V18a14 14 0 0 1 28 0v22l-5-4-5 4-4-4-4 4-5-4z" fill="#fff" stroke="#8a7fb0" stroke-width="2"/><circle cx="15" cy="18" r="2.5" fill="#2a2440"/><circle cx="25" cy="18" r="2.5" fill="#2a2440"/></svg></div>
+<h2 id="ghostTitle">Match the Ghost Postcard</h2>
+<p class="meta" id="gmeta">Round 1 · 0 matched</p>
+<div class="slots">
+<div class="slot" id="slotC"><small>Ghost chime</small><b id="gC">?</b><em id="hC">Not checked yet</em></div>
+<div class="slot" id="slotB"><small>Ghost bell</small><b id="gB">?</b><em id="hB">Not checked yet</em></div>
+</div>
+<div class="clue" id="clue" hidden><svg viewBox="0 0 72 40" aria-hidden="true"><line id="clueLine" x1="10" y1="20" x2="62" y2="20" stroke="#5a3fc0" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/><rect id="clueA" x="4" y="14" width="12" height="12" rx="2" fill="#5a3fc0"/><circle id="clueB" cx="62" cy="20" r="7" fill="none" stroke="#5a3fc0" stroke-width="4"/></svg><span id="clueText"></span></div>
+</div>
+<div class="gctl">
+<p class="how">A ghost has stamped a hidden chime and bell pair. Set the chime and bell above to match it, then press Check.</p>
+<div class="row">
+<button class="btn main" id="gCheck" type="button">Check</button>
+<button class="btn" id="gHear" type="button">Hear ghost</button>
+<button class="btn" id="gNew" type="button">New round</button>
+</div>
+<p class="status" id="gStatus" role="status" aria-live="polite">New ghost postcard ready. Use the clue or check your two notes.</p>
+</div>
+</section>
+<p class="note">Practice for the Coda Postcards development preview. Pitches follow note-block clicks (0 to 24). This studio voices note 6 as C6, 10 as E6 and 13 as G6. Audio is synthesized in your browser and plays only when you press Play.</p>
+</section>
+</div>
+
+<script>
+{
+const NOTES=[
+ {id:"kite",name:"Kite",n:6,c:"#4fe3f0",col:"cyan"},
+ {id:"moon",name:"Half Moon",n:10,c:"#b9a4ff",col:"lavender"},
+ {id:"ember",name:"Ember Peaks",n:13,c:"#ff9a3c",col:"orange"}
+];
+const PC=["F♯","G","G♯","A","A♯","B","C","C♯","D","D♯","E","F"];
+const pitch=n=>PC[n%12]+(n<6?5:n<18?6:7);
+const hz=n=>739.99*2**(n/12);
+const INT={0:"unison",1:"minor second",2:"major second",3:"minor third",4:"major third",5:"perfect fourth",6:"tritone",7:"perfect fifth"};
+const LO=3,HI=16;
+const yPct=n=>100-(n-LO)/(HI-LO)*100;
+const $=id=>document.getElementById(id);
+let store={};
+try{store=JSON.parse(localStorage.getItem("infinitycraft.field-guide.v1")||"{}")||{}}catch(e){store={}}
+const state={chime:store.chime||"kite",bell:store.bell||"ember",sound:store.sound!==false,tab:store.tab==="studio"?"studio":"guide"};
+const save=()=>{try{localStorage.setItem("infinitycraft.field-guide.v1",JSON.stringify(state))}catch(e){}};
+const byId=id=>NOTES.find(x=>x.id===id)||NOTES[0];
+
+/* tabs */
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function show(name,focus){
+ tabs.forEach(t=>{const on=t.getAttribute('aria-controls')===name;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;$(t.getAttribute('aria-controls')).hidden=!on;if(on&&focus)t.focus()});
+ state.tab=name;save();
+ if(location.hash!=="#"+name){try{history.replaceState(null,"","#"+name)}catch(e){}}
+}
+tabs.forEach((t,i)=>{
+ t.addEventListener('click',()=>show(t.getAttribute('aria-controls')));
+ t.addEventListener('keydown',e=>{
+  let j=null;
+  if(e.key==="ArrowRight")j=(i+1)%tabs.length;
+  if(e.key==="ArrowLeft")j=(i-1+tabs.length)%tabs.length;
+  if(e.key==="Home")j=0;
+  if(e.key==="End")j=tabs.length-1;
+  if(j!==null){e.preventDefault();show(tabs[j].getAttribute('aria-controls'),true)}
+ });
+});
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go,true)));
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==="guide"||h==="studio")show(h)});
+
+/* pickers */
+function opts(role){
+ return NOTES.map(o=>`<label class="opt" style="--c:${o.c}"><input type="radio" name="${role}" value="${o.id}" id="${role}-${o.id}"><span><b><i></i>${o.name}</b>Note ${o.n} · ${o.col}</span></label>`).join('');
+}
+$("fsChime").querySelector('.opts').innerHTML=opts("chime");
+$("fsBell").querySelector('.opts').innerHTML=opts("bell");
+$("ticks").innerHTML=NOTES.map(o=>`<div class="tick" style="top:${yPct(o.n)}%"><b>${o.n} · ${pitch(o.n)}</b></div>`).join('');
+
+function relation(){
+ const c=byId(state.chime),b=byId(state.bell),d=b.n-c.n;
+ const word=d>0?"Rising":d<0?"Falling":"Level";
+ const name=INT[Math.abs(d)]||(Math.abs(d)+" notes");
+ const det=d===0?"unison, same note":`${name}, ${d>0?"up":"down"} ${Math.abs(d)} semitones`;
+ return {c,b,d,word,det};
+}
+function render(){
+ const r=relation();
+ document.querySelectorAll('input[name=chime]').forEach(i=>i.checked=i.value===state.chime);
+ document.querySelectorAll('input[name=bell]').forEach(i=>i.checked=i.value===state.bell);
+ $("sound").checked=state.sound;
+ const bar=$("bar"),ring=$("ring");
+ bar.style.height=(100-yPct(r.c.n))+"%";bar.style.background=r.c.c;bar.style.color=r.c.c;
+ ring.style.top=yPct(r.b.n)+"%";ring.style.borderColor=r.b.c;ring.style.color=r.b.c;
+ const f=$("field"),W=f.clientWidth||1;
+ const x1=(W*.12+23)/W*100,x2=100-(W*.12+29)/W*100;
+ const l=$("link");l.setAttribute('x1',x1);l.setAttribute('y1',yPct(r.c.n));l.setAttribute('x2',x2);l.setAttribute('y2',yPct(r.b.n));
+ l.setAttribute('stroke',r.d>0?"#7cf5c4":r.d<0?"#ff9a3c":"#b9a4ff");
+ $("relWord").textContent=r.word;$("relWord").style.color=r.d>0?"var(--mint)":r.d<0?"var(--orange)":"var(--lav)";
+ $("relInt").textContent=r.det;
+ $("capC").textContent=`${r.c.name} (${pitch(r.c.n)})`;$("capB").textContent=`${r.b.name} (${pitch(r.b.n)})`;
+ $("go").setAttribute('aria-label',`Play ${r.c.name} chime and ${r.b.name} bell together`);
+}
+document.addEventListener('change',e=>{
+ const t=e.target;
+ if(t.name==="chime"||t.name==="bell"){state[t.name]=t.value;save();render();
+  const r=relation();setStatus(`Selected ${r.c.name} chime and ${r.b.name} bell: ${r.word.toLowerCase()}, ${r.det}. Press Play together to hear it.`,"")}
+ if(t.id==="sound"){state.sound=t.checked;save();renderG();setStatus(t.checked?"Sound on. Play together will use your speakers.":"Sound off. Play together will show the chord visually with no audio.","")}
+});
+const fieldRO=new ResizeObserver(()=>render());fieldRO.observe($("field"));
+
+/* audio */
+let ctx=null;
+function tone(freq,t0,partials,decay,gain){
+ const out=ctx.createGain();out.gain.setValueAtTime(0,t0);out.gain.linearRampToValueAtTime(gain,t0+.008);out.gain.exponentialRampToValueAtTime(.0001,t0+decay);out.connect(ctx.destination);
+ partials.forEach(([m,a,dk])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=freq*m;g.gain.setValueAtTime(a,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+decay*dk);o.connect(g);g.connect(out);o.start(t0);o.stop(t0+decay+.05)});
+}
+function playAudio(r){
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw new Error("no audio");
+ if(!ctx)ctx=new AC();
+ if(ctx.state==="suspended")ctx.resume();
+ const t=ctx.currentTime+.03;
+ tone(hz(r.c.n),t,[[1,.6,1],[2,.25,.5],[3,.1,.3]],1.1,.22);
+ tone(hz(r.b.n),t,[[1,.55,1],[2.0,.2,.7],[2.76,.18,.5],[5.4,.08,.25]],2.2,.2);
+}
+let timer=null;
+function setStatus(msg,kind){const s=$("status");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function flash(){
+ const st=$("stage");st.classList.remove('on');void st.offsetWidth;st.classList.add('on');
+ clearTimeout(timer);timer=setTimeout(()=>st.classList.remove('on'),1000);
+}
+$("go").addEventListener('click',()=>{
+ const r=relation();flash();
+ const desc=`${r.c.name} chime (${pitch(r.c.n)}) with ${r.b.name} bell (${pitch(r.b.n)}): ${r.word.toLowerCase()}, ${r.det}.`;
+ if(!state.sound){setStatus("Silent play. "+desc+" No audio was played.","quiet");return}
+ try{playAudio(r);setStatus("Now playing: "+desc,"live")}
+ catch(e){setStatus("Audio isn't available here, so this is a visual-only play. "+desc,"quiet")}
+});
+
+/* ghost postcard */
+const PAIRS=[];NOTES.forEach(c=>NOTES.forEach(b=>PAIRS.push({chime:c.id,bell:b.id})));
+let G=store.ghost&&byId(store.ghost.chime)&&store.ghost.round?store.ghost:null;
+state.ghost=G;
+function saveG(){state.ghost=G;save()}
+function newRound(first){
+ const prev=G;
+ const pool=PAIRS.filter(p=>!(prev&&p.chime===prev.chime&&p.bell===prev.bell)&&!(p.chime===state.chime&&p.bell===state.bell));
+ const p=pool[Math.floor(Math.random()*pool.length)];
+ G={chime:p.chime,bell:p.bell,round:prev?prev.round+(first?0:1):1,matched:prev?prev.matched:0,checks:0,solved:false,clue:false};
+ saveG();renderG();
+ if(!first)gSay(`Round ${G.round}: a new ghost postcard is ready. Press ${state.sound?"Hear ghost":"Show clue"} for a hint, or Check when you're set.`,"");
+}
+function gSay(msg,kind){const s=$("gStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function hint(want,have){const d=byId(want).n-byId(have).n;return d===0?{c:"ok",t:"✓ Matched"}:d>0?{c:"up",t:"↑ Move up to a higher note"}:{c:"down",t:"↓ Move down to a lower note"}}
+function renderG(res){
+ $("gmeta").textContent=`Round ${G.round} · ${G.matched} matched`+(G.solved?" · solved":"");
+ const tc=byId(G.chime),tb=byId(G.bell);
+ $("gC").textContent=G.solved?`${tc.name} (${pitch(tc.n)})`:"?";
+ $("gB").textContent=G.solved?`${tb.name} (${pitch(tb.n)})`:"?";
+ [["slotC","hC",res&&res.c],["slotB","hB",res&&res.b]].forEach(([s,e,r])=>{
+  $(s).className="slot"+(G.solved?" ok":r?" "+r.c:"");
+  $(e).textContent=G.solved?"✓ Matched":r?r.t:"Not checked yet";
+ });
+ $("gHear").textContent=state.sound?"Hear ghost":"Show clue";
+ const d=tb.n-tc.n;
+ $("clue").hidden=!G.clue;
+ $("clueText").textContent=`Ghost shape: ${d>0?"rising":d<0?"falling":"level"}, ${d===0?"same note":(INT[Math.abs(d)]||Math.abs(d)+" notes")}.`;
+ const y2=20-d*1.4;$("clueLine").setAttribute('y2',y2);$("clueB").setAttribute('cy',y2);
+}
+function pulseCard(){const c=$("gcard");c.classList.remove('ghostOn');void c.offsetWidth;c.classList.add('ghostOn');setTimeout(()=>c.classList.remove('ghostOn'),1000)}
+$("gCheck").addEventListener('click',()=>{
+ if(G.solved){gSay(`Already matched. Press New round for another ghost postcard.`,"live");return}
+ G.checks++;
+ const rc=hint(G.chime,state.chime),rb=hint(G.bell,state.bell);
+ if(rc.c==="ok"&&rb.c==="ok"){
+  G.solved=true;G.matched++;saveG();renderG();flash();pulseCard();
+  gSay(`Matched! The ghost was ${byId(G.chime).name} chime with ${byId(G.bell).name} bell, solved in ${G.checks} ${G.checks===1?"check":"checks"}. Press New round to play again.`,"live");
+ }else{
+  saveG();renderG({c:rc,b:rb});
+  const word=r=>r.c==="ok"?"matched":r.c==="up"?"move up":"move down";
+  gSay(`Not yet. Chime: ${word(rc)}. Bell: ${word(rb)}.`,"quiet");
+ }
+});
+$("gHear").addEventListener('click',()=>{
+ const t={c:byId(G.chime),b:byId(G.bell)};
+ pulseCard();
+ if(!state.sound){G.clue=true;saveG();renderG();gSay("Sound is off, so here's a visual clue: "+$("clueText").textContent,"quiet");return}
+ try{playAudio(t);gSay("Played the ghost chord. Match its chime and bell, then press Check.","live")}
+ catch(e){G.clue=true;saveG();renderG();gSay("Audio isn't available here, so here's a visual clue: "+$("clueText").textContent,"quiet")}
+});
+$("gNew").addEventListener('click',()=>newRound(false));
+
+if(G)renderG();else newRound(true);
+
+const h=location.hash.slice(1);
+show(h==="guide"||h==="studio"?h:state.tab);
+render();
+}
+</script>
+</body>
+</html>

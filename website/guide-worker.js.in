@@ -1,0 +1,31 @@
+const cacheName = "infinitycraft-field-guide-@VERSION@";
+const paths = @PATHS@;
+
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(paths)));
+});
+
+self.addEventListener("activate", event => {
+  event.waitUntil((async () => {
+    for (const key of await caches.keys()) {
+      if (key.startsWith("infinitycraft-field-guide-") && key !== cacheName) await caches.delete(key);
+    }
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", event => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin || url.search) return;
+  const path = url.pathname === "/field-guide" ? "/field-guide/" : url.pathname;
+  if (!paths.includes(path)) return;
+  event.respondWith((async () => {
+    try {
+      return await fetch(event.request);
+    } catch (error) {
+      const saved = await (await caches.open(cacheName)).match(path);
+      if (saved) return saved;
+      throw error;
+    }
+  })());
+});

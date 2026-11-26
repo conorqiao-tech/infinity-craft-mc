@@ -9,4 +9,6 @@ python3 build_site.py
 python3 -m http.server 8765 --bind 127.0.0.1 --directory dist
 ```
 
-Open `http://127.0.0.1:8765/` locally to preview. The build writes `dist/index.html`, which is intentionally untracked here. Release ZIPs and guide downloads must be produced and checked separately before deploying the complete `dist` folder to the `infinity-armor-hub` Vercel project; `dist/downloads` is excluded from Git because it contains generated archives. The artwork in `dist/assets` comes from the supplied Infinity Armor textures. Do not put current tunnel addresses, owner-panel links, or private settings into the static site.
+Open `http://127.0.0.1:8765/` locally to preview. The build writes `dist/index.html`, which is intentionally untracked here. Release ZIPs and guide downloads must be produced and checked separately before deploying the complete `dist` folder to the `qiaokans-projects/infinityhub` Vercel project; `dist/downloads` is excluded from Git because it contains generated archives. The artwork in `dist/assets` comes from the supplied Infinity Armor textures. Do not put current tunnel addresses, owner-panel links, or private settings into the static site.
+
+The installable guide uses the same origin and starts at the hub homepage. Coda Studio at `/field-guide/#studio` comes from the private Claude Field Guide Artifact. Its standalone export lives in `dist/field-guide/index.html`. The build versions the guide worker from the offline shell’s bytes. Generated release downloads stay outside the offline cache.
