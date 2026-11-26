@@ -39,9 +39,6 @@
 .nav-shortcuts a.nav-ai:hover { background: var(--text); border-color: var(--text); }
 .nav-shortcuts a:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
 
-.counterpoint-example table { width:100%; border-collapse:separate; border-spacing:4px; text-align:center; font-family:ui-monospace,monospace }
-.counterpoint-example th { font-size:.85rem; font-weight:600 }
-.counterpoint-example th:first-child { text-align:left }
-.counterpoint-example td { padding:.4em .25em; font-size:clamp(1.2rem,2.4vw,2rem); font-weight:700; color:#e4ebff; background:#293754; border-radius:4px }
-.counterpoint-example tbody tr:last-child td { color:#ffdbbf; background:#362a26; border:1px solid #c68c68; border-radius:18px }
-.counterpoint-example figcaption { padding:.55rem .25rem 0 }
+.coda-feature .chord-seal-preview { background:#1b2056; padding:20px; }
+.chord-seal-preview img { max-width:250px; margin:0 auto 14px; }
+.coda-feature .chord-seal-preview figcaption { justify-content:center; text-align:center; }

@@ -268,6 +268,24 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .cc.next .st{color:var(--mint)}
 .cc.cur{box-shadow:0 0 0 2px var(--mint)}
 .cpctl{display:flex;flex-direction:column;gap:10px}
+.sealsec{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.sbody{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start}
+.sealfig{width:220px;height:220px;margin:0 auto}
+.sealfig svg{display:block;width:220px;height:220px}
+.sctl{display:flex;flex-direction:column;gap:10px}
+.sctl .row{display:flex;flex-wrap:wrap;gap:8px}
+.sbeats{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.sbeats li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:1px 10px;align-items:center;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);font-size:14px;line-height:1.3}
+.sbeats .bb{grid-row:span 2;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid var(--lav);font:700 15px "Pixelify Sans",sans-serif}
+.sbeats .sw{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:5px}
+.sbeats em{font-style:normal;font-weight:700;color:var(--mint)}
+.sbeats li.sel{border:2px solid var(--mint);background:#7cf5c41a}
+.sbeats li.sel .bb{background:var(--mint);border-color:var(--mint);color:#06281d}
+.smeta{margin:0;font-size:14px;color:var(--soft)}
+.smeta b{color:var(--ink)}
+.seallab{font:700 17px Figtree,sans-serif}
+.sealsub{font:600 13px Figtree,sans-serif}
+@media(max-width:600px){.sbody{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
@@ -395,6 +413,20 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 </div>
 <div><table class="cscore" id="gScore"></table></div>
 </div>
+<div class="circ">
+<div>
+<span class="pill">Development preview</span>
+<h3 style="margin-top:8px">Infinity Chord Seal <small>optional</small></h3>
+<ol>
+<li>Finish Circuit Counterpoint.</li>
+<li>Use one plain clay ball on any of the circuit's three signed frames to stamp the seal.</li>
+<li>Use the stamped item anywhere to play its next beat, or give it to a friend.</li>
+<li>Sneak-use it to play from beat one.</li>
+</ol>
+<p class="exline">The seal keeps the three earned pitches with their opening corner and direction, so it plays the same four beats wherever it goes.</p>
+</div>
+<div class="sealfig" id="gSeal" role="img" aria-label="Example seal: four numbered beat marks around the edge, beat 1 selected, lead corner 2 with answer corner 1"></div>
+</div>
 </section>
 </section>
 
@@ -508,6 +540,24 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <div class="cpctl">
 <p class="status" id="cpStatus" role="status" aria-live="polite">Finish a Conductor phrase above, then answer it here one corner ahead.</p>
 <p class="how" style="margin:0;font-size:14px;color:var(--soft)">In game this is a development preview: answer with a plain copper ingot. The lead is kept in this page's memory only, so after a reload you'll need a new Conductor performance.</p>
+</div>
+</div>
+</section>
+<section class="sealsec" aria-labelledby="sTitle">
+<div class="khead">
+<div><h3 id="sTitle">Infinity Chord Seal <small>optional</small></h3><p id="sHint">Complete Circuit Counterpoint to earn a stamp.</p></div>
+<div class="toolbar"><button class="btn" id="sealStamp" type="button" aria-disabled="true">Stamp seal</button></div>
+</div>
+<div class="sbody">
+<div class="sealfig" id="sealFig" role="img" aria-label="No seal stamped yet"></div>
+<div class="sctl">
+<div class="row">
+<button class="btn main" id="sealNext" type="button" aria-disabled="true">Play next beat</button>
+<button class="btn" id="sealStart" type="button" aria-disabled="true">Play from start</button>
+</div>
+<ol class="sbeats" id="sBeats" aria-label="Seal beats"></ol>
+<p class="status" id="sStatus" role="status" aria-live="polite">No seal yet. It stays saved on this device once you stamp one.</p>
+<p class="smeta" id="sMeta">In game (development preview) you stamp with one plain clay ball and Sneak-use the seal to play from beat one.</p>
 </div>
 </div>
 </section>
@@ -927,6 +977,7 @@ function renderCP(){
  $("cpReset").setAttribute('aria-disabled',ok&&(CP.step>0||CP.done)?"false":"true");
  $("cpHint").innerHTML=ok?`Following your last completed Conductor route: lead <b>${CP.lead.map(c=>c+1).join(", ")}</b> (${CP.dir?"backward":"forward"}). Answer one corner ahead: <b>${CP.ans.map(c=>c+1).join(", ")}</b>.`:"Complete a Conductor phrase to unlock the counterpoint. It follows your last completed route.";
  $("cpScore").innerHTML=scoreHTML(ok?v:null,ok?CP:null,true);
+ renderSeal();
  $("cpScore").setAttribute('aria-label',ok?`Counterpoint score. Lead corners ${CP.lead.map(c=>c+1).join(", ")}; answer corners ${CP.ans.map(c=>c+1).join(", ")}; ${CP.done?"complete":`answer beat ${CP.step+1} is next`}`:"Counterpoint score, waiting for a completed Conductor phrase");
 }
 function cpTap(i){
@@ -937,7 +988,7 @@ function cpTap(i){
  if(i!==want){renderCP();bump(btn,"miss");cpSay(`Not that one. Answer beat ${CP.step+1} needs corner ${want+1} (${vName(v[want])}). Your place is kept.`,"quiet");return}
  CP.step++;
  if(CP.step===4){
-  CP.done=true;renderCP();[0,1,2].forEach(j=>bump($("a"+j),"hit"));
+  CP.done=true;CP.earned=true;renderCP();[0,1,2].forEach(j=>bump($("a"+j),"hit"));
   const pre=sounded(()=>playTrio(byId(v[0].id),byId(v[1].id),byId(v[2].id)));
   cpSay(`${pre}Counterpoint complete: answer ${CP.ans.map(c=>c+1).join(", ")} under lead ${CP.lead.map(c=>c+1).join(", ")}. The full triad ${state.sound&&!pre?"sounded":"is shown"} once. Tap corner ${CP.ans[0]+1} to play it again.`,"live");
   return;
@@ -951,6 +1002,73 @@ $("cpReset").addEventListener('click',()=>{
  if(!CP||!(CP.step>0||CP.done)){cpSay(CP?"Nothing to restart yet: answer beat 1 is next.":"Complete a Conductor phrase first.","");return}
  CP.step=0;CP.done=false;renderCP();cpSay(`Restarted. Answer beat 1 needs corner ${CP.ans[0]+1} (${vName(circVoices(P.circuit)[CP.ans[0]])}).`,"");
 });
+/* infinity chord seal (portable, saved locally) */
+const NOTE_IDS=NOTES.map(n=>n.id);
+function validSeal(x){return !!x&&typeof x==="object"&&x.ver===1&&Array.isArray(x.notes)&&x.notes.length===3&&x.notes.every(n=>typeof n==="string"&&NOTE_IDS.includes(n))&&Number.isInteger(x.open)&&x.open>=0&&x.open<=2&&typeof x.dir==="boolean"}
+let SEAL=validSeal(store.seal)?{ver:1,notes:store.seal.notes.slice(),open:store.seal.open,dir:store.seal.dir}:null;
+state.seal=SEAL;
+let sealSel=-1;
+function sealData(sl){
+ const roles=["chime","harp","bell"];
+ const v=sl.notes.map((id,i)=>({id,role:roles[i],p:i===1?harpPitch(byId(id).n):pitch(byId(id).n)}));
+ const lead=kSeq(sl.open,sl.dir);
+ return {v,lead,ans:lead.map(c=>kNext(c,sl.dir))};
+}
+function sealSVG(sl,sel,gid){
+ const R=110,c=R;
+ if(!sl)return `<svg viewBox="0 0 220 220" aria-hidden="true"><circle cx="${c}" cy="${c}" r="100" fill="#20255e" stroke="#4a52a0" stroke-width="2" stroke-dasharray="6 6"/><circle cx="${c}" cy="${c}" r="72" fill="none" stroke="#3d4596" stroke-width="1.5"/>${[0,1,2,3].map(i=>{const a=(-90+i*90)*Math.PI/180,x=c+80*Math.cos(a),y=c+80*Math.sin(a);return `<circle cx="${x}" cy="${y}" r="12" fill="#1b2056" stroke="#4a52a0" stroke-width="1.5"/><text x="${x}" y="${y+5}" text-anchor="middle" class="sealsub" fill="#7c82c4">${i+1}</text>`}).join('')}<text x="${c}" y="${c+6}" text-anchor="middle" class="seallab" fill="#9aa0dc">Unstamped</text></svg>`;
+ const d=sealData(sl),col=i=>byId(d.v[d.ans[i]].id).c;
+ const scal=[...Array(22)].map((_,k)=>{const a=k/22*2*Math.PI;return `<circle cx="${c+97*Math.cos(a)}" cy="${c+97*Math.sin(a)}" r="9" fill="url(#w${gid})"/>`}).join('');
+ const marks=[0,1,2,3].map(i=>{
+  const a=(-90+i*90)*Math.PI/180,x=c+78*Math.cos(a),y=c+78*Math.sin(a),on=i===sel,r=on?16:12;
+  const fill=i===3?"#f4efe2":col(i);
+  return `${on?`<circle cx="${x}" cy="${y}" r="24" fill="#7cf5c4" opacity=".4"/>`:""}<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${on?"#ffffff":"#3b2a7a"}" stroke-width="${on?3:1.5}"/><text x="${x}" y="${y+5}" text-anchor="middle" class="${on?"seallab":"sealsub"}" fill="#14123a">${i+1}</text>`;
+ }).join('');
+ const l1=sel<0?"Ready":`Beat ${sel+1}`,two=sel>=0&&sel<3,l2=sel<0?"4 beats":sel===3?"Full triad":`Lead ${d.lead[sel]+1}`,l3=two?`Answer ${d.ans[sel]+1}`:"";
+ const txt=(t,y,cls)=>`<text x="${c+1}" y="${y+1}" text-anchor="middle" class="${cls}" fill="#ffffff" opacity=".55">${t}</text><text x="${c}" y="${y}" text-anchor="middle" class="${cls}" fill="#2a1d5c">${t}</text>`;
+ return `<svg viewBox="0 0 220 220" aria-hidden="true"><defs><radialGradient id="w${gid}" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#e6dbff"/><stop offset=".55" stop-color="#a58ce6"/><stop offset="1" stop-color="#6a52b4"/></radialGradient></defs>${scal}<circle cx="${c}" cy="${c}" r="97" fill="url(#w${gid})"/><circle cx="${c-1}" cy="${c-1}" r="78" fill="none" stroke="#ffffff" stroke-width="1.5" opacity=".5"/><circle cx="${c+1}" cy="${c+1}" r="78" fill="none" stroke="#3b2a7a" stroke-width="1.5" opacity=".55"/><circle cx="${c-1}" cy="${c-1}" r="56" fill="none" stroke="#3b2a7a" stroke-width="1.5" opacity=".45"/><circle cx="${c+1}" cy="${c+1}" r="56" fill="none" stroke="#ffffff" stroke-width="1.5" opacity=".5"/>${marks}${txt(l1,two?c-10:c-2,"seallab")}${txt(l2,two?c+9:c+18,"sealsub")}${two?txt(l3,c+26,"sealsub"):""}</svg>`;
+}
+function sealEligible(){return !!(CP&&CP.earned&&P.circuit)}
+function renderSeal(){
+ const has=!!SEAL,el=sealEligible();
+ $("sealStamp").setAttribute('aria-disabled',el?"false":"true");
+ $("sealNext").setAttribute('aria-disabled',has?"false":"true");
+ $("sealStart").setAttribute('aria-disabled',has?"false":"true");
+ $("sealFig").innerHTML=sealSVG(SEAL,sealSel,"s");
+ if(!has){
+  $("sHint").textContent=el?"Counterpoint complete. Press Stamp seal to keep this chord.":"Complete Circuit Counterpoint to earn a stamp.";
+  $("sBeats").innerHTML="";$("sealFig").setAttribute('aria-label',"No seal stamped yet");
+  return;
+ }
+ const d=sealData(SEAL),vn=c=>`<span class="sw" style="--c:${byId(d.v[c].id).c}"></span>${c+1} ${vName(d.v[c])}`;
+ $("sHint").innerHTML=`Your seal: opening corner <b>${SEAL.open+1}</b>, ${SEAL.dir?"backward":"forward"}. ${el?"A fresh Counterpoint stamp is available; Stamp seal replaces this one.":"It plays on its own, whatever circuit is current."}`;
+ $("sBeats").innerHTML=[0,1,2,3].map(i=>`<li class="${i===sealSel?"sel":""}"${i===sealSel?' aria-current="true"':""}><span class="bb">${i+1}</span><span>Lead ${vn(d.lead[i])}${i===sealSel?" <em>▸ Selected</em>":""}</span><span>${i===3?`Full triad: ${d.v.map((x,j)=>`${j+1} ${nm(x.id)}`).join(", ")}`:`Answer ${vn(d.ans[i])}`}</span></li>`).join('');
+ $("sMeta").innerHTML=`Pitches: <b>${d.v.map((x,i)=>`${i+1} ${vName(x)} ${x.p}`).join(", ")}</b>. In game (development preview) you stamp with one plain clay ball and Sneak-use the seal to play from beat one.`;
+ $("sealFig").setAttribute('aria-label',`Chord seal with four numbered beat marks${sealSel<0?", no beat selected yet":`, beat ${sealSel+1} selected: ${sealSel===3?"full triad":`lead corner ${d.lead[sealSel]+1}, answer corner ${d.ans[sealSel]+1}`}`}`);
+}
+function sSay(msg,kind){const s=$("sStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+$("sealStamp").addEventListener('click',()=>{
+ if(!sealEligible()){sSay("Stamp seal unlocks when you complete Circuit Counterpoint. A fresh Conductor phrase or a new circuit needs a new Counterpoint first.","");return}
+ const had=!!SEAL;
+ SEAL={ver:1,notes:circVoices(P.circuit).map(x=>x.id),open:CP.lead[0],dir:CP.dir};state.seal=SEAL;save();sealSel=-1;renderSeal();
+ sSay(`${had?"Replaced your previous seal. ":""}Stamped: opening corner ${SEAL.open+1}, ${SEAL.dir?"backward":"forward"}, with ${sealData(SEAL).v.map(vName).join(", ")}. Press Play next beat to hear it.`,"live");
+});
+function sealPlay(fromStart){
+ if(!SEAL){sSay("Stamp a seal first: complete Circuit Counterpoint, then press Stamp seal.","");return}
+ sealSel=fromStart?0:(sealSel+1)%4;renderSeal();
+ const d=sealData(SEAL),i=sealSel;
+ if(i<3){
+  const l=d.lead[i],a=d.ans[i],pre=sounded(()=>{const t=ensureCtx();playVoice(d.v[l],t);playVoice(d.v[a],t)});
+  sSay(`${pre}Seal beat ${i+1} of 4: lead ${l+1} (${vName(d.v[l])}) with answer ${a+1} (${vName(d.v[a])}).`,"live");
+ }else{
+  const pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
+  sSay(`${pre}Seal beat 4 of 4: full triad, ${d.v.map(vName).join(", ")}. The next press wraps to beat 1.`,"live");
+ }
+}
+$("sealNext").addEventListener('click',()=>sealPlay(false));
+$("sealStart").addEventListener('click',()=>sealPlay(true));
+$("gSeal").innerHTML=sealSVG({notes:["kite","moon","ember"],open:1,dir:true},0,"g");
+
 {const ev=circVoices(EXC),el=$("gScore");el.innerHTML=scoreHTML(ev,{lead:[1,0,2,1],ans:[0,2,1,0],step:4,done:true},false);el.setAttribute('aria-label',"Example: lead corners 2, 1, 3, 2; answer corners 1, 3, 2, 1");}
 
 $("gallery").addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)tap(+b.dataset.card)});
