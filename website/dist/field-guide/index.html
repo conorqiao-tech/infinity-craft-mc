@@ -286,6 +286,24 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .seallab{font:700 17px Figtree,sans-serif}
 .sealsub{font:600 13px Figtree,sans-serif}
 @media(max-width:600px){.sbody{grid-template-columns:minmax(0,1fr)}}
+.ciphersec{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.cxfig{width:280px;height:250px;margin:0 auto}
+.cxfig svg{display:block;width:280px;height:250px}
+.cxl{font:700 13px Figtree,sans-serif}
+.cxn{font:600 13px Figtree,sans-serif}
+.marks{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.marks li{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 6px;border-radius:99px;border:2px dotted var(--line);font-size:13px;font-weight:700;color:var(--soft)}
+.marks li i{width:14px;height:14px;transform:rotate(45deg);border:2px solid #5a62b0;border-radius:2px}
+.marks li.lit{border-style:solid;border-color:var(--mint);color:var(--ink)}
+.marks li.lit i{background:var(--mint);border-color:var(--mint)}
+.marks li.now{border:2px dashed var(--mint);color:var(--ink)}
+.guess{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.guess .btn{flex:none}
+.guess .btn.hit{animation:pop .5s ease-out}
+.guess .btn.miss{animation:shake .4s ease-out}
+@media(prefers-reduced-motion:reduce){.guess .btn.hit,.guess .btn.miss{animation:none}.guess .btn.miss{outline:3px solid var(--orange);outline-offset:2px}}
+.cxvoices{margin:0;font-size:14px;color:var(--soft)}
+.cxvoices b{color:var(--ink)}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
@@ -427,6 +445,19 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 </div>
 <div class="sealfig" id="gSeal" role="img" aria-label="Example seal: four numbered beat marks around the edge, beat 1 selected, lead corner 2 with answer corner 1"></div>
 </div>
+<div class="circ">
+<div>
+<span class="pill">Development preview</span>
+<h3 style="margin-top:8px">Seal Cipher <small>optional</small></h3>
+<ol>
+<li>Hold your stamped seal and use it on a note block to begin.</li>
+<li>Listen to the two voices it plays, then choose the missing instrument from the menu.</li>
+<li>The note block is not retuned, and the seal isn't changed.</li>
+</ol>
+<p class="exline">Three rounds follow the seal's first three beats. On the example seal, round 1 plays <b>Half Moon harp with Kite chime</b>, so the missing instrument is the <b>bell</b>.</p>
+</div>
+<div class="cxfig" id="gCipher" role="img" aria-label="Example cipher round 1: lead Half Moon harp and answer Kite chime are lit; the bell socket is empty"></div>
+</div>
 </section>
 </section>
 
@@ -558,6 +589,29 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <ol class="sbeats" id="sBeats" aria-label="Seal beats"></ol>
 <p class="status" id="sStatus" role="status" aria-live="polite">No seal yet. It stays saved on this device once you stamp one.</p>
 <p class="smeta" id="sMeta">In game (development preview) you stamp with one plain clay ball and Sneak-use the seal to play from beat one.</p>
+</div>
+</div>
+</section>
+<section class="ciphersec" aria-labelledby="xTitle">
+<div class="khead">
+<div><h3 id="xTitle">Seal Cipher <small>optional</small></h3><p id="xHint">Stamp a seal to unlock the cipher.</p></div>
+<div class="toolbar">
+<button class="btn main" id="cxStart" type="button" aria-disabled="true">Start cipher</button>
+<button class="btn" id="cxReplay" type="button" aria-disabled="true">Replay clue</button>
+</div>
+</div>
+<div class="sbody">
+<div class="cxfig" id="cxFig" role="img" aria-label="Cipher idle"></div>
+<div class="sctl">
+<ul class="marks" id="cxMarks" aria-label="Cipher progress"></ul>
+<p class="cxvoices" id="cxVoices">Two voices will sound; one corner's instrument is missing.</p>
+<div class="guess" role="group" aria-label="Missing instrument">
+<button class="btn" type="button" data-g="chime" aria-disabled="true">Chime</button>
+<button class="btn" type="button" data-g="harp" aria-disabled="true">Harp</button>
+<button class="btn" type="button" data-g="bell" aria-disabled="true">Bell</button>
+</div>
+<p class="status" id="cxStatus" role="status" aria-live="polite">Press Start cipher to hear the first clue.</p>
+<p class="smeta">In game (development preview) you use the held stamped seal on a note block to begin and pick the missing instrument from the menu. The note block is not retuned.</p>
 </div>
 </div>
 </section>
@@ -1030,6 +1084,7 @@ function sealSVG(sl,sel,gid){
 }
 function sealEligible(){return !!(CP&&CP.earned&&P.circuit)}
 function renderSeal(){
+ renderCipher();
  const has=!!SEAL,el=sealEligible();
  $("sealStamp").setAttribute('aria-disabled',el?"false":"true");
  $("sealNext").setAttribute('aria-disabled',has?"false":"true");
@@ -1047,10 +1102,13 @@ function renderSeal(){
  $("sealFig").setAttribute('aria-label',`Chord seal with four numbered beat marks${sealSel<0?", no beat selected yet":`, beat ${sealSel+1} selected: ${sealSel===3?"full triad":`lead corner ${d.lead[sealSel]+1}, answer corner ${d.ans[sealSel]+1}`}`}`);
 }
 function sSay(msg,kind){const s=$("sStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+if(SEAL)sSay("Your saved seal is ready. Press Play next beat or Play from start to hear it.","");
 $("sealStamp").addEventListener('click',()=>{
  if(!sealEligible()){sSay("Stamp seal unlocks when you complete Circuit Counterpoint. A fresh Conductor phrase or a new circuit needs a new Counterpoint first.","");return}
  const had=!!SEAL;
+ const wasCx=CX.active||CX.done;CX={round:0,active:false,done:false};
  SEAL={ver:1,notes:circVoices(P.circuit).map(x=>x.id),open:CP.lead[0],dir:CP.dir};state.seal=SEAL;save();sealSel=-1;renderSeal();
+ if(wasCx)xSay("New seal stamped, so the cipher was reset. Press Start cipher to play the new seal's first clue.","");
  sSay(`${had?"Replaced your previous seal. ":""}Stamped: opening corner ${SEAL.open+1}, ${SEAL.dir?"backward":"forward"}, with ${sealData(SEAL).v.map(vName).join(", ")}. Press Play next beat to hear it.`,"live");
 });
 function sealPlay(fromStart){
@@ -1068,6 +1126,83 @@ function sealPlay(fromStart){
 $("sealNext").addEventListener('click',()=>sealPlay(false));
 $("sealStart").addEventListener('click',()=>sealPlay(true));
 $("gSeal").innerHTML=sealSVG({notes:["kite","moon","ember"],open:1,dir:true},0,"g");
+/* seal cipher (session only) */
+let CX={round:0,active:false,done:false};
+const CAP={chime:"Chime",harp:"Harp",bell:"Bell"};
+function cxRound(d,r){const L=d.lead[r],A=d.ans[r],M=3-L-A;return {L,A,M}}
+function shape(role,col){
+ const st=`fill="${col}" stroke="#14123a" stroke-width="1.5"`;
+ if(role==="chime")return `<rect x="-20" y="-22" width="40" height="6" rx="2" ${st}/><rect x="-15" y="-15" width="8" height="28" rx="3" ${st}/><rect x="-4" y="-15" width="8" height="36" rx="3" ${st}/><rect x="7" y="-15" width="8" height="22" rx="3" ${st}/>`;
+ if(role==="harp")return `<path d="M-15 22 L-15 -20 Q4 -28 17 -6 Z" fill="none" stroke="#14123a" stroke-width="8" stroke-linejoin="round"/><path d="M-15 22 L-15 -20 Q4 -28 17 -6 Z" fill="none" stroke="${col}" stroke-width="5" stroke-linejoin="round"/>${[-8,-2,4,10].map(x=>`<line x1="${x}" y1="${-21+(x+15)*.55}" x2="${x}" y2="${-6+(17-x)*.87}" stroke="${col}" stroke-width="1.5"/>`).join('')}`;
+ return `<path d="M-17 13 Q-17 -17 0 -19 Q17 -17 17 13 L21 17 L-21 17 Z" ${st}/><circle cx="0" cy="22" r="4.5" ${st}/>`;
+}
+function cipherSVG(d,r,done){
+ const P0=[[140,50],[208,160],[72,160]],G=[140,152];
+ const roles=["chime","harp","bell"];
+ let lit=[false,false,false],tag=["","",""];
+ if(d&&done){lit=[true,true,true];tag=roles.map(x=>CAP[x])}
+ else if(d&&r!==null){const k=cxRound(d,r);lit[k.L]=lit[k.A]=true;tag[k.L]="Lead";tag[k.A]="Answer";tag[k.M]="Empty socket"}
+ const sock=[0,1,2].map(i=>{
+  const [x,y]=P0[i],x2=d?d.v[i]:null,col=x2?byId(x2.id).c:"#5a62b0",on=lit[i];
+  const ly=i===0?y+46:y+46;
+  const l2=on&&x2?vName(x2):(d&&r!==null&&!done?"?":"");
+  return `<circle cx="${x}" cy="${y}" r="31" fill="#14184c" stroke="${on?col:"#5a62b0"}" stroke-width="${on?2.5:2}"${on?"":' stroke-dasharray="5 5"'}/>${on?`<circle cx="${x}" cy="${y}" r="38" fill="${col}" opacity=".16"/><g transform="translate(${x} ${y})">${shape(roles[i],col)}</g>`:`<text x="${x}" y="${y+7}" text-anchor="middle" class="seallab" fill="#9aa0dc">?</text>`}${tag[i]?`<text x="${x}" y="${ly}" text-anchor="middle" class="cxl" fill="${on?"#eef0ff":"#9aa0dc"}">${tag[i]}</text>`:""}${l2&&on?`<text x="${x}" y="${ly+16}" text-anchor="middle" class="cxn" fill="#b9bde8">${l2}</text>`:""}`;
+ }).join('');
+ const ring=done?`<circle cx="${G[0]}" cy="${G[1]}" r="24" fill="none" stroke="#7cf5c4" stroke-width="12" opacity=".2"/><circle cx="${G[0]}" cy="${G[1]}" r="24" fill="none" stroke="#c9fff0" stroke-width="3"/>`:`<circle cx="${G[0]}" cy="${G[1]}" r="20" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="4 5"/>`;
+ return `<svg viewBox="0 0 280 250" aria-hidden="true"><circle cx="140" cy="125" r="122" fill="#1a1f5c" stroke="#343b86" stroke-width="2"/>${ring}${sock}</svg>`;
+}
+function xSay(msg,kind){const s=$("cxStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function cxClue(d,r){const k=cxRound(d,r);return `lead corner ${k.L+1} (${vName(d.v[k.L])}) with answer corner ${k.A+1} (${vName(d.v[k.A])})`}
+function playDyad(d,r){const k=cxRound(d,r);return sounded(()=>{const t=ensureCtx();playVoice(d.v[k.L],t);playVoice(d.v[k.A],t)})}
+function renderCipher(){
+ const d=SEAL?sealData(SEAL):null,act=!!d&&CX.active;
+ $("cxStart").setAttribute('aria-disabled',d?"false":"true");
+ $("cxStart").textContent=CX.active||CX.done?"Start again":"Start cipher";
+ $("cxReplay").setAttribute('aria-disabled',act?"false":"true");
+ document.querySelectorAll('[data-g]').forEach(b=>b.setAttribute('aria-disabled',act?"false":"true"));
+ const r=act?CX.round:null;
+ $("cxFig").innerHTML=cipherSVG(d,r,!!d&&CX.done);
+ const solved=CX.done?3:CX.active?CX.round:0;
+ $("cxMarks").innerHTML=[0,1,2].map(i=>`<li class="${i<solved?"lit":act&&i===CX.round?"now":""}"><i aria-hidden="true"></i>Round ${i+1}: ${i<solved?"solved":act&&i===CX.round?"now":"waiting"}</li>`).join('');
+ $("xHint").textContent=!d?"Stamp a seal to unlock the cipher. It uses only your saved seal.":"Uses your saved seal: three rounds from its first three beats. Name the instrument whose corner is silent.";
+ if(d&&act){const k=cxRound(d,CX.round);$("cxVoices").innerHTML=`Round ${CX.round+1} of 3. Sounding: <b>Lead ${vName(d.v[k.L])}</b> and <b>Answer ${vName(d.v[k.A])}</b>. Corner ${k.M+1} is empty.`;}
+ else if(d&&CX.done)$("cxVoices").innerHTML=`Solved. All three lit: <b>${d.v.map(vName).join(", ")}</b>.`;
+ else $("cxVoices").textContent="Two voices will sound; one corner's instrument is missing.";
+ $("cxFig").setAttribute('aria-label',!d?"Cipher locked until a seal is stamped":CX.done?`Cipher solved: ${d.v.map(vName).join(", ")} all lit in the seal`:act?(()=>{const k=cxRound(d,CX.round);return `Round ${CX.round+1}: lead ${vName(d.v[k.L])} and answer ${vName(d.v[k.A])} are lit; corner ${k.M+1} socket is empty`})():"Cipher idle");
+}
+$("cxStart").addEventListener('click',()=>{
+ if(!SEAL){xSay("Stamp a seal first. The cipher only uses your saved seal.","");return}
+ const d=sealData(SEAL);CX={round:0,active:true,done:false};renderCipher();
+ const pre=playDyad(d,0);
+ xSay(`${pre}Round 1 of 3: ${cxClue(d,0)}. Which instrument is missing?`,"live");
+});
+$("cxReplay").addEventListener('click',()=>{
+ if(!SEAL||!CX.active){xSay(CX.done?"The cipher is solved. Press Start again to play from the first clue.":"Press Start cipher first.","");return}
+ const d=sealData(SEAL),pre=playDyad(d,CX.round);
+ xSay(`${pre}Replaying round ${CX.round+1}: ${cxClue(d,CX.round)}.`,"live");
+});
+document.querySelector('.guess').addEventListener('click',e=>{
+ const b=e.target.closest('[data-g]');if(!b)return;
+ if(!SEAL||!CX.active){xSay(CX.done?"Solved already. Press Start again to replay the cipher.":"Press Start cipher to hear the first clue.","");return}
+ const d=sealData(SEAL),k=cxRound(d,CX.round),want=d.v[k.M].role,g=b.dataset.g;
+ if(g!==want){
+  const who=d.v[k.L].role===g?["lead",k.L]:["answer",k.A];
+  bump(b,"miss");
+  xSay(`Not ${CAP[g]}: the ${g} is already sounding as the ${who[0]} (${vName(d.v[who[1]])}). Try again: choose the instrument for the empty socket.`,"quiet");
+  return;
+ }
+ const solvedR=CX.round;CX.round++;bump(b,"hit");
+ if(CX.round===3){
+  CX.active=false;CX.done=true;renderCipher();
+  const pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
+  xSay(`${pre}Correct, ${CAP[g]} was missing (corner ${k.M+1}, ${vName(d.v[k.M])}). Cipher solved! Full triad: ${d.v.map(vName).join(", ")}. Press Start again to replay.`,"live");
+  return;
+ }
+ renderCipher();
+ const pre=playDyad(d,CX.round);
+ xSay(`${pre}Correct, ${CAP[g]} was missing in round ${solvedR+1} (${vName(d.v[k.M])}). Round ${CX.round+1} of 3: ${cxClue(d,CX.round)}. Which instrument is missing?`,"live");
+});
+$("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 
 {const ev=circVoices(EXC),el=$("gScore");el.innerHTML=scoreHTML(ev,{lead:[1,0,2,1],ans:[0,2,1,0],step:4,done:true},false);el.setAttribute('aria-label',"Example: lead corners 2, 1, 3, 2; answer corners 1, 3, 2, 1");}
 
