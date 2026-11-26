@@ -9,7 +9,9 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.decoration.GlowItemFrame;
 import net.minecraft.world.entity.decoration.ItemFrame;
@@ -169,6 +171,108 @@ public class CodaPostcardGameTests {
             p.setItemInHand(InteractionHand.MAIN_HAND, named);
             visit(p, first, false);
             c.assertTrue(first.getRotation() == 1 && music(g.drain(0)).isEmpty(), "Named echo shard retains vanilla handling");
+        }
+        c.succeed();
+    }
+
+    private static void linkCircuitPair(Gallery g) {
+        var p = g.players.getFirst();
+        p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD));
+        visit(p, g.frames.getFirst(), false);
+        visit(p, g.frames.get(1), true);
+        p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PRISMARINE_CRYSTALS, 3));
+        g.wires.forEach(NativePlayConnection::drain);
+    }
+
+    @GameTest public void aThirdSignedFrameClosesOnePrivateCircuit(GameTestHelper c) {
+        try (var g = new Gallery(c, "Orbit")) {
+            var player = g.players.getFirst();
+            var first = g.frames.getFirst();
+            var second = g.frames.get(1);
+            var third = g.frames.get(2);
+            var card = new CodaPostcard("Sol", KITE, "Mira", EMBER_PEAKS);
+            first.setItem(new CodaPostcard("Sol", KITE, "Jun", HALF_MOON).paper());
+            second.setItem(new CodaPostcard("Jun", EMBER_PEAKS, "Mira", HALF_MOON).paper());
+            third.setItem(card.paper());
+            linkCircuitPair(g);
+            var visitor = g.players.get(1);
+            visitor.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PRISMARINE_CRYSTALS));
+            visit(visitor, third, true);
+            c.assertTrue(overlays(g.drain(1)).stream().anyMatch(s -> s.startsWith("Link two postcards")), "A visitor cannot spend another player's link");
+            visit(player, second, false);
+            visit(player, third, false);
+            var misses = g.drain(0);
+            c.assertTrue(overlays(misses).contains("Choose a third frame • Ember Peaks → Kite")
+                && overlays(misses).contains("Circuit needs Ember Peaks → Kite • Sneak to swap this card's voices.")
+                && particles(misses, ParticleTypes.GLOW).isEmpty(), "Wrong display and wrong orientation keep the target");
+            visit(player, third, true);
+            var packets = g.drain(0);
+            var chord = packets.stream().filter(ClientboundSoundPacket.class::isInstance).map(ClientboundSoundPacket.class::cast)
+                .filter(s -> s.getSource() == SoundSource.RECORDS).toList();
+            c.assertTrue(chord.size() == 3 && chord.get(0).getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
+                && chord.get(1).getSound().equals(SoundEvents.NOTE_BLOCK_HARP) && chord.get(2).getSound().equals(SoundEvents.NOTE_BLOCK_BELL)
+                && chord.get(0).getPitch() == NoteBlock.getPitchFromNote(KITE.note)
+                && chord.get(1).getPitch() == NoteBlock.getPitchFromNote(HALF_MOON.note)
+                && chord.get(2).getPitch() == NoteBlock.getPitchFromNote(EMBER_PEAKS.note), "One interaction resolves the three oriented voices together");
+            c.assertTrue(overlays(packets).contains("Circuit closed • Kite → Half Moon → Ember Peaks → Kite"), "Muted play names the complete circuit");
+            var corners = particles(packets, ParticleTypes.END_ROD);
+            for (int i = 0; i < 3; i++) {
+                var pt = GalleryTrail.framePoint(g.frames.get(i));
+                c.assertTrue(corners.stream().filter(v -> v.distanceTo(pt) < .5).count() == i + 1, "Ordered corners have one, two and three markers");
+                c.assertTrue(particles(packets, ParticleTypes.DUST).contains(pt), "A colored edge starts at each display");
+            }
+            c.assertValueEqual(particles(packets, ParticleTypes.GLOW).stream().distinct().count(), 12L, "The hollow seal has twelve distinct points");
+            var other = g.drain(1);
+            c.assertTrue(other.stream().noneMatch(ClientboundSoundPacket.class::isInstance) && particles(other, ParticleTypes.GLOW).isEmpty()
+                && particles(other, ParticleTypes.DUST).isEmpty() && particles(other, ParticleTypes.END_ROD).isEmpty() && overlays(other).isEmpty(), "The adjacent visitor gets no feedback from the circuit");
+            c.assertTrue(card.equals(CodaPostcard.read(third.getItem())) && third.getRotation() == 0 && player.getMainHandItem().getCount() == 3,
+                "Closing preserves the exhibit and crystals");
+            visit(player, third, true);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("Link two postcards")), "The link can only be closed once");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void circuitChecksBothDistancesAndInvalidatesReplacedOrAbandonedLinks(GameTestHelper c) {
+        try (var g = new Gallery(c, "Radius")) {
+            var p = g.players.getFirst();
+            var first = g.frames.getFirst();
+            var second = g.frames.get(1);
+            var a = new CodaPostcard("Mira", KITE, "Jun", HALF_MOON);
+            var b = new CodaPostcard("Sol", EMBER_PEAKS, "Jun", HALF_MOON);
+            first.setItem(a.paper()); second.setItem(b.paper());
+            var lower = new GlowItemFrame(p.level(), first.blockPosition().below(12), Direction.NORTH);
+            lower.setItem(new CodaPostcard("Jun", EMBER_PEAKS, "Sol", KITE).paper());
+            g.frames.add(lower);
+            c.assertTrue(p.level().addFreshEntity(lower), "Third display is mounted");
+            linkCircuitPair(g);
+            visit(p, lower, false);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("Choose a third frame within 12")), "Third frame must be near both ends, even when exactly 12 from the first");
+            second.setItem(a.paper());
+            visit(p, lower, false);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("Display changed")), "Changed second signature invalidates the link");
+            second.setItem(b.paper()); linkCircuitPair(g);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD));
+            visit(p, lower, false);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PRISMARINE_CRYSTALS));
+            visit(p, lower, false);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("Link two postcards")), "Starting a fresh pair retires the previous circuit");
+            var middle = new ItemFrame(p.level(), first.blockPosition().below(6), Direction.NORTH);
+            middle.setItem(b.paper()); g.frames.add(middle);
+            c.assertTrue(p.level().addFreshEntity(middle), "Middle frame completes the vertical gallery");
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD));
+            visit(p, lower, false); // Clear the pending anchor from the abandoned pair.
+            visit(p, first, false); visit(p, middle, true);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PRISMARINE_CRYSTALS));
+            g.drain(0); visit(p, lower, false);
+            var line = g.drain(0);
+            var apex = GalleryTrail.framePoint(middle).add(.65, 0, 0);
+            c.assertTrue(particles(line, ParticleTypes.DUST).stream().anyMatch(v -> v.distanceTo(apex) < .00001)
+                && particles(line, ParticleTypes.GLOW).size() == 12, "At 12 blocks a straight vertical circuit bows outward and earns its seal");
+            var named = new ItemStack(Items.PRISMARINE_CRYSTALS);
+            named.set(DataComponents.CUSTOM_NAME, Component.literal("Memento"));
+            p.setItemInHand(InteractionHand.MAIN_HAND, named); visit(p, lower, false);
+            c.assertValueEqual(lower.getRotation(), 1, "Named crystals keep ordinary frame interaction");
         }
         c.succeed();
     }
