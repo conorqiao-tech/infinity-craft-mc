@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
@@ -54,6 +55,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
+            if (held.is(Items.CLAY_BALL) && held.getComponentsPatch().isEmpty() && CircuitCounterpoint.stamp(p, frame))
+                return InteractionResult.SUCCESS_SERVER;
             if ((held.is(Items.AMETHYST_SHARD) || held.is(Items.ECHO_SHARD)
                 || held.is(Items.PRISMARINE_CRYSTALS) || held.is(Items.BLAZE_ROD) || held.is(Items.COPPER_INGOT)) && held.getComponentsPatch().isEmpty()) {
                 var postcard = CodaPostcard.read(frame.getItem());
@@ -92,6 +95,11 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         UseItemCallback.EVENT.register((player, world, hand) -> {
             if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND)
                 return InteractionResult.PASS;
+            var seal = ChordSeal.read(p.getMainHandItem());
+            if (seal != null) {
+                seal.play(p);
+                return InteractionResult.SUCCESS_SERVER;
+            }
             var postcard = CodaPostcard.read(p.getMainHandItem());
             if (postcard != null) {
                 postcard.playIfHeld(p);
@@ -115,7 +123,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 + "\nPostcard Pairs: use a plain echo shard on two framed postcards within 12 blocks. Match the first bell to the next chime. Sneak to swap either tap."
                 + "\nCircuit: after linking a pair, tap a third signed frame with plain prismarine crystals. Match the second bell back to the first chime."
                 + "\nConductor: use a plain blaze rod on any corner of your closed circuit. Sneak on the first tap for reverse. Play three corners, then return home."
-                + "\nCounterpoint: after finishing a phrase, use a plain copper ingot to answer each beat one corner ahead in the same direction.";
+                + "\nCounterpoint: after finishing a phrase, use a plain copper ingot to answer each beat one corner ahead in the same direction."
+                + "\nChord Seal: finish Counterpoint, then tap a corner with plain clay. Use the stamped seal anywhere, or pass it on.";
             if (ConcertStage.current(p) == null)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
             else body += "\nFinish or stop your current performance first.";
@@ -168,13 +177,17 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
     }
 
     static boolean inkSheet(ServerPlayer p, ItemStack result) {
-        var sheets = p.getMainHandItem();
-        if (!ItemStack.isSameItemSameComponents(sheets, new ItemStack(Items.PAPER))) return false;
+        return stampOne(p, Items.PAPER, result);
+    }
+
+    static boolean stampOne(ServerPlayer p, Item material, ItemStack result) {
+        var blanks = p.getMainHandItem();
+        if (!ItemStack.isSameItemSameComponents(blanks, new ItemStack(material))) return false;
         var inventory = p.getInventory();
-        if (sheets.getCount() > 1) {
+        if (blanks.getCount() > 1) {
             int spare = inventory.getFreeSlot();
             if (spare < 0) return false;
-            inventory.setItem(spare, sheets.copyWithCount(sheets.getCount() - 1));
+            inventory.setItem(spare, blanks.copyWithCount(blanks.getCount() - 1));
         }
         p.setItemInHand(InteractionHand.MAIN_HAND, result);
         inventory.setChanged();
