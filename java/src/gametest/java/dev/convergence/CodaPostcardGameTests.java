@@ -86,6 +86,93 @@ public class CodaPostcardGameTests {
         c.succeed();
     }
 
+    @GameTest public void twoVisitorsLinkTheirOwnPostcardsByTheOrientedSharedPitch(GameTestHelper c) {
+        try (var g = new Gallery(c, "Pairs")) {
+            var first = g.frames.getFirst();
+            var second = g.frames.get(1);
+            var a = new CodaPostcard("Mira", KITE, "Jun", HALF_MOON);
+            var b = new CodaPostcard("Jun", EMBER_PEAKS, "Mira", HALF_MOON);
+            first.setItem(a.paper());
+            second.setItem(b.paper());
+            for (var p : g.players) p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD, 2));
+            g.tap(0, 0);
+            c.assertTrue(music(g.drain(0)).size() == 2, "First card previews both signed voices");
+            visit(g.players.get(1), second, true);
+            var independent = g.drain(1);
+            c.assertTrue(overlays(independent).stream().anyMatch(s -> s.contains("Find a chime on Ember Peaks"))
+                && particles(independent, ParticleTypes.GLOW).isEmpty(), "Second visitor starts a separate reversed pair");
+            g.tap(0, 1);
+            var miss = g.drain(0);
+            c.assertTrue(music(miss).isEmpty() && overlays(miss).stream().anyMatch(s -> s.startsWith("Find a chime on Half Moon")), "Wrong opening keeps the first bell");
+            visit(g.players.getFirst(), second, true);
+            var win = g.drain(0);
+            var chord = music(win);
+            c.assertTrue(chord.size() == 2 && chord.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
+                && chord.getFirst().getPitch() == NoteBlock.getPitchFromNote(KITE.note)
+                && chord.getLast().getSound().equals(SoundEvents.NOTE_BLOCK_BELL)
+                && chord.getLast().getPitch() == NoteBlock.getPitchFromNote(EMBER_PEAKS.note), "The outer voices sound together");
+            var start = GalleryTrail.framePoint(first);
+            var end = GalleryTrail.framePoint(second);
+            var middle = start.lerp(end, .5);
+            var dots = particles(win, ParticleTypes.DUST);
+            c.assertTrue(dots.size() == 35 && dots.get(8).distanceTo(dots.get(9)) > .6
+                && dots.get(16).distanceTo(middle) < .00001 && dots.get(17).distanceTo(middle) < .00001
+                && dots.get(24).y < dots.get(25).y && dots.get(8).y > dots.get(9).y
+                && particles(win, ParticleTypes.GLOW).equals(List.of(middle)), "Two luminous strands cross at the shared star");
+            c.assertTrue(overlays(win).contains("Linked at Half Moon • Chime: Kite + Bell: Ember Peaks"), "A muted visitor can identify all three pitches");
+            for (int i = 1; i <= 2; i++) {
+                var spectator = g.drain(i);
+                c.assertTrue(music(spectator).isEmpty() && overlays(spectator).isEmpty()
+                    && particles(spectator, ParticleTypes.DUST).isEmpty() && particles(spectator, ParticleTypes.GLOW).isEmpty(), "Pair is private");
+            }
+            g.tap(1, 1);
+            c.assertTrue(overlays(g.drain(1)).stream().anyMatch(s -> s.startsWith("Pair cleared")), "Other visitor can still clear their own anchor");
+            g.tap(0, 1);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("First postcard")), "Winner can immediately start again");
+            c.assertTrue(first.getRotation() == 0 && second.getRotation() == 0 && a.equals(CodaPostcard.read(first.getItem()))
+                && b.equals(CodaPostcard.read(second.getItem())) && g.players.getFirst().getMainHandItem().getCount() == 2, "Both displays and echo shards survive");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void replacedPostcardsRestartAndVerticalLinksRespectTwelveBlocks(GameTestHelper c) {
+        try (var g = new Gallery(c, "PairRange")) {
+            var p = g.players.getFirst();
+            var first = g.frames.getFirst();
+            var a = new CodaPostcard("Jun", KITE, "Mira", HALF_MOON);
+            var b = new CodaPostcard("Mira", HALF_MOON, "Jun", EMBER_PEAKS);
+            first.setItem(a.paper());
+            var edge = new GlowItemFrame(p.level(), first.blockPosition().below(12), Direction.NORTH);
+            var far = new ItemFrame(p.level(), first.blockPosition().below(13), Direction.NORTH);
+            for (var f : List.of(edge, far)) {
+                f.setItem(b.paper());
+                g.frames.add(f);
+                c.assertTrue(p.level().addFreshEntity(f), "Mounted second card");
+            }
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD));
+            visit(p, first, false); g.drain(0);
+            visit(p, far, false);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(s -> s.startsWith("Too far")), "Thirteen blocks is outside linking range");
+            visit(p, edge, false);
+            var result = g.drain(0);
+            var dots = particles(result, ParticleTypes.DUST);
+            c.assertTrue(particles(result, ParticleTypes.GLOW).size() == 1 && dots.get(24).distanceTo(dots.get(25)) > .6,
+                "Twelve blocks is allowed and vertical strands separate horizontally");
+            visit(p, first, false); g.drain(0);
+            first.setItem(b.paper());
+            visit(p, edge, false);
+            var stale = g.drain(0);
+            c.assertTrue(overlays(stale).stream().anyMatch(s -> s.startsWith("Display changed"))
+                && particles(stale, ParticleTypes.GLOW).isEmpty(), "Changed signed score starts a fresh pair instead of completing a stale one");
+            var named = new ItemStack(Items.ECHO_SHARD);
+            named.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
+            p.setItemInHand(InteractionHand.MAIN_HAND, named);
+            visit(p, first, false);
+            c.assertTrue(first.getRotation() == 1 && music(g.drain(0)).isEmpty(), "Named echo shard retains vanilla handling");
+        }
+        c.succeed();
+    }
+
     private static void checkReplay(GameTestHelper c, List<Packet<?>> packets, CodaPostcard card) {
         var voices = music(packets);
         c.assertTrue(voices.size() == 2 && voices.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)

@@ -49,14 +49,18 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
 
     static void register() {
         GalleryTrail.register();
+        PostcardPairs.register();
         UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
-            if (held.is(Items.AMETHYST_SHARD) && held.getComponentsPatch().isEmpty()) {
+            if ((held.is(Items.AMETHYST_SHARD) || held.is(Items.ECHO_SHARD)) && held.getComponentsPatch().isEmpty()) {
                 var postcard = CodaPostcard.read(frame.getItem());
                 if (postcard != null) {
-                    postcard.playFrame(p, frame);
+                    if (CodaPostcard.canListen(p)) {
+                        if (held.is(Items.ECHO_SHARD)) PostcardPairs.tap(p, frame, postcard);
+                        else postcard.playFrame(p, frame);
+                    }
                     return InteractionResult.SUCCESS_SERVER;
                 }
             }
@@ -103,7 +107,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         String body;
         if (postcard != null) {
             body = "Coda Postcard\n" + postcard.credits() + "\nHold and use it to hear the chord anywhere."
-                + "\nFrame it and tap with a plain amethyst shard. Sneak and tap to swap which instrument plays each note.";
+                + "\nFrame it and tap with a plain amethyst shard. Sneak and tap to swap which instrument plays each note."
+                + "\nPostcard Pairs: use a plain echo shard on two framed postcards within 12 blocks. Match the first bell to the next chime. Sneak to swap either tap.";
             if (ConcertStage.current(p) == null)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
             else body += "\nFinish or stop your current performance first.";

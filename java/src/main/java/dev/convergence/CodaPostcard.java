@@ -54,14 +54,13 @@ record CodaPostcard(String lead, StarLoom.Chart chime, String reply, StarLoom.Ch
     }
 
     void playFrame(ServerPlayer p, ItemFrame frame) {
-        if (!canListen(p)) return;
         EncoreDuet.leave(p);
         var right = StarPrint.frameRight(p, frame);
         var up = frame.getDirection().getUnitVec3().cross(right);
         play(p, GalleryTrail.framePoint(frame), right.scale(.72), up.scale(.72), p.isShiftKeyDown());
     }
 
-    private static boolean canListen(ServerPlayer p) {
+    static boolean canListen(ServerPlayer p) {
         if (!InfinityJourney.emptyScreen(p) || p.isSpectator()) return false;
         if (ConcertStage.current(p) == null) return true;
         ConcertStage.overlay(p, "Finish your banner performance to hear the postcard.");
