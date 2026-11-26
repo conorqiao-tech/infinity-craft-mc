@@ -20,6 +20,11 @@ async function verify(page, origin) {
   const cipher = panel.getByRole('region', {name:/Seal Cipher/i});
   const status = cipher.getByRole('status');
   const button = label => cipher.getByRole('button', {name:label});
+  const refrain = panel.getByRole('region', {name:/Cipher Refrain/i});
+  const direction = backward => refrain.getByRole('button', {name:backward ? /backward refrain/i : /forward refrain/i});
+  const instrument = v => refrain.getByRole('button', {name:new RegExp('^Refrain: '+names[v]+'$', 'i')});
+  const hint = refrain.getByRole('button', {name:/reveal next voice/i});
+  const feedback = refrain.getByRole('status');
   const start = button(/start cipher/i);
   const replay = button(/replay clue/i);
   const tap = control => control.press('Enter');
@@ -46,6 +51,7 @@ async function verify(page, origin) {
     assert.deepEqual(await heard(), [], 'No audio on reload');
     await tap(panel.getByRole('button', {name:'Play next beat'}));
     let before = (await heard()).length;
+    assert(await direction(false).isDisabled(), 'A new session must solve its cipher');
     await tap(start);
     const step = reverse ? -1 : 1;
     for (let round = 0; round < 3; round++) {
@@ -69,6 +75,34 @@ async function verify(page, origin) {
     }
     assertAudio((await heard()).slice(before), seal, [0,1,2], audible);
     assert.match(await status.innerText(), /3\s*\/\s*3|solved|complete/i);
+    const sequence = [0,1,2].map(i => (opening + (i+2)*step + 6) % 3);
+    await tap(direction(true));
+    await tap(instrument(sequence[2]));
+    assert.match(await feedback.innerText(), /knot 2 is next/i);
+    await tap(direction(false));
+    assert.match(await feedback.innerText(), /knot 1 is waiting/i);
+    for (const backward of [false,true]) {
+      before = (await heard()).length;
+      await tap(direction(backward));
+      const voices = backward ? sequence.slice().reverse() : sequence;
+      assert.equal((await heard()).length, before, 'Starting a refrain is silent');
+      for (const [i,voice] of voices.entries()) {
+        await tap(instrument((voice+1)%3));
+        await tap(hint);
+        await tap(hint);
+        assert.match(await feedback.innerText(), new RegExp(names[voice], 'i'));
+        assert.equal((await heard()).length, before, 'Miss and repeated hints are silent');
+        await tap(instrument(voice));
+        const packets = await heard();
+        assertAudio(packets.slice(before), seal, i === 2 ? [0,1,2] : [voice], audible);
+        before = packets.length;
+      }
+      assert.match(await feedback.innerText(), /refrain complete/i);
+      assert.deepEqual((await refrain.getByRole('listitem').allTextContents()).map(t => t.match(/done, (Chime|Harp|Bell)/)[1]), voices.map(v => names[v]));
+      assert(await direction(!backward).isEnabled(), 'Either direction can be replayed');
+    }
+    await tap(button(/start again/i));
+    assert(await direction(false).isDisabled() && await hint.isDisabled(), 'Restarting the cipher locks the refrain');
     await tap(panel.getByRole('button', {name:'Play next beat'}));
     assert.match(await panel.locator('#sStatus').innerText(), /beat 2 of 4/i, 'Puzzle does not advance ordinary playback');
     await page.reload();
@@ -82,6 +116,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: six Seal Cipher routes, scored by instrument even at equal pitch; silent retry, exact audio, full triad, independent playback and reload.');
+    console.log('PASS: all six Seal Cipher routes and twelve Refrains, including equal pitches, muted rounds, repeated hints, solo and triad audio, session reset and independent seal playback.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });

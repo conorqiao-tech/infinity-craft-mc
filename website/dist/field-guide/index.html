@@ -304,6 +304,12 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 @media(prefers-reduced-motion:reduce){.guess .btn.hit,.guess .btn.miss{animation:none}.guess .btn.miss{outline:3px solid var(--orange);outline-offset:2px}}
 .cxvoices{margin:0;font-size:14px;color:var(--soft)}
 .cxvoices b{color:var(--ink)}
+.refrainsec{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.rffig{width:300px;height:128px;margin:0 auto}
+.rffig svg{display:block;width:300px;height:128px}
+.rfknots{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px;color:var(--soft)}
+.rfknots b{color:var(--ink)}
+.btn.dir[aria-pressed=true]{background:var(--lav);border-color:var(--lav);color:#1d1240}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
@@ -612,6 +618,28 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 </div>
 <p class="status" id="cxStatus" role="status" aria-live="polite">Press Start cipher to hear the first clue.</p>
 <p class="smeta">In game (development preview) you use the held stamped seal on a note block to begin and pick the missing instrument from the menu. The note block is not retuned.</p>
+</div>
+</div>
+</section>
+<section class="refrainsec" aria-labelledby="rTitle">
+<div class="khead">
+<div><h3 id="rTitle">Cipher Refrain <small>optional</small></h3><p id="rHint">Solve all three Seal Cipher clues in this session to unlock the refrain.</p></div>
+<div class="toolbar">
+<button class="btn dir" id="rfFwd" type="button" aria-disabled="true" aria-pressed="false">Forward refrain</button>
+<button class="btn dir" id="rfBack" type="button" aria-disabled="true" aria-pressed="false">Backward refrain</button>
+</div>
+</div>
+<div class="sbody">
+<div class="rffig" id="rfFig" role="img" aria-label="Refrain locked"></div>
+<div class="sctl">
+<ul class="rfknots" id="rfKnots" aria-label="Refrain knots"></ul>
+<div class="guess" id="rfGuess" role="group" aria-label="Refrain instrument">
+<button class="btn" type="button" data-r="chime" aria-label="Refrain: Chime" aria-disabled="true">Chime</button>
+<button class="btn" type="button" data-r="harp" aria-label="Refrain: Harp" aria-disabled="true">Harp</button>
+<button class="btn" type="button" data-r="bell" aria-label="Refrain: Bell" aria-disabled="true">Bell</button>
+</div>
+<div class="row"><button class="btn" id="rfReveal" type="button" aria-disabled="true">Reveal next voice</button></div>
+<p class="status" id="rfStatus" role="status" aria-live="polite">The refrain replays the cipher's missing instruments as a three-knot cord.</p>
 </div>
 </div>
 </section>
@@ -1106,7 +1134,7 @@ if(SEAL)sSay("Your saved seal is ready. Press Play next beat or Play from start 
 $("sealStamp").addEventListener('click',()=>{
  if(!sealEligible()){sSay("Stamp seal unlocks when you complete Circuit Counterpoint. A fresh Conductor phrase or a new circuit needs a new Counterpoint first.","");return}
  const had=!!SEAL;
- const wasCx=CX.active||CX.done;CX={round:0,active:false,done:false};
+ const wasCx=CX.active||CX.done;CX={round:0,active:false,done:false};rfReset();if(wasCx)rSay("New seal stamped, so the refrain is locked until you solve its cipher.","");
  SEAL={ver:1,notes:circVoices(P.circuit).map(x=>x.id),open:CP.lead[0],dir:CP.dir};state.seal=SEAL;save();sealSel=-1;renderSeal();
  if(wasCx)xSay("New seal stamped, so the cipher was reset. Press Start cipher to play the new seal's first clue.","");
  sSay(`${had?"Replaced your previous seal. ":""}Stamped: opening corner ${SEAL.open+1}, ${SEAL.dir?"backward":"forward"}, with ${sealData(SEAL).v.map(vName).join(", ")}. Press Play next beat to hear it.`,"live");
@@ -1168,11 +1196,12 @@ function renderCipher(){
  if(d&&act){const k=cxRound(d,CX.round);$("cxVoices").innerHTML=`Round ${CX.round+1} of 3. Sounding: <b>Lead ${vName(d.v[k.L])}</b> and <b>Answer ${vName(d.v[k.A])}</b>. Corner ${k.M+1} is empty.`;}
  else if(d&&CX.done)$("cxVoices").innerHTML=`Solved. All three lit: <b>${d.v.map(vName).join(", ")}</b>.`;
  else $("cxVoices").textContent="Two voices will sound; one corner's instrument is missing.";
+ renderRefrain();
  $("cxFig").setAttribute('aria-label',!d?"Cipher locked until a seal is stamped":CX.done?`Cipher solved: ${d.v.map(vName).join(", ")} all lit in the seal`:act?(()=>{const k=cxRound(d,CX.round);return `Round ${CX.round+1}: lead ${vName(d.v[k.L])} and answer ${vName(d.v[k.A])} are lit; corner ${k.M+1} socket is empty`})():"Cipher idle");
 }
 $("cxStart").addEventListener('click',()=>{
  if(!SEAL){xSay("Stamp a seal first. The cipher only uses your saved seal.","");return}
- const d=sealData(SEAL);CX={round:0,active:true,done:false};renderCipher();
+ const d=sealData(SEAL);const hadRf=rfEligible();rfReset();CX={round:0,active:true,done:false};renderCipher();if(hadRf)rSay("A fresh cipher started, so the refrain is locked until you solve all three clues again.","");
  const pre=playDyad(d,0);
  xSay(`${pre}Round 1 of 3: ${cxClue(d,0)}. Which instrument is missing?`,"live");
 });
@@ -1193,7 +1222,7 @@ document.querySelector('.guess').addEventListener('click',e=>{
  }
  const solvedR=CX.round;CX.round++;bump(b,"hit");
  if(CX.round===3){
-  CX.active=false;CX.done=true;renderCipher();
+  CX.active=false;CX.done=true;rfReset();renderCipher();rSay("Refrain unlocked. Choose Forward refrain or Backward refrain.","");
   const pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
   xSay(`${pre}Correct, ${CAP[g]} was missing (corner ${k.M+1}, ${vName(d.v[k.M])}). Cipher solved! Full triad: ${d.v.map(vName).join(", ")}. Press Start again to replay.`,"live");
   return;
@@ -1201,6 +1230,84 @@ document.querySelector('.guess').addEventListener('click',e=>{
  renderCipher();
  const pre=playDyad(d,CX.round);
  xSay(`${pre}Correct, ${CAP[g]} was missing in round ${solvedR+1} (${vName(d.v[k.M])}). Round ${CX.round+1} of 3: ${cxClue(d,CX.round)}. Which instrument is missing?`,"live");
+});
+/* cipher refrain (session only) */
+let RF={dir:null,step:0,done:false,rev:false};
+function rfReset(){RF={dir:null,step:0,done:false,rev:false}}
+function rfEligible(){return !!SEAL&&CX.done}
+function rfSeq(d,dir){const m=[0,1,2].map(r=>cxRound(d,r).M);return dir==="b"?m.slice().reverse():m}
+const rfClue=i=>RF.dir==="b"?3-i:i+1;
+function rSay(msg,kind){const s=$("rfStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function knotSVG(d,seq,step,done,rev){
+ const X=[50,150,250],Y=52;
+ let g=`<path d="M8 ${Y} Q29 ${Y-18} ${X[0]} ${Y} Q100 ${Y-34} ${X[1]} ${Y} Q200 ${Y+34} ${X[2]} ${Y} Q271 ${Y+18} 292 ${Y}" fill="none" stroke="#3b2a7a" stroke-width="6" stroke-linecap="round"/><path d="M8 ${Y} Q29 ${Y-18} ${X[0]} ${Y} Q100 ${Y-34} ${X[1]} ${Y} Q200 ${Y+34} ${X[2]} ${Y} Q271 ${Y+18} 292 ${Y}" fill="none" stroke="#b9a4ff" stroke-width="2.5" stroke-linecap="round"/>`;
+ X.forEach((x,i)=>{
+  const st=!seq?"up":done||i<step?"done":i===step?"cur":"up";
+  let l1=`Knot ${i+1}`,l2=seq?"Waiting":"Locked";
+  if(st==="done"){
+   const v=d.v[seq[i]],col=byId(v.id).c;
+   g+=`<circle cx="${x}" cy="${Y}" r="37" fill="${col}" opacity=".16"/><circle cx="${x}" cy="${Y}" r="30" fill="#14184c" stroke="${col}" stroke-width="3"/><g transform="translate(${x} ${Y}) scale(.85)">${shape(v.role,col)}</g>`;
+   l1=CAP[v.role];l2=nm(v.id);
+  }else if(st==="cur"){
+   const v=d.v[seq[i]];
+   g+=`<circle cx="${x}" cy="${Y}" r="30" fill="#14184c" stroke="#7cf5c4" stroke-width="2.5"/><circle cx="${x}" cy="${Y}" r="36" fill="none" stroke="#7cf5c4" stroke-width="2.5"/><text x="${x}" y="${Y+(rev?5:7)}" text-anchor="middle" class="${rev?"cxl":"seallab"}" fill="#eef0ff">${rev?CAP[v.role]:"?"}</text>`;
+   l1="Now";l2=rev?"revealed":`Knot ${i+1}`;
+  }else{
+   g+=`<circle cx="${x}" cy="${Y}" r="30" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/>`;
+  }
+  g+=`<text x="${x}" y="${Y+52}" text-anchor="middle" class="cxl" fill="${st==="up"?"#9aa0dc":"#eef0ff"}">${l1}</text><text x="${x}" y="${Y+68}" text-anchor="middle" class="cxn" fill="#b9bde8">${l2}</text>`;
+ });
+ return `<svg viewBox="0 0 300 128" aria-hidden="true">${g}</svg>`;
+}
+function renderRefrain(){
+ const el=rfEligible(),d=el?sealData(SEAL):null,act=el&&!!RF.dir&&!RF.done;
+ ["rfFwd","rfBack"].forEach(id=>{$(id).setAttribute('aria-disabled',el?"false":"true");$(id).setAttribute('aria-pressed',act&&((id==="rfFwd")===(RF.dir==="f"))?"true":"false")});
+ document.querySelectorAll('[data-r]').forEach(b=>b.setAttribute('aria-disabled',act?"false":"true"));
+ $("rfReveal").setAttribute('aria-disabled',act?"false":"true");
+ const seq=el&&RF.dir?rfSeq(d,RF.dir):null;
+ $("rfFig").innerHTML=knotSVG(d,seq,RF.step,RF.done,RF.rev);
+ $("rHint").textContent=!el?"Solve all three Seal Cipher clues in this session to unlock the refrain.":"Tap the three instruments that were missing in the cipher: in clue order for Forward, reversed for Backward. Not the sounding lead.";
+ const items=[0,1,2].map(i=>{
+  if(!seq)return `<li>Knot ${i+1}: ${el?"choose a direction":"locked"}</li>`;
+  if(RF.done||i<RF.step){const v=d.v[seq[i]];return `<li>Knot ${i+1}: <b>done, ${CAP[v.role]}</b> (${vName(v)})</li>`}
+  if(i===RF.step)return `<li>Knot ${i+1}: <b>current</b>${RF.rev?`, revealed as ${CAP[d.v[seq[i]].role]}`:""}</li>`;
+  return `<li>Knot ${i+1}: upcoming</li>`;
+ });
+ $("rfKnots").innerHTML=items.join('');
+ $("rfFig").setAttribute('aria-label',!el?"Refrain locked":!seq?"Refrain ready: choose a direction":`${RF.dir==="b"?"Backward":"Forward"} refrain cord: `+[0,1,2].map(i=>RF.done||i<RF.step?`knot ${i+1} ${CAP[d.v[seq[i]].role]} done`:i===RF.step?`knot ${i+1} current`:`knot ${i+1} upcoming`).join(", "));
+}
+function rfStart(dir){
+ if(!rfEligible()){rSay("Solve all three Seal Cipher clues in this session to unlock the refrain.","");return}
+ RF={dir,step:0,done:false,rev:false};renderRefrain();
+ rSay(`${dir==="b"?"Backward":"Forward"} refrain: tap the three missing instruments in ${dir==="b"?"reverse clue order, starting from clue 3":"clue order, starting from clue 1"}. Knot 1 is waiting.`,"");
+}
+$("rfFwd").addEventListener('click',()=>rfStart("f"));
+$("rfBack").addEventListener('click',()=>rfStart("b"));
+$("rfGuess").addEventListener('click',e=>{
+ const b=e.target.closest('[data-r]');if(!b)return;
+ if(!rfEligible()){rSay("Solve all three Seal Cipher clues in this session to unlock the refrain.","");return}
+ if(!RF.dir){rSay("Choose Forward refrain or Backward refrain first.","");return}
+ if(RF.done){rSay("Refrain complete. Choose Forward refrain or Backward refrain to play it again.","");return}
+ const d=sealData(SEAL),seq=rfSeq(d,RF.dir),want=d.v[seq[RF.step]],role=b.dataset.r;
+ if(role!==want.role){bump(b,"miss");rSay(`Not ${CAP[role]}. Knot ${RF.step+1} is still waiting and your progress is kept. Use Reveal next voice if you need a hint.`,"quiet");return}
+ RF.step++;RF.rev=false;bump(b,"hit");
+ if(RF.step===3){
+  RF.done=true;renderRefrain();
+  const pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
+  rSay(`${pre}Refrain complete ${RF.dir==="b"?"backward":"forward"}: ${seq.map(c=>CAP[d.v[c].role]).join(", ")}. Full triad: ${d.v.map(vName).join(", ")}. Choose Forward refrain or Backward refrain to play again.`,"live");
+  return;
+ }
+ renderRefrain();
+ const pre=sounded(()=>playVoice(want));
+ rSay(`${pre}Knot ${RF.step}: ${CAP[role]}, ${vName(want)} ${want.p}. Knot ${RF.step+1} is next.`,"live");
+});
+$("rfReveal").addEventListener('click',()=>{
+ if(!rfEligible()){rSay("Solve all three Seal Cipher clues in this session to unlock the refrain.","");return}
+ if(!RF.dir){rSay("Choose Forward refrain or Backward refrain first.","");return}
+ if(RF.done){rSay("Refrain complete, so there's no next voice. Choose a direction to play again.","");return}
+ const d=sealData(SEAL),want=d.v[rfSeq(d,RF.dir)[RF.step]];
+ RF.rev=true;renderRefrain();
+ rSay(`Reveal (silent): knot ${RF.step+1} is ${CAP[want.role]}, ${vName(want)} ${want.p}, the missing voice from clue ${rfClue(RF.step)}.`,"");
 });
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 
