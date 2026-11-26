@@ -207,8 +207,7 @@ public class CodaPostcardGameTests {
                 && particles(misses, ParticleTypes.GLOW).isEmpty(), "Wrong display and wrong orientation keep the target");
             visit(player, third, true);
             var packets = g.drain(0);
-            var chord = packets.stream().filter(ClientboundSoundPacket.class::isInstance).map(ClientboundSoundPacket.class::cast)
-                .filter(s -> s.getSource() == SoundSource.RECORDS).toList();
+            var chord = records(packets);
             c.assertTrue(chord.size() == 3 && chord.get(0).getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
                 && chord.get(1).getSound().equals(SoundEvents.NOTE_BLOCK_HARP) && chord.get(2).getSound().equals(SoundEvents.NOTE_BLOCK_BELL)
                 && chord.get(0).getPitch() == NoteBlock.getPitchFromNote(KITE.note)
@@ -273,6 +272,110 @@ public class CodaPostcardGameTests {
             named.set(DataComponents.CUSTOM_NAME, Component.literal("Memento"));
             p.setItemInHand(InteractionHand.MAIN_HAND, named); visit(p, lower, false);
             c.assertValueEqual(lower.getRotation(), 1, "Named crystals keep ordinary frame interaction");
+        }
+        c.succeed();
+    }
+
+    private static void closeConductorCircuit(Gallery g) {
+        g.frames.get(0).setItem(new CodaPostcard("Sol", KITE, "Mira", HALF_MOON).paper());
+        g.frames.get(1).setItem(new CodaPostcard("Jun", EMBER_PEAKS, "Sol", HALF_MOON).paper());
+        g.frames.get(2).setItem(new CodaPostcard("Mira", EMBER_PEAKS, "Jun", KITE).paper());
+        linkCircuitPair(g);
+        var p = g.players.getFirst();
+        visit(p, g.frames.get(2), false);
+        p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BLAZE_ROD, 2));
+        g.wires.forEach(NativePlayConnection::drain);
+    }
+
+    private static List<ClientboundSoundPacket> records(List<Packet<?>> packets) {
+        return packets.stream().filter(ClientboundSoundPacket.class::isInstance).map(ClientboundSoundPacket.class::cast)
+            .filter(s -> s.getSource() == SoundSource.RECORDS).toList();
+    }
+
+    @GameTest public void conductorPlaysAllSixRoutesWithPrivateSoundAndDistinctReturnCue(GameTestHelper c) {
+        try (var g = new Gallery(c, "Baton")) {
+            closeConductorCircuit(g);
+            var p = g.players.getFirst();
+            var charts = List.of(KITE, HALF_MOON, EMBER_PEAKS);
+            var sounds = List.of(SoundEvents.NOTE_BLOCK_CHIME, SoundEvents.NOTE_BLOCK_HARP, SoundEvents.NOTE_BLOCK_BELL);
+            for (int start = 0; start < 3; start++) {
+                for (int step : List.of(1, -1)) {
+                    for (int beat = 0; beat < 4; beat++) {
+                        int index = Math.floorMod(start + beat * step, 3);
+                        var tapped = g.frames.get(index);
+                        // After the opening, change Sneak to prove that direction is latched.
+                        visit(p, tapped, beat == 0 ? step < 0 : step > 0);
+                        var packets = g.drain(0);
+                        var played = records(packets);
+                        c.assertValueEqual(particles(packets, ParticleTypes.DUST).size(), 5 + beat,
+                            "Each beat fills exactly one of the four score marks");
+                        if (beat == 3) {
+                            c.assertValueEqual(played.size(), 3, "Returning home plays exactly the triad");
+                            for (int i = 0; i < 3; i++) {
+                                c.assertTrue(played.get(i).getSound().equals(sounds.get(i))
+                                    && played.get(i).getPitch() == NoteBlock.getPitchFromNote(charts.get(i).note), "Final chord preserves each voice");
+                            }
+                            c.assertTrue(overlays(packets).stream().anyMatch(text -> text.startsWith("Conductor 4/4")), "Four beats finish the phrase");
+                        } else {
+                            c.assertTrue(played.size() == 1 && played.getFirst().getSound().equals(sounds.get(index))
+                                && played.getFirst().getPitch() == NoteBlock.getPitchFromNote(charts.get(index).note), "Each corner plays only its own voice");
+                            var target = GalleryTrail.framePoint(g.frames.get(Math.floorMod(index + step, 3)));
+                            var outline = particles(packets, ParticleTypes.END_ROD);
+                            c.assertValueEqual(outline.size(), 16, "Next frame is marked");
+                            if (beat == 2) {
+                                c.assertTrue(particles(packets, ParticleTypes.GLOW).equals(List.of(target))
+                                    && outline.stream().allMatch(v -> Math.abs(v.distanceTo(target) - .35) < .00001), "Home cue is a ring with a center point");
+                            } else {
+                                c.assertTrue(particles(packets, ParticleTypes.GLOW).isEmpty()
+                                    && outline.stream().anyMatch(v -> v.distanceTo(target) < .26), "An ordinary corner has a hollow diamond");
+                            }
+                        }
+                        if (beat == 0) {
+                            visit(p, tapped, false);
+                            var wrong = g.drain(0);
+                            c.assertTrue(records(wrong).isEmpty() && particles(wrong, ParticleTypes.DUST).isEmpty()
+                                && overlays(wrong).equals(overlays(packets)), "Wrong beat is silent, keeps progress and repeats the same cue");
+                        }
+                    }
+                }
+            }
+            var other = g.drain(1);
+            c.assertTrue(records(other).isEmpty() && overlays(other).isEmpty() && particles(other, ParticleTypes.END_ROD).isEmpty()
+                && particles(other, ParticleTypes.DUST).isEmpty() && particles(other, ParticleTypes.GLOW).isEmpty(), "Nearby player gets no conductor packets");
+            c.assertTrue(p.getMainHandItem().getCount() == 2 && g.frames.stream().allMatch(f -> f.getRotation() == 0
+                && CodaPostcard.read(f.getItem()) != null), "Conducting preserves all exhibits and both rods");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void aConductorRequiresTheirOwnIntactCircuitAndRelearnsNewPitches(GameTestHelper c) {
+        try (var g = new Gallery(c, "Score")) {
+            closeConductorCircuit(g);
+            var p = g.players.getFirst();
+            var other = g.players.get(1);
+            other.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BLAZE_ROD));
+            visit(other, g.frames.getFirst(), false);
+            c.assertTrue(overlays(g.drain(1)).stream().anyMatch(text -> text.startsWith("Close a postcard circuit")), "A neighbor cannot borrow the player's circuit");
+            g.tap(0, 0);
+            g.frames.get(2).setItem(new CodaPostcard("New", EMBER_PEAKS, "Jun", KITE).paper());
+            g.drain(0); g.tap(0, 1);
+            var stale = g.drain(0);
+            c.assertTrue(records(stale).isEmpty() && overlays(stale).stream().anyMatch(text -> text.startsWith("Display changed")), "A changed signature invalidates the whole score");
+            // Rebuild in reverse circuit order and orientation so corner 2 is now Ember Peaks.
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.ECHO_SHARD));
+            visit(p, g.frames.get(2), true); visit(p, g.frames.get(1), false);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PRISMARINE_CRYSTALS));
+            visit(p, g.frames.getFirst(), true);
+            var baton = new ItemStack(Items.BLAZE_ROD);
+            baton.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
+            p.setItemInHand(InteractionHand.MAIN_HAND, baton);
+            g.drain(0); g.tap(0, 1);
+            c.assertTrue(records(g.drain(0)).isEmpty() && g.frames.get(1).getRotation() == 1, "Named rods retain vanilla behavior");
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BLAZE_ROD));
+            g.tap(0, 1);
+            var note = records(g.drain(0));
+            c.assertTrue(note.size()==1 && note.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_HARP)
+                && note.getFirst().getPitch()==NoteBlock.getPitchFromNote(EMBER_PEAKS.note), "New circuit supplies its own instruments and pitches");
         }
         c.succeed();
     }

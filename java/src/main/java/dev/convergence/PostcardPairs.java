@@ -20,7 +20,7 @@ final class PostcardPairs {
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "postcard_circuit_link"));
     private static final int MAX_DISTANCE = 12;
 
-    private record Selection(UUID frameId, Vec3 point, CodaPostcard card, boolean swap) {
+    record Selection(UUID frameId, Vec3 point, CodaPostcard card, boolean swap) {
         StarLoom.Chart chime() { return swap ? card.bell() : card.chime(); }
         StarLoom.Chart bell() { return swap ? card.chime() : card.bell(); }
 
@@ -34,6 +34,7 @@ final class PostcardPairs {
         ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((p, from, to) -> {
             p.removeAttached(FIRST);
             p.removeAttached(LINK);
+            CircuitConductor.forget(p);
         });
     }
 
@@ -103,9 +104,7 @@ final class PostcardPairs {
         p.removeAttached(LINK);
         EncoreDuet.leave(p);
         InfinityChimes.stopPlayback(p);
-        InfinityChimes.sound(p, a.chime().note, SoundEvents.NOTE_BLOCK_CHIME);
-        InfinityChimes.sound(p, a.bell().note, SoundEvents.NOTE_BLOCK_HARP);
-        InfinityChimes.sound(p, b.bell().note, SoundEvents.NOTE_BLOCK_BELL);
+        CircuitConductor.close(p, a, b, c);
         circuitEdge(p, a, b, 1);
         circuitEdge(p, b, c, 2);
         circuitEdge(p, c, a, 3);
