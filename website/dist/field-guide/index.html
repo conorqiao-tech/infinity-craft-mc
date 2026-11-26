@@ -14,7 +14,7 @@
    IDEA a pocket field guide tucked into the Infinity Armor Hub: item frames on a gallery wall, and a note-block tuning bench
    PICTURE Guide: three item frames joined by a trail; Studio: a live stage with a chime bar on the left, a bell ring on the right and the slope between them
    COLOUR aurora night ground #0e1030 fixed in both themes, ink #eef0ff, cyan #4fe3f0, lavender #b9a4ff, orange #ff9a3c, mint #7cf5c4 accent
-   TYPE Pixelify Sans for titles and labels + Figtree for text
+   TYPE system fallbacks for offline use
    LAYOUT laptop: one 980px column, studio stage left and pickers right; phone: title, tabs, picture, controls stacked */
 :root{color-scheme:dark;--bg:#0e1030;--bg2:#161a46;--panel:#1b2056;--line:#343b86;--ink:#eef0ff;--soft:#b9bde8;--cyan:#4fe3f0;--lav:#b9a4ff;--orange:#ff9a3c;--mint:#7cf5c4;--wood:#8a5a32;--wood2:#c48a52}
 :root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
@@ -133,7 +133,64 @@ legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 @media(prefers-reduced-motion:reduce){.ghostOn .stamp{animation:none;outline:3px solid var(--mint)}}
 @media(max-width:760px){.ghost{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:760px){.trail{grid-template-columns:minmax(0,1fr)}.trail::before{left:50%;right:auto;top:40px;bottom:40px;border-top:0;border-left:3px dashed #7cf5c466}.studio{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:420px){.opt span{min-height:72px;padding:8px}.opt span b{font-size:14px}.tabs{width:100%}.tabs button{flex:1;padding:10px 8px}}
+@media(max-width:420px){.opt span{min-height:72px;padding:8px}.opt span b{font-size:14px}.tabs{width:100%}.tabs button{flex:1;padding:8px 4px;font-size:15px;line-height:1.1}}
+.tabs button{white-space:nowrap}
+@media(max-width:420px){.tabs button{white-space:normal}}
+.pp-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px 16px;margin-bottom:14px}
+.pp-head h2{font-size:30px;line-height:1.05;margin:0 0 4px}
+.pp-head p{margin:0;color:var(--soft);max-width:52ch}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+button.pc{display:flex;flex-direction:column;gap:6px;text-align:left;font:inherit;padding:14px 16px;border-radius:12px;border:0;background:#f4efe2;color:#2a2440;cursor:pointer;box-shadow:0 6px 0 #0006;position:relative}
+button.pc:hover{background:#fff8ea}
+button.pc:focus-visible{outline:3px solid var(--mint);outline-offset:4px}
+button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499,0 6px 0 #0006}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 17px "Pixelify Sans",sans-serif}
+.seal{display:inline-flex;align-items:center;gap:5px;font:600 13px Figtree,sans-serif;color:#8a2f2c}
+.seal::before{content:"";width:14px;height:14px;border-radius:50%;background:#b8423f;box-shadow:inset 0 0 0 3px #d9605c}
+.voice{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:15px}
+.voice i{flex:none;width:14px;height:14px;border-radius:3px;background:var(--c);box-shadow:inset 0 0 0 1px #0003}
+.voice small{color:#5a5270;font-size:13px;white-space:nowrap}
+.mk{margin-left:auto;font-style:normal;font-size:13px;font-weight:700;color:#137a58;white-space:nowrap}
+.mk.sh{color:#5a3fc0}
+.arrow{font-size:13px;color:#5a5270;padding-left:22px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;min-height:22px}
+.tag{font-size:13px;font-weight:700;padding:1px 9px;border-radius:99px}
+.tag.anc{background:#1e9e74;color:#fff}
+.tag.sw{background:#ffd9b8;color:#7a3a00}
+.pc.hit{animation:pop .5s ease-out}
+.pc.miss{animation:shake .4s ease-out}
+@keyframes pop{40%{transform:translateY(-5px)}}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.pp-low{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px;margin-top:18px;align-items:start}
+.loom{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,1fr) minmax(0,1fr);align-items:center;padding:16px;border-radius:16px;background:linear-gradient(180deg,#101444,#1a1f5c);border:1px solid var(--line)}
+.lcard{background:#f4efe2;color:#2a2440;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:14px;box-shadow:0 4px 0 #0006}
+.lcard .top{font-size:15px}
+.lcard .voice{font-size:14px}
+.lcard.ph{background:transparent;box-shadow:none;border:2px dashed var(--line);color:var(--soft);min-height:118px;display:grid;place-items:center;text-align:center}
+.lfig{position:relative;height:150px}
+.lfig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.th path{fill:none;stroke-linecap:round}
+.th.go path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s ease-out forwards}
+.mid.go{opacity:0;animation:fade .35s .75s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fade{to{opacity:1}}
+.lres{margin:10px 0 0;font-size:15px;color:var(--soft)}
+.lres b{color:var(--ink)}
+.pairsGuide{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.pairsGuide h2{font-size:26px;line-height:1.05;margin:8px 0 6px}
+.pairsGuide ol{margin:0 0 12px;padding-left:1.3em}
+.pairsGuide ol li{margin:4px 0}
+.pairsGuide ol li::marker{color:var(--cyan);font-weight:700}
+.pairsGuide .tie{margin-top:0;width:100%}
+.ex{margin:0;display:grid;grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);align-items:center;align-content:center;gap:6px 0}
+.ex svg{width:100%;height:90px}
+.ex figcaption{grid-column:1/-1;font-size:15px;color:var(--soft);margin-top:6px}
+.ex figcaption b{color:var(--ink)}
+@media(prefers-reduced-motion:reduce){.pc.hit{animation:none}.pc.miss{animation:none;outline:3px solid var(--orange);outline-offset:4px}.th.go path{animation:none;stroke-dasharray:none;stroke-dashoffset:0}.mid.go{animation:none;opacity:1}}
+@media(max-width:760px){.pp-low,.pairsGuide{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.loom{grid-template-columns:minmax(0,1fr)}.lfig{height:96px}.ex{grid-template-columns:minmax(0,1fr)}.ex svg{height:40px}}
 </style>
 </head>
 <body>
@@ -149,6 +206,7 @@ legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <div class="tabs" role="tablist" aria-label="Field guide sections">
 <button role="tab" id="tab-guide" aria-controls="guide" aria-selected="true">Guide</button>
 <button role="tab" id="tab-studio" aria-controls="studio" aria-selected="false" tabindex="-1">Coda Studio</button>
+<button role="tab" id="tab-pairs" aria-controls="pairs" aria-selected="false" tabindex="-1">Postcard Pairs</button>
 </div>
 
 <section id="guide" role="tabpanel" aria-labelledby="tab-guide">
@@ -199,6 +257,25 @@ legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <li><a href="/#play">How to play ↗</a></li>
 </ul>
 </nav>
+<section class="pairsGuide" aria-labelledby="pgTitle">
+<div>
+<span class="pill">Development preview</span>
+<h2 id="pgTitle">Postcard Pairs</h2>
+<ol>
+<li>Hold a plain echo shard and tap framed signed postcards within 12 blocks.</li>
+<li>Your first tap anchors that postcard's chime and bell.</li>
+<li>Sneak while tapping to swap the chime and bell for that tap.</li>
+<li>Tap a second postcard whose opening chime matches the anchor's ending bell to link the pair.</li>
+</ol>
+<button class="tie" type="button" data-go="pairs">Try it in Postcard Pairs</button>
+</div>
+<figure class="ex">
+<div class="lcard" id="exA"></div>
+<svg viewBox="0 0 48 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 8 C22 8 26 32 48 32" fill="none" stroke="#4fe3f0" stroke-width="3" vector-effect="non-scaling-stroke"/><path d="M0 32 C22 32 26 8 48 8" fill="none" stroke="#ff9a3c" stroke-width="3" vector-effect="non-scaling-stroke"/><circle cx="24" cy="20" r="4" fill="#b9a4ff"/></svg>
+<div class="lcard" id="exB"></div>
+<figcaption>Example: tap the first postcard, then Sneak-tap the second. The second now opens on Half Moon, so the pair links through <b>Half Moon</b> and sounds <b>Kite chime + Ember Peaks bell</b>.</figcaption>
+</figure>
+</section>
 </section>
 
 <section id="studio" role="tabpanel" aria-labelledby="tab-studio" hidden>
@@ -244,7 +321,30 @@ legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="status" id="gStatus" role="status" aria-live="polite">New ghost postcard ready. Use the clue or check your two notes.</p>
 </div>
 </section>
-<p class="note">Practice for the Coda Postcards development preview. Pitches follow note-block clicks (0 to 24). This studio voices note 6 as C6, 10 as E6 and 13 as G6. Audio is synthesized in your browser and plays only when you press Play.</p>
+<p class="note">Practice for the Coda Postcards development preview. Pitches follow note-block clicks (0 to 24). This studio voices note 6 as C6, 10 is E6 and 13 is G6. Sound plays in your browser when you use a music control.</p>
+</section>
+
+<section id="pairs" role="tabpanel" aria-labelledby="tab-pairs" hidden>
+<div class="pp-head">
+<div><h2>Postcard Pairs</h2><p>Tap a signed card to anchor it and preview its chord. Then tap a different card whose opening chime matches the anchor's ending bell.</p></div>
+<div class="toolbar">
+<label class="snd" for="swap"><input type="checkbox" id="swap"> Swap voices for next tap</label>
+<label class="snd" for="sound2"><input type="checkbox" id="sound2" checked> Sound</label>
+</div>
+</div>
+<div class="gallery" id="gallery" role="group" aria-label="Signed postcards"></div>
+<div class="pp-low">
+<p class="status" id="pStatus" role="status" aria-live="polite">Tap any card to anchor it. Tapping the anchored card again clears it.</p>
+<div>
+<div class="loom" role="group" aria-label="Last linked pair">
+<div class="lcard ph" id="lA">First card</div>
+<div class="lfig" id="lfig" role="img" aria-label="No linked pair yet"><svg id="lsvg"></svg></div>
+<div class="lcard ph" id="lB">Second card</div>
+</div>
+<p class="lres" id="lres">No linked pair yet. Your last result stays here while you play again.</p>
+</div>
+</div>
+<p class="note">Practice for the Postcard Pairs development preview. In game you tap with a plain echo shard and Sneak to swap; here the Swap checkbox stands in for Sneak and turns itself off after one tap.</p>
 </section>
 </div>
 
@@ -264,7 +364,7 @@ const yPct=n=>100-(n-LO)/(HI-LO)*100;
 const $=id=>document.getElementById(id);
 let store={};
 try{store=JSON.parse(localStorage.getItem("infinitycraft.field-guide.v1")||"{}")||{}}catch(e){store={}}
-const state={chime:store.chime||"kite",bell:store.bell||"ember",sound:store.sound!==false,tab:store.tab==="studio"?"studio":"guide"};
+const state={chime:store.chime||"kite",bell:store.bell||"ember",sound:store.sound!==false,tab:store.tab||"guide"};
 const save=()=>{try{localStorage.setItem("infinitycraft.field-guide.v1",JSON.stringify(state))}catch(e){}};
 const byId=id=>NOTES.find(x=>x.id===id)||NOTES[0];
 
@@ -287,7 +387,8 @@ tabs.forEach((t,i)=>{
  });
 });
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go,true)));
-window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==="guide"||h==="studio")show(h)});
+const VIEWS=["guide","studio","pairs"];
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(VIEWS.includes(h))show(h)});
 
 /* pickers */
 function opts(role){
@@ -325,7 +426,10 @@ document.addEventListener('change',e=>{
  const t=e.target;
  if(t.name==="chime"||t.name==="bell"){state[t.name]=t.value;save();render();
   const r=relation();setStatus(`Selected ${r.c.name} chime and ${r.b.name} bell: ${r.word.toLowerCase()}, ${r.det}. Press Play together to hear it.`,"")}
- if(t.id==="sound"){state.sound=t.checked;save();renderG();setStatus(t.checked?"Sound on. Play together will use your speakers.":"Sound off. Play together will show the chord visually with no audio.","")}
+ if(t.id==="sound"||t.id==="sound2"){state.sound=t.checked;save();render();renderG();renderPairs();
+  if(t.id==="sound")setStatus(t.checked?"Sound on. Play together will use your speakers.":"Sound off. Play together will show the chord visually with no audio.","");
+  else sayP(t.checked?"Sound on. Taps will play their chords.":"Sound off. Taps will show their chords visually with no audio.","")}
+ if(t.id==="swap"){armed=t.checked;renderPairs();sayP(armed?"Swap armed: your next tap reverses that card's chime and bell.":"Swap off: your next tap uses the card as signed.","")}
 });
 const fieldRO=new ResizeObserver(()=>render());fieldRO.observe($("field"));
 
@@ -410,11 +514,94 @@ $("gHear").addEventListener('click',()=>{
  catch(e){G.clue=true;saveG();renderG();gSay("Audio isn't available here, so here's a visual clue: "+$("clueText").textContent,"quiet")}
 });
 $("gNew").addEventListener('click',()=>newRound(false));
-
 if(G)renderG();else newRound(true);
 
+/* postcard pairs */
+const CARDS=[{id:1,a:"kite",b:"moon"},{id:2,a:"ember",b:"moon"},{id:3,a:"ember",b:"kite"}];
+const ori=(id,sw)=>{const c=CARDS.find(x=>x.id===id)||CARDS[0];return {id:c.id,sw:!!sw,open:sw?c.b:c.a,end:sw?c.a:c.b}};
+const nm=id=>byId(id).name;
+const okRef=r=>r&&typeof r==="object"&&CARDS.some(c=>c.id===r.id);
+let armed=false;
+let P=store.pairs&&typeof store.pairs==="object"?store.pairs:{};
+P={anchor:okRef(P.anchor)?P.anchor:null,result:P.result&&okRef(P.result.first)&&okRef(P.result.second)?P.result:null};
+state.pairs=P;
+const saveP=()=>{state.pairs=P;save()};
+function voice(id,role,mk){const o=byId(id);return `<span class="voice" style="--c:${o.c}"><i></i><b>${o.name}</b><small>${role} · ${pitch(o.n)}</small>${mk||""}</span>`}
+function face(o,mk,tags){
+ return `<span class="top">Card ${o.id}<span class="seal">Signed</span></span>${voice(o.open,"chime",mk&&mk[0])}<span class="arrow" aria-hidden="true">↓ to</span>${voice(o.end,"bell",mk&&mk[1])}${tags===undefined?"":`<span class="tags">${tags}</span>`}`;
+}
+const MK_PLAY_C='<em class="mk">Plays</em>',MK_SH='<em class="mk sh">Shared</em>',MK_PLAY_B='<em class="mk">Plays</em>';
+$("gallery").innerHTML=CARDS.map(c=>`<button type="button" class="pc" id="pc${c.id}" data-card="${c.id}" aria-pressed="false"></button>`).join('');
+function sayP(msg,kind){const s=$("pStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function bump(el,cls){el.classList.remove('hit','miss');void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),600)}
+function relText(a,b){const d=byId(b).n-byId(a).n;return d===0?"level, same note":`${d>0?"rising":"falling"} ${INT[Math.abs(d)]||Math.abs(d)+" notes"}`}
+function renderPairs(anim){
+ CARDS.forEach(c=>{
+  const b=$("pc"+c.id),anc=P.anchor&&P.anchor.id===c.id,o=anc?ori(c.id,P.anchor.sw):ori(c.id,armed);
+  b.innerHTML=face(o,null,(anc?'<span class="tag anc">Anchored</span>':'')+(o.sw?'<span class="tag sw">Swapped</span>':''));
+  b.setAttribute('aria-pressed',anc?"true":"false");
+  b.setAttribute('aria-label',`Card ${c.id}: ${nm(o.open)} chime to ${nm(o.end)} bell${o.sw?", swapped":""}${anc?". Anchored; tap again to clear":""}`);
+ });
+ $("swap").checked=armed;$("sound2").checked=state.sound;
+ if(P.result){
+  const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);
+  $("lA").className="lcard";$("lA").innerHTML=face(A,[MK_PLAY_C,MK_SH]);
+  $("lB").className="lcard";$("lB").innerHTML=face(B,[MK_SH,MK_PLAY_B]);
+  $("lres").innerHTML=`Shared pitch <b>${nm(A.end)} (${pitch(byId(A.end).n)})</b> at the crossing. Result: <b>${nm(A.open)} chime + ${nm(B.end)} bell</b>, ${relText(A.open,B.end)}.`;
+  $("lfig").setAttribute('aria-label',`Two threads cross between card ${A.id} and card ${B.id} at ${nm(A.end)}`);
+ }else{
+  $("lA").className="lcard ph";$("lA").textContent="First card";
+  $("lB").className="lcard ph";$("lB").textContent="Second card";
+  $("lfig").setAttribute('aria-label',"No linked pair yet");
+ }
+ drawLoom(!!anim);
+}
+function drawLoom(anim){
+ const s=$("lsvg");
+ if(!P.result){s.innerHTML="";return}
+ const W=s.clientWidth,H=s.clientHeight;if(!W||!H)return;
+ const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);
+ const c1=byId(A.open).c,c2=byId(B.end).c,cm=byId(A.end).c;
+ const vert=window.matchMedia('(max-width:560px)').matches;
+ let p1,p2;
+ if(vert){const k=Math.min(70,W*.22),x1=W/2-k,x2=W/2+k;p1=`M${x1} 0 C${x1} ${H*.45} ${x2} ${H*.55} ${x2} ${H}`;p2=`M${x2} 0 C${x2} ${H*.45} ${x1} ${H*.55} ${x1} ${H}`}
+ else{const y1=H*.22,y2=H*.78;p1=`M0 ${y1} C${W*.45} ${y1} ${W*.55} ${y2} ${W} ${y2}`;p2=`M0 ${y2} C${W*.45} ${y2} ${W*.55} ${y1} ${W} ${y1}`}
+ const th=(p,c)=>`<g class="th${anim?" go":""}"><path d="${p}" pathLength="1" stroke="${c}" stroke-width="14" opacity=".16"/><path d="${p}" pathLength="1" stroke="${c}" stroke-width="6" opacity=".4"/><path d="${p}" pathLength="1" stroke="${c}" stroke-width="2.5"/><path d="${p}" pathLength="1" stroke="#fff" stroke-width="1" opacity=".75"/></g>`;
+ s.innerHTML=th(p1,c1)+th(p2,c2)+`<g class="mid${anim?" go":""}"><circle cx="${W/2}" cy="${H/2}" r="20" fill="${cm}" opacity=".25"/><circle cx="${W/2}" cy="${H/2}" r="11" fill="${cm}"/><circle cx="${W/2}" cy="${H/2}" r="4.5" fill="#fff"/></g>`;
+}
+const loomRO=new ResizeObserver(()=>drawLoom(false));loomRO.observe($("lfig"));
+function tap(id){
+ const sw=armed;armed=false;
+ const btn=$("pc"+id);
+ if(P.anchor&&P.anchor.id===id){P.anchor=null;saveP();renderPairs();sayP(`Cleared the anchor on card ${id}. Tap any card to start again.`,"");return}
+ if(!P.anchor){
+  P.anchor={id,sw};saveP();renderPairs();bump(btn,"hit");
+  const o=ori(id,sw),msg=`Anchored card ${id}${sw?" (swapped)":""}: ${nm(o.open)} chime to ${nm(o.end)} bell. Next, tap a different card that opens on ${nm(o.end)}.`;
+  if(!state.sound){sayP("Silent preview. "+msg+" No audio played.","quiet");return}
+  try{playAudio({c:byId(o.open),b:byId(o.end)});sayP("Previewing. "+msg,"live")}catch(e){sayP("Audio isn't available here, so this is a visual preview. "+msg,"quiet")}
+  return;
+ }
+ const A=ori(P.anchor.id,P.anchor.sw),C=ori(id,sw);
+ if(C.open!==A.end){
+  renderPairs();bump(btn,"miss");
+  const tip=ori(id,!sw).open===A.end?` Tip: ${sw?"untick":"tick"} Swap voices for next tap and try card ${id} again.`:"";
+  sayP(`No link. Card ${id}${sw?" (swapped)":""} opens on ${nm(C.open)}, but the target is ${nm(A.end)} (${pitch(byId(A.end).n)}), the anchor's ending bell. Card ${A.id} stays anchored.${tip}`,"quiet");
+  return;
+ }
+ P.result={first:{id:A.id,sw:A.sw},second:{id:C.id,sw:C.sw}};P.anchor=null;saveP();renderPairs(true);
+ bump(btn,"hit");bump($("pc"+A.id),"hit");
+ const r=`Linked card ${A.id} to card ${id} through ${nm(A.end)} (${pitch(byId(A.end).n)}). Result: ${nm(A.open)} chime + ${nm(C.end)} bell.`;
+ if(!state.sound){sayP("Silent link. "+r+" No audio played. Anchor cleared, so you can play again.","live");return}
+ try{playAudio({c:byId(A.open),b:byId(C.end)});sayP("Now playing. "+r+" Anchor cleared, so you can play again.","live")}
+ catch(e){sayP("Audio isn't available here. "+r+" Anchor cleared, so you can play again.","quiet")}
+}
+$("gallery").addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)tap(+b.dataset.card)});
+$("exA").innerHTML=face(ori(1,false),[MK_PLAY_C,MK_SH]);
+$("exB").innerHTML=face(ori(2,true),[MK_SH,MK_PLAY_B],'<span class="tag sw">Sneak-tapped</span>');
+renderPairs();
+
 const h=location.hash.slice(1);
-show(h==="guide"||h==="studio"?h:state.tab);
+show(VIEWS.includes(h)?h:(VIEWS.includes(state.tab)?state.tab:"guide"));
 render();
 }
 </script>
