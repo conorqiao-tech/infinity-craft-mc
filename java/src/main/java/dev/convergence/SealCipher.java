@@ -16,11 +16,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
-record SealCipher(ChordSeal seal, int solved, boolean retry) {
+record SealCipher(ChordSeal seal, int solved, boolean retry, CipherRefrain refrain) {
+    private SealCipher(ChordSeal seal, int solved, boolean retry) { this(seal, solved, retry, null); }
+
     private static final AttachmentType<SealCipher> ACTIVE =
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "seal_cipher"));
-    private static final List<String> NAMES = List.of("Chime", "Harp", "Bell");
-    private static final List<Item> ICONS = List.of(Items.AMETHYST_SHARD, Items.STRING, Items.BELL);
+    static final List<String> NAMES = List.of("Chime", "Harp", "Bell");
+    static final List<Item> ICONS = List.of(Items.AMETHYST_SHARD, Items.STRING, Items.BELL);
 
     static void register() {
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
@@ -56,16 +58,33 @@ record SealCipher(ChordSeal seal, int solved, boolean retry) {
         new SealCipher(seal, correct ? solved + 1 : solved, !correct).present(p, correct);
     }
 
+    void openRefrain(ServerPlayer p, CipherRefrain next) {
+        if (solved == 3 && current(p)) new SealCipher(seal, solved, false, next).present(p, false);
+    }
+
+    void playRefrain(ServerPlayer p, int guess) {
+        if (refrain == null || refrain.played() == 3 || !current(p)) return;
+        var next = refrain.answer(seal, guess);
+        if (next.played() > refrain.played()) {
+            if (next.played() == 3) seal.soundBeat(p, 3);
+            else CircuitConductor.soundVoice(p, guess, seal.voices().get(guess));
+            next.showKnots(p);
+        }
+        openRefrain(p, next);
+    }
+
     static InfinityJourney.View view(ServerPlayer p) {
         var round = p.getAttached(ACTIVE);
         if (round == null || !round.seal.equals(ChordSeal.read(p.getMainHandItem())))
             return new InfinityJourney.View("Seal Cipher", "Hold a stamped seal and use it on a note block.", List.of());
+        if (round.refrain != null) return round.refrain.view(p, round);
         var choices = new ArrayList<InfinityJourney.Choice>();
         if (round.solved == 3) {
             choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play again", () -> {
                 if (round.current(p)) new SealCipher(round.seal, 0, false).present(p, true);
             }));
-            return new InfinityJourney.View("Seal Cipher • 3/3", "Cipher solved. Chime, harp and bell sound together.", choices);
+            CipherRefrain.addDirections(choices, p, round);
+            return new InfinityJourney.View("Seal Cipher • 3/3", "Cipher solved. Play the three missing voices from memory in a Cipher Refrain.", choices);
         }
         for (int i = 0; i < NAMES.size(); i++) {
             int guess = i;
@@ -84,6 +103,7 @@ record SealCipher(ChordSeal seal, int solved, boolean retry) {
     static void draw(ServerPlayer p, SimpleContainer chest) {
         var round = p.getAttached(ACTIVE);
         if (round == null || !round.seal.equals(ChordSeal.read(p.getMainHandItem()))) return;
+        if (round.refrain != null) { round.refrain.draw(chest, round.seal); return; }
         for (int i = 0; i < 3; i++) {
             boolean silent = round.solved < 3 && round.missing() == i;
             CreativeStudio.icon(chest, 10 + i * 2, silent ? Items.FLINT : ICONS.get(i),
