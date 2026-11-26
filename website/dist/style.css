@@ -15,3 +15,26 @@
 .coda-feature img { display:block; width:100%; height:auto }
 .coda-feature figcaption { display:flex; justify-content:space-between; gap:12px; color:var(--text); font:500 .83rem/1.5 "IBM Plex Mono",monospace }
 @media(max-width:720px){ .coda-feature { grid-template-columns:1fr } }
+
+.topbar nav { align-items: center; }
+.nav-shortcuts { display: flex; align-items: center; gap: 8px; }
+.nav-shortcuts a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font-weight: 700;
+}
+.nav-shortcuts a:hover { border-color: var(--mint); }
+.nav-shortcuts a.nav-ai {
+  background: var(--mint);
+  border-color: var(--mint);
+  color: var(--bg);
+}
+.nav-shortcuts a.nav-ai:hover { background: var(--text); border-color: var(--text); }
+.nav-shortcuts a:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
