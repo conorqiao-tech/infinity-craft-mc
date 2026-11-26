@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "convergence:glassworks",
+  "ingredients": [
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane",
+    "minecraft:orange_stained_glass_pane"
+  ],
+  "result": {
+    "id": "minecraft:orange_stained_glass",
+    "count": 3
+  }
+}

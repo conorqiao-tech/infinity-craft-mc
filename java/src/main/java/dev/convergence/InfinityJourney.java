@@ -49,11 +49,15 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT, ECHO_CHALLENGE, MIRROR_COMPOSER, STAR_PRINTS }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
-    record View(String title, String content, List<Choice> choices) {}
+    record View(String title, String content, List<Choice> choices, List<Integer> slots) {
+        View(String title, String content, List<Choice> choices) { this(title, content, choices, List.of()); }
+        int javaSlot(int choice) { return slots.isEmpty() ? 27 + choice : slots.get(choice); }
+        int choiceAt(int slot) { return slots.isEmpty() ? slot - 27 : slots.indexOf(slot); }
+    }
     record Ticket(UUID nonce, ServerPlayer player, ServerGamePacketListenerImpl connection,
                   ServerLevel world, GameModes.Mode mode, GameType nativeMode, long screenEpoch, int expires) {
         boolean valid() {
@@ -169,6 +173,13 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.STAR_PRINTS) return StarPrint.view(p);
+        if (page == Page.MIRROR_COMPOSER) return MirrorComposer.view(p);
+        if (page == Page.ECHO_CHALLENGE) return EchoChallenge.view(p);
+        if (page == Page.BANNER_CONCERT) return BannerConcert.view(p);
+        if (page == Page.STAR_LOOM) return StarLoom.gallery(p);
+        var chart = StarLoom.Chart.forPage(page);
+        if (chart != null) return StarLoom.board(p, chart);
         if (page == Page.CHIMES) return InfinityChimes.view(p);
         if (page == Page.APIARY) return InfinityApiary.view(p);
         if (page == Page.RELAY) return InfinityRelay.view(p);
@@ -197,6 +208,7 @@ final class InfinityJourney {
             choices.add(new Choice(Items.TROPICAL_FISH, "Infinity Tidewatch • fish field journal", () -> open(p, Page.TIDEWATCH)));
             choices.add(new Choice(Items.HONEYCOMB, "Infinity Apiary • inspect a hive", InfinityApiary.COMB_TEXTURE, () -> open(p, Page.APIARY)));
             choices.add(new Choice(Items.NOTE_BLOCK, "Infinity Chimes • personal score", InfinityChimes.BLOCK_TEXTURE, () -> open(p, Page.CHIMES)));
+            choices.add(new Choice(Items.NETHER_STAR, "Infinity Star Loom • constellation puzzles", "textures/items/nether_star", () -> open(p, Page.STAR_LOOM)));
             choices.add(new Choice(Items.ARROW, "Back to Infinity Menu", () -> ServerMenu.open(p)));
             return new View("Infinity Journey • Six Paths", body.toString(), List.copyOf(choices));
         }
@@ -242,11 +254,14 @@ final class InfinityJourney {
         for (int i = 0; i < cards.size() && i < 8; i++)
             CreativeStudio.icon(chest, i, Items.WRITTEN_BOOK, view.title() + " • " + (i + 1), cards.get(i).toArray(String[]::new));
         chest.setItem(17, emblem(p, true));
+        if (page == Page.MIRROR_COMPOSER) MirrorComposer.draw(p, chest);
         if (page == Page.SIGNAL_FLAGS) {
             for (var design : TidewatchFlags.Design.values()) chest.setItem(9 + design.ordinal(), design.banner(p));
         }
+        var chart = StarLoom.Chart.forPage(page);
+        if (chart != null) StarLoom.drawChart(chest, p, chart);
         for (int i = 0; i < view.choices().size(); i++) {
-            var choice = view.choices().get(i); CreativeStudio.icon(chest, 27 + i, choice.icon(), choice.label());
+            var choice = view.choices().get(i); CreativeStudio.icon(chest, view.javaSlot(i), choice.icon(), choice.label());
         }
         p.openMenu(new SimpleMenuProvider((sync, inv, who) -> new Handler(sync, inv, chest, p, view), Component.literal(view.title())));
         return 1;
@@ -267,7 +282,7 @@ final class InfinityJourney {
         @Override public void clicked(int slot, int button, ContainerInput action, Player p) {
             if (p != owner || owner.connection != connection || owner.containerMenu != this) return;
             if (!stillValid(p)) { owner.closeContainer(); return; }
-            int index = slot - 27;
+            int index = view.choiceAt(slot);
             if ((action != ContainerInput.PICKUP && action != ContainerInput.QUICK_MOVE) || button < 0 || button > 1
                 || !getCarried().isEmpty() || index < 0 || index >= view.choices().size()) { sendAllDataToRemote(); return; }
             owner.closeContainer(); view.choices().get(index).action().run();
@@ -306,16 +321,19 @@ final class InfinityJourney {
     }
     static void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            ConcertStage.leave(handler.player);
             InfinityChimes.disconnected(handler);
             var ticket = ACTIVE.get(handler.player.getUUID());
             if (ticket != null && ticket.connection() == handler) { ACTIVE.remove(handler.player.getUUID(), ticket); DELIVERIES.remove(handler.player.getUUID()); }
         });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            ConcertStage.stopped(server);
             InfinityChimes.stopped(server);
             ACTIVE.entrySet().removeIf(e -> e.getValue().world().getServer() == server);
             DELIVERIES.entrySet().removeIf(e -> e.getValue().ticket().world().getServer() == server);
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            ConcertStage.tick(server);
             InfinityChimes.tick(server);
             for (var entry : DELIVERIES.entrySet()) {
                 var delivery = entry.getValue();

@@ -4,14 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.nbt.IntArrayTag;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.Item;
@@ -28,7 +32,7 @@ final class InfinityChimes {
     private static final int BEAT_TICKS = 8;
     private static final List<String> NAMES = List.of("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B");
     private record Sample(BlockPos pos, int pitch) {}
-    private record Playback(ServerGamePacketListenerImpl connection, ServerLevel world, int start, List<Integer> notes) {}
+    private record Playback(ServerGamePacketListenerImpl connection, ServerLevel world, int start, List<Integer> notes, BooleanSupplier canPlay, IntConsumer onBeat) {}
     private static final Map<ServerPlayer, Playback> PLAYING = new ConcurrentHashMap<>();
 
     private InfinityChimes() {}
@@ -61,7 +65,11 @@ final class InfinityChimes {
     }
 
     private static void sound(ServerPlayer p, int pitch) {
-        p.connection.send(new ClientboundSoundPacket(SoundEvents.NOTE_BLOCK_CHIME, SoundSource.RECORDS,
+        sound(p, pitch, SoundEvents.NOTE_BLOCK_CHIME);
+    }
+
+    static void sound(ServerPlayer p, int pitch, Holder<SoundEvent> instrument) {
+        p.connection.send(new ClientboundSoundPacket(instrument, SoundSource.RECORDS,
             p.getX(), p.getY(), p.getZ(), 1f, NoteBlock.getPitchFromNote(pitch), p.getRandom().nextLong()));
     }
 
@@ -73,10 +81,22 @@ final class InfinityChimes {
         PlayerPersistence.save(p);
     }
 
-    private static void play(ServerPlayer p, List<Integer> notes) {
-        PLAYING.remove(p);
+    static void stopPlayback(ServerPlayer p) { PLAYING.remove(p); }
+
+    static void play(ServerPlayer p, List<Integer> notes) {
+        play(p, notes, index -> {});
+    }
+
+    static void play(ServerPlayer p, List<Integer> notes, IntConsumer onBeat) {
+        play(p, notes, () -> true, onBeat);
+    }
+
+    static void play(ServerPlayer p, List<Integer> notes, BooleanSupplier canPlay, IntConsumer onBeat) {
+        stopPlayback(p);
+        if (notes.isEmpty() || !canPlay.getAsBoolean()) return;
         sound(p, notes.getFirst());
-        if (notes.size() > 1) PLAYING.put(p, new Playback(p.connection, p.level(), p.level().getServer().getTickCount(), notes));
+        onBeat.accept(0);
+        if (notes.size() > 1) PLAYING.put(p, new Playback(p.connection, p.level(), p.level().getServer().getTickCount(), notes, canPlay, onBeat));
     }
 
     static void tick(MinecraftServer server) {
@@ -89,7 +109,11 @@ final class InfinityChimes {
             int elapsed = server.getTickCount() - tune.start();
             if (elapsed <= 0 || elapsed % BEAT_TICKS != 0) return false;
             int index = elapsed / BEAT_TICKS;
-            if (index < tune.notes().size()) sound(p, tune.notes().get(index));
+            if (index < tune.notes().size()) {
+                if (!tune.canPlay().getAsBoolean()) return true;
+                sound(p, tune.notes().get(index));
+                tune.onBeat().accept(index);
+            }
             return index >= tune.notes().size() - 1;
         });
     }

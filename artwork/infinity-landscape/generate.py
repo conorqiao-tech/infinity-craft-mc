@@ -42,6 +42,19 @@ ALIASES = {
     'calcite': 'calcite', 'tuff': 'tuff', 'sandstone': 'sandstone_normal',
 }
 
+GLASS_COLORS = {
+    'white': (226, 236, 233), 'orange': (229, 132, 62), 'magenta': (198, 83, 174),
+    'light_blue': (106, 182, 228), 'yellow': (236, 201, 76), 'lime': (148, 207, 78),
+    'pink': (233, 146, 164), 'gray': (90, 99, 107), 'light_gray': (166, 174, 175),
+    'cyan': (49, 161, 165), 'purple': (143, 96, 189), 'blue': (75, 106, 187),
+    'brown': (151, 104, 72), 'green': (85, 141, 89), 'red': (196, 75, 72),
+    'black': (44, 43, 57),
+}
+ALIASES['glass'] = 'glass'
+for color in GLASS_COLORS:
+    bedrock_color = 'silver' if color == 'light_gray' else color
+    ALIASES[color + '_stained_glass'] = 'glass_' + bedrock_color
+
 ITEM_ALIASES = {
     'iron_ingot': 'iron_ingot', 'gold_ingot': 'gold_ingot',
     'copper_ingot': 'copper_ingot', 'netherite_ingot': 'netherite_ingot',
@@ -239,7 +252,31 @@ def soundboard():
         dot(tile, x, 3, (114, 171, 156))
     return tile
 
+def beveled_glass(color):
+    clear = color is None
+    tint = (171, 216, 213) if clear else GLASS_COLORS[color]
+    center = tint + (0 if clear else 82,)
+    tile = [[center for x in range(16)] for y in range(16)]
+    light = tuple((3 * c + 2 * 250) // 5 for c in tint)
+    shadow = tuple((3 * c + 48) // 4 for c in tint)
+    # A narrow bevel leaves the middle of each sightline open.
+    for i in range(16):
+        tile[0][i] = tile[i][0] = light + (182,)
+        tile[15][i] = tile[i][15] = shadow + (183,)
+    # Clipped facets at opposing corners meet when neighboring faces tile.
+    for x, y in ((1, 5), (2, 4), (3, 3), (4, 2), (5, 1)):
+        tile[y][x] = light + (208,)
+        tile[15 - y][15 - x] = shadow + (156,)
+    for x, y in ((2, 2), (3, 1), (1, 3), (12, 13), (13, 12)):
+        tile[y][x] = light + (134,)
+    tile[1][1] = tile[14][14] = (243, 212, 145, 239)
+    return tile
+
 def make(name):
+    if name == 'glass':
+        return beveled_glass(None)
+    if name.endswith('_stained_glass'):
+        return beveled_glass(name.removesuffix('_stained_glass'))
     if name == 'note_block':
         return soundboard()
     if name in ('beehive_front', 'beehive_front_honey'):
@@ -453,8 +490,8 @@ def main():
     namespace = uuid.UUID('7c2a6351-5fa4-47f0-a00e-5132b47acc2f')
     pack = {'format_version':2, 'header':{'name':'Infinity Landscape Preview',
         'description':'Original optional Infinity terrain and items preview; no behavior pack.',
-        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,11,0], 'min_engine_version':[1,21,90]},
-        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,11,0]}]}
+        'uuid':str(uuid.uuid5(namespace,'header')), 'version':[0,12,0], 'min_engine_version':[1,21,90]},
+        'modules':[{'type':'resources','uuid':str(uuid.uuid5(namespace,'resources')),'version':[0,12,0]}]}
     write(BEDROCK / 'manifest.json', (json.dumps(pack,indent=2)+'\n').encode())
     print('Generated',len(ALIASES),'terrain and',len(ITEM_ALIASES),'item textures for each edition.')
 

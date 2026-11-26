@@ -1,0 +1,34 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "group": "convergence:star_loom",
+  "category": "equipment",
+  "ingredients": [
+    "minecraft:purple_wool",
+    "minecraft:purple_wool",
+    "minecraft:purple_wool",
+    "minecraft:purple_wool",
+    "minecraft:purple_wool",
+    "minecraft:purple_wool",
+    "minecraft:stick",
+    "minecraft:yellow_dye",
+    "minecraft:purple_dye"
+  ],
+  "result": {
+    "id": "minecraft:purple_banner",
+    "components": {
+      "minecraft:item_name": {
+        "text": "Star Loom \u2022 Half Moon"
+      },
+      "minecraft:banner_patterns": [
+        {
+          "pattern": "minecraft:circle",
+          "color": "yellow"
+        },
+        {
+          "pattern": "minecraft:half_vertical_right",
+          "color": "purple"
+        }
+      ]
+    }
+  }
+}

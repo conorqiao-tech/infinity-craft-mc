@@ -30,6 +30,9 @@ PAIRS.update({'spruce_planks':'planks_spruce', 'birch_planks':'planks_birch', 'j
               'calcite':'calcite', 'tuff':'tuff', 'sandstone':'sandstone_normal', 'loom_top':'loom_top',
               'note_block':'noteblock', 'beehive_front':'beehive_front', 'beehive_front_honey':'beehive_front_honey'})
 PAIRS.update({f'wheat_stage{i}': f'wheat_stage_{i}' for i in range(8)})
+GLASS_COLORS = 'white orange magenta light_blue yellow lime pink gray light_gray cyan purple blue brown green red black'.split()
+PAIRS['glass'] = 'glass'
+PAIRS.update({color + '_stained_glass': 'glass_' + ('silver' if color == 'light_gray' else color) for color in GLASS_COLORS})
 ITEMS = {name:name for name in ('iron_ingot','gold_ingot','copper_ingot','netherite_ingot',
                                 'diamond','emerald','coal','amethyst_shard','raw_iron','raw_gold','raw_copper')}
 ITEMS.update({'redstone': 'redstone_dust', 'map': 'map_empty', 'spyglass': 'spyglass',
@@ -50,12 +53,12 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
             before = {p:hashlib.sha256(p.read_bytes()).hexdigest() for p in (java,bedrock)}
             with zipfile.ZipFile(java) as j, zipfile.ZipFile(bedrock) as b:
                 self.assertIsNone(j.testzip()); self.assertIsNone(b.testzip())
-                self.assertEqual(len(j.namelist()), 83); self.assertEqual(len(b.namelist()), 82)
+                self.assertEqual(len(j.namelist()), 100); self.assertEqual(len(b.namelist()), 99)
                 meta = json.loads(j.read('pack.mcmeta'))['pack']
                 self.assertEqual(meta['min_format'], [100,2]); self.assertEqual(meta['max_format'], [100,2])
                 manifest = json.loads(b.read('manifest.json'))
                 self.assertEqual(manifest['format_version'], 2)
-                self.assertEqual(manifest['header']['version'], [0,11,0])
+                self.assertEqual(manifest['header']['version'], [0,12,0])
                 self.assertNotEqual(manifest['header']['uuid'], manifest['modules'][0]['uuid'])
                 self.assertEqual(manifest['modules'][0]['version'], manifest['header']['version'])
                 cluster_path = 'assets/minecraft/textures/block/amethyst_cluster.png'
@@ -76,6 +79,14 @@ class InfinityLandscapePreviewTests(unittest.TestCase):
                             bright_honey = bytes((255, 207, 88, 255))
                             pixels = [raw[y*65+1+x*4:y*65+5+x*4] for y in range(16) for x in range(16)]
                             self.assertEqual(bright_honey in pixels, name == 'beehive_front_honey')
+                    if name == 'glass' or name.endswith('_stained_glass'):
+                        size = struct.unpack('>I', data[33:37])[0]
+                        rows = zlib.decompress(data[41:41+size])
+                        middle = {rows[y*65+4+x*4] for x in range(4, 12) for y in range(4, 12)}
+                        if name == 'glass':
+                            self.assertEqual(middle, {0}, 'Clear windows need a transparent center')
+                        else:
+                            self.assertTrue(all(0 < alpha < 128 for alpha in middle), 'Stained windows need a translucent center')
                     textures[name] = hashlib.sha256(data).digest()
                 heights = []
                 gold_pixels = []

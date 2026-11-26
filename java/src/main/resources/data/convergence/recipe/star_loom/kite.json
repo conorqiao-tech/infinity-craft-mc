@@ -1,0 +1,34 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "group": "convergence:star_loom",
+  "category": "equipment",
+  "ingredients": [
+    "minecraft:blue_wool",
+    "minecraft:blue_wool",
+    "minecraft:blue_wool",
+    "minecraft:blue_wool",
+    "minecraft:blue_wool",
+    "minecraft:blue_wool",
+    "minecraft:stick",
+    "minecraft:cyan_dye",
+    "minecraft:white_dye"
+  ],
+  "result": {
+    "id": "minecraft:blue_banner",
+    "components": {
+      "minecraft:item_name": {
+        "text": "Star Loom \u2022 Kite"
+      },
+      "minecraft:banner_patterns": [
+        {
+          "pattern": "minecraft:stripe_center",
+          "color": "white"
+        },
+        {
+          "pattern": "minecraft:rhombus",
+          "color": "cyan"
+        }
+      ]
+    }
+  }
+}

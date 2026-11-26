@@ -1,0 +1,59 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_pane": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "minecraft:glass_pane",
+              "minecraft:white_stained_glass_pane",
+              "minecraft:orange_stained_glass_pane",
+              "minecraft:magenta_stained_glass_pane",
+              "minecraft:light_blue_stained_glass_pane",
+              "minecraft:yellow_stained_glass_pane",
+              "minecraft:lime_stained_glass_pane",
+              "minecraft:pink_stained_glass_pane",
+              "minecraft:gray_stained_glass_pane",
+              "minecraft:light_gray_stained_glass_pane",
+              "minecraft:cyan_stained_glass_pane",
+              "minecraft:purple_stained_glass_pane",
+              "minecraft:blue_stained_glass_pane",
+              "minecraft:brown_stained_glass_pane",
+              "minecraft:green_stained_glass_pane",
+              "minecraft:red_stained_glass_pane",
+              "minecraft:black_stained_glass_pane"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_pane"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "convergence:glassworks/glass",
+      "convergence:glassworks/white_stained_glass",
+      "convergence:glassworks/orange_stained_glass",
+      "convergence:glassworks/magenta_stained_glass",
+      "convergence:glassworks/light_blue_stained_glass",
+      "convergence:glassworks/yellow_stained_glass",
+      "convergence:glassworks/lime_stained_glass",
+      "convergence:glassworks/pink_stained_glass",
+      "convergence:glassworks/gray_stained_glass",
+      "convergence:glassworks/light_gray_stained_glass",
+      "convergence:glassworks/cyan_stained_glass",
+      "convergence:glassworks/purple_stained_glass",
+      "convergence:glassworks/blue_stained_glass",
+      "convergence:glassworks/brown_stained_glass",
+      "convergence:glassworks/green_stained_glass",
+      "convergence:glassworks/red_stained_glass",
+      "convergence:glassworks/black_stained_glass"
+    ]
+  }
+}

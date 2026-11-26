@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "convergence:glassworks",
+  "ingredients": [
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane",
+    "minecraft:lime_stained_glass_pane"
+  ],
+  "result": {
+    "id": "minecraft:lime_stained_glass",
+    "count": 3
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "group": "convergence:glassworks",
+  "ingredients": [
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane",
+    "minecraft:glass_pane"
+  ],
+  "result": {
+    "id": "minecraft:glass",
+    "count": 3
+  }
+}
