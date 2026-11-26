@@ -53,6 +53,13 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
+            if (held.is(Items.AMETHYST_SHARD) && held.getComponentsPatch().isEmpty()) {
+                var postcard = CodaPostcard.read(frame.getItem());
+                if (postcard != null) {
+                    postcard.playFrame(p, frame);
+                    return InteractionResult.SUCCESS_SERVER;
+                }
+            }
             if ((held.is(Items.GLOW_INK_SAC) || held.is(Items.PAPER)) && held.getComponentsPatch().isEmpty() && EncoreDuet.useCodaItem(p, frame))
                 return InteractionResult.SUCCESS_SERVER;
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
@@ -95,7 +102,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         var postcard = CodaPostcard.read(held);
         String body;
         if (postcard != null) {
-            body = "Coda Postcard\n" + postcard.credits() + "\nHold and use it to hear the chord anywhere.";
+            body = "Coda Postcard\n" + postcard.credits() + "\nHold and use it to hear the chord anywhere."
+                + "\nFrame it and tap with a plain amethyst shard. Sneak and tap to swap which instrument plays each note.";
             if (ConcertStage.current(p) == null)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
             else body += "\nFinish or stop your current performance first.";
@@ -180,15 +188,18 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
 
     private void playFrame(ServerPlayer p, ItemFrame frame) {
         var normal = frame.getDirection().getUnitVec3();
-        // Floor and ceiling displays read from the visitor's side of the frame.
-        var right = frame.getDirection().getAxis() == Direction.Axis.Y
-            ? p.getDirection().getClockWise().getUnitVec3()
-            : new Vec3(0, 1, 0).cross(normal);
+        var right = frameRight(p, frame);
         var up = normal.cross(right);
         var center = GalleryTrail.framePoint(frame);
         boolean reverse = p.isShiftKeyDown();
         String title = (reverse ? "Score Gallery ← " : "Score Gallery → ") + composer;
         project(p, reverse ? notes.reversed() : notes, center, right.scale(reverse ? -.52 : .52), up.scale(.52), title);
+    }
+
+    static Vec3 frameRight(ServerPlayer p, ItemFrame frame) {
+        // Floor and ceiling displays read from the visitor's side of the frame.
+        return frame.getDirection().getAxis() == Direction.Axis.Y ? p.getDirection().getClockWise().getUnitVec3()
+            : new Vec3(0, 1, 0).cross(frame.getDirection().getUnitVec3());
     }
 
     private static void project(ServerPlayer p, List<StarLoom.Chart> notes, Vec3 center, Vec3 right, Vec3 up, String title) {

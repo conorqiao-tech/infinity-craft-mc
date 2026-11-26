@@ -3,6 +3,7 @@ package dev.convergence;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -10,6 +11,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.decoration.GlowItemFrame;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -26,6 +29,63 @@ import static dev.convergence.GalleryTrailGameTests.visit;
 import static dev.convergence.StarLoom.Chart.*;
 
 public class CodaPostcardGameTests {
+    @GameTest public void wallFloorAndCeilingPostcardsCanSwapVoicesForOneVisitor(GameTestHelper c) {
+        try (var g = new Gallery(c, "Wall")) {
+            var viewer = g.players.get(2);
+            var card = new CodaPostcard("Mira", KITE, "Jun", EMBER_PEAKS);
+            for (var face : List.of(Direction.NORTH, Direction.UP, Direction.DOWN)) {
+                var at = g.frames.getFirst().blockPosition().below(5);
+                var frame = face == Direction.NORTH ? new ItemFrame(viewer.level(), at, face) : new GlowItemFrame(viewer.level(), at, face);
+                g.frames.add(frame);
+                c.assertTrue(viewer.level().addFreshEntity(frame), "Gallery accepts the mounted postcard");
+                var author = g.players.getFirst();
+                author.setItemInHand(InteractionHand.MAIN_HAND, card.paper());
+                visit(author, frame, false);
+                c.assertTrue(author.getMainHandItem().isEmpty() && card.equals(CodaPostcard.read(frame.getItem())),
+                    "Vanilla frame interaction mounts the signed card");
+                viewer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.AMETHYST_SHARD, 2));
+                for (boolean swap : List.of(false, true)) {
+                    g.wires.forEach(NativePlayConnection::drain);
+                    visit(viewer, frame, swap);
+                    var packets = g.drain(2);
+                    var sounds = music(packets);
+                    var chime = swap ? EMBER_PEAKS : KITE;
+                    var bell = swap ? KITE : EMBER_PEAKS;
+                    c.assertTrue(sounds.size() == 2 && sounds.get(0).getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
+                        && sounds.get(1).getSound().equals(SoundEvents.NOTE_BLOCK_BELL)
+                        && sounds.get(0).getPitch() == NoteBlock.getPitchFromNote(chime.note)
+                        && sounds.get(1).getPitch() == NoteBlock.getPitchFromNote(bell.note), "Only the notes trade instruments on a Sneak tap");
+                    c.assertTrue(overlays(packets).contains(swap ? "Voice swap • Chime: Ember Peaks • Bell: Kite" : card.credits()),
+                        "The visitor can distinguish a new arrangement from the signed original");
+                    var origin = GalleryTrail.framePoint(frame);
+                    var right = StarPrint.frameRight(viewer, frame);
+                    var up = face.getUnitVec3().cross(right);
+                    var bar = particles(packets, ParticleTypes.END_ROD);
+                    var ring = particles(packets, ParticleTypes.WAX_ON);
+                    c.assertTrue(bar.size() == 5 && ring.size() == 12, "Each role keeps its own shape");
+                    var offset = ring.get(0).lerp(ring.get(6), .5).subtract(bar.get(2));
+                    c.assertTrue(Math.abs(offset.dot(up) - .72 * .05 * (bell.note - chime.note)) < .00001
+                        && offset.dot(right) > .5, "Pitch height reverses while roles keep their sides");
+                    for (var fx : List.of(ParticleTypes.DUST, ParticleTypes.END_ROD, ParticleTypes.WAX_ON))
+                        c.assertTrue(particles(packets, fx).stream().allMatch(v -> v.distanceTo(origin) < .5
+                            && Math.abs(v.subtract(origin).dot(face.getUnitVec3())) < .00001), "Every particle lies on the exhibit face");
+                    var nearby = g.drain(0);
+                    c.assertTrue(music(nearby).isEmpty() && particles(nearby, ParticleTypes.DUST).isEmpty() && overlays(nearby).isEmpty(),
+                        "Other visitors receive no chord, graphic or credits");
+                }
+                c.assertTrue(frame.getRotation() == 0 && viewer.getMainHandItem().getCount() == 2 && card.equals(CodaPostcard.read(frame.getItem())),
+                    "Revoicing preserves the mounted card and the visitor's shards");
+                var decorated = new ItemStack(Items.AMETHYST_SHARD);
+                decorated.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
+                viewer.setItemInHand(InteractionHand.MAIN_HAND, decorated);
+                visit(viewer, frame, false);
+                c.assertTrue(frame.getRotation() == 1 && music(g.drain(2)).isEmpty(), "Named shards retain ordinary frame interaction");
+                frame.discard();
+            }
+        }
+        c.succeed();
+    }
+
     private static void checkReplay(GameTestHelper c, List<Packet<?>> packets, CodaPostcard card) {
         var voices = music(packets);
         c.assertTrue(voices.size() == 2 && voices.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
