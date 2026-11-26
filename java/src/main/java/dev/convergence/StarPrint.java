@@ -55,13 +55,14 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
             var held = p.getMainHandItem();
             if ((held.is(Items.AMETHYST_SHARD) || held.is(Items.ECHO_SHARD)
-                || held.is(Items.PRISMARINE_CRYSTALS) || held.is(Items.BLAZE_ROD)) && held.getComponentsPatch().isEmpty()) {
+                || held.is(Items.PRISMARINE_CRYSTALS) || held.is(Items.BLAZE_ROD) || held.is(Items.COPPER_INGOT)) && held.getComponentsPatch().isEmpty()) {
                 var postcard = CodaPostcard.read(frame.getItem());
                 if (postcard != null) {
                     if (CodaPostcard.canListen(p)) {
                         if (held.is(Items.ECHO_SHARD)) PostcardPairs.tap(p, frame, postcard);
                         else if (held.is(Items.PRISMARINE_CRYSTALS)) PostcardPairs.closeCircuit(p, frame, postcard);
                         else if (held.is(Items.BLAZE_ROD)) CircuitConductor.tap(p, frame);
+                        else if (held.is(Items.COPPER_INGOT)) CircuitCounterpoint.tap(p, frame);
                         else postcard.playFrame(p, frame);
                     }
                     return InteractionResult.SUCCESS_SERVER;
@@ -113,7 +114,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 + "\nFrame it and tap with a plain amethyst shard. Sneak and tap to swap which instrument plays each note."
                 + "\nPostcard Pairs: use a plain echo shard on two framed postcards within 12 blocks. Match the first bell to the next chime. Sneak to swap either tap."
                 + "\nCircuit: after linking a pair, tap a third signed frame with plain prismarine crystals. Match the second bell back to the first chime."
-                + "\nConductor: use a plain blaze rod on any corner of your closed circuit. Sneak on the first tap for reverse. Play three corners, then return home.";
+                + "\nConductor: use a plain blaze rod on any corner of your closed circuit. Sneak on the first tap for reverse. Play three corners, then return home."
+                + "\nCounterpoint: after finishing a phrase, use a plain copper ingot to answer each beat one corner ahead in the same direction.";
             if (ConcertStage.current(p) == null)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
             else body += "\nFinish or stop your current performance first.";

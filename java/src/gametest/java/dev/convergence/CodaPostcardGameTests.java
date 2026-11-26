@@ -380,6 +380,91 @@ public class CodaPostcardGameTests {
         c.succeed();
     }
 
+    private static void conduct(Gallery g, int start, int direction) {
+        var p = g.players.getFirst();
+        p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BLAZE_ROD));
+        for (int beat = 0; beat < 4; beat++)
+            visit(p, g.frames.get(Math.floorMod(start + beat * direction, 3)), beat == 0 && direction < 0);
+        g.drain(0);
+        p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COPPER_INGOT, 2));
+    }
+
+    @GameTest public void counterpointAnswersEachCompletedPhraseOneCornerAhead(GameTestHelper c) {
+        try (var g = new Gallery(c, "Harmony")) {
+            closeConductorCircuit(g);
+            var p = g.players.getFirst();
+            var voices = List.of(SoundEvents.NOTE_BLOCK_CHIME, SoundEvents.NOTE_BLOCK_HARP, SoundEvents.NOTE_BLOCK_BELL);
+            var notes = List.of(KITE, HALF_MOON, EMBER_PEAKS);
+            for (int opening = 0; opening < 3; opening++) {
+                for (int direction : List.of(1, -1)) {
+                    conduct(g, opening, direction);
+                    for (int beat = 0; beat < 4; beat++) {
+                        int lead = Math.floorMod(opening + direction * beat, 3);
+                        int answer = Math.floorMod(lead + direction, 3);
+                        g.tap(0, lead);
+                        var miss = g.drain(0);
+                        c.assertTrue(records(miss).isEmpty() && overlays(miss).stream().anyMatch(t -> t.contains("Answer corner " + (answer + 1))),
+                            "The lead alone is silent and names the answer");
+                        g.tap(0, answer);
+                        var packet = g.drain(0);
+                        var heard = records(packet);
+                        var expected = beat == 3 ? List.of(0, 1, 2) : List.of(lead, answer);
+                        c.assertValueEqual(heard.size(), expected.size(), "Dyad or final full triad");
+                        for (int j = 0; j < heard.size(); j++) {
+                            int index = expected.get(j);
+                            c.assertTrue(heard.get(j).getSound().equals(voices.get(index))
+                                && heard.get(j).getPitch() == NoteBlock.getPitchFromNote(notes.get(index).note), "Correct voice and pitch");
+                        }
+                        c.assertValueEqual(particles(packet, ParticleTypes.END_ROD).size(), beat == 3 ? 27 : 21, "Bar and ring give way to three stars");
+                        c.assertValueEqual(particles(packet, ParticleTypes.GLOW).size(), beat == 3 ? 3 : 0, "Only the cadence lights all three centers");
+                    }
+                    g.tap(0, Math.floorMod(opening + direction, 3));
+                    c.assertValueEqual(records(g.drain(0)).size(), 2, "Completed harmony can be replayed");
+                }
+            }
+            var nearby = g.drain(1);
+            c.assertTrue(records(nearby).isEmpty() && overlays(nearby).isEmpty()
+                && particles(nearby, ParticleTypes.END_ROD).isEmpty() && particles(nearby, ParticleTypes.GLOW).isEmpty(), "Neighbors receive no performance");
+            c.assertTrue(p.getMainHandItem().getCount() == 2 && g.frames.stream().allMatch(f -> f.getRotation() == 0), "Copper and frames stay intact");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void counterpointRequiresOwnCompletedPhraseAndIntactSignedFrames(GameTestHelper c) {
+        try (var g = new Gallery(c, "Answer")) {
+            closeConductorCircuit(g);
+            var p = g.players.getFirst();
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COPPER_INGOT));
+            g.tap(0, 1);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(t -> t.startsWith("Finish a four-beat")), "A closed circuit alone is insufficient");
+            conduct(g, 1, -1);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BLAZE_ROD));
+            g.tap(0, 0); g.drain(0);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COPPER_INGOT));
+            g.tap(0, 0);
+            c.assertValueEqual(records(g.drain(0)).size(), 2, "An unfinished conductor run keeps the last finished phrase");
+            var other = g.players.get(1);
+            other.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COPPER_INGOT));
+            g.tap(1, 0);
+            c.assertTrue(overlays(g.drain(1)).stream().anyMatch(t -> t.startsWith("Finish a four-beat")), "Each performer earns their own phrase");
+            g.frames.get(1).setItem(new CodaPostcard("New", EMBER_PEAKS, "Sol", HALF_MOON).paper());
+            g.tap(0, 2);
+            var stale = g.drain(0);
+            c.assertTrue(records(stale).isEmpty() && overlays(stale).stream().anyMatch(t -> t.startsWith("Display changed")), "Changing an untapped signature invalidates the harmony");
+            closeConductorCircuit(g);
+            conduct(g, 0, 1);
+            closeConductorCircuit(g);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COPPER_INGOT));
+            g.tap(0, 1);
+            c.assertTrue(overlays(g.drain(0)).stream().anyMatch(t -> t.startsWith("Finish a four-beat")), "Closing a circuit clears the previous performance");
+            var named = new ItemStack(Items.COPPER_INGOT);
+            named.set(DataComponents.CUSTOM_NAME, Component.literal("Souvenir"));
+            p.setItemInHand(InteractionHand.MAIN_HAND, named); g.tap(0, 0);
+            c.assertValueEqual(g.frames.getFirst().getRotation(), 1, "Named copper retains ordinary frame use");
+        }
+        c.succeed();
+    }
+
     private static void checkReplay(GameTestHelper c, List<Packet<?>> packets, CodaPostcard card) {
         var voices = music(packets);
         c.assertTrue(voices.size() == 2 && voices.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)

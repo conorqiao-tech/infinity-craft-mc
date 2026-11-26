@@ -18,18 +18,20 @@ record CircuitConductor(List<PostcardPairs.Selection> corners, int opening, int 
     static void close(ServerPlayer p, PostcardPairs.Selection a, PostcardPairs.Selection b, PostcardPairs.Selection c) {
         var circuit = new CircuitConductor(List.of(a, b, c), 0, 1, 0);
         p.setAttached(LAST, circuit);
+        CircuitCounterpoint.forget(p);
         circuit.chord(p);
     }
 
     static void forget(ServerPlayer p) {
         p.removeAttached(LAST);
+        CircuitCounterpoint.forget(p);
     }
 
-    private int cornerAt(int beat) {
+    int cornerAt(int beat) {
         return Math.floorMod(opening + direction * beat, 3);
     }
 
-    private void sound(ServerPlayer p, int corner) {
+    void sound(ServerPlayer p, int corner) {
         var note = corners.get(corner).chime().note;
         var instrument = switch (corner) {
             case 0 -> SoundEvents.NOTE_BLOCK_CHIME;
@@ -39,7 +41,7 @@ record CircuitConductor(List<PostcardPairs.Selection> corners, int opening, int 
         InfinityChimes.sound(p, note, instrument);
     }
 
-    private void chord(ServerPlayer p) {
+    void chord(ServerPlayer p) {
         for (int i = 0; i < 3; i++) sound(p, i);
     }
 
@@ -73,10 +75,11 @@ record CircuitConductor(List<PostcardPairs.Selection> corners, int opening, int 
         EncoreDuet.leave(p);
         InfinityChimes.stopPlayback(p);
         if (circuit.played == 3) {
+            CircuitCounterpoint.remember(p, circuit);
             circuit.chord(p);
             circuit.ribbon(p, frame, 4);
             GalleryTrail.spark(p, ParticleTypes.GLOW, GalleryTrail.framePoint(frame));
-            ConcertStage.overlay(p, "Conductor 4/4 • Home on corner " + (index + 1) + " • Chime, harp and bell together");
+            ConcertStage.overlay(p, "Conductor 4/4 • Home on corner " + (index + 1) + " • Copper ingot: answer corner " + (circuit.cornerAt(1) + 1));
             p.setAttached(LAST, new CircuitConductor(circuit.corners, 0, 1, 0));
         } else {
             circuit.sound(p, index);
