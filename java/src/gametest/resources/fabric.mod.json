@@ -112,6 +112,7 @@
       "dev.convergence.GalleryTrailGameTests",
       "dev.convergence.TrailEncoreGameTests",
       "dev.convergence.EncoreDuetGameTests",
+      "dev.convergence.SealCipherGameTests",
       "dev.convergence.CodaPostcardGameTests"
     ]
   },
@@ -201,6 +202,7 @@
       "dev.convergence.GalleryTrailGameTests",
       "dev.convergence.TrailEncoreGameTests",
       "dev.convergence.EncoreDuetGameTests",
+      "dev.convergence.SealCipherGameTests",
       "dev.convergence.CodaPostcardGameTests"
     ]
   },

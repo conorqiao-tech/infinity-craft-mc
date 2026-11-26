@@ -51,6 +51,7 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
     static void register() {
         GalleryTrail.register();
         PostcardPairs.register();
+        SealCipher.register();
         UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
                 || hand != InteractionHand.MAIN_HAND || p.isSpectator()) return InteractionResult.PASS;
@@ -124,7 +125,8 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 + "\nCircuit: after linking a pair, tap a third signed frame with plain prismarine crystals. Match the second bell back to the first chime."
                 + "\nConductor: use a plain blaze rod on any corner of your closed circuit. Sneak on the first tap for reverse. Play three corners, then return home."
                 + "\nCounterpoint: after finishing a phrase, use a plain copper ingot to answer each beat one corner ahead in the same direction."
-                + "\nChord Seal: finish Counterpoint, then tap a corner with plain clay. Use the stamped seal anywhere, or pass it on.";
+                + "\nChord Seal: finish Counterpoint, then tap a corner with plain clay. Use the stamped seal anywhere, or pass it on."
+                + "\nSeal Cipher: use a stamped seal on a note block. Listen to the pair, then choose the missing instrument.";
             if (ConcertStage.current(p) == null)
                 choices.add(new InfinityJourney.Choice(Items.NOTE_BLOCK, "Play held postcard", () -> postcard.playIfHeld(p)));
             else body += "\nFinish or stop your current performance first.";
