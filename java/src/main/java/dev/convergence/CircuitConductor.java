@@ -13,7 +13,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 record CircuitConductor(List<PostcardPairs.Selection> corners, int opening, int direction, int played) {
     private static final AttachmentType<CircuitConductor> LAST =
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "circuit_conductor"));
-    private static final List<String> VOICES = List.of("chime", "harp", "bell");
+    static final List<String> VOICES = List.of("chime", "harp", "bell");
 
     static void close(ServerPlayer p, PostcardPairs.Selection a, PostcardPairs.Selection b, PostcardPairs.Selection c) {
         var circuit = new CircuitConductor(List.of(a, b, c), 0, 1, 0);
@@ -32,13 +32,16 @@ record CircuitConductor(List<PostcardPairs.Selection> corners, int opening, int 
     }
 
     void sound(ServerPlayer p, int corner) {
-        var note = corners.get(corner).chime().note;
+        soundVoice(p, corner, corners.get(corner).chime());
+    }
+
+    static void soundVoice(ServerPlayer p, int corner, StarLoom.Chart chart) {
         var instrument = switch (corner) {
             case 0 -> SoundEvents.NOTE_BLOCK_CHIME;
             case 1 -> SoundEvents.NOTE_BLOCK_HARP;
             default -> SoundEvents.NOTE_BLOCK_BELL;
         };
-        InfinityChimes.sound(p, note, instrument);
+        InfinityChimes.sound(p, chart.note, instrument);
     }
 
     void chord(ServerPlayer p) {

@@ -465,6 +465,109 @@ public class CodaPostcardGameTests {
         c.succeed();
     }
 
+    private static void finishAnswer(Gallery g, int start, int direction) {
+        conduct(g, start, direction);
+        for (int beat = 0; beat < 4; beat++) g.tap(0, Math.floorMod(start + (beat + 1) * direction, 3));
+        g.drain(0);
+    }
+
+    private static List<Packet<?>> useSeal(Gallery g, int listener, boolean restart) {
+        var p = g.players.get(listener);
+        p.setShiftKeyDown(restart);
+        p.gameMode.useItem(p, p.level(), p.getMainHandItem(), InteractionHand.MAIN_HAND);
+        return g.drain(listener);
+    }
+
+    @GameTest public void aGiftedChordSealReplaysItsSignedRouteAfterTheGalleryIsGone(GameTestHelper c) {
+        try (var g = new Gallery(c, "Mint")) {
+            closeConductorCircuit(g);
+            finishAnswer(g, 1, -1);
+            g.tap(0, 0); // start a replay; the earned stamp is still available
+            var maker = g.players.getFirst();
+            maker.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL, 3));
+            g.tap(0, 2);
+            var item = maker.getMainHandItem();
+            var expected = new ChordSeal(List.of(KITE, HALF_MOON, EMBER_PEAKS), 1, -1);
+            c.assertValueEqual(ChordSeal.read(item), expected, "Pressing the clay snapshots the completed reverse phrase");
+            c.assertTrue(Boolean.TRUE.equals(item.get(DataComponents.ENCHANTMENT_GLINT_OVERRIDE)), "Stamped clay glints in inventory");
+            int clayLeft = 0;
+            for (int i = 0; i < 36; i++) {
+                var stack = maker.getInventory().getItem(i);
+                if (stack.is(Items.CLAY_BALL) && stack.getComponentsPatch().isEmpty()) clayLeft += stack.getCount();
+            }
+            c.assertValueEqual(clayLeft, 2, "Press costs one clay ball");
+            var ops = net.minecraft.resources.RegistryOps.create(net.minecraft.nbt.NbtOps.INSTANCE, c.getLevel().registryAccess());
+            var gift = ItemStack.CODEC.parse(ops, ItemStack.CODEC.encodeStart(ops, item).getOrThrow()).getOrThrow();
+            c.assertValueEqual(ChordSeal.read(gift), expected, "Seal and route survive a native item save and load");
+            var reader = g.players.get(1);
+            reader.setItemInHand(InteractionHand.MAIN_HAND, gift);
+            g.frames.forEach(ItemFrame::discard);
+            g.wires.forEach(NativePlayConnection::drain);
+            var voices = List.of(SoundEvents.NOTE_BLOCK_CHIME, SoundEvents.NOTE_BLOCK_HARP, SoundEvents.NOTE_BLOCK_BELL);
+            var pitches = List.of(KITE, HALF_MOON, EMBER_PEAKS);
+            var order = List.of(List.of(1,0), List.of(0,2), List.of(2,1), List.of(0,1,2), List.of(1,0));
+            for (int beat = 0; beat < order.size(); beat++) {
+                var packets = useSeal(g, 1, false);
+                var notes = records(packets);
+                var corners = order.get(beat);
+                c.assertValueEqual(notes.size(), corners.size(), "Two recorded parts, then the full cadence");
+                for (int i = 0; i < corners.size(); i++) {
+                    int corner = corners.get(i);
+                    c.assertTrue(notes.get(i).getSound().equals(voices.get(corner))
+                        && notes.get(i).getPitch() == NoteBlock.getPitchFromNote(pitches.get(corner).note), "Recorded voice and pitch");
+                }
+                c.assertValueEqual(particles(packets, ParticleTypes.WAX_ON).size(), 4, "Four permanent clock marks");
+                c.assertValueEqual(particles(packets, ParticleTypes.END_ROD).size(), beat == 3 ? 32 : 23, "The final star adds three rays");
+                c.assertValueEqual(particles(packets, ParticleTypes.GLOW).size(), beat == 3 ? 1 : 0, "Only beat four lights the center");
+            }
+            c.assertTrue(overlays(useSeal(g, 0, false)).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4")), "A second listener starts at beat one");
+            c.assertTrue(overlays(useSeal(g, 1, false)).stream().anyMatch(t -> t.startsWith("Chord Seal 2/4")), "First listener keeps a separate cursor");
+            c.assertTrue(overlays(useSeal(g, 1, true)).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4")), "Sneak-use plays beat one immediately");
+            var bystander = g.drain(2);
+            c.assertTrue(records(bystander).isEmpty() && overlays(bystander).isEmpty() && particles(bystander, ParticleTypes.END_ROD).isEmpty(),
+                "Nearby spectators receive no medallion or music");
+            c.assertTrue(ItemStack.isSameItemSameComponents(item, gift), "Playback never writes a listener's cursor onto the gift");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void stampRequiresEarnedIntactPhraseAndRoomForClay(GameTestHelper c) {
+        try (var g = new Gallery(c, "Clay")) {
+            closeConductorCircuit(g);
+            var p = g.players.getFirst();
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL));
+            g.tap(0, 0);
+            c.assertTrue(ChordSeal.read(p.getMainHandItem()) == null && g.frames.getFirst().getRotation() == 1, "Unearned clay uses frame normally");
+            finishAnswer(g, 0, 1);
+            var named = new ItemStack(Items.CLAY_BALL);
+            named.set(DataComponents.CUSTOM_NAME, Component.literal("Keepsake"));
+            p.setItemInHand(InteractionHand.MAIN_HAND, named); g.tap(0, 0);
+            c.assertTrue(ItemStack.matches(named, p.getMainHandItem()) && g.frames.getFirst().getRotation() == 2, "Named clay remains untouched");
+            for (int i = 0; i < 36; i++) p.getInventory().setItem(i, new ItemStack(Items.STONE));
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL, 2)); g.tap(0, 1);
+            c.assertTrue(p.getMainHandItem().getCount() == 2 && ChordSeal.read(p.getMainHandItem()) == null, "Full inventory preserves the whole stack");
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL)); g.tap(0, 1);
+            c.assertTrue(ChordSeal.read(p.getMainHandItem()) != null, "One clay can be stamped in a full inventory");
+            conduct(g, 1, -1);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL)); g.tap(0, 1);
+            c.assertTrue(ChordSeal.read(p.getMainHandItem()) == null, "A new conductor phrase must earn its own stamp");
+            finishAnswer(g, 2, 1);
+            g.frames.get(2).setItem(new CodaPostcard("Replacement", EMBER_PEAKS, "Jun", KITE).paper());
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.CLAY_BALL)); g.tap(0, 0);
+            c.assertTrue(ChordSeal.read(p.getMainHandItem()) == null && overlays(g.drain(0)).stream().anyMatch(t -> t.startsWith("Display changed")),
+                "An altered signature on another frame invalidates the stamp");
+            for (var route : List.of(new int[]{3,1}, new int[]{0,0}, new int[]{0})) {
+                var clay = new ItemStack(Items.CLAY_BALL);
+                var score = new net.minecraft.nbt.CompoundTag();
+                score.putIntArray("pitches", new int[]{KITE.note, HALF_MOON.note, EMBER_PEAKS.note}); score.putIntArray("route", route);
+                var tag = new net.minecraft.nbt.CompoundTag(); tag.put("infinity_chord_seal_v1", score);
+                clay.set(DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(tag));
+                c.assertTrue(ChordSeal.read(clay) == null, "Invalid route data stays inert");
+            }
+        }
+        c.succeed();
+    }
+
     private static void checkReplay(GameTestHelper c, List<Packet<?>> packets, CodaPostcard card) {
         var voices = music(packets);
         c.assertTrue(voices.size() == 2 && voices.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)

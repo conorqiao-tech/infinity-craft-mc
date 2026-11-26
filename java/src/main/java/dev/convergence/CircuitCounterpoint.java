@@ -6,13 +6,14 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.item.Items;
 
-record CircuitCounterpoint(CircuitConductor phrase, int beat) {
+record CircuitCounterpoint(CircuitConductor phrase, int beat, boolean completed) {
     private static final AttachmentType<CircuitCounterpoint> LAST =
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "circuit_counterpoint"));
 
     static void remember(ServerPlayer p, CircuitConductor phrase) {
-        p.setAttached(LAST, new CircuitCounterpoint(phrase, 0));
+        p.setAttached(LAST, new CircuitCounterpoint(phrase, 0, false));
     }
 
     static void forget(ServerPlayer p) {
@@ -44,17 +45,36 @@ record CircuitCounterpoint(CircuitConductor phrase, int beat) {
             for (var corner : phrase.corners()) {
                 mark(p, (ItemFrame)p.level().getEntity(corner.frameId()), Mark.STAR);
             }
-            remember(p, phrase);
-            ConcertStage.overlay(p, "Counterpoint 4/4 • All three voices • Replay from " + part.cornerName(phrase.cornerAt(1)));
+            p.setAttached(LAST, new CircuitCounterpoint(phrase, 0, true));
+            ConcertStage.overlay(p, "Counterpoint 4/4 • Stamp with plain clay • Replay from " + part.cornerName(phrase.cornerAt(1)));
             return;
         }
         phrase.sound(p, lead);
         phrase.sound(p, answer);
         mark(p, (ItemFrame)p.level().getEntity(phrase.corners().get(lead).frameId()), Mark.BAR);
         mark(p, frame, Mark.RING);
-        p.setAttached(LAST, new CircuitCounterpoint(phrase, part.beat + 1));
+        p.setAttached(LAST, new CircuitCounterpoint(phrase, part.beat + 1, part.completed));
         ConcertStage.overlay(p, "Counterpoint " + (part.beat + 1) + "/4 • " + part.cornerName(lead)
             + " + " + part.cornerName(answer) + " • Next " + part.cornerName(phrase.cornerAt(part.beat + 2)));
+    }
+
+    static boolean stamp(ServerPlayer p, ItemFrame frame) {
+        var part = p.getAttached(LAST);
+        if (part == null || !part.completed) return false;
+        var phrase = part.phrase;
+        if (phrase.corners().stream().noneMatch(c -> c.frameId().equals(frame.getUUID()))) return false;
+        if (!CodaPostcard.canListen(p)) return true;
+        if (phrase.corners().stream().anyMatch(c -> !c.stillDisplayed(p))) {
+            CircuitConductor.forget(p);
+            ConcertStage.overlay(p, "Display changed • Complete a new Counterpoint to stamp clay.");
+            return true;
+        }
+        var seal = new ChordSeal(phrase.corners().stream().map(PostcardPairs.Selection::chime).toList(),
+            phrase.opening(), phrase.direction());
+        boolean stamped = StarPrint.stampOne(p, Items.CLAY_BALL, seal.item());
+        ConcertStage.overlay(p, stamped ? "Chord Seal stamped • Use to play or give it to another listener."
+            : "Make room for the rest of your clay before stamping.");
+        return true;
     }
 
     private String cornerName(int index) {
