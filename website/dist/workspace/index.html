@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101522">
+<title>Infinity Workspace</title>
+<link rel="stylesheet" href="/workspace/style.css">
+</head>
+<body>
+<div class="shell">
+<aside>
+<div class="brand">
+<span class="mark">∞</span>
+<span>Infinity<br>
+<b>Workspace</b>
+</span>
+</div>
+<div class="nav active">✦ <span>Assistant</span>
+</div>
+<div class="side-note">
+<span class="status">
+</span> Your space, in your control<p>Files stay on your device until you submit a request.</p>
+</div>
+</aside>
+<main>
+<a class="back-link" href="/">← Back to InfinityCraft</a>
+<header>
+<div>
+<h1>Infinity Workspace</h1>
+<p>Think through ideas, organize notes, and revise a file with your assistant.</p>
+</div>
+</header>
+<div class="layout">
+<section class="card conversation">
+<div class="card-title">
+<span class="spark">✦</span>
+<div>
+<h2>What are we working on?</h2>
+<p>Ask a question or make a careful edit.</p>
+</div>
+</div>
+<div class="prompts">
+<button type="button" data-prompt="Help me turn my notes into a clear action plan.">Organize my notes <span>↗</span>
+</button>
+<button type="button" data-prompt="Summarize the selected file and identify next steps.">Find the next steps <span>↗</span>
+</button>
+<button type="button" data-prompt="Help me think through this idea and its tradeoffs.">Think through an idea <span>↗</span>
+</button>
+</div>
+<label for="message">Your request</label>
+<textarea id="message" rows="5" placeholder="Tell me what you want to work on...">
+</textarea>
+<p class="request-size" id="request-size">
+</p>
+<div class="actions">
+<select id="mode" aria-label="Request type">
+<option value="ask">Ask assistant</option>
+<option value="edit">Propose file edit</option>
+</select>
+<button class="primary" id="send" type="button">Send request <span>→</span>
+</button>
+</div>
+<p class="submit-disclosure">Sending passes your request, selected file, and API key through Vercel to OpenAI. Usage is billed to your API account.</p>
+<p id="notice" role="status" aria-live="polite">
+</p>
+<div id="result" hidden>
+<div class="result-head">
+<h3 id="result-title">Response</h3>
+<button id="copy" type="button">Copy response</button>
+<button id="download" type="button" hidden>Download edited file ↓</button>
+</div>
+<details id="original" hidden>
+<summary>View original file</summary>
+<pre id="original-text">
+</pre>
+</details>
+<pre id="output">
+</pre>
+</div>
+</section>
+<section class="card settings">
+<div class="section-icon">▤</div>
+<h2>Workspace context</h2>
+<p>Choose a UTF-8 text file up to 80 KB to include with your request. Review edits before downloading a copy.</p>
+<label class="file-button">＋ &nbsp; Choose a file<input id="file" type="file" accept=".txt,.md,.csv,.json,.js,.ts,.html,.css,.py,.java,.xml,.yaml,.yml,.log,text/*">
+</label>
+<div class="file-info" id="file-info">No file selected</div>
+<button class="text-button" id="clear-file" hidden>Remove file</button>
+<div class="divider">
+</div>
+<h3>Connect your model</h3>
+<p>Use your OpenAI API key for this session. The app keeps no request history. Vercel and OpenAI handle request data under their own retention policies.</p>
+<label for="key">OpenAI API key</label>
+<input id="key" type="password" autocomplete="off" placeholder="sk-…">
+<button class="text-button clear-key" id="clear-key" type="button">Clear key</button>
+<p class="fine">Use a restricted key and keep secrets out of files you submit.</p>
+</section>
+</div>
+<footer>
+<span>∞ &nbsp; INFINITY WORKSPACE</span>
+<span>GPT workspace assistant</span>
+</footer>
+</main>
+</div>
+<script type="module" src="/workspace/app.js">
+</script>
+</body>
+</html>
