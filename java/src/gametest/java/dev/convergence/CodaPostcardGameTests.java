@@ -523,6 +523,20 @@ public class CodaPostcardGameTests {
             c.assertTrue(overlays(useSeal(g, 0, false)).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4")), "A second listener starts at beat one");
             c.assertTrue(overlays(useSeal(g, 1, false)).stream().anyMatch(t -> t.startsWith("Chord Seal 2/4")), "First listener keeps a separate cursor");
             c.assertTrue(overlays(useSeal(g, 1, true)).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4")), "Sneak-use plays beat one immediately");
+            useSeal(g, 1, false); // next beat on the first seal would be its third
+            var secondGift = new ChordSeal(List.of(EMBER_PEAKS, KITE, HALF_MOON), 2, 1).item();
+            reader.setItemInHand(InteractionHand.MAIN_HAND, secondGift);
+            var switched = useSeal(g, 1, false);
+            var opening = records(switched);
+            c.assertTrue(overlays(switched).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4"))
+                && opening.size() == 2 && opening.getFirst().getSound().equals(SoundEvents.NOTE_BLOCK_BELL)
+                && opening.getFirst().getPitch() == NoteBlock.getPitchFromNote(HALF_MOON.note)
+                && opening.getLast().getSound().equals(SoundEvents.NOTE_BLOCK_CHIME)
+                && opening.getLast().getPitch() == NoteBlock.getPitchFromNote(EMBER_PEAKS.note),
+                "Switching gifts mid-phrase starts on the second seal's own opening voices");
+            reader.setItemInHand(InteractionHand.MAIN_HAND, gift);
+            c.assertTrue(overlays(useSeal(g, 1, false)).stream().anyMatch(t -> t.startsWith("Chord Seal 1/4")),
+                "Returning to the earlier seal starts a new reading");
             var bystander = g.drain(2);
             c.assertTrue(records(bystander).isEmpty() && overlays(bystander).isEmpty() && particles(bystander, ParticleTypes.END_ROD).isEmpty(),
                 "Nearby spectators receive no medallion or music");
