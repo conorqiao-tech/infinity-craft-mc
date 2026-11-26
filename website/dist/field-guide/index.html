@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InfinityCraft Field Guide</title>
+<link rel="canonical" href="https://infinity-armor-hub.vercel.app/field-guide/">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/guide-192.png">
+<meta name="theme-color" content="#09151d">
+<script src="/register-guide.js" defer></script>
+<style>
+/* VOICE everyday companion for a game server, calm night tone with playful pixel accents
+   IDEA a pocket field guide tucked into the Infinity Armor Hub: item frames on a gallery wall, and a note-block tuning bench
+   PICTURE Guide: three item frames joined by a trail; Studio: a live stage with a chime bar on the left, a bell ring on the right and the slope between them
+   COLOUR aurora night ground #0e1030 fixed in both themes, ink #eef0ff, cyan #4fe3f0, lavender #b9a4ff, orange #ff9a3c, mint #7cf5c4 accent
+   TYPE system fallbacks for offline use
+   LAYOUT laptop: one 980px column, studio stage left and pickers right; phone: title, tabs, picture, controls stacked */
+:root{color-scheme:dark;--bg:#0e1030;--bg2:#161a46;--panel:#1b2056;--line:#343b86;--ink:#eef0ff;--soft:#b9bde8;--cyan:#4fe3f0;--lav:#b9a4ff;--orange:#ff9a3c;--mint:#7cf5c4;--wood:#8a5a32;--wood2:#c48a52}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);background-image:radial-gradient(120% 60% at 80% -10%,#2b2a7a 0,transparent 60%),radial-gradient(90% 50% at 0% 0%,#123f55 0,transparent 55%);background-repeat:no-repeat;color:var(--ink);font:16px/1.55 Figtree,system-ui,sans-serif;overflow-x:clip;min-height:100vh}
+a{color:var(--cyan)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.wrap{max-width:980px;margin:0 auto;padding:20px max(16px,4vw) 40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px}
+h1,h2,h3,.px{font-family:"Pixelify Sans",Figtree,system-ui,sans-serif;letter-spacing:-.01em}
+h1{font-size:clamp(30px,6vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+h1 span{color:var(--cyan)}
+.sub{margin:6px 0 0;color:var(--soft);max-width:60ch}
+.home{font-size:15px;white-space:nowrap;padding:10px 0}
+.tabs{display:flex;gap:6px;margin:20px 0 18px;padding:5px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;width:max-content;max-width:100%}
+.tabs button{font:600 17px "Pixelify Sans",Figtree,sans-serif;color:var(--soft);background:transparent;border:0;border-radius:10px;padding:10px 20px;min-height:44px;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--cyan);color:#06213a}
+.tabs button:hover:not([aria-selected=true]){color:var(--ink);background:#ffffff12}
+[role=tabpanel][hidden]{display:none}
+[role=tabpanel]{border-radius:16px}
+[role=tabpanel]:focus{outline:none}
+[role=tabpanel]:focus-visible{outline:2px solid var(--mint);outline-offset:4px}
+/* Guide */
+.trail{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.trail::before{content:"";position:absolute;left:12%;right:12%;top:68px;border-top:3px dashed #7cf5c466;z-index:0}
+.stop{position:relative;z-index:1;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.frame{width:104px;height:104px;margin:0 auto 4px;padding:10px;border-radius:6px;background:linear-gradient(145deg,var(--wood2),var(--wood));box-shadow:inset 0 0 0 4px #5e3b1f,0 6px 0 #0007}
+.frame div{width:100%;height:100%;background:#2a1a10;border-radius:2px;display:grid;place-items:center;gap:2px;grid-auto-flow:column}
+.frame svg{width:52px;height:52px;image-rendering:pixelated}
+.frame.two svg{width:40px;height:40px}
+.stop h2{font-size:24px;line-height:1.05;margin:0;text-align:center}
+.need{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:0;padding:0;list-style:none}
+.need li{font-size:13px;font-weight:700;padding:3px 10px;border-radius:99px;background:#7cf5c41f;color:var(--mint);white-space:nowrap}
+.stop ol{margin:0;padding-left:1.3em;color:var(--ink)}
+.stop ol li{margin:4px 0}
+.stop ol li::marker{color:var(--cyan);font-weight:700}
+.tie{margin-top:auto;font:600 15px Figtree,sans-serif;background:transparent;color:var(--lav);border:1px solid var(--lav);border-radius:10px;min-height:44px;cursor:pointer}
+.tie:hover{background:#b9a4ff22}
+.back{margin-top:18px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 18px;padding:16px 18px;border-radius:16px;background:var(--bg2);border:1px solid var(--line)}
+.back p{margin:0;color:var(--soft);max-width:56ch}
+.back a{font-weight:700;white-space:nowrap;padding:10px 0}
+/* Studio */
+.studio{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:stretch}
+.stage{position:relative;background:linear-gradient(180deg,#101444,#1a1f5c);border:1px solid var(--line);border-radius:18px;padding:16px 18px 14px;display:flex;flex-direction:column;min-height:360px}
+.rel{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rel strong{font:700 clamp(30px,5vw,40px)/1 "Pixelify Sans",sans-serif;color:var(--mint)}
+.rel span{color:var(--soft);font-size:15px}
+.field{position:relative;flex:1;margin-top:12px;min-height:240px}
+.tick{position:absolute;z-index:1;left:0;right:0;border-top:1px dashed #ffffff22;font-size:13px;color:var(--soft)}
+.tick b{position:absolute;left:50%;transform:translate(-50%,-50%);background:#141850;padding:0 6px;font-weight:600;white-space:nowrap}
+.field svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.bar{position:absolute;bottom:0;left:12%;width:46px;border-radius:8px 8px 3px 3px;transition:height .45s cubic-bezier(.3,1.4,.5,1),background .3s}
+.ring{position:absolute;right:12%;width:58px;height:58px;margin:-29px -29px 0 0;transform:translateX(-50%);border-radius:50%;border:9px solid;background:transparent;transition:top .45s cubic-bezier(.3,1.4,.5,1),border-color .3s}
+.ring::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:3px solid currentColor;opacity:0}
+.cap{display:flex;justify-content:space-between;margin-top:10px;font-size:14px;color:var(--soft)}
+.cap b{color:var(--ink)}
+.on .bar{animation:glow .9s ease-out}
+.on .ring::after{animation:ripple .9s ease-out}
+@keyframes glow{0%{filter:brightness(1.8);box-shadow:0 0 30px currentColor}100%{filter:none;box-shadow:none}}
+@keyframes ripple{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(2.2)}}
+@media(prefers-reduced-motion:reduce){.bar,.ring{transition:none}.on .bar,.on .ring::after{animation:none}.on .bar{outline:3px solid var(--mint);outline-offset:3px}.on .ring{box-shadow:0 0 0 4px var(--mint)}}
+.picks{display:flex;flex-direction:column;gap:14px}
+fieldset{margin:0;border:1px solid var(--line);border-radius:16px;padding:12px 14px 14px;background:var(--panel)}
+legend{font:700 18px "Pixelify Sans",sans-serif;padding:0 6px}
+legend small{font:400 14px Figtree,sans-serif;color:var(--soft)}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.opt{position:relative;display:block;cursor:pointer}
+.opt input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.opt span{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:8px 10px;border-radius:12px;border:2px solid var(--line);background:var(--bg2);font-size:13px;color:var(--soft)}
+.opt span b{display:flex;align-items:center;gap:6px;font-size:15px;color:var(--ink);line-height:1.2}
+.opt span i{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}
+.opt input:checked+span{border-color:var(--c);background:color-mix(in srgb,var(--c) 18%,var(--bg2))}
+.opt input:focus-visible+span{outline:3px solid var(--mint);outline-offset:2px}
+.opt:hover span{border-color:color-mix(in srgb,var(--c) 60%,var(--line))}
+.play{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.go{flex:1 1 180px;font:700 19px "Pixelify Sans",sans-serif;min-height:52px;border:0;border-radius:14px;background:var(--mint);color:#06281d;cursor:pointer;box-shadow:0 4px 0 #2a9d78}
+.go:active{transform:translateY(2px);box-shadow:0 2px 0 #2a9d78}
+.snd{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);font-size:15px;cursor:pointer}
+.snd input{width:20px;height:20px;accent-color:var(--mint);margin:0}
+.status{min-height:52px;margin:0;padding:10px 14px;border-radius:12px;background:#00000033;border-left:4px solid var(--line);font-size:15px;color:var(--soft)}
+.status.live{border-color:var(--mint);color:var(--ink)}
+.status.quiet{border-color:var(--lav);color:var(--ink)}
+.note{font-size:13px;color:var(--soft);margin:14px 0 0}
+.preview{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px;padding:10px 14px;border-radius:12px;background:#ff9a3c1a;border:1px solid #ff9a3c66;font-size:15px}
+.pill{font:700 13px Figtree,sans-serif;padding:3px 10px;border-radius:99px;background:var(--orange);color:#2b1300;white-space:nowrap}
+.chain{display:flex;align-items:center;justify-content:center;gap:4px;margin:2px 0;font-size:13px;color:var(--soft)}
+.chain span{display:grid;place-items:center;width:44px;height:36px;border-radius:4px;background:#2a1a10;box-shadow:inset 0 0 0 3px var(--wood2);color:var(--ink);font-weight:700}
+.chain i{font-style:normal;color:var(--mint)}
+.hub{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+.hub a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);text-decoration:none;font-weight:600;white-space:nowrap}
+.hub a:hover{border-color:var(--cyan)}
+.ghost{margin-top:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:18px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
+.card{position:relative;padding:16px 18px;border-radius:12px;background:#f4efe2;color:#2a2440;box-shadow:0 6px 0 #0006}
+.card h2{font-size:24px;line-height:1.05;margin:0 0 4px;color:#2a2440}
+.card .meta{margin:0 0 12px;font-size:14px;color:#5a5270}
+.stamp{position:absolute;top:12px;right:12px;width:58px;height:66px;display:grid;place-items:center;border:3px dashed #8a7fb0;border-radius:6px;background:#e6defa}
+.stamp svg{width:40px;height:44px}
+.slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.slot{padding:8px 10px;border-radius:10px;background:#ffffffaa;border:2px dashed #b9b0d0;min-height:76px}
+.slot small{display:block;font-size:13px;color:#5a5270}
+.slot b{display:block;font:700 18px "Pixelify Sans",sans-serif;color:#2a2440}
+.slot em{display:block;font-style:normal;font-size:14px;font-weight:700;margin-top:2px}
+.slot.ok{border-style:solid;border-color:#1e9e74}.slot.ok em{color:#137a58}
+.slot.up em,.slot.down em{color:#b5520a}
+.clue{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border-radius:10px;background:#e6defa;font-size:14px}
+.clue[hidden]{display:none}
+.clue svg{flex:none;width:72px;height:40px;overflow:visible}
+.gctl{display:flex;flex-direction:column;gap:10px}
+.gctl .row{display:flex;flex-wrap:wrap;gap:8px}
+.btn{flex:1 1 130px;font:600 16px Figtree,sans-serif;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--lav)}
+.btn.main{background:var(--lav);color:#1d1240;border-color:var(--lav);font-weight:700}
+.gctl p.how{margin:0;font-size:15px;color:var(--soft)}
+.ghostOn .stamp{animation:glow .9s ease-out}
+@media(prefers-reduced-motion:reduce){.ghostOn .stamp{animation:none;outline:3px solid var(--mint)}}
+@media(max-width:760px){.ghost{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.trail{grid-template-columns:minmax(0,1fr)}.trail::before{left:50%;right:auto;top:40px;bottom:40px;border-top:0;border-left:3px dashed #7cf5c466}.studio{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:420px){.opt span{min-height:72px;padding:8px}.opt span b{font-size:14px}.tabs{width:100%}.tabs button{flex:1;padding:8px 4px;font-size:15px;line-height:1.1}}
+.tabs button{white-space:nowrap}
+@media(max-width:420px){.tabs button{white-space:normal}}
+.pp-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px 16px;margin-bottom:14px}
+.pp-head h2{font-size:30px;line-height:1.05;margin:0 0 4px}
+.pp-head p{margin:0;color:var(--soft);max-width:52ch}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+button.pc{display:flex;flex-direction:column;gap:6px;text-align:left;font:inherit;padding:14px 16px;border-radius:12px;border:0;background:#f4efe2;color:#2a2440;cursor:pointer;box-shadow:0 6px 0 #0006;position:relative}
+button.pc:hover{background:#fff8ea}
+button.pc:focus-visible{outline:3px solid var(--mint);outline-offset:4px}
+button.pc[aria-pressed=true]{box-shadow:0 0 0 4px var(--mint),0 0 28px #7cf5c499,0 6px 0 #0006}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;font:700 17px "Pixelify Sans",sans-serif}
+.seal{display:inline-flex;align-items:center;gap:5px;font:600 13px Figtree,sans-serif;color:#8a2f2c}
+.seal::before{content:"";width:14px;height:14px;border-radius:50%;background:#b8423f;box-shadow:inset 0 0 0 3px #d9605c}
+.voice{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:15px}
+.voice i{flex:none;width:14px;height:14px;border-radius:3px;background:var(--c);box-shadow:inset 0 0 0 1px #0003}
+.voice small{color:#5a5270;font-size:13px;white-space:nowrap}
+.mk{margin-left:auto;font-style:normal;font-size:13px;font-weight:700;color:#137a58;white-space:nowrap}
+.mk.sh{color:#5a3fc0}
+.arrow{font-size:13px;color:#5a5270;padding-left:22px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;min-height:22px}
+.tag{font-size:13px;font-weight:700;padding:1px 9px;border-radius:99px}
+.tag.anc{background:#1e9e74;color:#fff}
+.tag.sw{background:#ffd9b8;color:#7a3a00}
+.pc.hit{animation:pop .5s ease-out}
+.pc.miss{animation:shake .4s ease-out}
+@keyframes pop{40%{transform:translateY(-5px)}}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.pp-low{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px;margin-top:18px;align-items:start}
+.loom{display:grid;grid-template-columns:minmax(0,1fr) minmax(64px,1fr) minmax(0,1fr);align-items:center;padding:16px;border-radius:16px;background:linear-gradient(180deg,#101444,#1a1f5c);border:1px solid var(--line)}
+.lcard{background:#f4efe2;color:#2a2440;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;font-size:14px;box-shadow:0 4px 0 #0006}
+.lcard .top{font-size:15px}
+.lcard .voice{font-size:14px}
+.lcard.ph{background:transparent;box-shadow:none;border:2px dashed var(--line);color:var(--soft);min-height:118px;display:grid;place-items:center;text-align:center}
+.lfig{position:relative;height:150px}
+.lfig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.th path{fill:none;stroke-linecap:round}
+.th.go path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .9s ease-out forwards}
+.mid.go{opacity:0;animation:fade .35s .75s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fade{to{opacity:1}}
+.lres{margin:10px 0 0;font-size:15px;color:var(--soft)}
+.lres b{color:var(--ink)}
+.pairsGuide{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.pairsGuide h2{font-size:26px;line-height:1.05;margin:8px 0 6px}
+.pairsGuide ol{margin:0 0 12px;padding-left:1.3em}
+.pairsGuide ol li{margin:4px 0}
+.pairsGuide ol li::marker{color:var(--cyan);font-weight:700}
+.pairsGuide .tie{margin-top:0;width:100%}
+.ex{margin:0;display:grid;grid-template-columns:minmax(0,1fr) 48px minmax(0,1fr);align-items:center;align-content:center;gap:6px 0}
+.ex svg{width:100%;height:90px}
+.ex figcaption{grid-column:1/-1;font-size:15px;color:var(--soft);margin-top:6px}
+.ex figcaption b{color:var(--ink)}
+@media(prefers-reduced-motion:reduce){.pc.hit{animation:none}.pc.miss{animation:none;outline:3px solid var(--orange);outline-offset:4px}.th.go path{animation:none;stroke-dasharray:none;stroke-dashoffset:0}.mid.go{animation:none;opacity:1}}
+.tag.pr{background:#e6defa;color:#3b2a7a}
+.toolbar .btn{flex:0 1 auto;padding:0 14px;min-height:44px}
+.btn[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.btn[aria-pressed=true]{background:var(--mint);border-color:var(--mint);color:#06281d;font-weight:700}
+.btn:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.circuit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px 20px;align-items:center;margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.circuit h3,.circ h3{font-size:22px;line-height:1.1;margin:0 0 6px}
+h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
+.circuit p{margin:0 0 10px;color:var(--soft);font-size:15px}
+.circuit p b,.exline b{color:var(--ink)}
+.cfig{position:relative;height:270px;border-radius:14px;background:linear-gradient(180deg,#101444,#1a1f5c)}
+.cfig.small{height:230px}
+.cfig svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ct{font:700 14px Figtree,sans-serif;fill:#eef0ff;paint-order:stroke;stroke:#14184c;stroke-width:4px}
+.cn{font:700 15px "Pixelify Sans",sans-serif;fill:#14123a}
+.cn.dim{fill:#7c82c4}
+.edge path{fill:none;stroke-linecap:round}
+.edge.go path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .5s ease-out forwards;animation-delay:inherit}
+.seal.go{opacity:0;animation:fade .45s 1.15s ease-out forwards}
+.pairsGuide .circ{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center;border-top:1px solid var(--line);padding-top:16px}
+.exline{margin:0;color:var(--soft);font-size:15px}
+@media(prefers-reduced-motion:reduce){.edge.go path{animation:none;stroke-dasharray:none;stroke-dashoffset:0}.seal.go{animation:none;opacity:1}}
+.conductor{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.khead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px 16px;margin-bottom:14px}
+.khead h3{font-size:22px;line-height:1.1;margin:0 0 6px}
+.khead p{margin:0;color:var(--soft);font-size:15px;max-width:54ch}
+.khead p b{color:var(--ink)}
+.snd:has(input:disabled){opacity:.6;cursor:not-allowed}
+.kbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);gap:18px;align-items:start}
+.corners{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kb{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;min-height:100px;border-radius:14px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--bg2));color:var(--ink);font:inherit;cursor:pointer;text-align:center}
+.kb:hover{background:color-mix(in srgb,var(--c) 26%,var(--bg2))}
+.kb:nth-child(1){grid-column:2;grid-row:1}
+.kb:nth-child(2){grid-column:3;grid-row:2}
+.kb:nth-child(3){grid-column:1;grid-row:2}
+.kn{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--c);color:#14123a;font:700 16px "Pixelify Sans",sans-serif}
+.kb b{font-size:15px;line-height:1.15}
+.kb small{font-size:13px;color:var(--soft)}
+.kb[aria-disabled=true]{--c:#3d4596;opacity:.6;cursor:not-allowed}
+.kb:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.kb.hit{animation:pop .5s ease-out}
+.kb.miss{animation:shake .4s ease-out}
+.ribbon{list-style:none;margin:0 0 10px;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.beat{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border-radius:12px;border:2px dotted var(--line);background:var(--bg2);text-align:center;min-height:128px;font-size:13px;line-height:1.25;color:var(--soft)}
+.beat .bn{font-weight:700}
+.beat .sym{display:grid;place-items:center;width:32px;height:32px;margin:3px 0;border-radius:50%;border:2px dotted #5a62b0;font:700 16px "Pixelify Sans",sans-serif;color:var(--ink)}
+.beat.ret .sym{border-radius:6px;transform:rotate(45deg)}
+.beat.ret .sym span{transform:rotate(-45deg)}
+.beat .vn{color:var(--ink)}
+.beat .st{font-weight:700}
+.beat .rl{font-weight:700;color:var(--lav)}
+.beat.done{border-style:solid;border-color:var(--c);background:color-mix(in srgb,var(--c) 22%,var(--bg2));color:var(--ink)}
+.beat.done .sym{background:var(--c);border:2px solid var(--c);color:#14123a}
+.beat.next{border:3px dashed var(--mint);color:var(--ink)}
+.beat.next .sym{border:3px dashed var(--mint)}
+.beat.next .st{color:var(--mint)}
+@media(prefers-reduced-motion:reduce){.kb.hit{animation:none}.kb.miss{animation:none;outline:3px solid var(--orange);outline-offset:3px}}
+@media(max-width:760px){.pp-low,.pairsGuide,.circuit,.pairsGuide .circ,.kbody{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:420px){.beat{padding:8px 2px;min-height:136px}}
+@media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.loom{grid-template-columns:minmax(0,1fr)}.lfig{height:96px}.ex{grid-template-columns:minmax(0,1fr)}.ex svg{height:40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<div>
+<h1>InfinityCraft <span>Field Guide</span></h1>
+<p class="sub">Play postcard chords, close a circuit and conduct its three voices.</p>
+</div>
+<a class="home" href="/">Infinity Armor Hub ↗</a>
+</header>
+
+<div class="tabs" role="tablist" aria-label="Field guide sections">
+<button role="tab" id="tab-guide" aria-controls="guide" aria-selected="true">Guide</button>
+<button role="tab" id="tab-studio" aria-controls="studio" aria-selected="false" tabindex="-1">Coda Studio</button>
+<button role="tab" id="tab-pairs" aria-controls="pairs" aria-selected="false" tabindex="-1">Postcard Pairs</button>
+</div>
+
+<section id="guide" role="tabpanel" aria-labelledby="tab-guide">
+<p class="preview"><span class="pill">Development preview</span> The Minecraft gallery features below are still in development and may change before release.</p>
+<div class="trail">
+<article class="stop">
+<div class="frame" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="#e8d9b0"/><rect x="3" y="3" width="10" height="10" fill="#5fb7e8"/><rect x="3" y="9" width="10" height="4" fill="#4caf6a"/><rect x="6" y="7" width="4" height="2" fill="#4caf6a"/><rect x="10" y="4" width="2" height="2" fill="#ffe27a"/><rect x="5" y="11" width="2" height="1" fill="#2e7d48"/></svg></div></div>
+<h2>Gallery Trail</h2>
+<ul class="need" aria-label="Played with"><li>Three different prints</li></ul>
+<div class="chain" role="img" aria-label="Print 1 last note leads to print 2 opening note, print 2 last note leads to print 3 opening note"><span>1</span><i>→</i><span>2</span><i>→</i><span>3</span></div>
+<ol>
+<li>Each player solves the same sequence of three different prints.</li>
+<li>Match each print's last note to the next print's opening note.</li>
+<li>Keep chaining until all three prints are linked.</li>
+</ol>
+</article>
+<article class="stop">
+<div class="frame" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><g fill="#9b6a3a"><rect x="3" y="11" width="2" height="2"/><rect x="5" y="9" width="2" height="2"/><rect x="7" y="7" width="2" height="2"/><rect x="9" y="5" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/></g><g fill="#6b4524"><rect x="3" y="13" width="2" height="1"/><rect x="5" y="11" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="9" y="7" width="2" height="1"/><rect x="11" y="5" width="2" height="1"/></g></svg></div></div>
+<h2>Encore Duet</h2>
+<ul class="need" aria-label="You need"><li>Plain sticks</li></ul>
+<ol>
+<li>Both players use plain sticks on the last frame to start the duet.</li>
+<li>Then take turns tapping the marked frames.</li>
+</ol>
+</article>
+<article class="stop">
+<div class="frame two" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="5" y="3" width="6" height="2" fill="#1f8f8a"/><rect x="3" y="5" width="10" height="7" fill="#2fd1c4"/><rect x="4" y="12" width="8" height="2" fill="#1f8f8a"/><rect x="5" y="6" width="2" height="2" fill="#c9fff7"/><rect x="9" y="8" width="2" height="2" fill="#7cf5c4"/></svg><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="3" y="2" width="10" height="12" fill="#f2efe4"/><rect x="11" y="2" width="2" height="2" fill="#cfc9b4"/><g fill="#b8b29c"><rect x="5" y="5" width="6" height="1"/><rect x="5" y="8" width="6" height="1"/><rect x="5" y="11" width="4" height="1"/></g></svg></div></div>
+<h2>Coda Postcards</h2>
+<ul class="need" aria-label="You need"><li>Plain glow ink</li><li>Plain paper</li></ul>
+<ol>
+<li>After completing the duet, each player taps a score with plain glow ink.</li>
+<li>Tap normally to pick its closing note, or Sneak and tap to pick its opening note.</li>
+<li>After both players have picked, either one can stamp plain paper on the last frame.</li>
+</ol>
+<button class="tie" type="button" data-go="studio">Try a chord in Coda Studio</button>
+</article>
+</div>
+<div class="back">
+<p>Note blocks and chimes are covered in the full exploration guide on the hub.</p>
+<a href="/downloads/exploration.md">Open the existing guide ↗</a>
+</div>
+<nav aria-label="Infinity Armor Hub sections">
+<ul class="hub">
+<li><a href="/#explore">Explore the server ↗</a></li>
+<li><a href="/#gear">Gear and tools ↗</a></li>
+<li><a href="/#rewards">Rewards ↗</a></li>
+<li><a href="/#ranks">Ranks ↗</a></li>
+<li><a href="/#play">How to play ↗</a></li>
+</ul>
+</nav>
+<section class="pairsGuide" aria-labelledby="pgTitle">
+<div>
+<span class="pill">Development preview</span>
+<h2 id="pgTitle">Postcard Pairs</h2>
+<ol>
+<li>Hold a plain echo shard and tap framed signed postcards within 12 blocks.</li>
+<li>Your first tap anchors that postcard's chime and bell.</li>
+<li>Sneak while tapping to swap the chime and bell for that tap.</li>
+<li>Tap a second postcard whose opening chime matches the anchor's ending bell to link the pair.</li>
+</ol>
+<button class="tie" type="button" data-go="pairs">Try it in Postcard Pairs</button>
+</div>
+<figure class="ex">
+<div class="lcard" id="exA"></div>
+<svg viewBox="0 0 48 40" preserveAspectRatio="none" aria-hidden="true"><path d="M0 8 C22 8 26 32 48 32" fill="none" stroke="#4fe3f0" stroke-width="3" vector-effect="non-scaling-stroke"/><path d="M0 32 C22 32 26 8 48 8" fill="none" stroke="#ff9a3c" stroke-width="3" vector-effect="non-scaling-stroke"/><circle cx="24" cy="20" r="4" fill="#b9a4ff"/></svg>
+<div class="lcard" id="exB"></div>
+<figcaption>Example: tap the first postcard, then Sneak-tap the second. The second now opens on Half Moon, so the pair links through <b>Half Moon</b> and sounds <b>Kite chime + Ember Peaks bell</b>.</figcaption>
+</figure>
+<div class="circ">
+<div>
+<h3>Postcard Circuit <small>optional</small></h3>
+<ol>
+<li>After an echo-shard pair links, tap the third signed frame with plain prismarine crystals.</li>
+<li>All three frames must be within 12 blocks of each other.</li>
+<li>Sneak while tapping to swap that frame's chime and bell.</li>
+<li>The third frame's chime must match the second frame's bell, and its bell must match the first frame's chime.</li>
+</ol>
+<p class="exline">Example: card 1, Sneak-tap card 2, then prismarine crystals on card 3 normally. The circuit closes and sounds <b>Kite chime, Half Moon harp and Ember Peaks bell</b> together.</p>
+</div>
+<div class="cfig small" role="img" aria-label="Example circuit triangle: corner 1 Kite chime, corner 2 Half Moon harp, corner 3 Ember Peaks bell, with a glowing hollow seal in the center"><svg id="gsvg"></svg></div>
+</div>
+<div class="circ">
+<div>
+<span class="pill">Local development preview</span>
+<h3 style="margin-top:8px">Circuit Conductor <small>optional</small></h3>
+<ol>
+<li>After closing a circuit, tap any of its frames with a plain blaze rod. That frame is your starting corner.</li>
+<li>Keep tapping the frames in circuit order, then finish back on the starting frame: four taps in all.</li>
+<li>Sneak on the first tap to go backward around the circuit.</li>
+</ol>
+<p class="exline">No timer, no bystander and no inventory cost. Example on the circuit above: Sneak-tap corner 2 first, then tap <b>2, 1, 3, 2</b>.</p>
+</div>
+<div><ol class="ribbon" id="gRibbon" aria-label="Example backward score from corner 2: corners 2, 1, 3, then back to 2"></ol></div>
+</div>
+</section>
+</section>
+
+<section id="studio" role="tabpanel" aria-labelledby="tab-studio" hidden>
+<div class="studio">
+<div class="stage" id="stage">
+<div class="rel"><strong id="relWord">Rising</strong><span id="relInt">perfect fifth, up 7 semitones</span></div>
+<div class="field" id="field" aria-hidden="true">
+<div id="ticks"></div>
+<svg viewBox="0 0 100 100" preserveAspectRatio="none"><line id="link" x1="0" y1="0" x2="0" y2="0" stroke="#7cf5c4" stroke-width="3" stroke-dasharray="6 6" vector-effect="non-scaling-stroke" stroke-linecap="round"/></svg>
+<div class="bar" id="bar"></div>
+<div class="ring" id="ring"></div>
+</div>
+<div class="cap"><span>Chime: <b id="capC">Kite</b></span><span>Bell: <b id="capB">Ember Peaks</b></span></div>
+</div>
+<div class="picks">
+<fieldset id="fsChime"><legend>Chime <small>left bar</small></legend><div class="opts"></div></fieldset>
+<fieldset id="fsBell"><legend>Bell <small>right ring</small></legend><div class="opts"></div></fieldset>
+<div class="play">
+<button class="go" id="go" type="button">Play together</button>
+<label class="snd" for="sound"><input type="checkbox" id="sound" checked> Sound</label>
+</div>
+<p class="status" id="status" role="status" aria-live="polite">Pick a chime and a bell, then press Play together.</p>
+</div>
+</div>
+<section class="ghost" id="ghost" aria-labelledby="ghostTitle">
+<div class="card" id="gcard">
+<div class="stamp" aria-hidden="true"><svg viewBox="0 0 40 44"><path d="M6 40V18a14 14 0 0 1 28 0v22l-5-4-5 4-4-4-4 4-5-4z" fill="#fff" stroke="#8a7fb0" stroke-width="2"/><circle cx="15" cy="18" r="2.5" fill="#2a2440"/><circle cx="25" cy="18" r="2.5" fill="#2a2440"/></svg></div>
+<h2 id="ghostTitle">Match the Ghost Postcard</h2>
+<p class="meta" id="gmeta">Round 1 · 0 matched</p>
+<div class="slots">
+<div class="slot" id="slotC"><small>Ghost chime</small><b id="gC">?</b><em id="hC">Not checked yet</em></div>
+<div class="slot" id="slotB"><small>Ghost bell</small><b id="gB">?</b><em id="hB">Not checked yet</em></div>
+</div>
+<div class="clue" id="clue" hidden><svg viewBox="0 0 72 40" aria-hidden="true"><line id="clueLine" x1="10" y1="20" x2="62" y2="20" stroke="#5a3fc0" stroke-width="3" stroke-dasharray="5 4" stroke-linecap="round"/><rect id="clueA" x="4" y="14" width="12" height="12" rx="2" fill="#5a3fc0"/><circle id="clueB" cx="62" cy="20" r="7" fill="none" stroke="#5a3fc0" stroke-width="4"/></svg><span id="clueText"></span></div>
+</div>
+<div class="gctl">
+<p class="how">A ghost has stamped a hidden chime and bell pair. Set the chime and bell above to match it, then press Check.</p>
+<div class="row">
+<button class="btn main" id="gCheck" type="button">Check</button>
+<button class="btn" id="gHear" type="button">Hear ghost</button>
+<button class="btn" id="gNew" type="button">New round</button>
+</div>
+<p class="status" id="gStatus" role="status" aria-live="polite">New ghost postcard ready. Use the clue or check your two notes.</p>
+</div>
+</section>
+<p class="note">Practice for the Coda Postcards development preview. Pitches follow note-block clicks (0 to 24). This studio voices note 6 as C6, 10 is E6 and 13 is G6. Sound plays in your browser when you use a music control.</p>
+</section>
+
+<section id="pairs" role="tabpanel" aria-labelledby="tab-pairs" hidden>
+<div class="pp-head">
+<div><h2>Postcard Pairs</h2><p>Tap a signed card to anchor it and preview its chord. Then tap a different card whose opening chime matches the anchor's ending bell.</p></div>
+<div class="toolbar">
+<label class="snd" for="swap"><input type="checkbox" id="swap"> Swap voices for next tap</label>
+<button class="btn" id="closeBtn" type="button" aria-disabled="true" aria-pressed="false" aria-describedby="cHint">Close the circuit</button>
+<label class="snd" for="sound2"><input type="checkbox" id="sound2" checked> Sound</label>
+</div>
+</div>
+<div class="gallery" id="gallery" role="group" aria-label="Signed postcards"></div>
+<div class="pp-low">
+<p class="status" id="pStatus" role="status" aria-live="polite">Tap any card to anchor it. Tapping the anchored card again clears it.</p>
+<div>
+<div class="loom" role="group" aria-label="Last linked pair">
+<div class="lcard ph" id="lA">First card</div>
+<div class="lfig" id="lfig" role="img" aria-label="No linked pair yet"><svg id="lsvg"></svg></div>
+<div class="lcard ph" id="lB">Second card</div>
+</div>
+<p class="lres" id="lres">No linked pair yet. Your last result stays here while you play again.</p>
+</div>
+</div>
+<section class="circuit" aria-labelledby="cTitle">
+<div>
+<h3 id="cTitle">Postcard Circuit <small>optional</small></h3>
+<p id="cHint">Link a fresh pair to unlock Close the circuit.</p>
+<p id="cres">No closed circuit yet. The third card's chime must match the second card's bell, and its bell must match the first card's chime.</p>
+</div>
+<div class="cfig" id="cfig" role="img" aria-label="No closed circuit yet"><svg id="csvg"></svg></div>
+</section>
+<section class="conductor" aria-labelledby="kTitle">
+<div class="khead">
+<div><h3 id="kTitle">Circuit Conductor <small>optional</small></h3><p id="kHint">Close a circuit to unlock the conductor.</p></div>
+<div class="toolbar">
+<label class="snd" for="krev"><input type="checkbox" id="krev"> <span id="krevText">Reverse route</span></label>
+<label class="snd" for="sound3"><input type="checkbox" id="sound3" checked> Sound</label>
+</div>
+</div>
+<div class="kbody">
+<div class="corners" id="corners" role="group" aria-label="Circuit corners">
+<button type="button" class="kb" id="k0" data-k="0"></button>
+<button type="button" class="kb" id="k1" data-k="1"></button>
+<button type="button" class="kb" id="k2" data-k="2"></button>
+</div>
+<div>
+<ol class="ribbon" id="ribbon" aria-label="Four-beat score"></ol>
+<p class="status" id="kStatus" role="status" aria-live="polite">Close a circuit, then conduct it here: pick any corner, follow the route and return to the start.</p>
+</div>
+</div>
+</section>
+<p class="note">Practice for the Postcard Pairs development preview. In game you tap with a plain echo shard and Sneak to swap, and close a circuit by tapping the third frame with plain prismarine crystals. Swap reverses one tap. Close the circuit selects the crystals and stays armed after a miss until you close the loop or disarm it.</p>
+</section>
+</div>
+
+<script>
+{
+const NOTES=[
+ {id:"kite",name:"Kite",n:6,c:"#4fe3f0",col:"cyan"},
+ {id:"moon",name:"Half Moon",n:10,c:"#b9a4ff",col:"lavender"},
+ {id:"ember",name:"Ember Peaks",n:13,c:"#ff9a3c",col:"orange"}
+];
+const PC=["F♯","G","G♯","A","A♯","B","C","C♯","D","D♯","E","F"];
+const pitch=n=>PC[n%12]+(n<6?5:n<18?6:7);
+const hz=n=>739.99*2**(n/12);
+const INT={0:"unison",1:"minor second",2:"major second",3:"minor third",4:"major third",5:"perfect fourth",6:"tritone",7:"perfect fifth"};
+const LO=3,HI=16;
+const yPct=n=>100-(n-LO)/(HI-LO)*100;
+const $=id=>document.getElementById(id);
+let store={};
+try{store=JSON.parse(localStorage.getItem("infinitycraft.field-guide.v1")||"{}")||{}}catch(e){store={}}
+const state={chime:store.chime||"kite",bell:store.bell||"ember",sound:store.sound!==false,tab:store.tab||"guide"};
+const save=()=>{try{localStorage.setItem("infinitycraft.field-guide.v1",JSON.stringify(state))}catch(e){}};
+const byId=id=>NOTES.find(x=>x.id===id)||NOTES[0];
+
+/* tabs */
+const tabs=[...document.querySelectorAll('[role=tab]')];
+function show(name,focus){
+ tabs.forEach(t=>{const on=t.getAttribute('aria-controls')===name;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;$(t.getAttribute('aria-controls')).hidden=!on;if(on&&focus)t.focus()});
+ state.tab=name;save();
+ if(location.hash!=="#"+name){try{history.replaceState(null,"","#"+name)}catch(e){}}
+}
+tabs.forEach((t,i)=>{
+ t.addEventListener('click',()=>show(t.getAttribute('aria-controls')));
+ t.addEventListener('keydown',e=>{
+  let j=null;
+  if(e.key==="ArrowRight")j=(i+1)%tabs.length;
+  if(e.key==="ArrowLeft")j=(i-1+tabs.length)%tabs.length;
+  if(e.key==="Home")j=0;
+  if(e.key==="End")j=tabs.length-1;
+  if(j!==null){e.preventDefault();show(tabs[j].getAttribute('aria-controls'),true)}
+ });
+});
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go,true)));
+const VIEWS=["guide","studio","pairs"];
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(VIEWS.includes(h))show(h)});
+
+/* pickers */
+function opts(role){
+ return NOTES.map(o=>`<label class="opt" style="--c:${o.c}"><input type="radio" name="${role}" value="${o.id}" id="${role}-${o.id}"><span><b><i></i>${o.name}</b>Note ${o.n} · ${o.col}</span></label>`).join('');
+}
+$("fsChime").querySelector('.opts').innerHTML=opts("chime");
+$("fsBell").querySelector('.opts').innerHTML=opts("bell");
+$("ticks").innerHTML=NOTES.map(o=>`<div class="tick" style="top:${yPct(o.n)}%"><b>${o.n} · ${pitch(o.n)}</b></div>`).join('');
+
+function relation(){
+ const c=byId(state.chime),b=byId(state.bell),d=b.n-c.n;
+ const word=d>0?"Rising":d<0?"Falling":"Level";
+ const name=INT[Math.abs(d)]||(Math.abs(d)+" notes");
+ const det=d===0?"unison, same note":`${name}, ${d>0?"up":"down"} ${Math.abs(d)} semitones`;
+ return {c,b,d,word,det};
+}
+function render(){
+ const r=relation();
+ document.querySelectorAll('input[name=chime]').forEach(i=>i.checked=i.value===state.chime);
+ document.querySelectorAll('input[name=bell]').forEach(i=>i.checked=i.value===state.bell);
+ $("sound").checked=state.sound;
+ const bar=$("bar"),ring=$("ring");
+ bar.style.height=(100-yPct(r.c.n))+"%";bar.style.background=r.c.c;bar.style.color=r.c.c;
+ ring.style.top=yPct(r.b.n)+"%";ring.style.borderColor=r.b.c;ring.style.color=r.b.c;
+ const f=$("field"),W=f.clientWidth||1;
+ const x1=(W*.12+23)/W*100,x2=100-(W*.12+29)/W*100;
+ const l=$("link");l.setAttribute('x1',x1);l.setAttribute('y1',yPct(r.c.n));l.setAttribute('x2',x2);l.setAttribute('y2',yPct(r.b.n));
+ l.setAttribute('stroke',r.d>0?"#7cf5c4":r.d<0?"#ff9a3c":"#b9a4ff");
+ $("relWord").textContent=r.word;$("relWord").style.color=r.d>0?"var(--mint)":r.d<0?"var(--orange)":"var(--lav)";
+ $("relInt").textContent=r.det;
+ $("capC").textContent=`${r.c.name} (${pitch(r.c.n)})`;$("capB").textContent=`${r.b.name} (${pitch(r.b.n)})`;
+ $("go").setAttribute('aria-label',`Play ${r.c.name} chime and ${r.b.name} bell together`);
+}
+document.addEventListener('change',e=>{
+ const t=e.target;
+ if(t.name==="chime"||t.name==="bell"){state[t.name]=t.value;save();render();
+  const r=relation();setStatus(`Selected ${r.c.name} chime and ${r.b.name} bell: ${r.word.toLowerCase()}, ${r.det}. Press Play together to hear it.`,"")}
+ if(t.id==="krev"){K.rev=t.checked;renderK();kSay((K.rev?"Reverse route on: your next phrase goes backward around the circuit.":"Reverse route off: your next phrase goes forward around the circuit.")+(K.done?" The finished score above keeps its own direction.":""),"")}
+ if(t.id==="sound3"){state.sound=t.checked;save();render();renderG();renderPairs();kSay(t.checked?"Sound on. Each correct tap plays its corner.":"Sound off. The conductor shows each beat with no audio.","")}
+ if(t.id==="sound"||t.id==="sound2"){state.sound=t.checked;save();render();renderG();renderPairs();
+  if(t.id==="sound")setStatus(t.checked?"Sound on. Play together will use your speakers.":"Sound off. Play together will show the chord visually with no audio.","");
+  else sayP(t.checked?"Sound on. Taps will play their chords.":"Sound off. Taps will show their chords visually with no audio.","")}
+ if(t.id==="swap"){armed=t.checked;renderPairs();sayP(armed?"Swap armed: your next tap reverses that card's chime and bell.":"Swap off: your next tap uses the card as signed.","")}
+});
+const fieldRO=new ResizeObserver(()=>render());fieldRO.observe($("field"));
+
+/* audio */
+let ctx=null;
+function tone(freq,t0,partials,decay,gain){
+ const out=ctx.createGain();out.gain.setValueAtTime(0,t0);out.gain.linearRampToValueAtTime(gain,t0+.008);out.gain.exponentialRampToValueAtTime(.0001,t0+decay);out.connect(ctx.destination);
+ partials.forEach(([m,a,dk])=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=freq*m;g.gain.setValueAtTime(a,t0);g.gain.exponentialRampToValueAtTime(.0001,t0+decay*dk);o.connect(g);g.connect(out);o.start(t0);o.stop(t0+decay+.05)});
+}
+function playAudio(r){
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw new Error("no audio");
+ if(!ctx)ctx=new AC();
+ if(ctx.state==="suspended")ctx.resume();
+ const t=ctx.currentTime+.03;
+ tone(hz(r.c.n),t,[[1,.6,1],[2,.25,.5],[3,.1,.3]],1.1,.22);
+ tone(hz(r.b.n),t,[[1,.55,1],[2.0,.2,.7],[2.76,.18,.5],[5.4,.08,.25]],2.2,.2);
+}
+let timer=null;
+function setStatus(msg,kind){const s=$("status");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function flash(){
+ const st=$("stage");st.classList.remove('on');void st.offsetWidth;st.classList.add('on');
+ clearTimeout(timer);timer=setTimeout(()=>st.classList.remove('on'),1000);
+}
+$("go").addEventListener('click',()=>{
+ const r=relation();flash();
+ const desc=`${r.c.name} chime (${pitch(r.c.n)}) with ${r.b.name} bell (${pitch(r.b.n)}): ${r.word.toLowerCase()}, ${r.det}.`;
+ if(!state.sound){setStatus("Silent play. "+desc+" No audio was played.","quiet");return}
+ try{playAudio(r);setStatus("Now playing: "+desc,"live")}
+ catch(e){setStatus("Audio isn't available here, so this is a visual-only play. "+desc,"quiet")}
+});
+
+/* ghost postcard */
+const PAIRS=[];NOTES.forEach(c=>NOTES.forEach(b=>PAIRS.push({chime:c.id,bell:b.id})));
+let G=store.ghost&&byId(store.ghost.chime)&&store.ghost.round?store.ghost:null;
+state.ghost=G;
+function saveG(){state.ghost=G;save()}
+function newRound(first){
+ const prev=G;
+ const pool=PAIRS.filter(p=>!(prev&&p.chime===prev.chime&&p.bell===prev.bell)&&!(p.chime===state.chime&&p.bell===state.bell));
+ const p=pool[Math.floor(Math.random()*pool.length)];
+ G={chime:p.chime,bell:p.bell,round:prev?prev.round+(first?0:1):1,matched:prev?prev.matched:0,checks:0,solved:false,clue:false};
+ saveG();renderG();
+ if(!first)gSay(`Round ${G.round}: a new ghost postcard is ready. Press ${state.sound?"Hear ghost":"Show clue"} for a hint, or Check when you're set.`,"");
+}
+function gSay(msg,kind){const s=$("gStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function hint(want,have){const d=byId(want).n-byId(have).n;return d===0?{c:"ok",t:"✓ Matched"}:d>0?{c:"up",t:"↑ Move up to a higher note"}:{c:"down",t:"↓ Move down to a lower note"}}
+function renderG(res){
+ $("gmeta").textContent=`Round ${G.round} · ${G.matched} matched`+(G.solved?" · solved":"");
+ const tc=byId(G.chime),tb=byId(G.bell);
+ $("gC").textContent=G.solved?`${tc.name} (${pitch(tc.n)})`:"?";
+ $("gB").textContent=G.solved?`${tb.name} (${pitch(tb.n)})`:"?";
+ [["slotC","hC",res&&res.c],["slotB","hB",res&&res.b]].forEach(([s,e,r])=>{
+  $(s).className="slot"+(G.solved?" ok":r?" "+r.c:"");
+  $(e).textContent=G.solved?"✓ Matched":r?r.t:"Not checked yet";
+ });
+ $("gHear").textContent=state.sound?"Hear ghost":"Show clue";
+ const d=tb.n-tc.n;
+ $("clue").hidden=!G.clue;
+ $("clueText").textContent=`Ghost shape: ${d>0?"rising":d<0?"falling":"level"}, ${d===0?"same note":(INT[Math.abs(d)]||Math.abs(d)+" notes")}.`;
+ const y2=20-d*1.4;$("clueLine").setAttribute('y2',y2);$("clueB").setAttribute('cy',y2);
+}
+function pulseCard(){const c=$("gcard");c.classList.remove('ghostOn');void c.offsetWidth;c.classList.add('ghostOn');setTimeout(()=>c.classList.remove('ghostOn'),1000)}
+$("gCheck").addEventListener('click',()=>{
+ if(G.solved){gSay(`Already matched. Press New round for another ghost postcard.`,"live");return}
+ G.checks++;
+ const rc=hint(G.chime,state.chime),rb=hint(G.bell,state.bell);
+ if(rc.c==="ok"&&rb.c==="ok"){
+  G.solved=true;G.matched++;saveG();renderG();flash();pulseCard();
+  gSay(`Matched! The ghost was ${byId(G.chime).name} chime with ${byId(G.bell).name} bell, solved in ${G.checks} ${G.checks===1?"check":"checks"}. Press New round to play again.`,"live");
+ }else{
+  saveG();renderG({c:rc,b:rb});
+  const word=r=>r.c==="ok"?"matched":r.c==="up"?"move up":"move down";
+  gSay(`Not yet. Chime: ${word(rc)}. Bell: ${word(rb)}.`,"quiet");
+ }
+});
+$("gHear").addEventListener('click',()=>{
+ const t={c:byId(G.chime),b:byId(G.bell)};
+ pulseCard();
+ if(!state.sound){G.clue=true;saveG();renderG();gSay("Sound is off, so here's a visual clue: "+$("clueText").textContent,"quiet");return}
+ try{playAudio(t);gSay("Played the ghost chord. Match its chime and bell, then press Check.","live")}
+ catch(e){G.clue=true;saveG();renderG();gSay("Audio isn't available here, so here's a visual clue: "+$("clueText").textContent,"quiet")}
+});
+$("gNew").addEventListener('click',()=>newRound(false));
+if(G)renderG();else newRound(true);
+
+/* postcard pairs */
+const CARDS=[{id:1,a:"kite",b:"moon"},{id:2,a:"ember",b:"moon"},{id:3,a:"ember",b:"kite"}];
+const ori=(id,sw)=>{const c=CARDS.find(x=>x.id===id)||CARDS[0];return {id:c.id,sw:!!sw,open:sw?c.b:c.a,end:sw?c.a:c.b}};
+const nm=id=>byId(id).name;
+const okRef=r=>r&&typeof r==="object"&&CARDS.some(c=>c.id===r.id);
+let armed=false,closing=false;
+let P=store.pairs&&typeof store.pairs==="object"?store.pairs:{};
+P={anchor:okRef(P.anchor)?P.anchor:null,result:P.result&&okRef(P.result.first)&&okRef(P.result.second)?P.result:null,chance:!!P.chance,circuit:P.circuit&&okRef(P.circuit.a)&&okRef(P.circuit.b)&&okRef(P.circuit.c)?P.circuit:null};
+if(!P.result)P.chance=false;
+state.pairs=P;
+const saveP=()=>{state.pairs=P;save()};
+function voice(id,role,mk){const o=byId(id);return `<span class="voice" style="--c:${o.c}"><i></i><b>${o.name}</b><small>${role} · ${pitch(o.n)}</small>${mk||""}</span>`}
+function face(o,mk,tags){
+ return `<span class="top">Card ${o.id}<span class="seal">Signed</span></span>${voice(o.open,"chime",mk&&mk[0])}<span class="arrow" aria-hidden="true">↓ to</span>${voice(o.end,"bell",mk&&mk[1])}${tags===undefined?"":`<span class="tags">${tags}</span>`}`;
+}
+const MK_PLAY_C='<em class="mk">Plays</em>',MK_SH='<em class="mk sh">Shared</em>',MK_PLAY_B='<em class="mk">Plays</em>';
+$("gallery").innerHTML=CARDS.map(c=>`<button type="button" class="pc" id="pc${c.id}" data-card="${c.id}" aria-pressed="false"></button>`).join('');
+function sayP(msg,kind){const s=$("pStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function bump(el,cls){el.classList.remove('hit','miss');void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),600)}
+function relText(a,b){const d=byId(b).n-byId(a).n;return d===0?"level, same note":`${d>0?"rising":"falling"} ${INT[Math.abs(d)]||Math.abs(d)+" notes"}`}
+const avail=()=>!!(P.chance&&P.result);
+function targets(){const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);return {A,B,txt:`${nm(B.end)} chime (card ${B.id}'s bell) and ${nm(A.open)} bell (card ${A.id}'s chime)`}}
+function renderPairs(anim,animC){
+ const inPair=id=>avail()&&(P.result.first.id===id||P.result.second.id===id);
+ CARDS.forEach(c=>{
+  const b=$("pc"+c.id),anc=P.anchor&&P.anchor.id===c.id,o=anc?ori(c.id,P.anchor.sw):ori(c.id,armed);
+  b.innerHTML=face(o,null,(anc?'<span class="tag anc">Anchored</span>':'')+(inPair(c.id)?'<span class="tag pr">In pair</span>':'')+(o.sw?'<span class="tag sw">Swapped</span>':''));
+  b.setAttribute('aria-pressed',anc?"true":"false");
+  b.setAttribute('aria-label',`Card ${c.id}: ${nm(o.open)} chime to ${nm(o.end)} bell${o.sw?", swapped":""}${anc?". Anchored; tap again to clear":""}${inPair(c.id)?". In the linked pair":""}`);
+ });
+ const cb=$("closeBtn");
+ cb.setAttribute('aria-disabled',avail()?"false":"true");cb.setAttribute('aria-pressed',closing?"true":"false");
+ cb.textContent=closing?"Circuit armed: tap third card":"Close the circuit";
+ $("cHint").innerHTML=!avail()?"Link a fresh pair to unlock Close the circuit.":closing?`Choose the third card. The third card needs <b>${targets().txt}</b>. Press the button again to disarm.`:"Unlocked. Press Close the circuit, then tap the third card. A fresh normal anchor discards this chance.";
+ if(P.circuit){
+  const v=circVoices(P.circuit);
+  $("cres").innerHTML=`Last closed circuit: <b>${v.map(x=>`${nm(x.id)} ${x.role}`).join(", ")}</b>, through card ${P.circuit.a.id}${P.circuit.a.sw?" (swapped)":""}, card ${P.circuit.b.id}${P.circuit.b.sw?" (swapped)":""} and card ${P.circuit.c.id}${P.circuit.c.sw?" (swapped)":""}.`;
+  $("cfig").setAttribute('aria-label',`Closed circuit triangle: ${v.map((x,i)=>`corner ${i+1} ${nm(x.id)} ${x.role}`).join(", ")}, with a glowing hollow seal in the center`);
+ }else{$("cfig").setAttribute('aria-label',"No closed circuit yet")}
+ drawCircuit($("csvg"),P.circuit,!!animC);
+ renderK();
+ $("swap").checked=armed;$("sound2").checked=state.sound;
+ if(P.result){
+  const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);
+  $("lA").className="lcard";$("lA").innerHTML=face(A,[MK_PLAY_C,MK_SH]);
+  $("lB").className="lcard";$("lB").innerHTML=face(B,[MK_SH,MK_PLAY_B]);
+  $("lres").innerHTML=`Shared pitch <b>${nm(A.end)} (${pitch(byId(A.end).n)})</b> at the crossing. Result: <b>${nm(A.open)} chime + ${nm(B.end)} bell</b>, ${relText(A.open,B.end)}.`;
+  $("lfig").setAttribute('aria-label',`Two threads cross between card ${A.id} and card ${B.id} at ${nm(A.end)}`);
+ }else{
+  $("lA").className="lcard ph";$("lA").textContent="First card";
+  $("lB").className="lcard ph";$("lB").textContent="Second card";
+  $("lfig").setAttribute('aria-label',"No linked pair yet");
+ }
+ drawLoom(!!anim);
+}
+function drawLoom(anim){
+ const s=$("lsvg");
+ if(!P.result){s.innerHTML="";return}
+ const W=s.clientWidth,H=s.clientHeight;if(!W||!H)return;
+ const A=ori(P.result.first.id,P.result.first.sw),B=ori(P.result.second.id,P.result.second.sw);
+ const c1=byId(A.open).c,c2=byId(B.end).c,cm=byId(A.end).c;
+ const vert=window.matchMedia('(max-width:560px)').matches;
+ let p1,p2;
+ if(vert){const k=Math.min(70,W*.22),x1=W/2-k,x2=W/2+k;p1=`M${x1} 0 C${x1} ${H*.45} ${x2} ${H*.55} ${x2} ${H}`;p2=`M${x2} 0 C${x2} ${H*.45} ${x1} ${H*.55} ${x1} ${H}`}
+ else{const y1=H*.22,y2=H*.78;p1=`M0 ${y1} C${W*.45} ${y1} ${W*.55} ${y2} ${W} ${y2}`;p2=`M0 ${y2} C${W*.45} ${y2} ${W*.55} ${y1} ${W} ${y1}`}
+ const th=(p,c)=>`<g class="th${anim?" go":""}"><path d="${p}" pathLength="1" stroke="${c}" stroke-width="14" opacity=".16"/><path d="${p}" pathLength="1" stroke="${c}" stroke-width="6" opacity=".4"/><path d="${p}" pathLength="1" stroke="${c}" stroke-width="2.5"/><path d="${p}" pathLength="1" stroke="#fff" stroke-width="1" opacity=".75"/></g>`;
+ s.innerHTML=th(p1,c1)+th(p2,c2)+`<g class="mid${anim?" go":""}"><circle cx="${W/2}" cy="${H/2}" r="20" fill="${cm}" opacity=".25"/><circle cx="${W/2}" cy="${H/2}" r="11" fill="${cm}"/><circle cx="${W/2}" cy="${H/2}" r="4.5" fill="#fff"/></g>`;
+}
+const loomRO=new ResizeObserver(()=>drawLoom(false));loomRO.observe($("lfig"));
+const harpPitch=n=>PC[n%12]+(n<6?3:n<18?4:5);
+function circVoices(c){const A=ori(c.a.id,c.a.sw),B=ori(c.b.id,c.b.sw);return [{id:A.open,role:"chime",p:pitch(byId(A.open).n)},{id:A.end,role:"harp",p:harpPitch(byId(A.end).n)},{id:B.end,role:"bell",p:pitch(byId(B.end).n)}]}
+const EXC={a:{id:1,sw:false},b:{id:2,sw:true},c:{id:3,sw:false}};
+function drawCircuit(s,circ,anim){
+ const W=s.clientWidth,H=s.clientHeight;if(!W||!H)return;
+ const top=48,bot=56,side=Math.max(80,W*.1),h=Math.max(60,H-top-bot),b=Math.min(W-2*side,h*1.3),cx=W/2;
+ const Q=[[cx,top],[cx+b/2,top+h],[cx-b/2,top+h]],G=[cx,top+h*2/3],rs=Math.max(13,Math.min(b,h)*.13);
+ const L=(a,z)=>`M${a[0]} ${a[1]}L${z[0]} ${z[1]}`;
+ if(!circ){
+  s.innerHTML=`<path d="${L(Q[0],Q[1])}${L(Q[1],Q[2])}${L(Q[2],Q[0])}" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="6 6"/>`+Q.map((q,i)=>`<circle cx="${q[0]}" cy="${q[1]}" r="17" fill="#1b2056" stroke="#3d4596" stroke-width="2"/><text class="cn dim" x="${q[0]}" y="${q[1]+5}" text-anchor="middle">${i+1}</text>`).join('')+`<circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="4 5"/>`;
+  return;
+ }
+ const v=circVoices(circ),col=v.map(x=>byId(x.id).c),go=anim?" go":"";
+ const edge=(a,z,c,i)=>{const d=L(a,z);return `<g class="edge${go}" style="animation-delay:${i*.35}s"><path d="${d}" pathLength="1" stroke="${c}" stroke-width="14" opacity=".16"/><path d="${d}" pathLength="1" stroke="${c}" stroke-width="6" opacity=".4"/><path d="${d}" pathLength="1" stroke="${c}" stroke-width="2.5"/><path d="${d}" pathLength="1" stroke="#fff" stroke-width="1" opacity=".7"/></g>`};
+ const seal=`<g class="seal${go}"><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#7cf5c4" stroke-width="16" opacity=".14"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#7cf5c4" stroke-width="7" opacity=".35"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs}" fill="none" stroke="#c9fff0" stroke-width="3"/><circle cx="${G[0]}" cy="${G[1]}" r="${rs*.55}" fill="none" stroke="#fff" stroke-width="1" opacity=".6"/></g>`;
+ const short=W<460;
+ const corner=(q,i)=>{const x=v[i],ly=i===0?q[1]-27:q[1]+38;return `<circle cx="${q[0]}" cy="${q[1]}" r="17" fill="${col[i]}" stroke="#0e1030" stroke-width="3"/><text class="cn" x="${q[0]}" y="${q[1]+5}" text-anchor="middle">${i+1}</text><text class="ct" x="${q[0]}" y="${ly}" text-anchor="middle">${nm(x.id)} ${x.role}${short?"":" · "+x.p}</text>`};
+ s.innerHTML=edge(Q[0],Q[1],col[0],0)+edge(Q[1],Q[2],col[1],1)+edge(Q[2],Q[0],col[2],2)+seal+Q.map(corner).join('');
+}
+const circRO=new ResizeObserver(()=>{drawCircuit($("csvg"),P.circuit,false);drawCircuit($("gsvg"),EXC,false)});
+circRO.observe($("cfig"));circRO.observe($("gsvg").parentNode);
+function playTrio(c,hp,b){
+ const AC=window.AudioContext||window.webkitAudioContext;
+ if(!AC)throw new Error("no audio");
+ if(!ctx)ctx=new AC();
+ if(ctx.state==="suspended")ctx.resume();
+ const t=ctx.currentTime+.03;
+ tone(hz(c.n),t,[[1,.6,1],[2,.25,.5],[3,.1,.3]],1.2,.16);
+ tone(hz(hp.n)/4,t,[[1,.7,1],[2,.35,.6],[3,.15,.4],[4,.06,.25]],1.5,.24);
+ tone(hz(b.n),t,[[1,.55,1],[2,.2,.7],[2.76,.18,.5],[5.4,.08,.25]],2.2,.15);
+}
+function circuitTap(id,sw){
+ const {A,B,txt}=targets(),C=ori(id,sw),btn=$("pc"+id);
+ if(id===A.id||id===B.id){renderPairs();bump(btn,"miss");sayP(`Card ${id} is already in this pair. The third card needs ${txt}. Still armed: tap a different card.`,"quiet");return}
+ if(C.open!==B.end||C.end!==A.open){
+  renderPairs();bump(btn,"miss");
+  const o=ori(id,!sw),tip=o.open===B.end&&o.end===A.open?` Tip: ${sw?"untick":"tick"} Swap voices for next tap and try card ${id} again.`:"";
+  sayP(`Not closed. Card ${id}${sw?" (swapped)":""} is ${nm(C.open)} chime to ${nm(C.end)} bell. Targets: ${txt}. Still armed: try again.${tip}`,"quiet");
+  return;
+ }
+ P.circuit={a:{id:A.id,sw:A.sw},b:{id:B.id,sw:B.sw},c:{id,sw}};P.chance=false;closing=false;K.start=null;K.step=0;K.done=false;saveP();renderPairs(false,true);
+ kSay("New circuit ready to conduct. Pick any corner to start.","");
+ [A.id,B.id,id].forEach(i=>bump($("pc"+i),"hit"));
+ const v=circVoices(P.circuit);
+ const path=`${nm(A.open)} chime, ${nm(A.end)} harp, ${nm(B.end)} bell, then back to ${nm(A.open)}, through card ${A.id}${A.sw?" (swapped)":""}, card ${B.id}${B.sw?" (swapped)":""} and card ${id}${sw?" (swapped)":""}.`;
+ if(!state.sound){sayP("Circuit closed silently: "+path+" No audio played.","live");return}
+ try{playTrio(byId(v[0].id),byId(v[1].id),byId(v[2].id));sayP("Circuit closed! Now playing three voices: "+path,"live")}
+ catch(e){sayP("Circuit closed. Audio isn't available here: "+path,"quiet")}
+}
+$("closeBtn").addEventListener('click',()=>{
+ if(!avail()){sayP("Close the circuit unlocks after a fresh two-card link.","");return}
+ closing=!closing;renderPairs();
+ sayP(closing?`Circuit armed. Tap the third card: it needs ${targets().txt}. Swap voices works on this tap.`:"Circuit disarmed. Your chance is still open; press Close the circuit to arm it again.","");
+});
+function tap(id){
+ const sw=armed;armed=false;
+ if(closing&&avail()){circuitTap(id,sw);return}
+ const btn=$("pc"+id);
+ if(P.anchor&&P.anchor.id===id){P.anchor=null;saveP();renderPairs();sayP(`Cleared the anchor on card ${id}. Tap any card to start again.`,"");return}
+ if(!P.anchor){
+  const lost=P.chance;P.chance=false;closing=false;
+  P.anchor={id,sw};saveP();renderPairs();bump(btn,"hit");
+  const o=ori(id,sw),msg=`${lost?"Circuit chance discarded. ":""}Anchored card ${id}${sw?" (swapped)":""}: ${nm(o.open)} chime to ${nm(o.end)} bell. Next, tap a different card that opens on ${nm(o.end)}.`;
+  if(!state.sound){sayP("Silent preview. "+msg+" No audio played.","quiet");return}
+  try{playAudio({c:byId(o.open),b:byId(o.end)});sayP("Previewing. "+msg,"live")}catch(e){sayP("Audio isn't available here, so this is a visual preview. "+msg,"quiet")}
+  return;
+ }
+ const A=ori(P.anchor.id,P.anchor.sw),C=ori(id,sw);
+ if(C.open!==A.end){
+  renderPairs();bump(btn,"miss");
+  const tip=ori(id,!sw).open===A.end?` Tip: ${sw?"untick":"tick"} Swap voices for next tap and try card ${id} again.`:"";
+  sayP(`No link. Card ${id}${sw?" (swapped)":""} opens on ${nm(C.open)}, but the target is ${nm(A.end)} (${pitch(byId(A.end).n)}), the anchor's ending bell. Card ${A.id} stays anchored.${tip}`,"quiet");
+  return;
+ }
+ P.result={first:{id:A.id,sw:A.sw},second:{id:C.id,sw:C.sw}};P.anchor=null;P.chance=true;closing=false;saveP();renderPairs(true);
+ bump(btn,"hit");bump($("pc"+A.id),"hit");
+ const r=`Linked card ${A.id} to card ${id} through ${nm(A.end)} (${pitch(byId(A.end).n)}). Result: ${nm(A.open)} chime + ${nm(C.end)} bell.`;
+ if(!state.sound){sayP("Silent link. "+r+" No audio played. Anchor cleared, so you can play again. Close the circuit is now unlocked.","live");return}
+ try{playAudio({c:byId(A.open),b:byId(C.end)});sayP("Now playing. "+r+" Anchor cleared, so you can play again. Close the circuit is now unlocked.","live")}
+ catch(e){sayP("Audio isn't available here. "+r+" Anchor cleared, so you can play again.","quiet")}
+}
+/* circuit conductor */
+const K={start:null,step:0,done:false,rev:false,dir:false};
+const kNext=(i,rev)=>rev?(i+2)%3:(i+1)%3;
+const kSeq=(s0,rev)=>{const a=kNext(s0,rev),b=kNext(a,rev);return [s0,a,b,s0]};
+function kSay(msg,kind){const s=$("kStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+const vName=x=>`${nm(x.id)} ${x.role}`;
+function ribbonHTML(v,seq,step,done){
+ return [0,1,2,3].map(i=>{
+  const ret=i===3,c=seq?seq[i]:null,x=c!==null&&v?v[c]:null;
+  const st=done||i<step?"done":(i===step&&v?"next":"wait");
+  const num=c===null?(ret?"↺":"?"):c+1;
+  const vn=x?vName(x):(i===0?"Any corner":ret?"Back to start":"Follows route");
+  const txt=st==="done"?(ret?"✓ All three":"✓ Played"):st==="next"?"▸ Next":"Waiting";
+  const col=x?byId(x.id).c:"#3d4596";
+  return `<li class="beat ${st}${ret?" ret":""}" style="--c:${col}"><span class="bn">Beat ${i+1}</span><span class="sym" aria-hidden="true"><span>${num}</span></span><span class="vn">${c===null?"":`Corner ${c+1}: `}${vn}</span>${ret?'<span class="rl">↺ Return</span>':""}<span class="st">${txt}</span></li>`;
+ }).join('');
+}
+function renderK(){
+ const v=P.circuit?circVoices(P.circuit):null,locked=K.step>0&&!K.done;
+ [0,1,2].forEach(i=>{
+  const b=$("k"+i),x=v&&v[i];
+  b.style.setProperty('--c',x?byId(x.id).c:"#3d4596");
+  b.innerHTML=`<span class="kn">${i+1}</span><b>${x?nm(x.id):"Locked"}</b><small>${x?`${x.role} · ${x.p}`:"close a circuit"}</small>`;
+  b.setAttribute('aria-disabled',v?"false":"true");
+  b.setAttribute('aria-label',x?`Corner ${i+1}: ${vName(x)}, ${x.p}`:`Corner ${i+1}, locked until you close a circuit`);
+ });
+ const r=$("krev");r.checked=K.rev;r.disabled=!v||locked;
+ $("krevText").textContent=locked?"Reverse route (locked during phrase)":"Reverse route";
+ $("sound3").checked=state.sound;
+ $("kHint").innerHTML=v?`Conducting the last closed circuit: <b>${v.map((x,i)=>`${i+1} ${vName(x)}`).join(", ")}</b>. Pick any corner, follow the route, then return to the start.`:"Close a circuit to unlock the conductor. A circuit saved from an earlier visit counts.";
+ const seq=K.step>0?kSeq(K.start,K.dir):null;
+ $("ribbon").innerHTML=ribbonHTML(v,seq,K.step,K.done);
+ $("ribbon").setAttribute('aria-label',seq?`Four-beat score: corners ${seq.map(c=>c+1).join(", ")}; ${K.done?"complete":`beat ${K.step+1} is next`}`:"Four-beat score, waiting for a starting corner");
+}
+function ensureCtx(){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)throw new Error("no audio");if(!ctx)ctx=new AC();if(ctx.state==="suspended")ctx.resume();return ctx.currentTime+.03}
+function playVoice(x){
+ const t=ensureCtx(),n=byId(x.id).n;
+ if(x.role==="harp")tone(hz(n)/4,t,[[1,.7,1],[2,.35,.6],[3,.15,.4],[4,.06,.25]],1.4,.28);
+ else if(x.role==="bell")tone(hz(n),t,[[1,.55,1],[2,.2,.7],[2.76,.18,.5],[5.4,.08,.25]],2.2,.2);
+ else tone(hz(n),t,[[1,.6,1],[2,.25,.5],[3,.1,.3]],1.1,.22);
+}
+function sounded(fn){if(!state.sound)return "Silent. ";try{fn();return ""}catch(e){return "Visual only, audio isn't available here. "}}
+function kTap(i){
+ if(!P.circuit){kSay("Close a circuit first. The conductor uses the last closed circuit's corners.","");return}
+ const v=circVoices(P.circuit),btn=$("k"+i);
+ if(K.step===0||K.done){
+  K.start=i;K.step=1;K.done=false;K.dir=K.rev;renderK();bump(btn,"hit");
+  const seq=kSeq(i,K.dir),pre=sounded(()=>playVoice(v[i]));
+  kSay(`${pre}Beat 1: corner ${i+1}, ${vName(v[i])}. Going ${K.dir?"backward":"forward"}, so next is corner ${seq[1]+1} (${vName(v[seq[1]])}).`,"live");
+  return;
+ }
+ const seq=kSeq(K.start,K.dir),want=seq[K.step];
+ if(i!==want){bump(btn,"miss");kSay(`Not that one. Beat ${K.step+1} needs corner ${want+1} (${vName(v[want])}). Your place is kept.`,"quiet");return}
+ K.step++;
+ if(K.step===4){
+  K.done=true;renderK();[0,1,2].forEach(j=>bump($("k"+j),"hit"));
+  const pre=sounded(()=>playTrio(byId(v[0].id),byId(v[1].id),byId(v[2].id)));
+  kSay(`${pre}Phrase complete: corners ${seq.map(c=>c+1).join(", ")}. ${v.map(vName).join(", ")} ${state.sound&&!pre?"sounding":"shown"} together. Tap any corner to start another run.`,"live");
+  return;
+ }
+ renderK();bump(btn,"hit");
+ const pre=sounded(()=>playVoice(v[i])),nx=seq[K.step];
+ kSay(`${pre}Beat ${K.step}: corner ${i+1}, ${vName(v[i])}. Next is ${K.step===3?"the return to ":""}corner ${nx+1} (${vName(v[nx])}).`,"live");
+}
+$("corners").addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(b)kTap(+b.dataset.k)});
+$("gRibbon").innerHTML=ribbonHTML(circVoices(EXC),kSeq(1,true),4,true);
+
+$("gallery").addEventListener('click',e=>{const b=e.target.closest('[data-card]');if(b)tap(+b.dataset.card)});
+$("exA").innerHTML=face(ori(1,false),[MK_PLAY_C,MK_SH]);
+$("exB").innerHTML=face(ori(2,true),[MK_SH,MK_PLAY_B],'<span class="tag sw">Sneak-tapped</span>');
+renderPairs();
+
+const h=location.hash.slice(1);
+show(VIEWS.includes(h)?h:(VIEWS.includes(state.tab)?state.tab:"guide"));
+render();
+}
+</script>
+</body>
+</html>

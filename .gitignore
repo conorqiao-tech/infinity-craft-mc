@@ -37,6 +37,9 @@ server/.remote/
 /vendor/
 website/dist/downloads/
 website/dist/index.html
+website/dist/guide-worker.js
+website/dist/assets/armor-refresh19.png
+website/dist/assets/gear-refresh19.png
 website/.vercel/
 *.zip
 *.mcpack

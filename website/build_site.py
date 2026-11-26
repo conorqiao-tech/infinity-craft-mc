@@ -1,6 +1,7 @@
 """Build the static reward guide from its catalogue. No runtime services needed."""
 from pathlib import Path
 from html import escape
+from hashlib import sha256
 import json
 from shutil import copyfile
 root=Path(__file__).parent
@@ -43,3 +44,17 @@ preview_art = root.parent / 'artwork' / 'refresh19'
 for source, target in (('armor-front-preview.png', 'armor-refresh19.png'),
                        ('inventory-preview.png', 'gear-refresh19.png')):
     copyfile(preview_art / source, root / 'dist' / 'assets' / target)
+
+# Cache the guide and studio as one offline edition. Release archives stay online-only.
+dist = root / 'dist'
+offline = {'/': dist / 'index.html', '/field-guide/': dist / 'field-guide/index.html'}
+for name in ('style.css', 'app.js', 'manifest.webmanifest', 'register-guide.js'):
+    offline['/' + name] = dist / name
+for asset in sorted((dist / 'assets').glob('*.png')):
+    offline['/assets/' + asset.name] = asset
+digest = sha256()
+for url, file in offline.items():
+    digest.update(url.encode() + b'\0' + sha256(file.read_bytes()).digest())
+worker = (root / 'guide-worker.js.in').read_text()
+(dist / 'guide-worker.js').write_text(worker.replace('@VERSION@', digest.hexdigest()[:16])
+                                     .replace('@PATHS@', json.dumps(list(offline))))

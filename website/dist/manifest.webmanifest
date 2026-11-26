@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "InfinityCraft Field Guide",
+  "short_name": "InfinityCraft",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#09151d",
+  "theme_color": "#09151d",
+  "icons": [
+    {"src": "/assets/guide-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/assets/guide-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Postcard Pairs and Circuit Conductor", "url": "/field-guide/#pairs"},
+    {"name": "Coda Studio and gallery guide", "url": "/field-guide/#studio"},
+    {"name": "Java and Bedrock joining guide", "url": "/#play"}
+  ]
+}
