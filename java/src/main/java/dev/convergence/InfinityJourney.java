@@ -49,7 +49,7 @@ final class InfinityJourney {
         "Complete the powered circuit and live delivery in Builder Exchange.",
         "Finish any Infinity minigame or adventure course.",
         "Deliver at least sixteen food items to the Commons pantry.");
-    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT, ECHO_CHALLENGE, MIRROR_COMPOSER, STAR_PRINTS }
+    enum Page { JOURNEY, STYLES, RELAY, SURVEY, DEFENDER, TIDEWATCH, SIGNAL_FLAGS, APIARY, CHIMES, STAR_LOOM, KITE, HALF_MOON, EMBER_PEAKS, BANNER_CONCERT, ECHO_CHALLENGE, MIRROR_COMPOSER, STAR_PRINTS, SEAL_CIPHER }
     record Choice(Item icon, String label, String bedrockTexture, Runnable action) {
         Choice(Item icon, String label, Runnable action) { this(icon, label, null, action); }
     }
@@ -173,6 +173,7 @@ final class InfinityJourney {
         return 1;
     }
     static View view(ServerPlayer p, Page page) {
+        if (page == Page.SEAL_CIPHER) return SealCipher.view(p);
         if (page == Page.STAR_PRINTS) return StarPrint.view(p);
         if (page == Page.MIRROR_COMPOSER) return MirrorComposer.view(p);
         if (page == Page.ECHO_CHALLENGE) return EchoChallenge.view(p);
@@ -254,6 +255,7 @@ final class InfinityJourney {
         for (int i = 0; i < cards.size() && i < 8; i++)
             CreativeStudio.icon(chest, i, Items.WRITTEN_BOOK, view.title() + " • " + (i + 1), cards.get(i).toArray(String[]::new));
         chest.setItem(17, emblem(p, true));
+        if (page == Page.SEAL_CIPHER) SealCipher.draw(p, chest);
         if (page == Page.MIRROR_COMPOSER) MirrorComposer.draw(p, chest);
         if (page == Page.SIGNAL_FLAGS) {
             for (var design : TidewatchFlags.Design.values()) chest.setItem(9 + design.ordinal(), design.banner(p));

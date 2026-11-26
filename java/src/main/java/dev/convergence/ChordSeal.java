@@ -24,7 +24,7 @@ record ChordSeal(List<StarLoom.Chart> voices, int opening, int direction) {
 
     ItemStack item() {
         var item = CommonsEvents.named(Items.CLAY_BALL, 1, "Infinity Chord Seal", MirrorComposer.names(voices),
-            "Use to hear the next beat. Sneak-use to start again.");
+            "Use to hear the next beat. Sneak-use to start again.", "Use on a note block to solve the Seal Cipher.");
         item.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
         var score = new CompoundTag();
         score.putIntArray("pitches", voices.stream().mapToInt(v -> v.note).toArray());
@@ -52,23 +52,33 @@ record ChordSeal(List<StarLoom.Chart> voices, int opening, int direction) {
         if (!CodaPostcard.canListen(p)) return;
         var previous = p.getAttached(PLAYBACK);
         int beat = !p.isShiftKeyDown() && previous != null && equals(previous.seal) ? previous.nextBeat : 0;
-        int lead = Math.floorMod(opening + direction * beat, 3);
-        int answer = Math.floorMod(lead + direction, 3);
+        int lead = cornerAt(beat);
+        int answer = cornerAt(beat + 1);
         InfinityChimes.stopPlayback(p);
         EncoreDuet.leave(p);
-        if (beat == 3) {
-            for (int i = 0; i < 3; i++) CircuitConductor.soundVoice(p, i, voices.get(i));
-        } else {
-            CircuitConductor.soundVoice(p, lead, voices.get(lead));
-            CircuitConductor.soundVoice(p, answer, voices.get(answer));
-        }
+        soundBeat(p, beat);
         medallion(p, beat);
         String heard = beat == 3 ? "Full triad" : voiceName(lead) + " + " + voiceName(answer);
         ConcertStage.overlay(p, "Chord Seal " + (beat + 1) + "/4 • " + heard);
         p.setAttached(PLAYBACK, new Playback(this, (beat + 1) % 4));
     }
 
-    private String voiceName(int corner) {
+    int cornerAt(int beat) {
+        return Math.floorMod(opening + direction * beat, 3);
+    }
+
+    void soundBeat(ServerPlayer p, int beat) {
+        if (beat == 3) {
+            for (int i = 0; i < 3; i++) CircuitConductor.soundVoice(p, i, voices.get(i));
+        } else {
+            int lead = cornerAt(beat);
+            int answer = cornerAt(beat + 1);
+            CircuitConductor.soundVoice(p, lead, voices.get(lead));
+            CircuitConductor.soundVoice(p, answer, voices.get(answer));
+        }
+    }
+
+    String voiceName(int corner) {
         return voices.get(corner).label + " " + CircuitConductor.VOICES.get(corner);
     }
 
