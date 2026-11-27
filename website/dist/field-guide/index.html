@@ -340,6 +340,16 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .pencard .fanfare{grid-column:1/-1;justify-self:stretch;width:100%}
 .chfig{width:280px;height:222px;margin:0 auto}
 .chfig svg{display:block;width:280px;height:222px}
+.baton{margin-top:6px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.baton h4{margin:0;font:700 18px "Pixelify Sans",sans-serif}
+.btdir{margin:0;font-size:14px;color:var(--soft)}
+.btdir b{color:var(--ink)}
+.baton .ribbon{margin:0}
+.baton .beat .pt{color:var(--ink)}
+.beat.now{border:3px solid var(--mint);box-shadow:0 0 0 3px #7cf5c433;color:var(--ink)}
+.beat.now .st{color:var(--mint)}
+.baton .row .btn{flex:1 1 120px}
+@media(max-width:480px){.baton .ribbon{grid-template-columns:repeat(2,minmax(0,1fr))}.baton .beat{min-height:0}}
 @media(max-width:480px){.fanfare{padding:12px}}
 @media(max-width:480px){.pencard{grid-template-columns:minmax(0,1fr);justify-items:start}}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
@@ -388,6 +398,17 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <ul class="rfknots" id="chList_g" aria-label="Chorus slots"></ul>
 <div class="row"><button class="btn main" id="chCollect_g" type="button" aria-disabled="true">Collect solo</button></div>
 <p class="status" id="chStatus_g" role="status" aria-live="polite">Finish a kept pennant's call and answer, then collect its solo.</p>
+<div class="baton" aria-labelledby="btT_g">
+<h4 id="btT_g">Chorus Baton</h4>
+<p class="btdir" id="btDir_g">Complete a chorus trio to unlock the baton.</p>
+<ol class="ribbon" id="btScore_g" aria-label="Baton score locked"></ol>
+<div class="row">
+<button class="btn" id="btFwd_g" type="button" aria-disabled="true">Conduct forward</button>
+<button class="btn" id="btBack_g" type="button" aria-disabled="true">Conduct backward</button>
+<button class="btn main" id="btNext_g" type="button" aria-disabled="true">Next beat</button>
+</div>
+<p class="status" id="btStatus_g" role="status" aria-live="polite">Finish a chorus trio, then conduct it forward or backward.</p>
+</div>
 </div>
 </section>
 <div class="trail">
@@ -560,6 +581,7 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <li>After the feather call and answer on a banner, tap the same banner with ordinary paper to collect its solo.</li>
 <li>Collect a chime, a harp and a bell solo to hear the three together.</li>
 <li>Different players have private scorecards.</li>
+<li>Chorus Baton: tap the flag where the chorus finished with a plain stick, once per beat. Sneak on the first tap to go backward.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -795,6 +817,17 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <ul class="rfknots" id="chList_p" aria-label="Chorus slots"></ul>
 <div class="row"><button class="btn main" id="chCollect_p" type="button" aria-disabled="true">Collect solo</button></div>
 <p class="status" id="chStatus_p" role="status" aria-live="polite">Finish a kept pennant's call and answer, then collect its solo.</p>
+<div class="baton" aria-labelledby="btT_p">
+<h4 id="btT_p">Chorus Baton</h4>
+<p class="btdir" id="btDir_p">Complete a chorus trio to unlock the baton.</p>
+<ol class="ribbon" id="btScore_p" aria-label="Baton score locked"></ol>
+<div class="row">
+<button class="btn" id="btFwd_p" type="button" aria-disabled="true">Conduct forward</button>
+<button class="btn" id="btBack_p" type="button" aria-disabled="true">Conduct backward</button>
+<button class="btn main" id="btNext_p" type="button" aria-disabled="true">Next beat</button>
+</div>
+<p class="status" id="btStatus_p" role="status" aria-live="polite">Finish a chorus trio, then conduct it forward or backward.</p>
+</div>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
 </section>
@@ -1639,7 +1672,7 @@ function ffRestart(){
 FFK.forEach(k=>{$("ffMain_"+k).addEventListener('click',ffMain);$("ffRestart_"+k).addEventListener('click',ffRestart)});
 if(PN)ffSay("Press Play call to hear your pennant's solo.","");
 /* pennant chorus (session only, shared by Guide and #pairs) */
-let CH={armed:false,slots:{chime:null,harp:null,bell:null},done:false};
+let CH={armed:false,slots:{chime:null,harp:null,bell:null},done:false,order:[]};
 const chVoice=(role,id)=>({id,role,p:role==="harp"?harpPitch(byId(id).n):pitch(byId(id).n)});
 function chSay(msg,kind){FFK.forEach(k=>{const s=$("chStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
 function chorusSVG(){
@@ -1656,6 +1689,7 @@ function chorusSVG(){
  return `<svg viewBox="0 0 280 222" aria-hidden="true">${g}</svg>`;
 }
 function renderChorus(){
+ renderBaton();
  const ok=!!PN&&CH.armed,filled=ROLES.filter(r=>CH.slots[r]);
  const desc=ROLES.map(r=>CH.slots[r]?`${CAP[r]}: ${vName(chVoice(r,CH.slots[r]))} ${chVoice(r,CH.slots[r]).p}`:`${CAP[r]}: empty`);
  FFK.forEach(k=>{
@@ -1671,11 +1705,11 @@ function chCollect(){
  const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
  CH.armed=false;
  let pre="";
- if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;pre="New trio started. "}
- const old=CH.slots[role];CH.slots[role]=id;
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
+ const old=CH.slots[role];CH.slots[role]=id;if(!CH.order.includes(role))CH.order.push(role);
  const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
  if(filled.length===3){
-  CH.done=true;renderChorus();
+  CH.done=true;BT={score:CH.order.map(r=>({role:r,id:CH.slots[r]})),dir:null,step:0};renderChorus();btSay(`Baton ready. Joined order: ${BT.score.map(x=>CAP[x.role]).join(", ")}. Choose Conduct forward or Conduct backward.`,"");
   const vs=ROLES.map(r=>chVoice(r,CH.slots[r]));
   if(state.sound){try{const t=ensureCtx();vs.forEach(x=>playVoice(x,t))}catch(e){}}
   chSay(`${pre}${old?`Replaced ${CAP[role]}. `:""}Chorus complete: ${vs.map(x=>`${vName(x)} ${x.p}`).join(", ")}, together once. The next collection starts a new trio.`,"live");
@@ -1686,6 +1720,55 @@ function chCollect(){
  chSay(`${pre}${old?`Replaced ${CAP[role]}: now ${vName(now)} ${now.p} (was ${nm(old)}).`:`Collected ${CAP[role]}: ${vName(now)} ${now.p}.`} ${filled.length} of 3 instruments. Still needed: ${need.join(" and ")}.`,"live");
 }
 FFK.forEach(k=>$("chCollect_"+k).addEventListener('click',chCollect));
+/* chorus baton (session only, shared by Guide and #pairs) */
+let BT={score:null,dir:null,step:0};
+const btActive=()=>!!BT.score&&!!BT.dir&&BT.step>0&&BT.step<4;
+const btSeq=()=>BT.dir==="b"?BT.score.slice().reverse():BT.score;
+function btSay(msg,kind){FFK.forEach(k=>{const s=$("btStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function renderBaton(){
+ const has=!!BT.score,act=btActive(),seq=has?(BT.dir?btSeq():BT.score):null;
+ const cell=i=>{
+  if(!seq)return `<li class="beat"><span class="bn">Beat ${i+1}</span><span class="sym" aria-hidden="true"><span>?</span></span><span class="vn">${i<3?"Solo":"Full chord"}</span><span class="st">Locked</span></li>`;
+  const played=BT.dir?BT.step:0,st=i<played?(i===played-1?"done now":"done"):(BT.dir&&i===played&&act?"next":"wait");
+  const x=i<3?chVoice(seq[i].role,seq[i].id):null,col=x?byId(x.id).c:"#7cf5c4";
+  const txt=st.includes("now")?"▶ Just played":st==="done"?"✓ Played":st==="next"?"▸ Next":"Waiting";
+  return `<li class="beat ${st}${i===3?" ret":""}" style="--c:${col}"${st.includes("now")?' aria-current="step"':""}><span class="bn">Beat ${i+1}</span><span class="sym" aria-hidden="true"><span>${i<3?i+1:"All"}</span></span><span class="vn">${i<3?`${CAP[x.role]} solo`:"Full chord"}</span><span class="pt">${i<3?`${nm(x.id)} ${x.p}`:"all three"}</span><span class="st">${txt}</span></li>`;
+ };
+ const dirTxt=!has?"Complete a chorus trio to unlock the baton.":`Joined order: <b>${BT.score.map((x,i)=>`${i+1} ${CAP[x.role]}`).join(", ")}</b>. Direction: <b>${BT.dir?(BT.dir==="b"?"Backward":"Forward"):"choose one"}</b>${act?" (locked until the phrase finishes)":""}.`;
+ const lab=!has?"Baton score locked":`Baton score, ${BT.dir?(BT.dir==="b"?"backward":"forward"):"no direction yet"}: `+[0,1,2].map(i=>{const x=chVoice(seq[i].role,seq[i].id);return `beat ${i+1} ${vName(x)} ${x.p}`}).join(", ")+", beat 4 full chord."+(BT.dir?(BT.step>=4?" Phrase finished.":` ${BT.step} of 4 played.`):"");
+ FFK.forEach(k=>{
+  $("btDir_"+k).innerHTML=dirTxt;
+  $("btScore_"+k).innerHTML=[0,1,2,3].map(cell).join('');
+  $("btScore_"+k).setAttribute('aria-label',lab);
+  $("btFwd_"+k).setAttribute('aria-disabled',has&&!act?"false":"true");
+  $("btBack_"+k).setAttribute('aria-disabled',has&&!act?"false":"true");
+  $("btNext_"+k).setAttribute('aria-disabled',act?"false":"true");
+ });
+}
+function btConduct(dir){
+ if(!BT.score){btSay("Complete a chorus trio first. The baton uses the order the three instruments joined.","");return}
+ if(btActive()){btSay(`Finish the ${BT.dir==="b"?"backward":"forward"} phrase first: press Next beat.`,"");return}
+ BT.dir=dir;BT.step=1;renderBaton();
+ const seq=btSeq(),x=chVoice(seq[0].role,seq[0].id),nx=chVoice(seq[1].role,seq[1].id);
+ if(state.sound){try{playVoice(x)}catch(e){}}
+ btSay(`${dir==="b"?"Backward":"Forward"} phrase, beat 1 of 4: ${CAP[x.role]} solo, ${vName(x)} ${x.p}. Next beat: ${vName(nx)}.`,"live");
+}
+function btNext(){
+ if(!btActive()){btSay(BT.score?"Choose Conduct forward or Conduct backward to start a phrase.":"Complete a chorus trio first.","");return}
+ const seq=btSeq(),i=BT.step;
+ if(i<3){
+  BT.step++;renderBaton();
+  const x=chVoice(seq[i].role,seq[i].id);
+  if(state.sound){try{playVoice(x)}catch(e){}}
+  btSay(`Beat ${i+1} of 4: ${CAP[x.role]} solo, ${vName(x)} ${x.p}. Next beat: ${i===2?"the full chord":vName(chVoice(seq[i+1].role,seq[i+1].id))}.`,"live");
+  return;
+ }
+ BT.step=4;renderBaton();
+ const vs=seq.map(z=>chVoice(z.role,z.id));
+ if(state.sound){try{const t=ensureCtx();vs.forEach(z=>playVoice(z,t))}catch(e){}}
+ btSay(`Beat 4 of 4: full chord, ${vs.map(z=>`${vName(z)} ${z.p}`).join(", ")}, together once. Phrase finished; either direction is open for a new phrase.`,"live");
+}
+FFK.forEach(k=>{$("btFwd_"+k).addEventListener('click',()=>btConduct("f"));$("btBack_"+k).addEventListener('click',()=>btConduct("b"));$("btNext_"+k).addEventListener('click',btNext)});
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 

@@ -286,16 +286,16 @@ async function verify(page, origin) {
     for (const v of ['Bell','Harp','Chime']) await tap(button(v));
     await tap(direction(true));
     for (const i of [0,1,2]) await tap(instrument(i));
-    if (mode === 'replace') {
-      await weave(0);
-      await play();
-      await take(1); // Replace the gifted Ember Peaks chime with a fresh Kite chime.
-      await tap(weaveAgain);
-    }
     await weave(1);
     await play();
     await take(2);
     await tap(weaveAgain);
+    if (mode === 'replace') {
+      await weave(0);
+      await play();
+      await take(2); // Replace the first pitch after harp has joined. Chime keeps its place.
+      await tap(weaveAgain);
+    }
     await tap(soloKnot(2));
     await tap(answerPair(0));
     await play(); // The still-kept harp has a collectible answer while a bell is waiting to be kept.
@@ -306,12 +306,38 @@ async function verify(page, origin) {
     await tap(keep);
     assert(await collect('p').isDisabled());
     await play();
-    await take(3, mode === 'replace' ? seal.notes : ['ember','moon','ember']);
+    const trio = {notes: mode === 'replace' ? seal.notes : ['ember','moon','ember']};
+    await take(3, trio.notes);
+    for (const backward of [false, true]) {
+      const order = backward ? [2,1,0] : [0,1,2];
+      for (let beat = 0; beat < 4; beat++) {
+        const side = beat % 2 === 0 ? 'p' : 'g';
+        await tap(side === 'p' ? pairsTab : guideTab);
+        const id = beat === 0 ? backward ? 'btBack' : 'btFwd' : 'btNext';
+        const before = (await heard()).length;
+        await tap(page.locator('#'+id+'_'+side));
+        assertAudio((await heard()).slice(before), trio, beat === 3 ? [0,1,2] : [order[beat]], audible);
+        const score = page.locator('#btScore_'+side);
+        const current = await score.locator('[aria-current="step"]').innerText();
+        assert(current.includes('Beat '+(beat+1)));
+        assert(current.includes(beat === 3 ? 'Full chord' : names[order[beat]]+' solo'));
+        assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), await page.locator('#btScore_g').getAttribute('aria-label'));
+        assert.equal(await page.locator('#btFwd_'+side).isDisabled(), beat < 3);
+        assert.equal(await page.locator('#btBack_'+side).isDisabled(), beat < 3);
+        assert.equal(await page.locator('#btNext_'+side).isEnabled(), beat < 3);
+      }
+    }
+    await tap(pairsTab);
+    await tap(page.locator('#btFwd_p'));
     await play();
+    assert(await page.locator('#btNext_p').isEnabled(), 'Performing another fanfare preserves the current phrase');
     await take(1); // A new bell is one slot into the next chorus and remains silent.
+    assert(await page.locator('#btNext_p').isDisabled(), 'A successful new collection clears the unfinished phrase');
+    assert(await page.locator('#btBack_p').isDisabled());
     await page.reload();
     assert.deepEqual(await heard(), []);
     assert(await collect('p').isDisabled());
+    assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), 'Baton score locked');
     assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
   }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
@@ -335,6 +361,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
