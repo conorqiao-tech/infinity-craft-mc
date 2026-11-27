@@ -419,6 +419,65 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void crossUnisonPrismBothWaysWithoutRepeatingTheTriad(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Cross"); var block = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            p.level().setBlock(block.pos, Blocks.AMETHYST_BLOCK.defaultBlockState(), 2);
+            var score = new ChordSeal(List.of(KITE, KITE, KITE), 2, -1); // Bell, harp, chime
+            var item = new InlayPrism(score).item();
+            p.setItemInHand(InteractionHand.MAIN_HAND, item);
+            for (boolean reverse : List.of(false, true)) {
+                p.setShiftKeyDown(reverse);
+                p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(block.pos));
+                block.tap(p);
+                // A vanilla right click can send both block and item use.
+                p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                var start = g.drain(0);
+                SealCipherGameTests.expectSounds(c, start, score, List.of());
+                String first = score.voiceName(reverse ? 0 : 2), last = score.voiceName(reverse ? 2 : 0);
+                c.assertTrue(EchoChallengeGameTests.overlays(start).stream().anyMatch(s -> s.contains(first + " then " + last)),
+                    "Both clues follow the chosen direction, even at unison");
+
+                p.setYRot(0); p.setXRot(-90); // Answer away from the amethyst.
+                for (int step = 0; step < 2; step++) {
+                    boolean right = (step == 0) == reverse;
+                    p.setShiftKeyDown(!right);
+                    p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                    var miss = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, miss, score, List.of());
+                    c.assertTrue(EchoChallengeGameTests.overlays(miss).stream().anyMatch(s -> s.contains("Find " + (right ? score.voiceName(0) : score.voiceName(2)))),
+                        "A miss keeps the same named target");
+                    p.setShiftKeyDown(right);
+                    p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                    var match = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, match, score, step == 1 ? List.of(0,1,2) : right ? List.of(1,0) : List.of(2,1));
+                    c.assertValueEqual(GalleryTrailGameTests.particles(match, ParticleTypes.END_ROD).size(),
+                        step == 0 ? 9 : 17, "One diagonal becomes two on completion");
+                    c.assertValueEqual(GalleryTrailGameTests.particles(match, ParticleTypes.GLOW).size(),
+                        step == 0 ? 0 : 1, "Only the closing chord lights the center star");
+                }
+                p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, reverse ? List.of(2,1) : List.of(1,0));
+            }
+            block.tap(p);
+            var other = new ChordSeal(List.of(KITE, HALF_MOON, EMBER_PEAKS), 0, 1);
+            var swapped = new InlayPrism(other).item();
+            p.setItemInHand(InteractionHand.MAIN_HAND, swapped);
+            p.setShiftKeyDown(false);
+            p.gameMode.useItem(p, p.level(), swapped, InteractionHand.MAIN_HAND);
+            SealCipherGameTests.expectSounds(c, g.drain(0), other, List.of(0,1));
+            p.setItemInHand(InteractionHand.MAIN_HAND, item);
+            p.setShiftKeyDown(true);
+            p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+            SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(1,0));
+            c.assertTrue(p.level().getBlockState(block.pos).is(Blocks.AMETHYST_BLOCK), "The station is reusable");
+            var visitor = g.drain(2);
+            SealCipherGameTests.expectSounds(c, visitor, score, List.of());
+            c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.GLOW).isEmpty(), "Private completion star");
+        }
+        c.succeed();
+    }
+
     @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
         var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
         for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {

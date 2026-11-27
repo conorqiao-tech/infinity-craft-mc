@@ -135,6 +135,7 @@ final class PennantFanfare {
             var score = new ChordSeal(List.of(voices.get(0), voices.get(1), voices.get(2)), start, direction);
             if (StarPrint.stampOne(p, Items.QUARTZ, new InlayPrism(score).item())) {
                 inlay = Inlay.CUT;
+                PrismCrossing.clear(p);
                 ConcertStage.overlay(p, "Inlay Prism cut • Use for left • Sneak-use for right");
             } else {
                 ConcertStage.overlay(p, "Inlay Prism • Make room for the remaining quartz, then try again");
