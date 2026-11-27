@@ -238,13 +238,16 @@ async function verify(page, origin) {
   }
   const collect = suffix => page.locator('#'+(suffix === 'g' ? 'guide' : 'pairs'))
     .getByRole('button', {name:'Collect solo', exact:true});
+  const oldPrism = {ver:1, voices:['bell','harp','chime'].map(role => ({role, note:'kite'}))};
+  const storedPrism = () => page.evaluate(() => JSON.parse(localStorage.getItem('infinitycraft.field-guide.v1')).prism);
+  const cut = side => page.locator('#prCut_'+side);
   // Keep a souvenir from a different score, then earn the other parts from this seal.
   for (const mode of ['mixed', 'replace', 'muted']) {
     const audible = mode !== 'muted';
     const seal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
     const gift = {ver:1, solo:'chime', notes:['ember','kite','kite']};
     await page.evaluate(state => localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(state)),
-      {pennant:gift, seal, sound:audible});
+      {pennant:gift, seal, sound:audible, prism:oldPrism});
     await page.reload();
     const play = async () => {
       await tap(page.locator('#ffMain_p'));
@@ -308,6 +311,22 @@ async function verify(page, origin) {
     await play();
     const trio = {notes: mode === 'replace' ? seal.notes : ['ember','moon','ember']};
     await take(3, trio.notes);
+    const expectedPrism = {ver:1, voices:names.map((role,i) => ({role:role.toLowerCase(),note:trio.notes[i]}))};
+    async function playFacet(side, facet, notes, instruments) {
+      const before = (await heard()).length;
+      await tap(page.locator('#pr'+facet+'_'+side));
+      assertAudio((await heard()).slice(before), {notes}, instruments, audible);
+      const face = facet === 'L' ? 'left' : 'right';
+      const caption = await page.locator('#prFig_'+side).getAttribute('aria-label');
+      assert.match(caption, new RegExp(face+' facet is hatched as last played'));
+      assert.equal(await page.locator('#prFig_g').getAttribute('aria-label'), await page.locator('#prFig_p').getAttribute('aria-label'));
+      for (const panel of ['p','g']) {
+        const svg = page.locator('#prFig_'+panel+' svg');
+        const pattern = await svg.locator('pattern').getAttribute('id');
+        assert.equal(await page.locator('[id="'+pattern+'"]').count(), 1, 'Hatch belongs to this panel');
+        assert.equal(await svg.locator('polygon[fill="url(#'+pattern+')"]').count(), 1);
+      }
+    }
     const ring = side => page.locator(side === 'p' ? '#pairs' : '#guide')
       .getByRole('button', {name:'Ring the loop', exact:true});
     const loopStatus = side => page.locator('#lpStatus_'+side).textContent();
@@ -344,6 +363,7 @@ async function verify(page, origin) {
       await tap(side === 'g' ? guideTab : pairsTab);
       const before = (await heard()).length;
       await tap(ring(side));
+      assert(await cut(side).isDisabled(), 'Ringing clears any uncut opportunity');
       assertAudio((await heard()).slice(before), trio, [0,2], audible);
       assert.equal(await page.locator('#btScore_'+side).getAttribute('aria-label'), beatOne);
       assert.match(await page.locator('#inFig_'+side).getAttribute('aria-label'), /diamond not set.*attempt open/i);
@@ -370,11 +390,40 @@ async function verify(page, origin) {
       beforeGuess = (await heard()).length;
       await tap(inlay(other));
       assert.equal((await heard()).length, beforeGuess, 'One triad per ring');
+      assert(await cut(other).isEnabled());
+      if (side === 'p') {
+        await page.evaluate(() => {window.blockPennantWrite=true;});
+        await tap(cut(other));
+        await page.evaluate(() => {window.blockPennantWrite=false;});
+        assert(await cut(other).isEnabled());
+        assert.match(await page.locator('#prStatus_'+other).innerText(), /previous prism is unchanged.*try again/i);
+        assert.deepEqual(await storedPrism(), oldPrism);
+        const unison = ['kite','kite','kite'];
+        await playFacet(other, 'L', unison, [2,1]);
+        await playFacet(other, 'R', unison, [1,0]);
+        const beforeCut = (await heard()).length;
+        await tap(cut(other));
+        assert.deepEqual(await storedPrism(), expectedPrism);
+        assert(await cut(other).isDisabled());
+        await tap(cut(other));
+        assert.deepEqual(await storedPrism(), expectedPrism);
+        assert.equal((await heard()).length, beforeCut, 'Cutting is silent');
+        await playFacet(other, 'L', trio.notes, [0,1]);
+        await tap(pairsTab);
+        await playFacet(side, 'R', trio.notes, [1,2]);
+        await tap(guideTab);
+        assert.equal(await page.locator('#btScore_'+other).getAttribute('aria-label'), beatOne);
+      }
     }
     await tap(pairsTab);
     const beforeBeatTwo = (await heard()).length;
     await tap(page.locator('#btNext_p'));
     assertAudio((await heard()).slice(beforeBeatTwo), trio, [1], audible);
+    await tap(ring('p'));
+    await choice('p','Role','harp').check();
+    await choice('p','Note','moon').check();
+    await tap(inlay('p'));
+    assert(await cut('p').isEnabled(), 'A fresh solve allows a new cut');
     await play();
     assert(await ring('p').isEnabled(), 'Hearing another fanfare preserves both arcs');
     assert(await page.locator('#btNext_p').isEnabled(), 'Performing another fanfare preserves the current phrase');
@@ -386,6 +435,9 @@ async function verify(page, origin) {
     assert.equal(await page.locator('#inFig_p').getAttribute('aria-label'), 'Inlay locked');
     assert.match(await loopStatus('p'), /new trio.*loop was cleared/i);
     assert.equal(await loopStatus('p'), await loopStatus('g'));
+    assert(await cut('p').isDisabled());
+    assert.match(await page.locator('#prStatus_p').innerText(), /cleared the uncut prism.*saved prism is still playable/i);
+    assert.deepEqual(await storedPrism(), expectedPrism);
     await page.reload();
     assert.deepEqual(await heard(), []);
     assert(await collect('p').isDisabled());
@@ -393,6 +445,23 @@ async function verify(page, origin) {
     assert(await inlay('p').isDisabled());
     assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), 'Baton score locked');
     assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
+    assert(await cut('p').isDisabled());
+    assert.deepEqual(await storedPrism(), expectedPrism);
+    await playFacet('p', 'R', trio.notes, [1,2]);
+  }
+  const [first, middle, last] = oldPrism.voices;
+  for (const prism of [null, [], {ver:2, voices:oldPrism.voices}, {ver:1,voices:null},
+    {ver:1, voices:[first, middle]}, {ver:1, voices:[first, middle, first]},
+    {ver:1, voices:[null,middle,last]}, {ver:1, voices:[first,middle,{...last,note:'unknown'}]}]) {
+    await page.evaluate(prism => localStorage.setItem('infinitycraft.field-guide.v1', JSON.stringify({
+      prism, pennant:{ver:1,solo:'bell',notes:['kite','moon','ember']}
+    })), prism);
+    await page.reload();
+    for (const side of ['g','p']) {
+      assert(await page.locator('#prL_'+side).isDisabled());
+      assert(await page.locator('#prR_'+side).isDisabled());
+      assert(await page.locator('#ffMain_'+side).isEnabled(), 'Invalid prism leaves the pennant playable');
+    }
   }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
   for (const bad of [null,123,'obsolete',[],{ver:2,solo:'harp',notes:testSeal.notes},{ver:1,solo:'other',notes:testSeal.notes},{ver:1,solo:'bell',notes:['kite','unknown','moon']}]) {
@@ -415,6 +484,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
