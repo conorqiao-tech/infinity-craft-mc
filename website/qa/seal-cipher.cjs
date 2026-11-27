@@ -40,7 +40,7 @@ async function verify(page, origin) {
       return harmonics[v].map(multiple => fundamental * multiple);
     }) : [];
     assert.equal(notes.length, pitches.length);
-    if (!audible) return;
+    if (pitches.length === 0) return;
     assert.equal(new Set(notes.map(n => n.time)).size, 1, 'All voices start together');
     const ascending = (a,b) => a-b;
     const played = notes.map(n => n.pitch).sort(ascending);
@@ -236,6 +236,84 @@ async function verify(page, origin) {
       await tap(pairsTab);
     }
   }
+  const collect = suffix => page.locator('#'+(suffix === 'g' ? 'guide' : 'pairs'))
+    .getByRole('button', {name:'Collect solo', exact:true});
+  // Keep a souvenir from a different score, then earn the other parts from this seal.
+  for (const mode of ['mixed', 'replace', 'muted']) {
+    const audible = mode !== 'muted';
+    const seal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
+    const gift = {ver:1, solo:'chime', notes:['ember','kite','kite']};
+    await page.evaluate(state => localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(state)),
+      {pennant:gift, seal, sound:audible});
+    await page.reload();
+    const play = async () => {
+      await tap(page.locator('#ffMain_p'));
+      assert(await collect('p').isDisabled(), 'A call alone cannot be collected');
+      await tap(page.locator('#ffMain_p'));
+      assert(await collect('p').isEnabled(), 'An answered solo can be collected');
+    };
+    async function take(count, finalNotes) {
+      await tap(guideTab);
+      const before = (await heard()).length;
+      await tap(collect('g'));
+      assertAudio((await heard()).slice(before), {notes:finalNotes || seal.notes},
+        finalNotes ? [0,1,2] : [], audible);
+      const legend = await page.locator('#chList_g').innerText();
+      assert.match(legend, finalNotes ? /Trio complete/ : new RegExp(count+' of 3'));
+      if (finalNotes) {
+        const labels = {kite:'Kite', moon:'Half Moon', ember:'Ember Peaks'};
+        for (const [role,id] of finalNotes.entries()) {
+          assert.match(legend, new RegExp(labels[id]+' '+names[role], 'i'));
+        }
+      }
+      assert.equal(await page.locator('#chFig_g').getAttribute('aria-label'), await page.locator('#chFig_p').getAttribute('aria-label'));
+      assert(await collect('g').isDisabled(), 'Only one collection per answer');
+      await tap(pairsTab);
+      assert(await collect('p').isDisabled(), 'Both views consumed the same answer');
+    }
+    const weave = async solo => {
+      await tap(soloKnot(solo));
+      await tap(answerPair((solo+1)%3));
+      await tap(keep);
+      assert(await collect('p').isDisabled(), 'A newly kept design needs its own performance');
+    };
+    await play();
+    await tap(page.locator('#ffRestart_p'));
+    assert(await collect('p').isDisabled(), 'Restarting disarms collection');
+    await tap(page.locator('#ffMain_p'));
+    await take(1);
+    await tap(start);
+    for (const v of ['Bell','Harp','Chime']) await tap(button(v));
+    await tap(direction(true));
+    for (const i of [0,1,2]) await tap(instrument(i));
+    if (mode === 'replace') {
+      await weave(0);
+      await play();
+      await take(1); // Replace the gifted Ember Peaks chime with a fresh Kite chime.
+      await tap(weaveAgain);
+    }
+    await weave(1);
+    await play();
+    await take(2);
+    await tap(weaveAgain);
+    await tap(soloKnot(2));
+    await tap(answerPair(0));
+    await play(); // The still-kept harp has a collectible answer while a bell is waiting to be kept.
+    await page.evaluate(() => {window.blockPennantWrite=true;});
+    await tap(keep);
+    assert(await collect('p').isEnabled(), 'A failed keep preserves the collectible performance');
+    await page.evaluate(() => {window.blockPennantWrite=false;});
+    await tap(keep);
+    assert(await collect('p').isDisabled());
+    await play();
+    await take(3, mode === 'replace' ? seal.notes : ['ember','moon','ember']);
+    await play();
+    await take(1); // A new bell is one slot into the next chorus and remains silent.
+    await page.reload();
+    assert.deepEqual(await heard(), []);
+    assert(await collect('p').isDisabled());
+    assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
+  }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
   for (const bad of [null,123,'obsolete',[],{ver:2,solo:'harp',notes:testSeal.notes},{ver:1,solo:'other',notes:testSeal.notes},{ver:1,solo:'bell',notes:['kite','unknown','moon']}]) {
     const root = bad && typeof bad==='object' && !Array.isArray(bad) ? {seal:testSeal,pennant:bad} : bad;
@@ -257,6 +335,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
