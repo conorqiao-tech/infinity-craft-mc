@@ -32,7 +32,7 @@ final class PennantFanfare {
     private static final AttachmentType<Baton> BATON =
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "chorus_baton"));
 
-    private enum Inlay { IDLE, OPEN, SET }
+    private enum Inlay { IDLE, OPEN, SET, CUT }
 
     private static final class Baton {
         final WeakReference<BannerBlockEntity> banner;
@@ -120,9 +120,25 @@ final class PennantFanfare {
                 InfinityChimes.stopPlayback(p);
                 EncoreDuet.leave(p);
                 for (int role : order) CircuitConductor.soundVoice(p, role, voices.get(role));
-                ConcertStage.overlay(p, "Loop Inlay • " + name(guess.call(), middle) + " • Diamond set");
+                ConcertStage.overlay(p, "Loop Inlay • " + name(guess.call(), middle) + " • Diamond set • Cut quartz at the finishing flag");
             }
             drawLoop(p, pos, false);
+        }
+
+        void cutPrism(ServerPlayer p) {
+            if (inlay != Inlay.SET) {
+                ConcertStage.overlay(p, "Inlay Prism • Solve a fresh inlay before cutting quartz");
+                return;
+            }
+            int start = order.getFirst();
+            int direction = order.get(1) == (start + 1) % 3 ? 1 : -1;
+            var score = new ChordSeal(List.of(voices.get(0), voices.get(1), voices.get(2)), start, direction);
+            if (StarPrint.stampOne(p, Items.QUARTZ, new InlayPrism(score).item())) {
+                inlay = Inlay.CUT;
+                ConcertStage.overlay(p, "Inlay Prism cut • Use for left • Sneak-use for right");
+            } else {
+                ConcertStage.overlay(p, "Inlay Prism • Make room for the remaining quartz, then try again");
+            }
         }
 
         private void drawLoop(ServerPlayer p, BlockPos pos, boolean ringing) {
@@ -179,7 +195,8 @@ final class PennantFanfare {
             boolean stick = held.is(Items.STICK);
             boolean shard = held.is(Items.AMETHYST_SHARD);
             boolean dust = held.is(Items.GLOWSTONE_DUST);
-            if ((!paper && !stick && !shard && !dust && !held.is(Items.FEATHER))
+            boolean quartz = held.is(Items.QUARTZ);
+            if ((!paper && !stick && !shard && !dust && !quartz && !held.is(Items.FEATHER))
                     || !(world.getBlockEntity(hit.getBlockPos()) instanceof BannerBlockEntity banner)) return InteractionResult.PASS;
             var score = CadencePennant.read(banner);
             var previous = p.getAttached(PENDING);
@@ -194,10 +211,11 @@ final class PennantFanfare {
                 baton = null;
                 finishingFlag = false;
             }
-            if (stick || shard) {
+            if (stick || shard || quartz) {
                 if (!finishingFlag) return InteractionResult.PASS;
                 if (CodaPostcard.canListen(p)) {
-                    if (shard) baton.ring(p, banner.getBlockPos());
+                    if (quartz) baton.cutPrism(p);
+                    else if (shard) baton.ring(p, banner.getBlockPos());
                     else baton.conduct(p, banner.getBlockPos());
                 }
                 return InteractionResult.SUCCESS_SERVER;

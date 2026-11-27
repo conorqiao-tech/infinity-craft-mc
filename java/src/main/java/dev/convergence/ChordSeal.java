@@ -26,20 +26,27 @@ record ChordSeal(List<StarLoom.Chart> voices, int opening, int direction) {
         var item = CommonsEvents.named(Items.CLAY_BALL, 1, "Infinity Chord Seal", MirrorComposer.names(voices),
             "Use to hear the next beat. Sneak-use to start again.", "Use on a note block to solve the Seal Cipher.");
         item.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
+        writeScore(item, KEY);
+        return item;
+    }
+
+    void writeScore(ItemStack item, String key) {
         var score = new CompoundTag();
         score.putIntArray("pitches", voices.stream().mapToInt(v -> v.note).toArray());
         score.putIntArray("route", new int[]{opening, direction});
         var tag = new CompoundTag();
-        tag.put(KEY, score);
+        tag.put(key, score);
         item.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        return item;
     }
 
     static ChordSeal read(ItemStack item) {
-        if (!item.is(Items.CLAY_BALL)) return null;
+        return item.is(Items.CLAY_BALL) ? readScore(item, KEY) : null;
+    }
+
+    static ChordSeal readScore(ItemStack item, String key) {
         var data = item.get(DataComponents.CUSTOM_DATA);
         if (data == null) return null;
-        var score = data.copyTag().getCompound(KEY).orElse(null);
+        var score = data.copyTag().getCompound(key).orElse(null);
         if (score == null || !(score.get("pitches") instanceof IntArrayTag pitches) || pitches.size() != 3
             || !(score.get("route") instanceof IntArrayTag route) || route.size() != 2) return null;
         int[] order = route.getAsIntArray();
