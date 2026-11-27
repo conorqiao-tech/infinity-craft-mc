@@ -402,6 +402,16 @@ async function verify(page, origin) {
           assert.equal(await page.locator('#crStatus_g').textContent(), await page.locator('#crStatus_p').textContent());
           assert.equal(await page.locator('#crFig_g').getAttribute('aria-label'), await page.locator('#crFig_p').getAttribute('aria-label'));
         }
+        const post = (view, name) => page.locator('#lw'+name+'_'+view);
+        const figure = view => page.locator('#lwFig_'+view).getAttribute('aria-label');
+        async function visitPost(view, name, instruments) {
+          const before = (await heard()).length;
+          await tap(post(view, name));
+          assertAudio((await heard()).slice(before), {notes:unison}, instruments, audible);
+          assert.equal(await figure('p'), await figure('g'));
+          assert.equal(await page.locator('#lwStatus_p').textContent(), await page.locator('#lwStatus_g').textContent());
+        }
+        assert(await post(other, 'Arch').isDisabled());
         const beforeStart = (await heard()).length;
         await tap(page.locator('#crReverse_'+other));
         assert.match(await crossingText(), /chime.*bell/i);
@@ -418,14 +428,37 @@ async function verify(page, origin) {
         await answerCrossing(side, 'R', []);
         await answerCrossing(side, 'L', [0,1,2]);
         assert.match(await page.locator('#crFig_'+side).getAttribute('aria-label'), /complet|both.*lit/i);
+        await visitPost(side, 'Arch', [0]);
+        const firstStop = await figure(side);
+        await visitPost(side, 'Arch', []);
+        assert.equal(await figure(side), firstStop);
+        await tap(guideTab);
+        await page.evaluate(() => {window.blockPennantWrite=true;});
+        await tap(cut(other));
+        await page.evaluate(() => {window.blockPennantWrite=false;});
+        assert.equal(await figure(other), firstStop, 'Failed prism replacement preserves the current walk');
+        await visitPost(other, 'Pool', [1]);
+        const twoStops = await figure(other);
+        await visitPost(other, 'Spire', []); // 8 blocks from Pool, 16 from Arch
+        assert.equal(await figure(other), twoStops);
+        await tap(pairsTab);
+        await visitPost(side, 'Grove', [2]);
+        assert.match(await figure(side), /star|constellation/i);
+        const completed = await figure(side);
+        await visitPost(side, 'Ridge', []);
+        assert.equal(await figure(side), completed);
         await tap(guideTab);
         await playFacet(other, 'L', unison, [2,1]);
         await playFacet(other, 'R', unison, [1,0]);
         await tap(page.locator('#crStart_'+other));
         await answerCrossing(other, 'L', [2,1]);
+        assert(await post(other, 'Pool').isDisabled());
+        await answerCrossing(other, 'R', [0,1,2]);
+        await visitPost(other, 'Spire', [2]);
         const beforeCut = (await heard()).length;
         await tap(cut(other));
         assert.deepEqual(await storedPrism(), expectedPrism);
+        assert(await post(other, 'Ridge').isDisabled(), 'Cutting a replacement clears an unfinished walk');
         assert(await cut(other).isDisabled());
         await tap(cut(other));
         assert.deepEqual(await storedPrism(), expectedPrism);
@@ -468,6 +501,7 @@ async function verify(page, origin) {
     assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), 'Baton score locked');
     assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
     assert(await cut('p').isDisabled());
+    assert(await page.locator('#lwArch_p').isDisabled());
     assert.deepEqual(await storedPrism(), expectedPrism);
     await playFacet('p', 'R', trio.notes, [1,2]);
     await tap(page.locator('#crStart_p'));
@@ -513,6 +547,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves. Prism Crossing passed reverse unison clues, silent retries, cross-panel progress, exact duet and closing triad, storage failure and replacement, reload and free playback.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves. Prism Crossing passed reverse unison clues, silent retries, cross-panel progress, exact duet and closing triad, storage failure and replacement, reload and free playback. Lantern Walk passed exact reverse solos at unison, silent duplicate and distant stops, both panels, completion, failed and successful prism replacement, restart and reload.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
