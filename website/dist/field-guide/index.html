@@ -352,6 +352,11 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .prism{margin-top:6px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
 .prism h4{margin:0;font:700 17px "Pixelify Sans",sans-serif}
 .prism .row .btn{flex:1 1 130px}
+.crossing{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
+.crossing h4{margin:0;font:700 16px "Pixelify Sans",sans-serif}
+.crossing .row .btn{flex:1 1 130px}
+.crfig{width:280px;height:142px;margin:0 auto}
+.crfig svg{display:block;width:280px;height:142px}
 .prfig{width:280px;height:200px;margin:0 auto}
 .prfig svg{display:block;width:280px;height:200px}
 .infig{width:260px;height:128px;margin:0 auto}
@@ -453,6 +458,15 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <button class="btn" id="prR_g" type="button" aria-disabled="true">Play right facet</button>
 </div>
 <p class="status" id="prStatus_g" role="status" aria-live="polite">No prism saved yet.</p>
+<div class="crossing" aria-labelledby="crT_g">
+<h4 id="crT_g">Prism Crossing</h4>
+<div class="crfig" id="crFig_g" role="img" aria-label="Prism crossing locked"></div>
+<div class="row">
+<button class="btn" id="crStart_g" type="button" aria-disabled="true">Start crossing</button>
+<button class="btn" id="crReverse_g" type="button" aria-disabled="true">Start reverse crossing</button>
+</div>
+<p class="status" id="crStatus_g" role="status" aria-live="polite">Cut a prism to unlock crossings.</p>
+</div>
 </div>
 </div>
 </div>
@@ -631,6 +645,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Infinity Loop: complete both baton directions on the finishing pennant, then use a plain amethyst shard on that flag to ring the loop.</li>
 <li>Loop Inlay: after ringing with amethyst, touch a placed Cadence Pennant bearing the middle solo and its pitch with plain glowstone dust.</li>
 <li>Inlay Prism: after solving, cut one plain nether quartz at the original finishing flag. Use the portable prism normally for the left facet or Sneak-use it for the right facet. It can be given to another player.</li>
+<li>Prism Crossing: use a cut prism on an amethyst block to start (Sneak to start in reverse), then use the prism in the air normally for the left facet or while sneaking for the right facet.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -901,6 +916,15 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <button class="btn" id="prR_p" type="button" aria-disabled="true">Play right facet</button>
 </div>
 <p class="status" id="prStatus_p" role="status" aria-live="polite">No prism saved yet.</p>
+<div class="crossing" aria-labelledby="crT_p">
+<h4 id="crT_p">Prism Crossing</h4>
+<div class="crfig" id="crFig_p" role="img" aria-label="Prism crossing locked"></div>
+<div class="row">
+<button class="btn" id="crStart_p" type="button" aria-disabled="true">Start crossing</button>
+<button class="btn" id="crReverse_p" type="button" aria-disabled="true">Start reverse crossing</button>
+</div>
+<p class="status" id="crStatus_p" role="status" aria-live="polite">Cut a prism to unlock crossings.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1780,7 +1804,7 @@ function chCollect(){
  const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
  CH.armed=false;
  let pre="";
- if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";if(PR.opp)prSay("Starting a new trio cleared the uncut prism."+(PRZ?" Your saved prism is still playable.":""),"");PR.opp=false;PR.cut=false;IN={open:false,role:null,note:null,earned:null};inSay("New trio started, so the inlay was cleared. Ring a newly earned loop to try again.","");LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";{const prPend=PR.opp;PR.opp=false;PR.cut=false;if(prPend)prSay(PRZ?"Starting a new trio cleared the uncut prism. Your saved prism is still playable.":"Starting a new trio cleared the uncut prism.","")}IN={open:false,role:null,note:null,earned:null};inSay("New trio started, so the inlay was cleared. Ring a newly earned loop to try again.","");LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
  const old=CH.slots[role];CH.slots[role]=id;if(!CH.order.includes(role))CH.order.push(role);
  const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
  if(filled.length===3){
@@ -1940,14 +1964,13 @@ let PRZ=validPrism(store.prism)?{ver:1,voices:store.prism.voices.map(v=>({role:v
 if("prism" in store)state.prism=store.prism;
 function prSay(msg,kind){FFK.forEach(k=>{const s=$("prStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
 const prV=z=>z.voices.map(v=>chVoice(v.role,v.note));
-function prismSVG(panel){
- const hatch="prism-hatch-"+panel;
+function prismSVG(k){
  const A=[140,40],Ls=[76,72],Lf=[96,140],B=[140,152],Rf=[184,140],Rs=[204,72];
  const pt=a=>a.join(",");
  if(!PRZ)return `<svg viewBox="0 0 280 200" aria-hidden="true"><polygon points="${[A,Ls,Lf,B,Rf,Rs].map(pt).join(" ")}" fill="none" stroke="#4a52a0" stroke-width="2" stroke-dasharray="5 5"/><line x1="140" y1="40" x2="140" y2="152" stroke="#4a52a0" stroke-dasharray="5 5"/><text x="140" y="104" text-anchor="middle" class="cxl" fill="#9aa0dc">No prism</text></svg>`;
  const v=prV(PRZ),fL=PR.face==="L",fR=PR.face==="R";
- const face=(pts,on,lab,cx)=>`<polygon points="${pts.map(pt).join(" ")}" fill="${on?`url(#${hatch})`:"#e9e4dc"}" stroke="${on?"#0e1030":"#8a8798"}" stroke-width="${on?3.5:1.5}" stroke-linejoin="round"/><rect x="${cx-26}" y="96" width="52" height="20" rx="4" fill="${on?"#0e1030":"#f7f4ef"}" stroke="#0e1030" stroke-width="${on?0:1}"/><text x="${cx}" y="110" text-anchor="middle" class="sealsub" fill="${on?"#ffffff":"#14123a"}">${on?"▶ ":""}${lab}</text>`;
- let g=`<defs><pattern id="${hatch}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9fff0"/><line x1="0" y1="0" x2="0" y2="7" stroke="#0e1030" stroke-width="2.4"/></pattern></defs>`;
+ const face=(pts,on,lab,cx)=>`<polygon points="${pts.map(pt).join(" ")}" fill="${on?"url(#prism-hatch-"+k+")":"#e9e4dc"}" stroke="${on?"#0e1030":"#8a8798"}" stroke-width="${on?3.5:1.5}" stroke-linejoin="round"/><rect x="${cx-26}" y="96" width="52" height="20" rx="4" fill="${on?"#0e1030":"#f7f4ef"}" stroke="#0e1030" stroke-width="${on?0:1}"/><text x="${cx}" y="110" text-anchor="middle" class="sealsub" fill="${on?"#ffffff":"#14123a"}">${on?"▶ ":""}${lab}</text>`;
+ let g=`<defs><pattern id="prism-hatch-${k}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9fff0"/><line x1="0" y1="0" x2="0" y2="7" stroke="#0e1030" stroke-width="2.4"/></pattern></defs>`;
  g+=face([A,Ls,Lf,B],fL,"Left",108)+face([A,Rs,Rf,B],fR,"Right",172);
  g+=`<line x1="140" y1="40" x2="140" y2="152" stroke="#0e1030" stroke-width="2"/>`;
  const mk=(x,y,i)=>`<circle cx="${x}" cy="${y}" r="7" fill="${byId(v[i].id).c}" stroke="#0e1030" stroke-width="2"/>`;
@@ -1958,6 +1981,7 @@ function prismSVG(panel){
  return `<svg viewBox="0 0 280 200" aria-hidden="true">${g}</svg>`;
 }
 function renderPrism(){
+ renderCrossing();
  const v=PRZ?prV(PRZ):null,canCut=PR.opp&&!!IN.earned&&!!BT.score;
  const info=!v?"Set the inlay correctly, then cut a prism to keep this trio.":`Saved prism: <b>${v.map((x,i)=>`${["First","Middle","Last"][i]} ${esc(vName(x))} ${x.p}`).join(", ")}</b>. Left facet: first + middle. Right facet: middle + last.${PR.face?` Last played: <b>${PR.face==="L"?"left":"right"} facet</b>.`:""}`;
  const lab=!v?"No prism saved":`Faceted quartz: first ${vName(v[0])} ${v[0].p} on the left edge, middle ${vName(v[1])} ${v[1].p} on the center ridge, last ${vName(v[2])} ${v[2].p} on the right edge.${PR.face?` The ${PR.face==="L"?"left":"right"} facet is hatched as last played.`:""}`;
@@ -1980,11 +2004,12 @@ function prCut(){
   prSay(`Couldn't save the prism on this device: browser storage is unavailable or full. ${had?"Your previous prism is unchanged.":"Nothing was saved."} Press Cut prism to try again.`,"quiet");
   return;
  }
- PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;renderPrism();
+ PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;const crWas=!!CR.dir;CR={dir:null,step:0,done:false};renderPrism();if(crWas)crSay("A new prism was cut, so the crossing was reset. Start a crossing to play the new prism.","");
  const v=prV(PRZ);
  prSay(`${had?"Replaced your saved prism. ":""}Prism cut: ${v.map((x,i)=>`${["first","middle","last"][i]} ${vName(x)} ${x.p}`).join(", ")}. Saved on this device; it survives reload and new trios.`,"live");
 }
 function prPlay(side){
+ if(PRZ&&CR.dir&&!CR.done){crTap(side);return}
  if(!PRZ){prSay("Cut a prism first: solve the Loop Inlay, then press Cut prism.","");return}
  const v=prV(PRZ),pair=side==="L"?[v[0],v[1]]:[v[1],v[2]];
  if(state.sound){try{const t=ensureCtx();pair.forEach(x=>playVoice(x,t))}catch(e){}}
@@ -1992,6 +2017,61 @@ function prPlay(side){
  prSay(`${side==="L"?"Left":"Right"} facet: ${vName(pair[0])} ${pair[0].p} with ${vName(pair[1])} ${pair[1].p}, together.`,"live");
 }
 FFK.forEach(k=>{$("prCut_"+k).addEventListener('click',prCut);$("prL_"+k).addEventListener('click',()=>prPlay("L"));$("prR_"+k).addEventListener('click',()=>prPlay("R"))});
+/* prism crossing (session only, shared by Guide and #pairs) */
+let CR={dir:null,step:0,done:false};
+function crSay(msg,kind){FFK.forEach(k=>{const s=$("crStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function crTargets(){const v=prV(PRZ),t=[{v:v[0],side:"L"},{v:v[2],side:"R"}];return CR.dir==="r"?t.reverse():t}
+function crossingSVG(){
+ const P={L:[36,50],R:[244,50]},S={L:[250,128],R:[30,128]},X=[140,87];
+ const ribbon=(side,on,col,next)=>{const a=S[side],b=P[side],d=`M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;return on?`<path d="${d}" stroke="${col}" stroke-width="12" stroke-linecap="round" opacity=".35"/><path d="${d}" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>`:`<path d="${d}" stroke="${next?"#7cf5c4":"#4a52a0"}" stroke-width="${next?4:3}" stroke-dasharray="${next?"8 5":"4 6"}" stroke-linecap="round"/>`};
+ if(!PRZ)return `<svg viewBox="0 0 280 142" aria-hidden="true">${ribbon("L",false)}${ribbon("R",false)}<text x="140" y="24" text-anchor="middle" class="cxn" fill="#9aa0dc">Cut a prism to unlock</text></svg>`;
+ const tg=CR.dir?crTargets():null;
+ let g="";
+ const stops=tg?tg.map((t,i)=>({...t,n:i+1,st:CR.done||i<CR.step?"done":i===CR.step?"next":"wait"})):[{side:"L",n:null,st:"wait"},{side:"R",n:null,st:"wait"}];
+ stops.forEach(s=>{g+=ribbon(s.side,s.st==="done",s.v?byId(s.v.id).c:"#5a62b0",s.st==="next")});
+ stops.forEach(s=>{
+  const [x,y]=P[s.side],col=s.v?byId(s.v.id).c:"#5a62b0",an=s.side==="L"?"start":"end",lx=s.side==="L"?4:276;
+  if(s.st==="done")g+=`<circle cx="${x}" cy="${y}" r="14" fill="${col}" stroke="#ffffff" stroke-width="3"/><text x="${x}" y="${y+5}" text-anchor="middle" class="sealsub" fill="#14123a">✓${s.n}</text>`;
+  else if(s.st==="next")g+=`<circle cx="${x}" cy="${y}" r="14" fill="#14184c" stroke="#7cf5c4" stroke-width="2.5"/><circle cx="${x}" cy="${y}" r="19" fill="none" stroke="#7cf5c4" stroke-width="2"/><text x="${x}" y="${y+5}" text-anchor="middle" class="sealsub" fill="#eef0ff">${s.n}</text>`;
+  else g+=`<circle cx="${x}" cy="${y}" r="14" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="4 4"/><text x="${x}" y="${y+5}" text-anchor="middle" class="sealsub" fill="#9aa0dc">${s.n||"·"}</text>`;
+  g+=`<text x="${lx}" y="14" text-anchor="${an}" class="cxl" fill="${s.st==="wait"&&!s.v?"#9aa0dc":"#eef0ff"}">${s.n?`Stop ${s.n}${s.st==="next"?" ▸ next":s.st==="done"?" ✓":""}`:(s.side==="L"?"Left facet":"Right facet")}</text><text x="${lx}" y="29" text-anchor="${an}" class="cxn" fill="#b9bde8">${s.v?`${CAP[s.v.role]} · ${nm(s.v.id)} ${s.v.p}`:"start a crossing"}</text>`;
+ });
+ if(CR.done)g+=`<circle cx="${X[0]}" cy="${X[1]}" r="18" fill="#ffffff" opacity=".18"/><path d="M140 70 L145 82 L158 83 L148 91 L151 104 L140 97 L129 104 L132 91 L122 83 L135 82 Z" fill="#ffe27a" stroke="#0e1030" stroke-width="1.5"/>`;
+ else g+=`<circle cx="${X[0]}" cy="${X[1]}" r="5" fill="#1b2056" stroke="#4a52a0" stroke-width="2"/>`;
+ return `<svg viewBox="0 0 280 142" aria-hidden="true">${g}</svg>`;
+}
+function renderCrossing(){
+ const has=!!PRZ,tg=has&&CR.dir?crTargets():null;
+ const lab=!has?"Prism crossing locked: cut a prism first":!tg?"Prism crossing ready: two ribbons cross at the middle voice; start a crossing to name the stops":`${CR.dir==="r"?"Reverse":"Forward"} crossing: `+tg.map((t,i)=>`stop ${i+1} ${vName(t.v)} ${t.v.p} on the ${t.side==="L"?"left":"right"} side, ${CR.done||i<CR.step?"done":i===CR.step?"next":"waiting"}`).join("; ")+(CR.done?". Central star lit: complete.":".");
+ FFK.forEach(k=>{
+  $("crFig_"+k).innerHTML=crossingSVG();$("crFig_"+k).setAttribute('aria-label',lab);
+  $("crStart_"+k).setAttribute('aria-disabled',has?"false":"true");
+  $("crReverse_"+k).setAttribute('aria-disabled',has?"false":"true");
+ });
+}
+function crStart(dir){
+ if(!PRZ){crSay("Cut a prism first to unlock crossings.","");return}
+ CR={dir,step:0,done:false};renderCrossing();
+ const tg=crTargets();
+ crSay(`${dir==="r"?"Reverse crossing":"Crossing"} started. Next target: stop 1, ${CAP[tg[0].v.role]} (${vName(tg[0].v)} ${tg[0].v.p}). Then stop 2, ${CAP[tg[1].v.role]}. Answer with the facet that holds each voice.`,"");
+}
+function crTap(side){
+ const tg=crTargets(),t=tg[CR.step],btn=$((side==="L"?"prL_":"prR_")+"p");
+ if(side!==t.side){crSay(`That facet doesn't hold ${CAP[t.v.role]}. Stop ${CR.step+1} is still next: ${vName(t.v)} ${t.v.p}.`,"quiet");return}
+ const v=prV(PRZ);
+ if(CR.step===0){
+  const pair=side==="L"?[v[0],v[1]]:[v[1],v[2]];
+  if(state.sound){try{const tt=ensureCtx();pair.forEach(x=>playVoice(x,tt))}catch(e){}}
+  CR.step=1;PR.face=side;renderPrism();
+  crSay(`Stop 1 matched: ${CAP[t.v.role]} is on the ${side==="L"?"left":"right"} facet (${vName(pair[0])} with ${vName(pair[1])}). Next target: stop 2, ${CAP[tg[1].v.role]} (${vName(tg[1].v)} ${tg[1].v.p}).`,"live");
+  return;
+ }
+ if(state.sound){try{const tt=ensureCtx();v.forEach(x=>playVoice(x,tt))}catch(e){}}
+ CR.step=2;CR.done=true;PR.face=side;renderPrism();
+ crSay(`Crossing complete: ${CAP[t.v.role]} is on the ${side==="L"?"left":"right"} facet. All three together: ${v.map(x=>`${vName(x)} ${x.p}`).join(", ")}. The facet buttons are back to free play.`,"live");
+}
+FFK.forEach(k=>{$("crStart_"+k).addEventListener('click',()=>crStart("f"));$("crReverse_"+k).addEventListener('click',()=>crStart("r"))});
+if(PRZ)crSay("Start crossing or Start reverse crossing to name two stops.","");
 if(PRZ)prSay("Your saved prism is ready. Play left facet or Play right facet.","");
 FFK.forEach(k=>{$("btFwd_"+k).addEventListener('click',()=>btConduct("f"));$("btBack_"+k).addEventListener('click',()=>btConduct("b"));$("btNext_"+k).addEventListener('click',btNext)});
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
