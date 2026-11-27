@@ -310,6 +310,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .rfknots{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:14px;color:var(--soft)}
 .rfknots b{color:var(--ink)}
 .btn.dir[aria-pressed=true]{background:var(--lav);border-color:var(--lav);color:#1d1240}
+.cadsec{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.cdfig{width:300px;height:210px;margin:0 auto}
+.cdfig svg{display:block;width:300px;height:210px}
+.cdlab{margin:0;font-size:13px;font-weight:700;color:var(--soft)}
+.cdknots .btn[aria-pressed=true]{background:var(--mint);border-color:var(--mint);color:#06281d;font-weight:700}
+.cdtext{margin:0;font-size:14px;color:var(--soft)}
+.cdtext b{color:var(--ink)}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
@@ -463,6 +470,19 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="exline">Three rounds follow the seal's first three beats. On the example seal, round 1 plays <b>Half Moon harp with Kite chime</b>, so the missing instrument is the <b>bell</b>.</p>
 </div>
 <div class="cxfig" id="gCipher" role="img" aria-label="Example cipher round 1: lead Half Moon harp and answer Kite chime are lit; the bell socket is empty"></div>
+</div>
+<div class="circ">
+<div>
+<span class="pill">Development preview</span>
+<h3 style="margin-top:8px">Cipher Refrain and Refrain Cadence <small>optional</small></h3>
+<ol>
+<li>Use your stamped seal on a note block and solve the cipher.</li>
+<li>Finish a refrain: the three missing instruments, forward or backward.</li>
+<li>Then choose your solo knot. The other two instruments answer it together.</li>
+</ol>
+<p class="exline">Example: solo on <b>Bell</b>, and the answer is <b>Chime + Harp</b>.</p>
+</div>
+<div class="cdfig" id="gCadence" role="img" aria-label="Example cadence: Bell call forks into Chime and Harp answers"></div>
 </div>
 </section>
 </section>
@@ -640,6 +660,34 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 </div>
 <div class="row"><button class="btn" id="rfReveal" type="button" aria-disabled="true">Reveal next voice</button></div>
 <p class="status" id="rfStatus" role="status" aria-live="polite">The refrain replays the cipher's missing instruments as a three-knot cord.</p>
+</div>
+</div>
+</section>
+<section class="cadsec" aria-labelledby="cdTitle">
+<div class="khead">
+<div><h3 id="cdTitle">Refrain Cadence <small>optional</small></h3><p id="cdHint">Complete a Cipher Refrain on this seal to unlock the cadence.</p></div>
+<div class="toolbar">
+<button class="btn" id="cdFull" type="button" aria-disabled="true">Play full chord</button>
+<button class="btn" id="cdAgain" type="button" aria-disabled="true">Weave again</button>
+</div>
+</div>
+<div class="sbody">
+<div class="cdfig" id="cdFig" role="img" aria-label="Cadence locked"></div>
+<div class="sctl">
+<p class="cdlab" id="cdL1">1. Choose a solo knot</p>
+<div class="guess cdknots" id="cdKnots" role="group" aria-labelledby="cdL1">
+<button class="btn" type="button" data-cd="0" aria-disabled="true" aria-pressed="false">Knot 1</button>
+<button class="btn" type="button" data-cd="1" aria-disabled="true" aria-pressed="false">Knot 2</button>
+<button class="btn" type="button" data-cd="2" aria-disabled="true" aria-pressed="false">Knot 3</button>
+</div>
+<p class="cdlab" id="cdL2">2. Choose the answering pair</p>
+<div class="guess" id="cdPairs" role="group" aria-labelledby="cdL2">
+<button class="btn" type="button" data-pair="chime,harp" aria-disabled="true">Chime + Harp</button>
+<button class="btn" type="button" data-pair="harp,bell" aria-disabled="true">Harp + Bell</button>
+<button class="btn" type="button" data-pair="bell,chime" aria-disabled="true">Bell + Chime</button>
+</div>
+<p class="cdtext" id="cdText">The solo calls, then the other two instruments answer together.</p>
+<p class="status" id="cdStatus" role="status" aria-live="polite">Finish a refrain above to weave a cadence.</p>
 </div>
 </div>
 </section>
@@ -1233,7 +1281,7 @@ document.querySelector('.guess').addEventListener('click',e=>{
 });
 /* cipher refrain (session only) */
 let RF={dir:null,step:0,done:false,rev:false};
-function rfReset(){RF={dir:null,step:0,done:false,rev:false}}
+function rfReset(){RF={dir:null,step:0,done:false,rev:false};cdReset()}
 function rfEligible(){return !!SEAL&&CX.done}
 function rfSeq(d,dir){const m=[0,1,2].map(r=>cxRound(d,r).M);return dir==="b"?m.slice().reverse():m}
 const rfClue=i=>RF.dir==="b"?3-i:i+1;
@@ -1260,6 +1308,7 @@ function knotSVG(d,seq,step,done,rev){
  return `<svg viewBox="0 0 300 128" aria-hidden="true">${g}</svg>`;
 }
 function renderRefrain(){
+ renderCadence();
  const el=rfEligible(),d=el?sealData(SEAL):null,act=el&&!!RF.dir&&!RF.done;
  ["rfFwd","rfBack"].forEach(id=>{$(id).setAttribute('aria-disabled',el?"false":"true");$(id).setAttribute('aria-pressed',act&&((id==="rfFwd")===(RF.dir==="f"))?"true":"false")});
  document.querySelectorAll('[data-r]').forEach(b=>b.setAttribute('aria-disabled',act?"false":"true"));
@@ -1278,7 +1327,7 @@ function renderRefrain(){
 }
 function rfStart(dir){
  if(!rfEligible()){rSay("Solve all three Seal Cipher clues in this session to unlock the refrain.","");return}
- RF={dir,step:0,done:false,rev:false};renderRefrain();
+ RF={dir,step:0,done:false,rev:false};cdReset();renderRefrain();
  rSay(`${dir==="b"?"Backward":"Forward"} refrain: tap the three missing instruments in ${dir==="b"?"reverse clue order, starting from clue 3":"clue order, starting from clue 1"}. Knot 1 is waiting.`,"");
 }
 $("rfFwd").addEventListener('click',()=>rfStart("f"));
@@ -1292,7 +1341,7 @@ $("rfGuess").addEventListener('click',e=>{
  if(role!==want.role){bump(b,"miss");rSay(`Not ${CAP[role]}. Knot ${RF.step+1} is still waiting and your progress is kept. Use Reveal next voice if you need a hint.`,"quiet");return}
  RF.step++;RF.rev=false;bump(b,"hit");
  if(RF.step===3){
-  RF.done=true;renderRefrain();
+  RF.done=true;cdReset(true);renderRefrain();cdSay("Cadence unlocked. Choose a solo knot.","");
   const pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
   rSay(`${pre}Refrain complete ${RF.dir==="b"?"backward":"forward"}: ${seq.map(c=>CAP[d.v[c].role]).join(", ")}. Full triad: ${d.v.map(vName).join(", ")}. Choose Forward refrain or Backward refrain to play again.`,"live");
   return;
@@ -1309,6 +1358,84 @@ $("rfReveal").addEventListener('click',()=>{
  RF.rev=true;renderRefrain();
  rSay(`Reveal (silent): knot ${RF.step+1} is ${CAP[want.role]}, ${vName(want)} ${want.p}, the missing voice from clue ${rfClue(RF.step)}.`,"");
 });
+/* refrain cadence (session only) */
+let CD={solo:null,done:false};
+const ROLES=["chime","harp","bell"];
+function cdReset(quiet){const had=CD&&(CD.solo!==null||CD.done);CD={solo:null,done:false};if(had&&!quiet)cdSay("Cadence reset because the refrain, cipher or seal changed. Finish a refrain to weave again.","")}
+function cdSay(msg,kind){const s=$("cdStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function cdEligible(){return rfEligible()&&RF.done&&!!RF.dir}
+function cdSeq(d){return rfSeq(d,RF.dir)}
+const vByRole=(d,r)=>d.v[ROLES.indexOf(r)];
+function cadenceSVG(d,soloV,done){
+ const C=[150,40],A=[[75,140],[225,140]];
+ const ans=soloV?ROLES.filter(r=>r!==soloV.role).map(r=>vByRole(d,r)):null;
+ const lit=!!done,thr=lit?"#7cf5c4":"#5a62b0";
+ const branch=x=>`M150 68 L150 92 Q150 112 ${x} 114`;
+ let g="";
+ [A[0][0],A[1][0]].forEach(x=>{g+=lit?`<path d="${branch(x)}" fill="none" stroke="#7cf5c4" stroke-width="10" opacity=".2" stroke-linecap="round"/><path d="${branch(x)}" fill="none" stroke="#c9fff0" stroke-width="3" stroke-linecap="round"/>`:`<path d="${branch(x)}" fill="none" stroke="${thr}" stroke-width="2.5" stroke-dasharray="6 6" stroke-linecap="round"/>`});
+ if(soloV){const col=byId(soloV.id).c;g+=`<circle cx="${C[0]}" cy="${C[1]}" r="36" fill="${col}" opacity=".18"/><circle cx="${C[0]}" cy="${C[1]}" r="28" fill="#14184c" stroke="${col}" stroke-width="3"/><g transform="translate(${C[0]} ${C[1]}) scale(.8)">${shape(soloV.role,col)}</g>`}
+ else g+=`<circle cx="${C[0]}" cy="${C[1]}" r="28" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/><text x="${C[0]}" y="${C[1]+6}" text-anchor="middle" class="seallab" fill="#9aa0dc">?</text>`;
+ g+=`<text x="186" y="${C[1]-4}" class="cxl" fill="#eef0ff">Call</text><text x="186" y="${C[1]+13}" class="cxn" fill="#b9bde8">${soloV?vName(soloV):(d?"choose a knot":"locked")}</text>`;
+ A.forEach(([x,y],i)=>{
+  const v=ans?ans[i]:null,col=v?byId(v.id).c:"#5a62b0";
+  if(v&&lit)g+=`<circle cx="${x}" cy="${y}" r="33" fill="${col}" opacity=".18"/><circle cx="${x}" cy="${y}" r="26" fill="#14184c" stroke="${col}" stroke-width="3"/><g transform="translate(${x} ${y}) scale(.72)">${shape(v.role,col)}</g>`;
+  else if(v)g+=`<circle cx="${x}" cy="${y}" r="26" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/><g transform="translate(${x} ${y}) scale(.72)" opacity=".35">${shape(v.role,"#3d4596")}</g>`;
+  else g+=`<circle cx="${x}" cy="${y}" r="26" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/>`;
+  g+=`<text x="${x}" y="${y+44}" text-anchor="middle" class="cxl" fill="${lit?"#eef0ff":"#9aa0dc"}">Answer</text><text x="${x}" y="${y+60}" text-anchor="middle" class="cxn" fill="#b9bde8">${v?(lit?vName(v):"waiting"):"waiting"}</text>`;
+ });
+ return `<svg viewBox="0 0 300 210" aria-hidden="true">${g}</svg>`;
+}
+function renderCadence(){
+ const el=cdEligible(),d=el?sealData(SEAL):null,seq=el?cdSeq(d):null;
+ const soloV=el&&CD.solo!==null?d.v[seq[CD.solo]]:null;
+ document.querySelectorAll('[data-cd]').forEach(b=>{
+  const i=+b.dataset.cd,v=seq?d.v[seq[i]]:null;
+  b.textContent=v?`Knot ${i+1} · ${CAP[v.role]}`:`Knot ${i+1}`;
+  b.setAttribute('aria-disabled',el&&!CD.done?"false":"true");
+  b.setAttribute('aria-pressed',CD.solo===i?"true":"false");
+  b.setAttribute('aria-label',v?`Solo knot ${i+1}: ${vName(v)}`:`Solo knot ${i+1}, locked`);
+ });
+ document.querySelectorAll('[data-pair]').forEach(b=>b.setAttribute('aria-disabled',el&&CD.solo!==null&&!CD.done?"false":"true"));
+ $("cdFull").setAttribute('aria-disabled',el&&CD.done?"false":"true");
+ $("cdAgain").setAttribute('aria-disabled',el&&CD.done?"false":"true");
+ $("cdFig").innerHTML=cadenceSVG(d,soloV,el&&CD.done);
+ $("cdHint").textContent=el?`Knots follow your completed ${RF.dir==="b"?"backward":"forward"} refrain. Pick a soloist, then the two other instruments to answer it.`:"Complete a Cipher Refrain on this seal to unlock the cadence.";
+ if(!el)$("cdText").textContent="The solo calls, then the other two instruments answer together.";
+ else if(!soloV)$("cdText").innerHTML=`Knot order: <b>${seq.map((c,i)=>`${i+1} ${CAP[d.v[c].role]}`).join(", ")}</b>. Choose a soloist.`;
+ else{const ans=ROLES.filter(r=>r!==soloV.role).map(r=>vByRole(d,r));$("cdText").innerHTML=`Call: <b>knot ${CD.solo+1}, ${vName(soloV)} ${soloV.p}</b>. ${CD.done?`Answer: <b>${ans.map(vName).join(" + ")}</b>.`:"Answer: choose the pair."}`}
+ $("cdFig").setAttribute('aria-label',!el?"Cadence locked":!soloV?"Forked thread waiting for a solo knot":CD.done?`Forked thread: ${vName(soloV)} call branches to ${ROLES.filter(r=>r!==soloV.role).map(r=>vName(vByRole(d,r))).join(" and ")}, both lit`:`Forked thread: ${vName(soloV)} call; two answer silhouettes waiting`);
+}
+$("cdKnots").addEventListener('click',e=>{
+ const b=e.target.closest('[data-cd]');if(!b)return;
+ if(!cdEligible()){cdSay("Complete a Cipher Refrain on this seal first.","");return}
+ if(CD.done){cdSay("Cadence complete. Press Weave again to choose a new solo, or Play full chord.","");return}
+ const d=sealData(SEAL),i=+b.dataset.cd,v=d.v[cdSeq(d)[i]];
+ CD.solo=i;renderCadence();bump(b,"hit");
+ const pre=sounded(()=>playVoice(v));
+ cdSay(`${pre}Solo: knot ${i+1}, ${vName(v)} ${v.p}. Now choose the pair of the other two instruments.`,"live");
+});
+$("cdPairs").addEventListener('click',e=>{
+ const b=e.target.closest('[data-pair]');if(!b)return;
+ if(!cdEligible()){cdSay("Complete a Cipher Refrain on this seal first.","");return}
+ if(CD.done){cdSay("Cadence complete. Press Weave again to choose a new solo.","");return}
+ if(CD.solo===null){cdSay("Choose a solo knot first.","");return}
+ const d=sealData(SEAL),soloV=d.v[cdSeq(d)[CD.solo]],pr=b.dataset.pair.split(",");
+ if(pr.includes(soloV.role)){bump(b,"miss");cdSay(`Not ${b.textContent}: the ${soloV.role} is already the solo. Your solo, knot ${CD.solo+1} ${CAP[soloV.role]}, is kept. Choose the two other instruments.`,"quiet");return}
+ CD.done=true;renderCadence();bump(b,"hit");
+ const a=vByRole(d,pr[0]),c=vByRole(d,pr[1]);
+ const pre=sounded(()=>{const t=ensureCtx();playVoice(a,t);playVoice(c,t)});
+ cdSay(`${pre}Cadence complete: ${vName(a)} + ${vName(c)} answer the ${vName(soloV)} solo. Play full chord if you like, or Weave again.`,"live");
+});
+$("cdFull").addEventListener('click',()=>{
+ if(!cdEligible()||!CD.done){cdSay("Play full chord is available once the cadence is complete.","");return}
+ const d=sealData(SEAL),pre=sounded(()=>playTrio(byId(d.v[0].id),byId(d.v[1].id),byId(d.v[2].id)));
+ cdSay(`${pre}Full chord: ${d.v.map(vName).join(", ")}.`,"live");
+});
+$("cdAgain").addEventListener('click',()=>{
+ if(!cdEligible()||!CD.done){cdSay("Weave again is available once the cadence is complete.","");return}
+ CD={solo:null,done:false};renderCadence();cdSay("Weave again: choose a solo knot.","");
+});
+{const ed=sealData({notes:["kite","moon","ember"],open:1,dir:true});$("gCadence").innerHTML=cadenceSVG(ed,ed.v[2],true);}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 
 {const ev=circVoices(EXC),el=$("gScore");el.innerHTML=scoreHTML(ev,{lead:[1,0,2,1],ans:[0,2,1,0],step:4,done:true},false);el.setAttribute('aria-label',"Example: lead corners 2, 1, 3, 2; answer corners 1, 3, 2, 1");}
