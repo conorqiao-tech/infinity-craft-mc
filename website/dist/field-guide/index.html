@@ -361,6 +361,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .lwfig svg{display:block;width:280px;height:206px}
 .survey{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
 .survey h4{margin:0;font:700 16px "Pixelify Sans",sans-serif}
+.beacon{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
+.beacon h4{margin:0;font:700 16px "Pixelify Sans",sans-serif}
+.mbsel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mbsel label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:700}
+.mbsel select{font:16px Figtree,sans-serif;min-height:44px;padding:0 8px;border-radius:10px;border:2px solid var(--line);background:var(--bg2);color:var(--ink)}
+.mbsel select:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+.mbsel select:disabled{opacity:.55}
 .svlen{font:700 13px Figtree,sans-serif;paint-order:stroke;stroke:#0e1030;stroke-width:4px}
 .lwposts{display:grid;grid-template-columns:repeat(auto-fit,minmax(7.2em,1fr));gap:6px}
 .lwposts .btn{flex:none;min-height:44px;font-size:14px;white-space:nowrap;padding:0 6px}
@@ -492,6 +499,17 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <ul class="rfknots" id="svList_g" aria-label="Opposite spans"></ul>
 <div class="lwposts" role="group" aria-label="Observing lantern"><button class="btn" type="button" id="svPick1_g" data-sv="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="svPick2_g" data-sv="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="svPick3_g" data-sv="2" aria-disabled="true">Stop 3</button></div>
 <p class="status" id="svStatus_g" role="status" aria-live="polite">Complete a lantern walk to survey it.</p>
+</div>
+<div class="beacon" aria-labelledby="mbT_g">
+<h4 id="mbT_g">Midpoint Beacon</h4>
+<p class="btdir" id="mbInfo_g">Solve the Star Survey to unlock the beacon.</p>
+<div class="lwfig" id="mbFig_g" role="img" aria-label="Midpoint beacon locked"></div>
+<div class="mbsel">
+<label for="mbX_g">X (east) <select id="mbX_g" disabled><option value="">Choose X</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option></select></label>
+<label for="mbZ_g">Z (south) <select id="mbZ_g" disabled><option value="">Choose Z</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+</div>
+<div class="row"><button class="btn main" id="mbLight_g" type="button" aria-disabled="true">Light beacon</button></div>
+<p class="status" id="mbStatus_g" role="status" aria-live="polite">Solve the Star Survey to unlock the beacon.</p>
 </div>
 </div>
 </div>
@@ -674,6 +692,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Prism Crossing: use a cut prism on an amethyst block to start (Sneak to start in reverse), then use the prism in the air normally for the left facet or while sneaking for the right facet.</li>
 <li>Lantern Walk: after finishing a crossing, use the same prism on three ordinary lantern blocks. Each new lantern must be within 12 blocks of every earlier one. No blocks are changed.</li>
 <li>Star Survey: after a completed walk, Sneak-use the same prism on the observing lantern to sight its opposite span. Normal use keeps the existing facet behavior.</li>
+<li>Midpoint Beacon: after a solved survey, use the same prism on ordinary clear glass placed one block above the block center nearest the surveyed span's midpoint, in all three axes.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -968,6 +987,17 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <ul class="rfknots" id="svList_p" aria-label="Opposite spans"></ul>
 <div class="lwposts" role="group" aria-label="Observing lantern"><button class="btn" type="button" id="svPick1_p" data-sv="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="svPick2_p" data-sv="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="svPick3_p" data-sv="2" aria-disabled="true">Stop 3</button></div>
 <p class="status" id="svStatus_p" role="status" aria-live="polite">Complete a lantern walk to survey it.</p>
+</div>
+<div class="beacon" aria-labelledby="mbT_p">
+<h4 id="mbT_p">Midpoint Beacon</h4>
+<p class="btdir" id="mbInfo_p">Solve the Star Survey to unlock the beacon.</p>
+<div class="lwfig" id="mbFig_p" role="img" aria-label="Midpoint beacon locked"></div>
+<div class="mbsel">
+<label for="mbX_p">X (east) <select id="mbX_p" disabled><option value="">Choose X</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option></select></label>
+<label for="mbZ_p">Z (south) <select id="mbZ_p" disabled><option value="">Choose Z</option><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+</div>
+<div class="row"><button class="btn main" id="mbLight_p" type="button" aria-disabled="true">Light beacon</button></div>
+<p class="status" id="mbStatus_p" role="status" aria-live="polite">Solve the Star Survey to unlock the beacon.</p>
 </div>
 </div>
 </div>
@@ -2048,7 +2078,7 @@ function prCut(){
   prSay(`Couldn't save the prism on this device: browser storage is unavailable or full. ${had?"Your previous prism is unchanged.":"Nothing was saved."} Press Cut prism to try again.`,"quiet");
   return;
  }
- PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;const crWas=!!CR.dir;CR={dir:null,step:0,done:false};const lwHad=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};renderPrism();if(lwHad)lwSay("A new prism was cut, so the lantern walk was cleared.","");if(crWas)crSay("A new prism was cut, so the crossing was reset. Start a crossing to play the new prism.","");
+ PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;const crWas=!!CR.dir;CR={dir:null,step:0,done:false};const lwHad=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};mbClear();renderPrism();if(lwHad)lwSay("A new prism was cut, so the lantern walk was cleared.","");if(crWas)crSay("A new prism was cut, so the crossing was reset. Start a crossing to play the new prism.","");
  const v=prV(PRZ);
  prSay(`${had?"Replaced your saved prism. ":""}Prism cut: ${v.map((x,i)=>`${["first","middle","last"][i]} ${vName(x)} ${x.p}`).join(", ")}. Saved on this device; it survives reload and new trios.`,"live");
 }
@@ -2096,7 +2126,7 @@ function renderCrossing(){
 }
 function crStart(dir){
  if(!PRZ){crSay("Cut a prism first to unlock crossings.","");return}
- CR={dir,step:0,done:false};const lwWas=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};renderCrossing();if(lwWas)lwSay("A new crossing started, so the lantern walk was cleared. Finish the crossing to walk again.","");
+ CR={dir,step:0,done:false};const lwWas=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};mbClear();renderCrossing();if(lwWas)lwSay("A new crossing started, so the lantern walk was cleared. Finish the crossing to walk again.","");
  const tg=crTargets();
  crSay(`${dir==="r"?"Reverse crossing":"Crossing"} started. Next target: stop 1, ${CAP[tg[0].v.role]} (${vName(tg[0].v)} ${tg[0].v.p}). Then stop 2, ${CAP[tg[1].v.role]}. Answer with the facet that holds each voice.`,"");
 }
@@ -2112,7 +2142,7 @@ function crTap(side){
   return;
  }
  if(state.sound){try{const tt=ensureCtx();v.forEach(x=>playVoice(x,tt))}catch(e){}}
- CR.step=2;CR.done=true;PR.face=side;LW={dir:CR.dir,posts:[],done:false,avail:true};SV={done:false,last:null};renderPrism();{const q=lwSeq();lwSay(`Lantern walk unlocked (${CR.dir==="r"?"reverse":"forward"}): lantern 1 is ${vName(q[0])} ${q[0].p}. Choose a post.`,"")}
+ CR.step=2;CR.done=true;PR.face=side;LW={dir:CR.dir,posts:[],done:false,avail:true};SV={done:false,last:null};mbClear();renderPrism();{const q=lwSeq();lwSay(`Lantern walk unlocked (${CR.dir==="r"?"reverse":"forward"}): lantern 1 is ${vName(q[0])} ${q[0].p}. Choose a post.`,"")}
  crSay(`Crossing complete: ${CAP[t.v.role]} is on the ${side==="L"?"left":"right"} facet. All three together: ${v.map(x=>`${vName(x)} ${x.p}`).join(", ")}. The facet buttons are back to free play.`,"live");
 }
 /* lantern walk (session only, shared by Guide and #pairs) */
@@ -2203,6 +2233,7 @@ function surveySVG(){
  return `<svg viewBox="0 0 280 206" aria-hidden="true">${g}</svg>`;
 }
 function renderSurvey(){
+ renderBeacon();
  const live=LW.done&&!!PRZ,dt=live?svData():null;
  const items=live?dt.opp.map(o=>{const ob=LW.posts[o.obs],a=LW.posts[o.ends[0]],b=LW.posts[o.ends[1]];return `<li>From stop ${o.obs+1}, <b>${ob}</b>: opposite span ${a}–${b}, <b>${svLen(o.sq)} blocks</b> (${o.sq} squared)</li>`}):["<li>Complete a three-stop lantern walk to survey it.</li>"];
  const sel=live&&SV.last!==null?dt.opp[SV.last]:null;
@@ -2219,12 +2250,78 @@ function svPick(i){
  const {opp,max}=svData(),o=opp[i],ob=LW.posts[i],a=LW.posts[o.ends[0]],b=LW.posts[o.ends[1]];
  SV.last=i;
  if(o.sq!==max){renderSurvey();svSay(`From ${ob}, the opposite span is ${a}–${b}, ${svLen(o.sq)} blocks (${o.sq} squared). Another span is longer; try another lantern.`,"quiet");return}
- SV.done=true;renderSurvey();
+ SV.done=true;SV.obs=i;MB={x:"",z:"",done:false,unlocked:true};renderSurvey();mbSay(`Midpoint Beacon unlocked: find the block nearest the middle of ${a}–${b}.`,"");
  const q=lwSeq(),va=q[o.ends[0]],vb=q[o.ends[1]];
  const pre=sounded(()=>{const t=ensureCtx();playVoice(va,t);playVoice(vb,t)});
  const ties=opp.filter(z=>z.sq===max).length>1?" (tied for longest)":"";
  svSay(`${pre}Correct: from ${ob} you see the longest span${ties}, ${a}–${b}, ${svLen(o.sq)} blocks. Span endpoints: ${vName(va)} ${va.p} at ${a} and ${vName(vb)} ${vb.p} at ${b}.`,"live");
 }
+/* midpoint beacon (session only, shared by Guide and #pairs) */
+let MB={x:"",z:"",done:false};
+function mbSay(msg,kind){FFK.forEach(k=>{const s=$("mbStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function mbClear(){const had=!!MB.unlocked;MB={x:"",z:"",done:false};if(had)mbSay("The beacon puzzle was cleared. Solve a new Star Survey to light another.","")}
+const mbLive=()=>!!(LW.done&&PRZ&&SV.done&&SV.obs!==undefined);
+function mbSpan(){const ps=LW.posts.map(lwPost),e=[0,1,2].filter(j=>j!==SV.obs);return {obs:ps[SV.obs],a:ps[e[0]],b:ps[e[1]],ia:e[0],ib:e[1]}}
+function beaconSVG(){
+ const live=mbLive();
+ let g="";
+ for(let gx=0;gx<=16;gx++)g+=`<line x1="${28+gx*14}" y1="40" x2="${28+gx*14}" y2="152" stroke="${gx%2?"#1f2560":"#2a3070"}" stroke-width="1"/>`;
+ for(let gy=0;gy<=8;gy++)g+=`<line x1="28" y1="${40+gy*14}" x2="252" y2="${40+gy*14}" stroke="${gy%2?"#1f2560":"#2a3070"}" stroke-width="1"/>`;
+ let sp=null;
+ if(live){
+  sp=mbSpan();const A=lwXY(sp.a),B=lwXY(sp.b),O=lwXY(sp.obs);
+  g+=`<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#7cf5c4" stroke-width="5" stroke-linecap="round"/>`;
+  const hx=MB.x!=="",hz=MB.z!=="",X=hx?28+(+MB.x)*14:null,Z=hz?40+(+MB.z)*14:null;
+  if(MB.done){g+=`<line x1="${A[0]}" y1="${A[1]}" x2="${X}" y2="${Z}" stroke="#ffe27a" stroke-width="2.5"/><line x1="${B[0]}" y1="${B[1]}" x2="${X}" y2="${Z}" stroke="#ffe27a" stroke-width="2.5"/><circle cx="${X}" cy="${Z}" r="18" fill="#ffe27a" opacity=".22"/><circle cx="${X}" cy="${Z}" r="11" fill="none" stroke="#ffe27a" stroke-width="2"/><rect x="${X-6}" y="${Z-6}" width="12" height="12" transform="rotate(45 ${X} ${Z})" fill="#e8fbff" stroke="#0e1030" stroke-width="1.5"/>`}
+  else{
+   if(hx)g+=`<line x1="${X}" y1="40" x2="${X}" y2="152" stroke="#ff9a3c" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+   if(hz)g+=`<line x1="28" y1="${Z}" x2="252" y2="${Z}" stroke="#ff9a3c" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+   if(hx&&hz)g+=`<circle cx="${X}" cy="${Z}" r="8" fill="none" stroke="#ff9a3c" stroke-width="2.5"/><line x1="${X-13}" y1="${Z}" x2="${X-9}" y2="${Z}" stroke="#ff9a3c" stroke-width="2.5"/><line x1="${X+9}" y1="${Z}" x2="${X+13}" y2="${Z}" stroke="#ff9a3c" stroke-width="2.5"/><line x1="${X}" y1="${Z-13}" x2="${X}" y2="${Z-9}" stroke="#ff9a3c" stroke-width="2.5"/><line x1="${X}" y1="${Z+9}" x2="${X}" y2="${Z+13}" stroke="#ff9a3c" stroke-width="2.5"/>`;
+  }
+  g+=`<g transform="translate(${O[0]} ${O[1]})"><circle r="15" fill="none" stroke="#eef0ff" stroke-width="1.2" opacity=".7"/><path d="M0 -15 L3 -3 L-3 -3 Z" fill="#ff9a3c"/></g>`;
+ }
+ LWP.forEach(p=>{
+  const [x,y]=lwXY(p),role=sp?(p===sp.obs?"O":(p===sp.a||p===sp.b)?"E":null):null,top=p.y===0,ly=top?y-17:y+27;
+  g+=role?`<circle cx="${x}" cy="${y}" r="9" fill="${role==="O"?"#b9a4ff":"#7cf5c4"}" stroke="#0e1030" stroke-width="2"/>`:`<circle cx="${x}" cy="${y}" r="6" fill="#141846" stroke="#7c82c4" stroke-width="2" stroke-dasharray="3 3"/>`;
+  g+=`<text x="${x}" y="${ly}" text-anchor="middle" class="cxn svlen" fill="${role?"#eef0ff":"#9aa0dc"}">${p.n}</text>`;
+ });
+ g+=`<line x1="28" y1="196" x2="84" y2="196" stroke="#eef0ff" stroke-width="2"/><line x1="28" y1="191" x2="28" y2="201" stroke="#eef0ff" stroke-width="2"/><line x1="84" y1="191" x2="84" y2="201" stroke="#eef0ff" stroke-width="2"/><text x="92" y="201" class="cxn" fill="#b9bde8">4 blocks · fine grid 1 block</text>`;
+ return `<svg viewBox="0 0 280 206" aria-hidden="true">${g}</svg>`;
+}
+function renderBeacon(){
+ const live=mbLive(),sp=live?mbSpan():null;
+ const info=!live?"Solve the Star Survey to unlock the beacon.":`Span from the survey: <b>${sp.a.n} (${sp.a.x}, ${sp.a.y})</b> to <b>${sp.b.n} (${sp.b.x}, ${sp.b.y})</b>, observed from ${sp.obs.n}. Pick the block nearest the span's midpoint on each axis; at a half block either neighbor counts. The clear glass sits one block above the lantern plane.`;
+ const aim=MB.x!==""||MB.z!==""?` Aim: X ${MB.x===""?"not set":MB.x}, Z ${MB.z===""?"not set":MB.z}.`:" No aim yet.";
+ const lab=!live?"Midpoint beacon locked":`Top-down beacon map, 16 by 8 blocks. Span ${sp.a.n} (${sp.a.x}, ${sp.a.y}) to ${sp.b.n} (${sp.b.x}, ${sp.b.y}), observer ${sp.obs.n} with a compass mark.`+(MB.done?` Beacon lit at X ${MB.x}, Z ${MB.z}, one block above the lanterns, with rays from both endpoints and a halo.`:aim);
+ FFK.forEach(k=>{
+  $("mbInfo_"+k).innerHTML=info;
+  $("mbFig_"+k).innerHTML=beaconSVG();$("mbFig_"+k).setAttribute('aria-label',lab);
+  const sx=$("mbX_"+k),sz=$("mbZ_"+k);
+  sx.value=MB.x;sz.value=MB.z;sx.disabled=sz.disabled=!live||MB.done;
+  $("mbLight_"+k).setAttribute('aria-disabled',live&&!MB.done?"false":"true");
+ });
+}
+document.addEventListener('change',e=>{
+ const t=e.target;if(!t.id)return;
+ if(/^mb[XZ]_[gp]$/.test(t.id)&&mbLive()&&!MB.done){if(t.id[2]==="X")MB.x=t.value;else MB.z=t.value;renderBeacon()}
+});
+function mbLight(){
+ if(!mbLive()){mbSay("Solve the Star Survey first to unlock the beacon.","");return}
+ if(MB.done){mbSay("This survey's beacon is already lit. Solve a new Star Survey to light another.","");return}
+ if(MB.x===""||MB.z===""){mbSay(`Choose ${MB.x===""&&MB.z===""?"both X and Z":MB.x===""?"an X":"a Z"} first.`,"");return}
+ const sp=mbSpan(),x=+MB.x,z=+MB.z,ex=2*x-sp.a.x-sp.b.x,ez=2*z-sp.a.y-sp.b.y,okx=Math.abs(ex)<=1,okz=Math.abs(ez)<=1;
+ if(!(okx&&okz)){
+  const tips=[];
+  if(!okx)tips.push(`adjust X: ${x} is ${ex>0?"east":"west"} of the midpoint, move ${ex>0?"west":"east"}`);
+  if(!okz)tips.push(`adjust Z: ${z} is ${ez>0?"south":"north"} of the midpoint, move ${ez>0?"north":"south"}`);
+  mbSay(`Not lit. ${tips.join("; ")}.${okx?" X is fine.":okz?" Z is fine.":""}`.replace(/^Not lit\. a/,"Not lit. A"),"quiet");
+  return;
+ }
+ MB.done=true;renderBeacon();
+ const v=lwSeq()[SV.obs],pre=sounded(()=>playVoice(v));
+ mbSay(`${pre}Beacon lit at X ${x}, Z ${z}, one block above the lanterns. Observer solo: ${vName(v)} ${v.p} from ${sp.obs.n}.`,"live");
+}
+FFK.forEach(k=>$("mbLight_"+k).addEventListener('click',mbLight));
 FFK.forEach(k=>[0,1,2].forEach(i=>$(`svPick${i+1}_${k}`).addEventListener('click',()=>svPick(i))));
 FFK.forEach(k=>LWP.forEach(p=>$(`lw${p.n}_${k}`).addEventListener('click',()=>lwPick(p.n))));
 FFK.forEach(k=>{$("crStart_"+k).addEventListener('click',()=>crStart("f"));$("crReverse_"+k).addEventListener('click',()=>crStart("r"))});
