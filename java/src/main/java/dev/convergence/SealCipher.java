@@ -103,7 +103,7 @@ record SealCipher(ChordSeal seal, int solved, boolean retry, CipherRefrain refra
     static void draw(ServerPlayer p, SimpleContainer chest) {
         var round = p.getAttached(ACTIVE);
         if (round == null || !round.seal.equals(ChordSeal.read(p.getMainHandItem()))) return;
-        if (round.refrain != null) { round.refrain.draw(chest, round.seal); return; }
+        if (round.refrain != null) { round.refrain.draw(p, chest, round.seal); return; }
         for (int i = 0; i < 3; i++) {
             boolean silent = round.solved < 3 && round.missing() == i;
             CreativeStudio.icon(chest, 10 + i * 2, silent ? Items.FLINT : ICONS.get(i),

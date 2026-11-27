@@ -69,8 +69,8 @@ record CipherRefrain(boolean backward, int played, Feedback feedback, RefrainCad
         return new InfinityJourney.View("Cipher Refrain • " + played + "/3", score + "\n" + prompt, choices);
     }
 
-    void draw(SimpleContainer chest, ChordSeal seal) {
-        if (cadence != null) { cadence.draw(chest, seal, this); return; }
+    void draw(ServerPlayer p, SimpleContainer chest, ChordSeal seal) {
+        if (cadence != null) { cadence.draw(p, chest, seal, this); return; }
         for (int i = 0; i < 3; i++) {
             var icon = i < played ? SealCipher.ICONS.get(voice(seal, i)) : i == played ? Items.TARGET : Items.IRON_NUGGET;
             int slot = backward ? 15 - i * 2 : 11 + i * 2;

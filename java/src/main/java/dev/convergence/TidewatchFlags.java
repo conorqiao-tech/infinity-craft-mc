@@ -8,7 +8,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.DyeColor;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
@@ -71,51 +70,20 @@ final class TidewatchFlags {
         return null;
     }
 
-    // Prefer singletons so a full inventory can reuse a slot freed by the recipe.
-    private static boolean takeOne(List<ItemStack> stacks, Item item) {
-        var plain = new ItemStack(item);
-        int first = -1;
-        for (int i = 0; i < stacks.size(); i++) {
-            var stack = stacks.get(i);
-            if (!ItemStack.isSameItemSameComponents(stack, plain)) continue;
-            if (stack.getCount() == 1) { stacks.set(i, ItemStack.EMPTY); return true; }
-            if (first < 0) first = i;
-        }
-        if (first < 0) return false;
-        stacks.get(first).shrink(1);
-        return true;
-    }
-
     private static String weave(ServerPlayer p, Design design, BlockPos loom, List<ItemStack> before) {
         if (p.gameMode.getGameModeForPlayer() != GameType.SURVIVAL || !CommonsEvents.harvestAllowed(p)
                 || !design.unlocked(InfinityTidewatch.sightings(p))) return "This design requires the sighting in Survival or Hardcore.";
         if (loom == null || !loom.equals(aimedLoom(p))) return "Aim at the same loom within building reach and reopen Signal flags.";
-        var after = new ArrayList<ItemStack>(before.size());
         for (int i = 0; i < before.size(); i++) {
             if (!ItemStack.matches(p.getInventory().getItem(i), before.get(i))) return "Your inventory changed. Review the recipe again.";
-            after.add(before.get(i).copy());
         }
-        if (!takeOne(after, Items.BANNER.white()) || !takeOne(after, Items.DYE.pick(design.firstDye))
-                || !takeOne(after, Items.DYE.pick(design.secondDye))) return "Bring a plain white banner and one plain dye of each listed color.";
-        var flag = design.banner(p);
-        // Place the result in a matching stack or the first free slot after taking ingredients.
-        int output = -1;
-        for (int i = 0; i < after.size(); i++) {
-            var stack = after.get(i);
-            if (stack.isEmpty() && output < 0) output = i;
-            if (ItemStack.isSameItemSameComponents(stack, flag) && stack.getCount() < stack.getMaxStackSize()) {
-                output = i;
-                break;
-            }
-        }
-        if (output < 0) return "Make room for the finished flag. Your supplies are intact.";
-        after.set(output, flag.copyWithCount(after.get(output).getCount() + 1));
-        for (int i = 0; i < after.size(); i++) {
-            if (!ItemStack.matches(before.get(i), after.get(i))) p.getInventory().setItem(i, after.get(i));
-        }
-        PlayerPersistence.save(p);
-        p.inventoryMenu.sendAllDataToRemote();
-        return "Wove the " + design.label + " signal flag.";
+        var result = BannerWeaving.weave(p, design.banner(p), Items.BANNER.white(),
+            Items.DYE.pick(design.firstDye), Items.DYE.pick(design.secondDye));
+        return switch (result) {
+            case NO_MATERIAL -> "Bring a plain white banner and one plain dye of each listed color.";
+            case NO_ROOM -> "Make room for the finished flag. Your supplies are intact.";
+            case WOVEN -> "Wove the " + design.label + " signal flag.";
+        };
     }
 
     static InfinityJourney.View view(ServerPlayer p) {

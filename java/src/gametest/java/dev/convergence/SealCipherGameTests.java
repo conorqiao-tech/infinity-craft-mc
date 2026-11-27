@@ -5,6 +5,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.protocol.Packet;
@@ -13,9 +14,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BannerBlockEntity;
+import net.minecraft.world.level.block.entity.BannerPatterns;
 import net.minecraft.world.level.block.NoteBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -217,6 +223,124 @@ public class SealCipherGameTests {
             var observer = g.drain(1);
             c.assertTrue(notes(observer).isEmpty() && particles(observer, ParticleTypes.END_ROD).isEmpty(), "Only the performer receives the fork and music");
             c.assertValueEqual(p.level().getBlockState(desk.pos).getValue(NoteBlock.NOTE), 8, "Note block tuning preserved");
+        }
+        c.succeed();
+    }
+
+    private static final String WEAVE = "Weave pennant • 1 white banner";
+
+    private static void finishBackwardRefrain(Desk desk, ChordSeal seal) {
+        var p = desk.player;
+        p.setItemInHand(InteractionHand.MAIN_HAND, seal.item()); desk.use();
+        for (String voice : List.of("Bell", "Chime", "Harp")) choose(p, voice);
+        choose(p, "Backward refrain");
+        for (String voice : List.of("Harp", "Chime", "Bell")) choose(p, voice);
+        choose(p, "Weave a cadence");
+    }
+
+    private static InfinityJourney.View menu(ServerPlayer p) { return ((InfinityJourney.Handler)p.containerMenu).view; }
+
+    @GameTest public void pennantsKeepAllThreeRolesWhenPlacedAndDropped(GameTestHelper c) {
+        try (var g = new Gallery(c, "Bunting"); var desk = Desk.place(g.players.getFirst())) {
+            var p = desk.player;
+            var support = desk.pos.west();
+            var floor = p.level().getBlockState(support);
+            var overhead = p.level().getBlockState(support.above());
+            var wall = p.level().getBlockState(support.west());
+            var underWall = p.level().getBlockState(support.west().below());
+            try {
+                p.level().setBlock(support, Blocks.STONE.defaultBlockState(), 2);
+                p.level().setBlock(support.west().below(), Blocks.AIR.defaultBlockState(), 2);
+                for (boolean unison : List.of(false, true)) {
+                    var seal = new ChordSeal(unison ? List.of(KITE, KITE, KITE) : List.of(KITE, HALF_MOON, EMBER_PEAKS), 0, 1);
+                    var inks = unison ? List.of(DyeColor.CYAN, DyeColor.CYAN, DyeColor.CYAN) : List.of(DyeColor.CYAN, DyeColor.PURPLE, DyeColor.ORANGE);
+                    finishBackwardRefrain(desk, seal);
+                    for (int knot = 0; knot < 3; knot++) {
+                        int solo = List.of(1, 0, 2).get(knot), left = (solo + 1) % 3, right = (solo + 2) % 3;
+                        choose(p, "Knot " + (knot+1) + " • " + NAMES.get(solo));
+                        c.assertTrue(menu(p).choices().stream().noneMatch(x -> x.label().equals(WEAVE)), "Answer the duet before weaving");
+                        choose(p, pair(left));
+                        var preview = ((InfinityJourney.Handler)p.containerMenu).getSlot(15).getItem().copy();
+                        p.getInventory().setItem(8, new ItemStack(Items.BANNER.white()));
+                        choose(p, WEAVE);
+                        c.assertTrue(menu(p).choices().stream().noneMatch(x -> x.label().equals(WEAVE)), "Once per cadence");
+                        var finished = p.getInventory().getNonEquipmentItems().stream().filter(x -> ItemStack.matches(x, preview)).findFirst().orElseThrow();
+                        var layers = finished.get(DataComponents.BANNER_PATTERNS);
+                        var marks = List.of(BannerPatterns.STRIPE_CENTER, BannerPatterns.STRIPE_DOWNRIGHT, BannerPatterns.CIRCLE_MIDDLE);
+                        var patterns = List.of(BannerPatterns.STRIPE_LEFT, BannerPatterns.STRIPE_RIGHT, marks.get(solo));
+                        var colors = List.of(inks.get(left), inks.get(right), inks.get(solo));
+                        c.assertValueEqual(layers.layers().size(), 3, "Three layers on the white cloth");
+                        for (int i=0; i<3; i++) {
+                            var layer = layers.layers().get(i);
+                            c.assertTrue(layer.pattern().is(patterns.get(i)) && layer.color() == colors.get(i), "Expected pattern and dye in layer " + i);
+                        }
+                        for (var face : List.of(Direction.UP, Direction.WEST)) {
+                            var target = support.relative(face);
+                            p.level().setBlock(target, Blocks.AIR.defaultBlockState(), 2);
+                            var hit = new BlockHitResult(Vec3.atCenterOf(support).relative(face, .5), face, support, false);
+                            p.setItemInHand(InteractionHand.MAIN_HAND, finished.copy());
+                            p.getMainHandItem().useOn(new UseOnContext(p, InteractionHand.MAIN_HAND, hit));
+                            var block = p.level().getBlockState(target);
+                            var entity = p.level().getBlockEntity(target);
+                            c.assertTrue(block.is(face == Direction.UP ? Blocks.BANNER.white() : Blocks.WALL_BANNER.white())
+                                && entity instanceof BannerBlockEntity b && b.getPatterns().equals(layers), "Placed banner keeps every layer on " + face);
+                            var drops = Block.getDrops(block, p.level(), target, entity, p, ItemStack.EMPTY);
+                            c.assertTrue(drops.stream().anyMatch(drop -> layers.equals(drop.get(DataComponents.BANNER_PATTERNS))), "Dropped pennant retains its design");
+                            p.level().setBlock(target, Blocks.AIR.defaultBlockState(), 2);
+                        }
+                        p.setItemInHand(InteractionHand.MAIN_HAND, seal.item());
+                        finished.setCount(0);
+                        choose(p, "Weave again");
+                    }
+                    p.closeContainer();
+                }
+            } finally {
+                p.level().setBlock(support.west().below(), underWall, 2);
+                p.level().setBlock(support.west(), wall, 2);
+                p.level().setBlock(support.above(), overhead, 2);
+                p.level().setBlock(support, floor, 2);
+            }
+        }
+        c.succeed();
+    }
+
+    @GameTest public void pennantWeavingIsAtomicAndStaleFormsCannotSpendTwice(GameTestHelper c) {
+        try (var g = new Gallery(c, "Pennant"); var desk = Desk.place(g.players.getFirst())) {
+            var p = desk.player; var seal = new ChordSeal(List.of(KITE, HALF_MOON, EMBER_PEAKS), 0, 1);
+            finishBackwardRefrain(desk, seal); choose(p, "Knot 1 • Harp"); choose(p, "Bell + Chime");
+            var inv = p.getInventory();
+            int held = inv.getSelectedSlot();
+            for (int i=0; i<36; i++) if (i!=held) inv.setItem(i, new ItemStack(Items.STONE, 64));
+            var named = CommonsEvents.named(Items.BANNER.white(), 1, "Keep me", "A gift");
+            inv.setItem(5, named.copy()); p.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.BANNER.white()));
+            choose(p, WEAVE);
+            c.assertTrue(menu(p).content().contains("Bring a plain white banner") && ItemStack.matches(named, inv.getItem(5))
+                && p.getOffhandItem().getCount()==1, "Named and offhand banners are ineligible");
+            inv.setItem(6, new ItemStack(Items.BANNER.white(), 2));
+            choose(p, WEAVE);
+            c.assertTrue(menu(p).content().contains("Make room") && inv.getItem(6).getCount()==2, "Blocked output preserves the blank stack");
+            var preview = ((InfinityJourney.Handler)p.containerMenu).getSlot(15).getItem().copy();
+            inv.setItem(7, preview.copy());
+            p.closeContainer();
+            var forms = new ArrayList<Form>(); InfinityJourney.form(p, InfinityJourney.Page.SEAL_CIPHER, forms::add);
+            var f = (SimpleForm)forms.getFirst();
+            int button = 0;
+            while (!f.buttons().get(button).text().equals(WEAVE)) button++;
+            var reply = new CommonsGameTests(); g.drain(0); reply.reply(f, Integer.toString(button));
+            expectSounds(c, g.drain(0), seal, List.of());
+            c.assertTrue(inv.getItem(7).getCount()==2 && inv.getItem(6).getCount()==1 && ItemStack.matches(inv.getItem(5),named),
+                "Existing matching pennant stack accepts one result without dropping anything");
+            p.closeContainer(); reply.reply(f, Integer.toString(button));
+            c.assertTrue(inv.getItem(7).getCount()==2 && inv.getItem(6).getCount()==1, "Replayed touch answer cannot weave again");
+            finishBackwardRefrain(desk, seal); choose(p, "Knot 1 • Harp"); choose(p, "Bell + Chime");
+            choose(p, WEAVE);
+            c.assertTrue(inv.getItem(6).isEmpty() && inv.getItem(7).getCount() == 3,
+                "Consuming the last blank clears its slot when the result merges elsewhere");
+            inv.setItem(6, new ItemStack(Items.BANNER.white()));
+            p.closeContainer();
+            finishBackwardRefrain(desk, seal); choose(p, "Knot 2 • Chime"); choose(p, "Harp + Bell");
+            choose(p,WEAVE);
+            c.assertTrue(inv.getItem(6).is(Items.BANNER.white()) && inv.getItem(6).has(DataComponents.CUSTOM_NAME), "A singleton blank can supply its own output slot");
         }
         c.succeed();
     }
