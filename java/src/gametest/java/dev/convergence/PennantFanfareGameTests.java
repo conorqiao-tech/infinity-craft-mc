@@ -98,6 +98,88 @@ public class PennantFanfareGameTests {
         }
     }
 
+    private static void perform(EncoreDuetGameTests.Gallery g, int listener, Stand stand) {
+        var player = g.players.get(listener);
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.FEATHER));
+        stand.tap(player);
+        stand.tap(player);
+        g.drain(listener);
+    }
+
+    private static void paper(GameTestHelper c, EncoreDuetGameTests.Gallery g, int listener, Stand stand,
+                              ChordSeal chord, int count) {
+        var player = g.players.get(listener);
+        var sheets = new ItemStack(Items.PAPER, 4);
+        player.setItemInHand(InteractionHand.MAIN_HAND, sheets);
+        stand.tap(player);
+        var packets = g.drain(listener);
+        SealCipherGameTests.expectSounds(c, packets, chord, count == 3 ? List.of(0, 1, 2) : List.of());
+        c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW).size(), count,
+            "One private light per collected role");
+        c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.END_ROD).size(), count == 3 ? 15 : 0,
+            "Only the full trio connects its corners");
+        c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_ON).size(), count == 0 ? 0 : 3 - count,
+            "Empty instrument sockets are visible");
+        String prompt = count == 0 ? "feather first" : "Chorus " + count + "/3";
+        c.assertTrue(EchoChallengeGameTests.overlays(packets).stream().anyMatch(x -> x.contains(prompt)), "Shows " + prompt);
+        c.assertValueEqual(sheets.getCount(), 4, "Paper is reusable");
+    }
+
+    @GameTest public void collectSoloPitchesFromDifferentPennants(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Chorus");
+             var first = Stand.at(g.players.getFirst(), 0); var second = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            var low = new ChordSeal(List.of(KITE, KITE, KITE), 0, 1);
+            var high = new ChordSeal(List.of(EMBER_PEAKS, EMBER_PEAKS, EMBER_PEAKS), 0, 1);
+            var middle = new ChordSeal(List.of(HALF_MOON, HALF_MOON, HALF_MOON), 0, 1);
+            var expected = new ChordSeal(List.of(EMBER_PEAKS, KITE, HALF_MOON), 0, 1);
+            var harp = CadencePennant.banner(p, low, 1);
+            first.mount(harp, false);
+            second.mount(harp, true);
+            paper(c, g, 0, first, expected, 0);
+            perform(g, 0, first);
+            paper(c, g, 0, second, expected, 0);
+            first.mount(harp, false);
+            paper(c, g, 0, first, expected, 0);
+            perform(g, 0, first);
+            var cloth = (BannerBlockEntity)p.level().getBlockEntity(first.pos());
+            cloth.applyComponentsFromItemStack(CadencePennant.banner(p, high, 1));
+            paper(c, g, 0, first, expected, 0);
+            cloth.applyComponentsFromItemStack(harp);
+            paper(c, g, 0, first, expected, 0);
+            perform(g, 0, first);
+            p.setShiftKeyDown(true);
+            first.tap(p);
+            p.setShiftKeyDown(false);
+            g.drain(0);
+            paper(c, g, 0, first, expected, 0);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.FEATHER));
+            first.tap(p);
+            g.drain(0);
+            paper(c, g, 1, first, expected, 0);
+            paper(c, g, 0, first, expected, 1);
+            paper(c, g, 0, first, expected, 0);
+            second.mount(CadencePennant.banner(p, low, 0), true);
+            perform(g, 0, second);
+            paper(c, g, 0, second, expected, 2);
+            perform(g, 1, second);
+            paper(c, g, 1, second, expected, 1);
+            second.mount(CadencePennant.banner(p, high, 0), true);
+            perform(g, 0, second);
+            paper(c, g, 0, second, expected, 2);
+            first.mount(CadencePennant.banner(p, middle, 2), false);
+            perform(g, 0, first);
+            paper(c, g, 0, first, expected, 3);
+            paper(c, g, 0, first, expected, 0);
+            perform(g, 0, first);
+            paper(c, g, 0, first, expected, 1);
+            var spectator = g.drain(2);
+            SealCipherGameTests.expectSounds(c, spectator, expected, List.of());
+            c.assertTrue(GalleryTrailGameTests.particles(spectator, ParticleTypes.GLOW).isEmpty(), "Bystander sees no collected solos");
+        }
+        c.succeed();
+    }
+
     @GameTest public void featherPlaysPrivateCallAndAnswerOnTheSamePlacedFlag(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Fanfare");
              var stand = Stand.at(g.players.getFirst(), 0); var wall = Stand.at(g.players.getFirst(), 1)) {
