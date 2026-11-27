@@ -14,7 +14,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
 record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimension, List<BlockPos> stops,
-                   int surveyedFrom, BlockPos beacon) {
+                   int surveyedFrom, BeaconRelay relay) {
     private static final AttachmentType<LanternWalk> WALK =
         AttachmentRegistry.create(Identifier.fromNamespaceAndPath("convergence", "lantern_walk"));
     private static final int RANGE = 12;
@@ -37,6 +37,7 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
         }
         if (walk.stops.size() == 3) {
             if (p.isShiftKeyDown()) walk.survey(p, pos);
+            else if (walk.relay != null) walk.relayLantern(p, pos);
             else ConcertStage.overlay(p, "Lantern Walk • Constellation complete • Sneak-use a stop to survey its opposite span.");
             return;
         }
@@ -107,8 +108,8 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
     }
 
     void lightBeacon(ServerPlayer p, BlockPos glass) {
-        if (beacon != null) {
-            ConcertStage.overlay(p, "Midpoint Beacon • Already lit at " + beacon.toShortString());
+        if (relay != null) {
+            ConcertStage.overlay(p, "Midpoint Beacon • Already lit at " + relay.glass().toShortString());
             return;
         }
         var span = OPPOSITE.get(surveyedFrom);
@@ -118,13 +119,37 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
             ConcertStage.overlay(p, "Midpoint Beacon • " + adjustment);
             return;
         }
-        p.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, glass.immutable()));
+        p.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, new BeaconRelay(glass)));
         int observerVoice = voiceAt(surveyedFrom);
         InfinityChimes.stopPlayback(p);
         EncoreDuet.leave(p);
         CircuitConductor.soundVoice(p, observerVoice, prism.score().voices().get(observerVoice));
         target.draw(p, glass);
-        ConcertStage.overlay(p, "Midpoint Beacon • " + glass.toShortString() + " • " + prism.score().voiceName(observerVoice) + " solo");
+        ConcertStage.overlay(p, "Midpoint Beacon • " + glass.toShortString() + " • " + prism.score().voiceName(observerVoice)
+            + " solo • Use the nearer span lantern, then the other");
+    }
+
+    private void relayLantern(ServerPlayer p, BlockPos pos) {
+        var span = OPPOSITE.get(surveyedFrom);
+        String clue = relay.rejection(new MidpointBeacon(stops.get(span.from), stops.get(span.to)), pos);
+        if (clue != null) {
+            ConcertStage.overlay(p, "Beacon Relay • " + clue);
+            return;
+        }
+        var next = relay.advance(pos);
+        p.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, next));
+        InfinityChimes.stopPlayback(p);
+        EncoreDuet.leave(p);
+        var score = prism.score();
+        if (next.complete()) {
+            score.soundBeat(p, 3);
+            ConcertStage.overlay(p, "Beacon Relay • Full chord • Infinity ribbon complete");
+        } else {
+            int voice = voiceAt(stops.indexOf(pos));
+            CircuitConductor.soundVoice(p, voice, score.voices().get(voice));
+            ConcertStage.overlay(p, "Beacon Relay • " + score.voiceName(voice) + " solo • Visit the other endpoint");
+        }
+        next.draw(p, pos);
     }
 
     private static void drawSurvey(ServerPlayer p, BlockPos observer, BlockPos first, BlockPos second) {
