@@ -331,6 +331,14 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .pncol figcaption strong{display:block;color:var(--ink);font:700 16px "Pixelify Sans",sans-serif;margin-bottom:4px}
 .pnempty{display:grid;place-items:center;border:2px dashed #4a52a0;border-radius:4px;color:#9aa0dc;font-size:13px;text-align:center}
 @media(max-width:700px){.pnrow{grid-template-columns:minmax(0,1fr)}}
+.fanfare{margin-top:14px;padding:14px;border-radius:14px;background:#0f1340;border:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.fanfare h3{font-size:20px;line-height:1.1;margin:0}
+.fffig{width:280px;height:146px;margin:0 auto}
+.fffig svg{display:block;width:280px;height:146px}
+.fanfare .row{display:flex;flex-wrap:wrap;gap:8px}
+.fanfare .status{margin:0}
+.pencard .fanfare{grid-column:1/-1;justify-self:stretch;width:100%}
+@media(max-width:480px){.fanfare{padding:12px}}
 @media(max-width:480px){.pencard{grid-template-columns:minmax(0,1fr);justify-items:start}}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
@@ -362,6 +370,15 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <h2 id="gpTitle">Your Cadence Pennant</h2>
 <p id="gPenCap">No pennant kept yet. Complete a Refrain Cadence in Postcard Pairs, then press Keep this pennant.</p>
 <button class="tie" type="button" data-go="pairs">Go to Postcard Pairs</button>
+</div>
+<div class="fanfare" aria-labelledby="ffT_g">
+<h3 id="ffT_g">Pennant Fanfare</h3>
+<div class="fffig" id="ffFig_g" role="img" aria-label="Fanfare locked"></div>
+<div class="row">
+<button class="btn main" id="ffMain_g" type="button" aria-disabled="true">Play call</button>
+<button class="btn" id="ffRestart_g" type="button" aria-disabled="true">Restart call</button>
+</div>
+<p class="status" id="ffStatus_g" role="status" aria-live="polite">Keep a Cadence Pennant to unlock the fanfare.</p>
 </div>
 </section>
 <div class="trail">
@@ -518,6 +535,19 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="exline">This browser guide keeps the design only, without materials. The solo instrument is the central mark; the two answering instruments are the side stripes.</p>
 </div>
 <figure class="pncol" style="background:transparent;border:0;padding:0"><div class="pnfig" id="gPenEx"></div><figcaption id="gPenExCap"></figcaption></figure>
+</div>
+<div class="circ">
+<div>
+<span class="pill">Development preview</span>
+<h3 style="margin-top:8px">Pennant Fanfare <small>optional</small></h3>
+<ol>
+<li>Tap a placed white Cadence Pennant with a plain feather to play its call.</li>
+<li>Tap the same banner again to play the answer.</li>
+<li>Sneak-tap to restart the call.</li>
+<li>Tapping a different banner starts that banner's own call.</li>
+</ol>
+</div>
+<p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
 </div>
 </section>
 </section>
@@ -734,6 +764,15 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <div class="pnrow">
 <figure class="pncol"><div class="pnfig" id="pnNow" role="img" aria-label="No finished cadence yet"></div><figcaption><strong>This cadence</strong><span id="pnNowCap">Finish a cadence to see its pennant.</span></figcaption></figure>
 <figure class="pncol"><div class="pnfig" id="pnSaved" role="img" aria-label="No pennant kept yet"></div><figcaption><strong>Kept pennant</strong><span id="pnSavedCap">No pennant kept yet.</span></figcaption></figure>
+</div>
+<div class="fanfare" aria-labelledby="ffT_p">
+<h3 id="ffT_p">Pennant Fanfare</h3>
+<div class="fffig" id="ffFig_p" role="img" aria-label="Fanfare locked"></div>
+<div class="row">
+<button class="btn main" id="ffMain_p" type="button" aria-disabled="true">Play call</button>
+<button class="btn" id="ffRestart_p" type="button" aria-disabled="true">Restart call</button>
+</div>
+<p class="status" id="ffStatus_p" role="status" aria-live="polite">Keep a Cadence Pennant to unlock the fanfare.</p>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
 </section>
@@ -1506,6 +1545,7 @@ function bannerSVG(pn,w,gid){
 }
 function pendingPennant(){if(!(cdEligible()&&CD.done&&CD.solo!==null))return null;const d=sealData(SEAL);return {ver:1,solo:d.v[cdSeq(d)[CD.solo]].role,notes:SEAL.notes.slice()}}
 function renderPennant(){
+ renderFanfare();
  const now=pendingPennant();
  $("pnKeep").setAttribute('aria-disabled',now&&!CD.kept?"false":"true");
  $("pnKeep").textContent=now&&CD.kept?"Pennant kept":"Keep this pennant";
@@ -1531,9 +1571,50 @@ $("pnKeep").addEventListener('click',()=>{
   pnSay(`Couldn't save the pennant on this device: browser storage is unavailable or full. ${had?"Your previously kept pennant is unchanged.":"Nothing was kept."} Press Keep this pennant to try again.`,"quiet");
   return;
  }
- PN=now;CD.kept=true;renderPennant();
+ PN=now;CD.kept=true;FF={phase:"idle"};renderPennant();ffSay("New pennant kept, so the fanfare starts again from the call.","");
  pnSay(`${had?"Replaced your kept pennant. ":""}Kept: ${pnCaption(PN)} It's saved on this device and shown on the Guide tab too.`,"live");
 });
+/* pennant fanfare (session only, shared by Guide and #pairs) */
+let FF={phase:"idle"};
+const FFK=["g","p"];
+function ffVoices(pn){const {i,L,R}=pnSides(pn),mk=k=>({id:pn.notes[k],role:ROLES[k],p:k===1?harpPitch(byId(pn.notes[k]).n):pitch(byId(pn.notes[k]).n)});return {solo:mk(i),left:mk(L),right:mk(R)}}
+function ffSay(msg,kind){FFK.forEach(k=>{const s=$("ffStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function fanfareSVG(pn,phase){
+ const Y=74;
+ const node=(x,v,on,tag,lx,ly,anc)=>{const col=v?byId(v.id).c:"#5a62b0";return (on?`<circle cx="${x}" cy="${Y}" r="31" fill="${col}" opacity=".18"/><circle cx="${x}" cy="${Y}" r="24" fill="#14184c" stroke="${col}" stroke-width="3"/><g transform="translate(${x} ${Y}) scale(.68)">${shape(v.role,col)}</g>`:`<circle cx="${x}" cy="${Y}" r="24" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/>${v?`<g transform="translate(${x} ${Y}) scale(.68)" opacity=".35">${shape(v.role,"#3d4596")}</g>`:""}`)+`<text x="${lx}" y="${ly}" text-anchor="${anc}" class="cxl" fill="${on?"#eef0ff":"#9aa0dc"}">${tag}</text><text x="${lx}" y="${ly+16}" text-anchor="${anc}" class="cxn" fill="#b9bde8">${v?vName(v):"locked"}</text>`};
+ const v=pn?ffVoices(pn):null,callOn=!!pn&&phase!=="idle",ansOn=!!pn&&phase==="answer";
+ const ray=d=>ansOn?`<path d="${d}" fill="none" stroke="#7cf5c4" stroke-width="9" opacity=".2" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#c9fff0" stroke-width="2.5" stroke-linecap="round"/>`:`<path d="${d}" fill="none" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5" stroke-linecap="round"/>`;
+ return `<svg viewBox="0 0 280 146" aria-hidden="true">${ray(`M117 ${Y-6} Q90 ${Y-34} 63 ${Y-6}`)}${ray(`M163 ${Y-6} Q190 ${Y-34} 217 ${Y-6}`)}${node(40,v&&v.left,ansOn,"Answer · left",4,Y+46,"start")}${node(240,v&&v.right,ansOn,"Answer · right",276,Y+46,"end")}${node(140,v&&v.solo,callOn,"Call",140,18,"middle")}</svg>`;
+}
+function renderFanfare(){
+ const v=PN?ffVoices(PN):null;
+ FFK.forEach(k=>{
+  $("ffFig_"+k).innerHTML=fanfareSVG(PN,FF.phase);
+  $("ffFig_"+k).setAttribute('aria-label',!PN?"Fanfare locked: no kept pennant":`Fanfare score: call ${vName(v.solo)} in the center, branching to answers ${vName(v.left)} on the left and ${vName(v.right)} on the right. ${FF.phase==="idle"?"Ready for the call.":FF.phase==="call"?"Call played; answer is next.":"Answer played; next press starts a fresh call."}`);
+  const m=$("ffMain_"+k);m.setAttribute('aria-disabled',PN?"false":"true");m.textContent=FF.phase==="call"?"Play answer":"Play call";
+  $("ffRestart_"+k).setAttribute('aria-disabled',PN&&FF.phase!=="idle"?"false":"true");
+  if(!PN){const s=$("ffStatus_"+k);s.textContent="Keep a Cadence Pennant to unlock the fanfare.";s.className="status"}
+ });
+}
+function ffCall(restart){
+ const v=ffVoices(PN),pre=sounded(()=>playVoice(v.solo));
+ FF.phase="call";renderFanfare();
+ ffSay(`${pre}${restart?"Call restarted":"Call"}: ${CAP[v.solo.role]} solo, ${vName(v.solo)} ${v.solo.p}. ${restart?"The answer is ready":"Next"}: Play answer for ${vName(v.left)} and ${vName(v.right)}.`,"live");
+}
+function ffMain(){
+ if(!PN){ffSay("Keep a Cadence Pennant to unlock the fanfare.","");return}
+ if(FF.phase!=="call"){ffCall(false);return}
+ const v=ffVoices(PN),pre=sounded(()=>{const t=ensureCtx();playVoice(v.left,t);playVoice(v.right,t)});
+ FF.phase="answer";renderFanfare();
+ ffSay(`${pre}Answer: ${vName(v.left)} ${v.left.p} on the left stripe with ${vName(v.right)} ${v.right.p} on the right stripe, together. The next press starts a fresh call.`,"live");
+}
+function ffRestart(){
+ if(!PN){ffSay("Keep a Cadence Pennant to unlock the fanfare.","");return}
+ if(FF.phase==="idle"){ffSay("Play the call first; Restart call repeats it.","");return}
+ ffCall(true);
+}
+FFK.forEach(k=>{$("ffMain_"+k).addEventListener('click',ffMain);$("ffRestart_"+k).addEventListener('click',ffRestart)});
+if(PN)ffSay("Press Play call to hear your pennant's solo.","");
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 

@@ -59,10 +59,13 @@ async function verify(page, origin) {
     const previous = await saved();
     const originalCaption = await page.locator('#pnSavedCap').innerText();
     if (testFailure) {
+      await tap(page.locator('#ffMain_p'));
+      assert.equal(await page.locator('#ffMain_p').innerText(), 'Play answer');
       await page.evaluate(() => {window.blockPennantWrite=true;});
       await tap(keep);
       assert.match(await page.locator('#pnStatus').innerText(), /try again/i);
       assert(await keep.isEnabled());
+      assert.equal(await page.locator('#ffMain_p').innerText(), 'Play answer', 'A failed keep preserves the pending answer');
       assert.deepEqual(await saved(), previous);
       assert.equal(await page.locator('#pnSavedCap').innerText(), originalCaption);
       await page.evaluate(() => {window.blockPennantWrite=false;});
@@ -71,6 +74,8 @@ async function verify(page, origin) {
     await tap(keep);
     assert.equal((await heard()).length, audioCount, 'Keeping a pennant is silent');
     assert(await keep.isDisabled(), 'Each finished cadence can be kept once');
+    assert.equal(await page.locator('#ffMain_p').innerText(), 'Play call');
+    assert(await page.locator('#ffRestart_p').isDisabled(), 'An explicit keep starts the score over');
     assert.deepEqual(await saved(), {ver:1, solo:names[solo].toLowerCase(), notes:seal.notes});
     const design = page.locator('#pnSaved svg g');
     const stripes = design.locator('rect[shape-rendering]');
@@ -190,12 +195,57 @@ async function verify(page, origin) {
   }
   const errors=[];
   page.on('pageerror',e=>errors.push(e.message));
+  // A gift can be the only item in a returning player's guide.
+  const guideTab = page.getByRole('tab', {name:'Guide', exact:true});
+  const pairsTab = page.getByRole('tab', {name:'Postcard Pairs', exact:true});
+  for (const notes of [['kite','moon','ember'], ['moon','moon','moon']]) {
+    for (const [solo, role] of names.entries()) {
+      const pennant = {ver:1, solo:role.toLowerCase(), notes};
+      await page.evaluate(pennant => localStorage.setItem('infinitycraft.field-guide.v1',
+        JSON.stringify({sound:true, pennant})), pennant);
+      await page.reload();
+      assert.deepEqual(await heard(), [], 'Loading a keepsake is silent');
+      assert(await start.isDisabled(), 'This listener has no seal');
+      const left = (solo+1)%3, right = (solo+2)%3;
+      async function fanfare(id, voices, audible=true) {
+        const before = (await heard()).length;
+        await tap(page.locator(id));
+        assertAudio((await heard()).slice(before), pennant, voices, audible);
+        assert.equal(await page.locator('#ffStatus_g').textContent(), await page.locator('#ffStatus_p').textContent());
+      }
+      await tap(guideTab);
+      assert(await page.locator('#ffRestart_g').isDisabled());
+      await fanfare('#ffMain_g', [solo]);
+      await tap(pairsTab);
+      assert.equal(await page.locator('#ffMain_p').innerText(), 'Play answer');
+      await fanfare('#ffRestart_p', [solo]);
+      assert.match(await page.locator('#ffStatus_p').innerText(), /Call restarted/);
+      await fanfare('#ffMain_p', [left,right]);
+      assert.match(await page.locator('#ffStatus_p').innerText(),
+        new RegExp(names[left]+'.*left stripe.*'+names[right]+'.*right stripe','i'));
+      await page.locator('#sound2').uncheck();
+      await fanfare('#ffMain_p', [solo], false);
+      await tap(guideTab);
+      await fanfare('#ffMain_g', [left,right], false);
+      assert.match(await page.locator('#ffStatus_g').innerText(), /Silent.*answer/i);
+      await fanfare('#ffRestart_g', [solo], false);
+      await page.reload();
+      assert.equal(await page.locator('#ffMain_g').innerText(), 'Play call');
+      assert(await page.locator('#ffRestart_g').isDisabled());
+      assert.deepEqual(await heard(), []);
+      await tap(pairsTab);
+    }
+  }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
   for (const bad of [null,123,'obsolete',[],{ver:2,solo:'harp',notes:testSeal.notes},{ver:1,solo:'other',notes:testSeal.notes},{ver:1,solo:'bell',notes:['kite','unknown','moon']}]) {
     const root = bad && typeof bad==='object' && !Array.isArray(bad) ? {seal:testSeal,pennant:bad} : bad;
     await page.evaluate(value=>localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(value)),root);
     await page.reload();
     assert.equal(await page.locator('#gPen').getAttribute('aria-label'),'No pennant kept yet');
+    for (const view of ['g','p']) {
+      assert(await page.locator('#ffMain_'+view).isDisabled());
+      assert(await page.locator('#ffRestart_'+view).isDisabled());
+    }
     if (root?.seal) assert(await start.isEnabled(), 'Invalid souvenir cannot disable a valid seal');
   }
   assert.deepEqual(errors,[]);
@@ -207,6 +257,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
