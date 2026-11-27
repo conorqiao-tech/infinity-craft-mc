@@ -392,15 +392,37 @@ async function verify(page, origin) {
       assert.equal((await heard()).length, beforeGuess, 'One triad per ring');
       assert(await cut(other).isEnabled());
       if (side === 'p') {
+        // The old prism's route is Bell, Harp, Chime. Its pitches are all Kite.
+        const unison = ['kite','kite','kite'];
+        const crossingText = () => page.locator('#crStatus_'+other).innerText();
+        async function answerCrossing(view, facet, instruments) {
+          const before = (await heard()).length;
+          await tap(page.locator('#pr'+facet+'_'+view));
+          assertAudio((await heard()).slice(before), {notes:unison}, instruments, audible);
+          assert.equal(await page.locator('#crStatus_g').textContent(), await page.locator('#crStatus_p').textContent());
+          assert.equal(await page.locator('#crFig_g').getAttribute('aria-label'), await page.locator('#crFig_p').getAttribute('aria-label'));
+        }
+        const beforeStart = (await heard()).length;
+        await tap(page.locator('#crReverse_'+other));
+        assert.match(await crossingText(), /chime.*bell/i);
+        assert.equal((await heard()).length, beforeStart);
+        await answerCrossing(other, 'L', []);
+        await answerCrossing(other, 'R', [1,0]);
         await page.evaluate(() => {window.blockPennantWrite=true;});
         await tap(cut(other));
         await page.evaluate(() => {window.blockPennantWrite=false;});
         assert(await cut(other).isEnabled());
         assert.match(await page.locator('#prStatus_'+other).innerText(), /previous prism is unchanged.*try again/i);
         assert.deepEqual(await storedPrism(), oldPrism);
-        const unison = ['kite','kite','kite'];
+        await tap(pairsTab);
+        await answerCrossing(side, 'R', []);
+        await answerCrossing(side, 'L', [0,1,2]);
+        assert.match(await page.locator('#crFig_'+side).getAttribute('aria-label'), /complet|both.*lit/i);
+        await tap(guideTab);
         await playFacet(other, 'L', unison, [2,1]);
         await playFacet(other, 'R', unison, [1,0]);
+        await tap(page.locator('#crStart_'+other));
+        await answerCrossing(other, 'L', [2,1]);
         const beforeCut = (await heard()).length;
         await tap(cut(other));
         assert.deepEqual(await storedPrism(), expectedPrism);
@@ -448,6 +470,11 @@ async function verify(page, origin) {
     assert(await cut('p').isDisabled());
     assert.deepEqual(await storedPrism(), expectedPrism);
     await playFacet('p', 'R', trio.notes, [1,2]);
+    await tap(page.locator('#crStart_p'));
+    await playFacet('p', 'L', trio.notes, [0,1]);
+    await page.reload();
+    assert.deepEqual(await heard(), []);
+    await playFacet('p', 'R', trio.notes, [1,2]);
   }
   const [first, middle, last] = oldPrism.voices;
   for (const prism of [null, [], {ver:2, voices:oldPrism.voices}, {ver:1,voices:null},
@@ -458,6 +485,8 @@ async function verify(page, origin) {
     })), prism);
     await page.reload();
     for (const side of ['g','p']) {
+      assert(await page.locator('#crStart_'+side).isDisabled());
+      assert(await page.locator('#crReverse_'+side).isDisabled());
       assert(await page.locator('#prL_'+side).isDisabled());
       assert(await page.locator('#prR_'+side).isDisabled());
       assert(await page.locator('#ffMain_'+side).isEnabled(), 'Invalid prism leaves the pennant playable');
@@ -484,6 +513,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves. Prism Crossing passed reverse unison clues, silent retries, cross-panel progress, exact duet and closing triad, storage failure and replacement, reload and free playback.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
