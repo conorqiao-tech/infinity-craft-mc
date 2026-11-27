@@ -63,7 +63,7 @@ public class SealCipherGameTests {
         c.assertValueEqual(particles(packet, ParticleTypes.WAX_ON).size(), indices.size() == 2 ? 1 : 0, "One recessed socket per clue");
     }
 
-    private static void expectSounds(GameTestHelper c, List<Packet<?>> packet, ChordSeal seal, List<Integer> indices) {
+    static void expectSounds(GameTestHelper c, List<Packet<?>> packet, ChordSeal seal, List<Integer> indices) {
         var sounds = List.of(SoundEvents.NOTE_BLOCK_CHIME, SoundEvents.NOTE_BLOCK_HARP, SoundEvents.NOTE_BLOCK_BELL);
         var heard = notes(packet);
         c.assertValueEqual(heard.size(), indices.size(), "Exactly the clue voices sound");

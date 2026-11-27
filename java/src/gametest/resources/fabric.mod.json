@@ -113,6 +113,7 @@
       "dev.convergence.TrailEncoreGameTests",
       "dev.convergence.EncoreDuetGameTests",
       "dev.convergence.SealCipherGameTests",
+      "dev.convergence.PennantFanfareGameTests",
       "dev.convergence.CodaPostcardGameTests"
     ]
   },
@@ -203,6 +204,7 @@
       "dev.convergence.TrailEncoreGameTests",
       "dev.convergence.EncoreDuetGameTests",
       "dev.convergence.SealCipherGameTests",
+      "dev.convergence.PennantFanfareGameTests",
       "dev.convergence.CodaPostcardGameTests"
     ]
   },
