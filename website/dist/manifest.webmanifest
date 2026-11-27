@@ -12,7 +12,7 @@
     {"src": "/assets/guide-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
   ],
   "shortcuts": [
-    {"name": "Postcard Pairs and Lantern Walk", "url": "/field-guide/#pairs"},
+    {"name": "Postcard Pairs and Star Survey", "url": "/field-guide/#pairs"},
     {"name": "Coda Studio and gallery guide", "url": "/field-guide/#studio"},
     {"name": "Java and Bedrock joining guide", "url": "/#play"}
   ]
