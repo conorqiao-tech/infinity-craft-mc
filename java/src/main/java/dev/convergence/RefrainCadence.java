@@ -7,7 +7,8 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
-record RefrainCadence(int solo, Phase phase) {
+record RefrainCadence(int solo, Phase phase, BannerWeaving.Result pennant) {
+    private RefrainCadence(int solo, Phase phase) { this(solo, phase, null); }
     enum Phase { CHOOSE, ANSWER, RETRY, COMPLETE }
     static final RefrainCadence START = new RefrainCadence(-1, Phase.CHOOSE);
 
@@ -37,6 +38,13 @@ record RefrainCadence(int solo, Phase phase) {
         round.openRefrain(p, round.refrain().withCadence(result));
     }
 
+    private void weavePennant(ServerPlayer p, SealCipher round) {
+        if (phase != Phase.COMPLETE || pennant == BannerWeaving.Result.WOVEN || !round.current(p)) return;
+        var flag = CadencePennant.banner(p, round.seal(), solo);
+        var result = BannerWeaving.weave(p, flag, Items.BANNER.white());
+        round.openRefrain(p, round.refrain().withCadence(new RefrainCadence(solo, phase, result)));
+    }
+
     InfinityJourney.View view(ServerPlayer p, SealCipher round) {
         var choices = new ArrayList<InfinityJourney.Choice>();
         var refrain = round.refrain();
@@ -56,6 +64,14 @@ record RefrainCadence(int solo, Phase phase) {
                     round.openRefrain(p, refrain);
                 }
             }));
+            prompt += "\n" + switch (pennant) {
+                case null -> "Weave a Cadence Pennant with one plain white banner.";
+                case NO_MATERIAL -> "Bring a plain white banner in your hotbar or main inventory.";
+                case NO_ROOM -> "Make room for the pennant, then try again.";
+                case WOVEN -> "Pennant woven. Place it or give it to another player.";
+            };
+            if (pennant != BannerWeaving.Result.WOVEN) choices.add(new InfinityJourney.Choice(Items.BANNER.white(),
+                "Weave pennant • 1 white banner", () -> weavePennant(p, round)));
             choices.add(new InfinityJourney.Choice(Items.STRING, "Weave again", () -> round.openRefrain(p, refrain.withCadence(START))));
         } else {
             prompt = "Solo • " + round.seal().voiceName(solo) + "\n"
@@ -71,7 +87,7 @@ record RefrainCadence(int solo, Phase phase) {
         return new InfinityJourney.View("Refrain Cadence", prompt, choices);
     }
 
-    void draw(SimpleContainer chest, ChordSeal seal, CipherRefrain refrain) {
+    void draw(ServerPlayer p, SimpleContainer chest, ChordSeal seal, CipherRefrain refrain) {
         if (phase == Phase.CHOOSE) {
             for (int i = 0; i < 3; i++) {
                 int voice = refrain.voice(seal, i);
@@ -79,6 +95,7 @@ record RefrainCadence(int solo, Phase phase) {
             }
             return;
         }
+        if (phase == Phase.COMPLETE) chest.setItem(15, CadencePennant.banner(p, seal, solo));
         CreativeStudio.icon(chest, 13, SealCipher.ICONS.get(solo), "Call • " + seal.voiceName(solo));
         CreativeStudio.icon(chest, 22, Items.STRING, "Cadence thread");
         for (int i = 0; i < 2; i++) {
