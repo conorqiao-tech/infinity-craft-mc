@@ -578,10 +578,29 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
-    private static void tapGlass(ServerPlayer p, Stand glass) {
-        p.setPos(Vec3.atBottomCenterOf(glass.pos).add(0, -1, -1));
-        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(glass.pos));
-        glass.tap(p);
+    @GameTest public void relayOrderUsesTheLitCellAndAcceptsEitherTiedLead(GameTestHelper c) {
+        var span = new MidpointBeacon(new BlockPos(-7, 2, -1), new BlockPos(0, 2, 3));
+        var west = new BeaconRelay(new BlockPos(-4, 3, 1));
+        var east = new BeaconRelay(new BlockPos(-3, 3, 1));
+        c.assertTrue(west.rejection(span, span.first()) == null && west.rejection(span, span.second()) != null
+            && east.rejection(span, span.first()) != null && east.rejection(span, span.second()) == null,
+            "Choosing the other valid half-block reverses the relay order");
+        var flat = new MidpointBeacon(new BlockPos(-6, 2, -1), new BlockPos(0, 2, 3));
+        for (var lead : List.of(flat.first(), flat.second())) {
+            var open = new BeaconRelay(new BlockPos(-3, 3, 1));
+            var other = lead.equals(flat.first()) ? flat.second() : flat.first();
+            c.assertTrue(open.rejection(flat, lead) == null, "Either equidistant endpoint may lead");
+            var half = open.advance(lead);
+            c.assertTrue(half.rejection(flat, lead) != null && half.rejection(flat, other) == null, "Two distinct ends required");
+            c.assertTrue(half.advance(other).rejection(flat, lead) != null, "The finished relay stays closed");
+        }
+        c.succeed();
+    }
+
+    private static void tapWithFollowup(ServerPlayer p, Stand stand) {
+        p.setPos(Vec3.atBottomCenterOf(stand.pos).add(0, -1, -1));
+        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(stand.pos));
+        stand.tap(p);
         // Some clients also send an item-use packet for the same click.
         p.gameMode.useItem(p, p.level(), p.getMainHandItem(), InteractionHand.MAIN_HAND);
     }
@@ -667,12 +686,12 @@ public class PennantFanfareGameTests {
                      var otherGlass = Stand.at(p, alternate)) {
                     for (var target : List.of(wrong, glass, otherGlass))
                         p.level().setBlock(target.pos, Blocks.GLASS.defaultBlockState(), 2);
-                    tapGlass(p, wrong);
+                    tapWithFollowup(p, wrong);
                     var rejected = g.drain(0);
                     SealCipherGameTests.expectSounds(c, rejected, song, List.of());
                     c.assertTrue(EchoChallengeGameTests.overlays(rejected).stream().anyMatch(t -> t.contains("Try glass")),
                         "Use the surveyed edge even when another longest span ties");
-                    tapGlass(p, glass);
+                    tapWithFollowup(p, glass);
                     var lit = g.drain(0);
                     int solo = song.cornerAt(reverse ? 2 - observer : observer);
                     SealCipherGameTests.expectSounds(c, lit, song, List.of(solo));
@@ -681,11 +700,35 @@ public class PennantFanfareGameTests {
                         "The beacon rises over the chosen glass cell");
                     c.assertTrue(GalleryTrailGameTests.particles(lit, ParticleTypes.END_ROD).stream()
                         .anyMatch(point -> point.distanceTo(crown.add(.36, 0, 0)) < .001), "Halo marks the top of the beam");
-                    tapGlass(p, otherGlass);
+                    tapWithFollowup(p, otherGlass);
                     var spent = g.drain(0);
                     SealCipherGameTests.expectSounds(c, spent, song, List.of());
                     c.assertTrue(GalleryTrailGameTests.particles(spent, ParticleTypes.GLOW).isEmpty(), "Only one beacon per survey");
                     c.assertTrue(p.level().getBlockState(glass.pos).is(Blocks.GLASS), "Clear glass stays intact");
+                    // The elevated glass is nearer the third lantern even on route 0, where its X projection favors stop 1.
+                    var far = posts.get(from);
+                    p.setShiftKeyDown(false);
+                    for (var missPost : List.of(far, viewpoint, extra)) {
+                        tapWithFollowup(p, missPost);
+                        SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
+                    }
+                    tapWithFollowup(p, third);
+                    var lead = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, lead, song, List.of(song.cornerAt(reverse ? 0 : 2)));
+                    c.assertValueEqual(GalleryTrailGameTests.particles(lead, ParticleTypes.GLOW),
+                        List.of(Vec3.atCenterOf(third.pos).add(0, .7, 0)), "The first relay arch singles out its endpoint");
+                    tapWithFollowup(p, third);
+                    SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
+                    tapWithFollowup(p, far);
+                    var finish = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, finish, song, List.of(0, 1, 2));
+                    var center = Vec3.atCenterOf(glass.pos).add(0, 1.35, 0);
+                    var ribbon = GalleryTrailGameTests.particles(finish, ParticleTypes.WAX_ON);
+                    c.assertValueEqual(ribbon.size(), 32, "Both loops are visible without sound");
+                    c.assertTrue(ribbon.getFirst().distanceTo(center) < .001 && ribbon.get(16).distanceTo(center) < .001
+                        && ribbon.get(8).distanceTo(ribbon.get(24)) > 1.49, "Two distinct lobes cross above the chosen glass");
+                    tapWithFollowup(p, far);
+                    SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
                 }
                 var bystander = g.drain(2);
                 SealCipherGameTests.expectSounds(c, bystander, song, List.of());
