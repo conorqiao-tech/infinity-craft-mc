@@ -332,7 +332,13 @@ public class SealCipherGameTests {
                 "Existing matching pennant stack accepts one result without dropping anything");
             p.closeContainer(); reply.reply(f, Integer.toString(button));
             c.assertTrue(inv.getItem(7).getCount()==2 && inv.getItem(6).getCount()==1, "Replayed touch answer cannot weave again");
-            finishBackwardRefrain(desk,seal); choose(p,"Knot 2 • Chime"); choose(p,"Harp + Bell");
+            finishBackwardRefrain(desk, seal); choose(p, "Knot 1 • Harp"); choose(p, "Bell + Chime");
+            choose(p, WEAVE);
+            c.assertTrue(inv.getItem(6).isEmpty() && inv.getItem(7).getCount() == 3,
+                "Consuming the last blank clears its slot when the result merges elsewhere");
+            inv.setItem(6, new ItemStack(Items.BANNER.white()));
+            p.closeContainer();
+            finishBackwardRefrain(desk, seal); choose(p, "Knot 2 • Chime"); choose(p, "Harp + Bell");
             choose(p,WEAVE);
             c.assertTrue(inv.getItem(6).is(Items.BANNER.white()) && inv.getItem(6).has(DataComponents.CUSTOM_NAME), "A singleton blank can supply its own output slot");
         }
