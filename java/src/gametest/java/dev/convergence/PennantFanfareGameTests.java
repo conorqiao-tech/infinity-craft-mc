@@ -114,12 +114,20 @@ public class PennantFanfareGameTests {
         stand.tap(player);
         var packets = g.drain(listener);
         SealCipherGameTests.expectSounds(c, packets, chord, count == 3 ? List.of(0, 1, 2) : List.of());
-        c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW).size(), count,
+        var corners = GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW);
+        c.assertValueEqual(corners.size(), count,
             "One private light per collected role");
         c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.END_ROD).size(), count == 3 ? 15 : 0,
             "Only the full trio connects its corners");
         c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_ON).size(), count == 0 ? 0 : 3 - count,
             "Empty instrument sockets are visible");
+        if (count == 3) {
+            var chime = corners.get(0); var harp = corners.get(1); var bell = corners.get(2);
+            double yaw = Math.toRadians(player.getYRot());
+            var right = new Vec3(-Math.cos(yaw), 0, -Math.sin(yaw));
+            c.assertTrue(chime.y > harp.y && harp.subtract(bell).dot(right) > .6,
+                "The guide and flag both show chime above, harp on the right and bell on the left");
+        }
         String prompt = count == 0 ? "feather first" : "Chorus " + count + "/3";
         c.assertTrue(EchoChallengeGameTests.overlays(packets).stream().anyMatch(x -> x.contains(prompt)), "Shows " + prompt);
         c.assertValueEqual(sheets.getCount(), 4, "Paper is reusable");

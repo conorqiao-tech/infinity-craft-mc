@@ -98,8 +98,8 @@ final class PennantFanfare {
         }
         var center = faceCenter(p, pos);
         var right = viewerRight(p);
-        var corners = List.of(center.add(0, .32, 0), center.add(right.scale(-.33)).add(0, -.18, 0),
-            center.add(right.scale(.33)).add(0, -.18, 0));
+        var corners = List.of(center.add(0, .32, 0), center.add(right.scale(.33)).add(0, -.18, 0),
+            center.add(right.scale(-.33)).add(0, -.18, 0));
         for (int role = 0; role < 3; role++) {
             var chart = voices.get(role);
             var point = corners.get(role);
