@@ -10,6 +10,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
@@ -18,11 +19,16 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
 
     static void register() {
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
-            if (!(player instanceof ServerPlayer p) || p.isSpectator() || hand != InteractionHand.MAIN_HAND
-                || !world.getBlockState(hit.getBlockPos()).is(Blocks.AMETHYST_BLOCK)) return InteractionResult.PASS;
+            if (!(player instanceof ServerPlayer p) || p.isSpectator() || hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
+            var station = world.getBlockState(hit.getBlockPos());
+            if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN)) return InteractionResult.PASS;
             var prism = InlayPrism.read(p.getMainHandItem());
             if (prism == null) return InteractionResult.PASS;
-            if (CodaPostcard.canListen(p)) {
+            if (!CodaPostcard.canListen(p)) return InteractionResult.SUCCESS_SERVER;
+            if (station.is(Blocks.LANTERN)) {
+                LanternWalk.visit(p, prism, hit.getBlockPos());
+            } else {
+                LanternWalk.clear(p);
                 var round = new PrismCrossing(prism, p.isShiftKeyDown(), false);
                 p.setAttached(ROUND, round);
                 ConcertStage.overlay(p, "Prism Crossing • " + round.target(round.reverse) + " then "
@@ -32,7 +38,10 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
         });
     }
 
-    static void clear(ServerPlayer p) { p.removeAttached(ROUND); }
+    static void clear(ServerPlayer p) {
+        p.removeAttached(ROUND);
+        LanternWalk.clear(p);
+    }
 
     private String target(boolean right) {
         var score = prism.score();
@@ -41,15 +50,17 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
 
     static boolean answer(ServerPlayer p, InlayPrism held, boolean right) {
         var round = p.getAttached(ROUND);
+        // Vanilla can follow a block use with item use for the same physical click.
+        if (p.pick(p.blockInteractionRange(), 1, false) instanceof BlockHitResult hit
+            && hit.getType() == HitResult.Type.BLOCK) {
+            var station = p.level().getBlockState(hit.getBlockPos());
+            if (station.is(Blocks.LANTERN) || (round != null && station.is(Blocks.AMETHYST_BLOCK))) return true;
+        }
         if (round == null) return false;
         if (!round.prism.equals(held)) {
             p.removeAttached(ROUND);
             return false;
         }
-        // A vanilla client can follow its block-use packet with item use for the same click.
-        if (p.pick(p.blockInteractionRange(), 1, false) instanceof BlockHitResult hit
-            && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-            && p.level().getBlockState(hit.getBlockPos()).is(Blocks.AMETHYST_BLOCK)) return true;
         boolean expected = round.reverse != round.second;
         if (expected != right) {
             ConcertStage.overlay(p, "Prism Crossing • Try again • " + (round.second ? "2" : "1")
@@ -63,7 +74,8 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
         round.draw(p);
         if (round.second) {
             p.removeAttached(ROUND);
-            ConcertStage.overlay(p, "Prism Crossing • 2/2 • Star complete • Full chord");
+            LanternWalk.open(p, held, round.reverse);
+            ConcertStage.overlay(p, "Prism Crossing • 2/2 • Star complete • Full chord • Visit three lanterns");
         } else {
             p.setAttached(ROUND, new PrismCrossing(held, round.reverse, true));
             ConcertStage.overlay(p, "Prism Crossing • 1/2 • Next: " + round.target(!right));

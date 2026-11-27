@@ -26,6 +26,10 @@ public class PennantFanfareGameTests {
     private record Stand(ServerPlayer owner, BlockPos pos, BlockState previous) implements AutoCloseable {
         static Stand at(ServerPlayer p, int dx) {
             var pos = p.blockPosition().offset(dx, 1, 1);
+            return at(p, pos);
+        }
+
+        static Stand at(ServerPlayer p, BlockPos pos) {
             return new Stand(p, pos, p.level().getBlockState(pos));
         }
 
@@ -474,6 +478,88 @@ public class PennantFanfareGameTests {
             var visitor = g.drain(2);
             SealCipherGameTests.expectSounds(c, visitor, score, List.of());
             c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.GLOW).isEmpty(), "Private completion star");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void walkLanternsInCrossingOrderWithPairwiseRange(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Walk"); var station = Stand.at(g.players.getFirst(), 1);
+             var arch = Stand.at(station.owner, station.pos.offset(0, 0, 3));
+             var pool = Stand.at(station.owner, arch.pos.offset(8, 0, 3));
+             var far = Stand.at(station.owner, arch.pos.offset(12, 0, 1));
+             var edge = Stand.at(station.owner, arch.pos.offset(12, 0, 0))) {
+            var p = station.owner;
+            p.level().setBlock(station.pos, Blocks.AMETHYST_BLOCK.defaultBlockState(), 2);
+            for (var post : List.of(arch, pool, far, edge))
+                p.level().setBlock(post.pos, Blocks.LANTERN.defaultBlockState(), 2);
+            var score = new ChordSeal(List.of(KITE, KITE, KITE), 2, -1);
+            var item = new InlayPrism(score).item();
+            p.setItemInHand(InteractionHand.MAIN_HAND, item);
+            for (boolean reverse : List.of(false, true)) {
+                p.setPos(Vec3.atBottomCenterOf(station.pos).add(0, -1, -1));
+                p.setShiftKeyDown(reverse);
+                station.tap(p);
+                arch.tap(p);
+                var locked = g.drain(0);
+                SealCipherGameTests.expectSounds(c, locked, score, List.of());
+                c.assertTrue(EchoChallengeGameTests.overlays(locked).stream().anyMatch(t -> t.contains("Finish a Prism Crossing")),
+                    "Starting a new crossing clears any previous walk");
+                p.setXRot(-90);
+                p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                p.setShiftKeyDown(!reverse);
+                p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                g.drain(0);
+                var visitor = g.players.get(2);
+                visitor.setItemInHand(InteractionHand.MAIN_HAND, item.copy());
+                arch.tap(visitor);
+                SealCipherGameTests.expectSounds(c, g.drain(2), score, List.of());
+
+                var posts = List.of(arch, pool, edge);
+                for (int i = 0; i < posts.size(); i++) {
+                    var post = posts.get(i);
+                    p.setPos(Vec3.atBottomCenterOf(post.pos).add(0, -1, -1));
+                    p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(post.pos));
+                    post.tap(p);
+                    p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                    var beat = g.drain(0);
+                    int voice = score.cornerAt(reverse ? 2 - i : i);
+                    SealCipherGameTests.expectSounds(c, beat, score, List.of(voice));
+                    c.assertTrue(EchoChallengeGameTests.overlays(beat).stream().anyMatch(t -> t.contains(score.voiceName(voice))),
+                        "The muted caption names the solo");
+                    c.assertValueEqual(GalleryTrailGameTests.particles(beat, ParticleTypes.WAX_OFF).size(),
+                        (i + 1) * (i + 2) / 2, "A stop has one, two or three marks");
+                    var stars = GalleryTrailGameTests.particles(beat, ParticleTypes.GLOW);
+                    c.assertValueEqual(stars.size(), i == 2 ? 1 : 0, "Only a finished route lights the central star");
+                    if (i == 2) {
+                        var returnApex = Vec3.atCenterOf(arch.pos).add(6, 1.20, 0);
+                        c.assertTrue(GalleryTrailGameTests.particles(beat, ParticleTypes.END_ROD).stream()
+                            .anyMatch(point -> point.distanceTo(returnApex) < .001), "The raised return arc closes the route");
+                        var center = Vec3.atCenterOf(arch.pos).add(20.0 / 3, .55, 1);
+                        c.assertTrue(stars.getFirst().distanceTo(center) < .001, "Star at the actual route centroid");
+                    }
+                    post.tap(p);
+                    SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                    if (i == 0) {
+                        p.setXRot(-90); p.setShiftKeyDown(false);
+                        p.gameMode.useItem(p, p.level(), item, InteractionHand.MAIN_HAND);
+                        SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(2,1));
+                    }
+                    if (i == 1) {
+                        p.setPos(Vec3.atBottomCenterOf(far.pos).add(0, -1, -1));
+                        c.assertTrue(p.level().getBlockState(far.pos).is(Blocks.LANTERN), "Outlying lantern is present");
+                        far.tap(p);
+                        var rejected = g.drain(0);
+                        SealCipherGameTests.expectSounds(c, rejected, score, List.of());
+                        c.assertTrue(EchoChallengeGameTests.overlays(rejected).stream().anyMatch(t -> t.contains("Too far")),
+                            "Distance squared 145 from the first lantern fails even near the second");
+                    }
+                }
+                far.tap(p);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(g.drain(2), ParticleTypes.GLOW).isEmpty(),
+                    "Only the walker sees the star");
+                c.assertTrue(ItemStack.matches(item, p.getMainHandItem()), "The prism survives the walk");
+            }
         }
         c.succeed();
     }
