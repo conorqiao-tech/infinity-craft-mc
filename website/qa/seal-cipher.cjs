@@ -311,6 +311,8 @@ async function verify(page, origin) {
     const ring = side => page.locator(side === 'p' ? '#pairs' : '#guide')
       .getByRole('button', {name:'Ring the loop', exact:true});
     const loopStatus = side => page.locator('#lpStatus_'+side).textContent();
+    const inlay = side => page.locator('#inSet_'+side);
+    const choice = (side, field, value) => page.locator('input[name="in'+field+'_'+side+'"][value="'+value+'"]');
     assert.match(await loopStatus('p'), /New loop score: first .*chime.*last .*bell/i);
     const firstBackward = mode === 'replace';
     for (const backward of [firstBackward, firstBackward, !firstBackward]) {
@@ -332,6 +334,7 @@ async function verify(page, origin) {
         assert.equal(await page.locator('#btNext_'+side).isEnabled(), beat < 3);
         const bothComplete = backward !== firstBackward && beat === 3;
         assert.equal(await ring(side).isEnabled(), bothComplete, 'Each direction must reach its closing chord');
+        assert(await inlay(side).isDisabled(), 'Completing a loop does not open an inlay until it rings');
       }
     }
     await tap(pairsTab);
@@ -343,7 +346,32 @@ async function verify(page, origin) {
       await tap(ring(side));
       assertAudio((await heard()).slice(before), trio, [0,2], audible);
       assert.equal(await page.locator('#btScore_'+side).getAttribute('aria-label'), beatOne);
+      assert.match(await page.locator('#inFig_'+side).getAttribute('aria-label'), /diamond not set.*attempt open/i);
+      let beforeGuess = (await heard()).length;
+      await choice(side,'Role','bell').check();
+      await choice(side,'Note','moon').check();
+      await tap(inlay(side));
+      assert.match(await page.locator('#inStatus_'+side).innerText(), /right chart.*wrong instrument/i);
+      await choice(side,'Role','harp').check();
+      await choice(side,'Note','kite').check();
+      await tap(inlay(side));
+      assert.match(await page.locator('#inStatus_'+side).innerText(), /right instrument.*wrong chart/i);
+      assert.equal((await heard()).length, beforeGuess, 'Wrong guesses are silent');
+      await choice(side,'Note','moon').check();
+      const other = side === 'g' ? 'p' : 'g';
+      await tap(other === 'p' ? pairsTab : guideTab);
+      assert(await choice(other,'Role','harp').isChecked());
+      assert(await choice(other,'Note','moon').isChecked());
+      await tap(inlay(other));
+      assertAudio((await heard()).slice(beforeGuess), trio, [0,1,2], audible);
+      assert.match(await page.locator('#inFig_'+other).getAttribute('aria-label'), /diamond earned: Half Moon harp/i);
+      assert.equal(await page.locator('#inFig_'+side).getAttribute('aria-label'), await page.locator('#inFig_'+other).getAttribute('aria-label'));
+      assert(await inlay(other).isDisabled());
+      beforeGuess = (await heard()).length;
+      await tap(inlay(other));
+      assert.equal((await heard()).length, beforeGuess, 'One triad per ring');
     }
+    await tap(pairsTab);
     const beforeBeatTwo = (await heard()).length;
     await tap(page.locator('#btNext_p'));
     assertAudio((await heard()).slice(beforeBeatTwo), trio, [1], audible);
@@ -354,12 +382,15 @@ async function verify(page, origin) {
     assert(await page.locator('#btNext_p').isDisabled(), 'A successful new collection clears the unfinished phrase');
     assert(await page.locator('#btBack_p').isDisabled());
     assert(await ring('p').isDisabled(), 'A new collection clears both arcs');
+    assert(await inlay('p').isDisabled());
+    assert.equal(await page.locator('#inFig_p').getAttribute('aria-label'), 'Inlay locked');
     assert.match(await loopStatus('p'), /new trio.*loop was cleared/i);
     assert.equal(await loopStatus('p'), await loopStatus('g'));
     await page.reload();
     assert.deepEqual(await heard(), []);
     assert(await collect('p').isDisabled());
     assert(await ring('p').isDisabled());
+    assert(await inlay('p').isDisabled());
     assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), 'Baton score locked');
     assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
   }
@@ -384,6 +415,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
