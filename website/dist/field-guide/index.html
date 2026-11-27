@@ -338,6 +338,8 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .fanfare .row{display:flex;flex-wrap:wrap;gap:8px}
 .fanfare .status{margin:0}
 .pencard .fanfare{grid-column:1/-1;justify-self:stretch;width:100%}
+.chfig{width:280px;height:222px;margin:0 auto}
+.chfig svg{display:block;width:280px;height:222px}
 @media(max-width:480px){.fanfare{padding:12px}}
 @media(max-width:480px){.pencard{grid-template-columns:minmax(0,1fr);justify-items:start}}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
@@ -379,6 +381,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <button class="btn" id="ffRestart_g" type="button" aria-disabled="true">Restart call</button>
 </div>
 <p class="status" id="ffStatus_g" role="status" aria-live="polite">Keep a Cadence Pennant to unlock the fanfare.</p>
+</div>
+<div class="fanfare chorus" aria-labelledby="chT_g">
+<h3 id="chT_g">Pennant Chorus</h3>
+<div class="chfig" id="chFig_g" role="img" aria-label="Chorus slots empty"></div>
+<ul class="rfknots" id="chList_g" aria-label="Chorus slots"></ul>
+<div class="row"><button class="btn main" id="chCollect_g" type="button" aria-disabled="true">Collect solo</button></div>
+<p class="status" id="chStatus_g" role="status" aria-live="polite">Finish a kept pennant's call and answer, then collect its solo.</p>
 </div>
 </section>
 <div class="trail">
@@ -545,6 +554,12 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <li>Tap the same banner again to play the answer.</li>
 <li>Sneak-tap to restart the call.</li>
 <li>Tapping a different banner starts that banner's own call.</li>
+</ol>
+<h3 style="margin-top:12px">Pennant Chorus <small>development preview</small></h3>
+<ol>
+<li>After the feather call and answer on a banner, tap the same banner with ordinary paper to collect its solo.</li>
+<li>Collect a chime, a harp and a bell solo to hear the three together.</li>
+<li>Different players have private scorecards.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -773,6 +788,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <button class="btn" id="ffRestart_p" type="button" aria-disabled="true">Restart call</button>
 </div>
 <p class="status" id="ffStatus_p" role="status" aria-live="polite">Keep a Cadence Pennant to unlock the fanfare.</p>
+</div>
+<div class="fanfare chorus" aria-labelledby="chT_p">
+<h3 id="chT_p">Pennant Chorus</h3>
+<div class="chfig" id="chFig_p" role="img" aria-label="Chorus slots empty"></div>
+<ul class="rfknots" id="chList_p" aria-label="Chorus slots"></ul>
+<div class="row"><button class="btn main" id="chCollect_p" type="button" aria-disabled="true">Collect solo</button></div>
+<p class="status" id="chStatus_p" role="status" aria-live="polite">Finish a kept pennant's call and answer, then collect its solo.</p>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
 </section>
@@ -1571,7 +1593,7 @@ $("pnKeep").addEventListener('click',()=>{
   pnSay(`Couldn't save the pennant on this device: browser storage is unavailable or full. ${had?"Your previously kept pennant is unchanged.":"Nothing was kept."} Press Keep this pennant to try again.`,"quiet");
   return;
  }
- PN=now;CD.kept=true;FF={phase:"idle"};renderPennant();ffSay("New pennant kept, so the fanfare starts again from the call.","");
+ PN=now;CD.kept=true;FF={phase:"idle"};const chWas=CH.armed;CH.armed=false;renderPennant();if(chWas)chSay("A pennant was kept, so Collect solo waits for a new call and answer. Your chorus slots are kept.","");ffSay("New pennant kept, so the fanfare starts again from the call.","");
  pnSay(`${had?"Replaced your kept pennant. ":""}Kept: ${pnCaption(PN)} It's saved on this device and shown on the Guide tab too.`,"live");
 });
 /* pennant fanfare (session only, shared by Guide and #pairs) */
@@ -1587,6 +1609,7 @@ function fanfareSVG(pn,phase){
  return `<svg viewBox="0 0 280 146" aria-hidden="true">${ray(`M117 ${Y-6} Q90 ${Y-34} 63 ${Y-6}`)}${ray(`M163 ${Y-6} Q190 ${Y-34} 217 ${Y-6}`)}${node(40,v&&v.left,ansOn,"Answer · left",4,Y+46,"start")}${node(240,v&&v.right,ansOn,"Answer · right",276,Y+46,"end")}${node(140,v&&v.solo,callOn,"Call",140,18,"middle")}</svg>`;
 }
 function renderFanfare(){
+ renderChorus();
  const v=PN?ffVoices(PN):null;
  FFK.forEach(k=>{
   $("ffFig_"+k).innerHTML=fanfareSVG(PN,FF.phase);
@@ -1598,14 +1621,14 @@ function renderFanfare(){
 }
 function ffCall(restart){
  const v=ffVoices(PN),pre=sounded(()=>playVoice(v.solo));
- FF.phase="call";renderFanfare();
+ FF.phase="call";const wasArmed=CH.armed;CH.armed=false;renderFanfare();if(wasArmed)chSay("The call started again, so Collect solo waits until the answer finishes.","");
  ffSay(`${pre}${restart?"Call restarted":"Call"}: ${CAP[v.solo.role]} solo, ${vName(v.solo)} ${v.solo.p}. ${restart?"The answer is ready":"Next"}: Play answer for ${vName(v.left)} and ${vName(v.right)}.`,"live");
 }
 function ffMain(){
  if(!PN){ffSay("Keep a Cadence Pennant to unlock the fanfare.","");return}
  if(FF.phase!=="call"){ffCall(false);return}
  const v=ffVoices(PN),pre=sounded(()=>{const t=ensureCtx();playVoice(v.left,t);playVoice(v.right,t)});
- FF.phase="answer";renderFanfare();
+ FF.phase="answer";CH.armed=true;renderFanfare();chSay(`Answer complete. Collect solo is ready: ${vName(v.solo)} ${v.solo.p}.`,"");
  ffSay(`${pre}Answer: ${vName(v.left)} ${v.left.p} on the left stripe with ${vName(v.right)} ${v.right.p} on the right stripe, together. The next press starts a fresh call.`,"live");
 }
 function ffRestart(){
@@ -1615,6 +1638,54 @@ function ffRestart(){
 }
 FFK.forEach(k=>{$("ffMain_"+k).addEventListener('click',ffMain);$("ffRestart_"+k).addEventListener('click',ffRestart)});
 if(PN)ffSay("Press Play call to hear your pennant's solo.","");
+/* pennant chorus (session only, shared by Guide and #pairs) */
+let CH={armed:false,slots:{chime:null,harp:null,bell:null},done:false};
+const chVoice=(role,id)=>({id,role,p:role==="harp"?harpPitch(byId(id).n):pitch(byId(id).n)});
+function chSay(msg,kind){FFK.forEach(k=>{const s=$("chStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function chorusSVG(){
+ const P={chime:[140,40],harp:[232,150],bell:[48,150]},G=[140,113],done=CH.done;
+ const edge=(a,b)=>{const d=`M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;return done?`<path d="${d}" stroke="#7cf5c4" stroke-width="9" opacity=".18" fill="none"/><path d="${d}" stroke="#c9fff0" stroke-width="2.5" fill="none"/>`:`<path d="${d}" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5" fill="none"/>`};
+ let g=edge(P.chime,P.harp)+edge(P.harp,P.bell)+edge(P.bell,P.chime);
+ g+=done?`<circle cx="${G[0]}" cy="${G[1]}" r="18" fill="none" stroke="#7cf5c4" stroke-width="10" opacity=".2"/><circle cx="${G[0]}" cy="${G[1]}" r="18" fill="none" stroke="#c9fff0" stroke-width="3"/>`:`<circle cx="${G[0]}" cy="${G[1]}" r="16" fill="none" stroke="#3d4596" stroke-width="2" stroke-dasharray="4 5"/>`;
+ const lab={chime:[172,34,"start"],harp:[276,194,"end"],bell:[4,194,"start"]};
+ ROLES.forEach(r=>{
+  const [x,y]=P[r],id=CH.slots[r],v=id?chVoice(r,id):null,col=v?byId(id).c:"#5a62b0",[lx,ly,an]=lab[r];
+  g+=v?`<circle cx="${x}" cy="${y}" r="31" fill="${col}" opacity=".18"/><circle cx="${x}" cy="${y}" r="24" fill="#14184c" stroke="${col}" stroke-width="3"/><g transform="translate(${x} ${y}) scale(.68)">${shape(r,col)}</g>`:`<circle cx="${x}" cy="${y}" r="24" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="5 5"/><g transform="translate(${x} ${y}) scale(.68)" opacity=".3">${shape(r,"#3d4596")}</g>`;
+  g+=`<text x="${lx}" y="${ly}" text-anchor="${an}" class="cxl" fill="${v?"#eef0ff":"#9aa0dc"}">${CAP[r]}</text><text x="${lx}" y="${ly+16}" text-anchor="${an}" class="cxn" fill="#b9bde8">${v?`${nm(id)} ${v.p}`:"empty"}</text>`;
+ });
+ return `<svg viewBox="0 0 280 222" aria-hidden="true">${g}</svg>`;
+}
+function renderChorus(){
+ const ok=!!PN&&CH.armed,filled=ROLES.filter(r=>CH.slots[r]);
+ const desc=ROLES.map(r=>CH.slots[r]?`${CAP[r]}: ${vName(chVoice(r,CH.slots[r]))} ${chVoice(r,CH.slots[r]).p}`:`${CAP[r]}: empty`);
+ FFK.forEach(k=>{
+  $("chFig_"+k).innerHTML=chorusSVG();
+  $("chFig_"+k).setAttribute('aria-label',`Chorus triangle${CH.done?", complete":""}. ${desc.join("; ")}.`);
+  $("chList_"+k).innerHTML=ROLES.map((r,i)=>`<li>${CH.slots[r]?`<b>${esc(desc[i])}</b>`:esc(desc[i])}</li>`).join('')+`<li>${CH.done?"<b>Trio complete.</b> The next collection starts a new trio.":`${filled.length} of 3 instruments collected.`}</li>`;
+  $("chCollect_"+k).setAttribute('aria-disabled',ok?"false":"true");
+ });
+}
+function chCollect(){
+ if(!PN){chSay("Keep a Cadence Pennant first, then finish its call and answer.","");return}
+ if(!CH.armed){chSay("Finish this pennant's call and answer first. Each completed answer allows one collection.","");return}
+ const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
+ CH.armed=false;
+ let pre="";
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;pre="New trio started. "}
+ const old=CH.slots[role];CH.slots[role]=id;
+ const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
+ if(filled.length===3){
+  CH.done=true;renderChorus();
+  const vs=ROLES.map(r=>chVoice(r,CH.slots[r]));
+  if(state.sound){try{const t=ensureCtx();vs.forEach(x=>playVoice(x,t))}catch(e){}}
+  chSay(`${pre}${old?`Replaced ${CAP[role]}. `:""}Chorus complete: ${vs.map(x=>`${vName(x)} ${x.p}`).join(", ")}, together once. The next collection starts a new trio.`,"live");
+  return;
+ }
+ renderChorus();
+ const now=chVoice(role,id);
+ chSay(`${pre}${old?`Replaced ${CAP[role]}: now ${vName(now)} ${now.p} (was ${nm(old)}).`:`Collected ${CAP[role]}: ${vName(now)} ${now.p}.`} ${filled.length} of 3 instruments. Still needed: ${need.join(" and ")}.`,"live");
+}
+FFK.forEach(k=>$("chCollect_"+k).addEventListener('click',chCollect));
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 
