@@ -359,6 +359,9 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .lantern h4{margin:0;font:700 16px "Pixelify Sans",sans-serif}
 .lwfig{width:280px;height:206px;margin:0 auto}
 .lwfig svg{display:block;width:280px;height:206px}
+.survey{margin-top:4px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
+.survey h4{margin:0;font:700 16px "Pixelify Sans",sans-serif}
+.svlen{font:700 13px Figtree,sans-serif;paint-order:stroke;stroke:#0e1030;stroke-width:4px}
 .lwposts{display:grid;grid-template-columns:repeat(auto-fit,minmax(7.2em,1fr));gap:6px}
 .lwposts .btn{flex:none;min-height:44px;font-size:14px;white-space:nowrap;padding:0 6px}
 .lwposts .btn[aria-pressed=true]{background:#ffe27a;border-color:#ffe27a;color:#2b1d00;font-weight:700}
@@ -477,10 +480,18 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="lantern" aria-labelledby="lwT_g">
 <h4 id="lwT_g">Lantern Walk</h4>
 <div class="lwfig" id="lwFig_g" role="img" aria-label="Lantern walk locked"></div>
-<p class="btdir">Rule: pick three different posts; each new post must be within <b>12 blocks</b> of every earlier post (straight-line distance, 12 counts). Map grid: 1 square = 2 blocks.</p>
-<div class="lwposts" role="group" aria-label="Lantern posts"><button class="btn" type="button" id="lwArch_g" data-lw="Arch" aria-disabled="true" aria-pressed="false">Arch (0, 0)</button><button class="btn" type="button" id="lwPool_g" data-lw="Pool" aria-disabled="true" aria-pressed="false">Pool (8, 0)</button><button class="btn" type="button" id="lwGrove_g" data-lw="Grove" aria-disabled="true" aria-pressed="false">Grove (4, 8)</button><button class="btn" type="button" id="lwSpire_g" data-lw="Spire" aria-disabled="true" aria-pressed="false">Spire (16, 0)</button><button class="btn" type="button" id="lwRidge_g" data-lw="Ridge" aria-disabled="true" aria-pressed="false">Ridge (12, 8)</button></div>
+<p class="btdir">Rule: pick three different posts; each new post must be within <b>12 blocks</b> of every earlier post (straight-line distance, 12 counts). Map grid: 1 square = 2 blocks. Cairn (7, 4) is an optional sixth post.</p>
+<div class="lwposts" role="group" aria-label="Lantern posts"><button class="btn" type="button" id="lwArch_g" data-lw="Arch" aria-disabled="true" aria-pressed="false">Arch (0, 0)</button><button class="btn" type="button" id="lwPool_g" data-lw="Pool" aria-disabled="true" aria-pressed="false">Pool (8, 0)</button><button class="btn" type="button" id="lwGrove_g" data-lw="Grove" aria-disabled="true" aria-pressed="false">Grove (4, 8)</button><button class="btn" type="button" id="lwSpire_g" data-lw="Spire" aria-disabled="true" aria-pressed="false">Spire (16, 0)</button><button class="btn" type="button" id="lwRidge_g" data-lw="Ridge" aria-disabled="true" aria-pressed="false">Ridge (12, 8)</button><button class="btn" type="button" id="lwCairn_g" data-lw="Cairn" aria-disabled="true" aria-pressed="false">Cairn (7, 4)</button></div>
 <ul class="rfknots" id="lwList_g" aria-label="Lanterns"></ul>
 <p class="status" id="lwStatus_g" role="status" aria-live="polite">Finish a forward or reverse crossing to unlock a lantern walk.</p>
+</div>
+<div class="survey" aria-labelledby="svT_g">
+<h4 id="svT_g">Star Survey</h4>
+<p class="btdir"><b>From which visited lantern do you see a longest opposite span?</b> Each lantern faces the edge between the other two.</p>
+<div class="lwfig" id="svFig_g" role="img" aria-label="Star survey locked"></div>
+<ul class="rfknots" id="svList_g" aria-label="Opposite spans"></ul>
+<div class="lwposts" role="group" aria-label="Observing lantern"><button class="btn" type="button" id="svPick1_g" data-sv="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="svPick2_g" data-sv="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="svPick3_g" data-sv="2" aria-disabled="true">Stop 3</button></div>
+<p class="status" id="svStatus_g" role="status" aria-live="polite">Complete a lantern walk to survey it.</p>
 </div>
 </div>
 </div>
@@ -662,6 +673,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Inlay Prism: after solving, cut one plain nether quartz at the original finishing flag. Use the portable prism normally for the left facet or Sneak-use it for the right facet. It can be given to another player.</li>
 <li>Prism Crossing: use a cut prism on an amethyst block to start (Sneak to start in reverse), then use the prism in the air normally for the left facet or while sneaking for the right facet.</li>
 <li>Lantern Walk: after finishing a crossing, use the same prism on three ordinary lantern blocks. Each new lantern must be within 12 blocks of every earlier one. No blocks are changed.</li>
+<li>Star Survey: after a completed walk, Sneak-use the same prism on the observing lantern to sight its opposite span. Normal use keeps the existing facet behavior.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -944,10 +956,18 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="lantern" aria-labelledby="lwT_p">
 <h4 id="lwT_p">Lantern Walk</h4>
 <div class="lwfig" id="lwFig_p" role="img" aria-label="Lantern walk locked"></div>
-<p class="btdir">Rule: pick three different posts; each new post must be within <b>12 blocks</b> of every earlier post (straight-line distance, 12 counts). Map grid: 1 square = 2 blocks.</p>
-<div class="lwposts" role="group" aria-label="Lantern posts"><button class="btn" type="button" id="lwArch_p" data-lw="Arch" aria-disabled="true" aria-pressed="false">Arch (0, 0)</button><button class="btn" type="button" id="lwPool_p" data-lw="Pool" aria-disabled="true" aria-pressed="false">Pool (8, 0)</button><button class="btn" type="button" id="lwGrove_p" data-lw="Grove" aria-disabled="true" aria-pressed="false">Grove (4, 8)</button><button class="btn" type="button" id="lwSpire_p" data-lw="Spire" aria-disabled="true" aria-pressed="false">Spire (16, 0)</button><button class="btn" type="button" id="lwRidge_p" data-lw="Ridge" aria-disabled="true" aria-pressed="false">Ridge (12, 8)</button></div>
+<p class="btdir">Rule: pick three different posts; each new post must be within <b>12 blocks</b> of every earlier post (straight-line distance, 12 counts). Map grid: 1 square = 2 blocks. Cairn (7, 4) is an optional sixth post.</p>
+<div class="lwposts" role="group" aria-label="Lantern posts"><button class="btn" type="button" id="lwArch_p" data-lw="Arch" aria-disabled="true" aria-pressed="false">Arch (0, 0)</button><button class="btn" type="button" id="lwPool_p" data-lw="Pool" aria-disabled="true" aria-pressed="false">Pool (8, 0)</button><button class="btn" type="button" id="lwGrove_p" data-lw="Grove" aria-disabled="true" aria-pressed="false">Grove (4, 8)</button><button class="btn" type="button" id="lwSpire_p" data-lw="Spire" aria-disabled="true" aria-pressed="false">Spire (16, 0)</button><button class="btn" type="button" id="lwRidge_p" data-lw="Ridge" aria-disabled="true" aria-pressed="false">Ridge (12, 8)</button><button class="btn" type="button" id="lwCairn_p" data-lw="Cairn" aria-disabled="true" aria-pressed="false">Cairn (7, 4)</button></div>
 <ul class="rfknots" id="lwList_p" aria-label="Lanterns"></ul>
 <p class="status" id="lwStatus_p" role="status" aria-live="polite">Finish a forward or reverse crossing to unlock a lantern walk.</p>
+</div>
+<div class="survey" aria-labelledby="svT_p">
+<h4 id="svT_p">Star Survey</h4>
+<p class="btdir"><b>From which visited lantern do you see a longest opposite span?</b> Each lantern faces the edge between the other two.</p>
+<div class="lwfig" id="svFig_p" role="img" aria-label="Star survey locked"></div>
+<ul class="rfknots" id="svList_p" aria-label="Opposite spans"></ul>
+<div class="lwposts" role="group" aria-label="Observing lantern"><button class="btn" type="button" id="svPick1_p" data-sv="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="svPick2_p" data-sv="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="svPick3_p" data-sv="2" aria-disabled="true">Stop 3</button></div>
+<p class="status" id="svStatus_p" role="status" aria-live="polite">Complete a lantern walk to survey it.</p>
 </div>
 </div>
 </div>
@@ -2028,7 +2048,7 @@ function prCut(){
   prSay(`Couldn't save the prism on this device: browser storage is unavailable or full. ${had?"Your previous prism is unchanged.":"Nothing was saved."} Press Cut prism to try again.`,"quiet");
   return;
  }
- PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;const crWas=!!CR.dir;CR={dir:null,step:0,done:false};const lwHad=LW.avail;LW={dir:null,posts:[],done:false,avail:false};renderPrism();if(lwHad)lwSay("A new prism was cut, so the lantern walk was cleared.","");if(crWas)crSay("A new prism was cut, so the crossing was reset. Start a crossing to play the new prism.","");
+ PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;const crWas=!!CR.dir;CR={dir:null,step:0,done:false};const lwHad=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};renderPrism();if(lwHad)lwSay("A new prism was cut, so the lantern walk was cleared.","");if(crWas)crSay("A new prism was cut, so the crossing was reset. Start a crossing to play the new prism.","");
  const v=prV(PRZ);
  prSay(`${had?"Replaced your saved prism. ":""}Prism cut: ${v.map((x,i)=>`${["first","middle","last"][i]} ${vName(x)} ${x.p}`).join(", ")}. Saved on this device; it survives reload and new trios.`,"live");
 }
@@ -2076,7 +2096,7 @@ function renderCrossing(){
 }
 function crStart(dir){
  if(!PRZ){crSay("Cut a prism first to unlock crossings.","");return}
- CR={dir,step:0,done:false};const lwWas=LW.avail;LW={dir:null,posts:[],done:false,avail:false};renderCrossing();if(lwWas)lwSay("A new crossing started, so the lantern walk was cleared. Finish the crossing to walk again.","");
+ CR={dir,step:0,done:false};const lwWas=LW.avail;LW={dir:null,posts:[],done:false,avail:false};SV={done:false,last:null};renderCrossing();if(lwWas)lwSay("A new crossing started, so the lantern walk was cleared. Finish the crossing to walk again.","");
  const tg=crTargets();
  crSay(`${dir==="r"?"Reverse crossing":"Crossing"} started. Next target: stop 1, ${CAP[tg[0].v.role]} (${vName(tg[0].v)} ${tg[0].v.p}). Then stop 2, ${CAP[tg[1].v.role]}. Answer with the facet that holds each voice.`,"");
 }
@@ -2092,11 +2112,11 @@ function crTap(side){
   return;
  }
  if(state.sound){try{const tt=ensureCtx();v.forEach(x=>playVoice(x,tt))}catch(e){}}
- CR.step=2;CR.done=true;PR.face=side;LW={dir:CR.dir,posts:[],done:false,avail:true};renderPrism();{const q=lwSeq();lwSay(`Lantern walk unlocked (${CR.dir==="r"?"reverse":"forward"}): lantern 1 is ${vName(q[0])} ${q[0].p}. Choose a post.`,"")}
+ CR.step=2;CR.done=true;PR.face=side;LW={dir:CR.dir,posts:[],done:false,avail:true};SV={done:false,last:null};renderPrism();{const q=lwSeq();lwSay(`Lantern walk unlocked (${CR.dir==="r"?"reverse":"forward"}): lantern 1 is ${vName(q[0])} ${q[0].p}. Choose a post.`,"")}
  crSay(`Crossing complete: ${CAP[t.v.role]} is on the ${side==="L"?"left":"right"} facet. All three together: ${v.map(x=>`${vName(x)} ${x.p}`).join(", ")}. The facet buttons are back to free play.`,"live");
 }
 /* lantern walk (session only, shared by Guide and #pairs) */
-const LWP=[{n:"Arch",x:0,y:0},{n:"Pool",x:8,y:0},{n:"Grove",x:4,y:8},{n:"Spire",x:16,y:0},{n:"Ridge",x:12,y:8}];
+const LWP=[{n:"Arch",x:0,y:0},{n:"Pool",x:8,y:0},{n:"Grove",x:4,y:8},{n:"Spire",x:16,y:0},{n:"Ridge",x:12,y:8},{n:"Cairn",x:7,y:4}];
 let LW={dir:null,posts:[],done:false,avail:false};
 function lwSay(msg,kind){FFK.forEach(k=>{const s=$("lwStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
 function lwSeq(){const v=prV(PRZ);return LW.dir==="r"?[v[2],v[1],v[0]]:[v[0],v[1],v[2]]}
@@ -2122,6 +2142,7 @@ function walkSVG(){
  return `<svg viewBox="0 0 280 206" aria-hidden="true">${g}</svg>`;
 }
 function renderWalk(){
+ renderSurvey();
  const live=LW.avail&&!!PRZ,q=live?lwSeq():null,step=LW.posts.length;
  const items=live?[0,1,2].map(i=>{const v=q[i];if(i<step){const p=lwPost(LW.posts[i]);return `<li><b>Lantern ${i+1}: ${p.n} (${p.x}, ${p.y})</b> · ${esc(vName(v))} ${v.p}</li>`}return `<li>Lantern ${i+1}: ${esc(vName(v))} ${v.p} · ${i===step&&!LW.done?"<b>choose a post</b>":"waiting"}</li>`}):[`<li>Finish a forward or reverse crossing to unlock.</li>`];
  const lab=!live?"Lantern walk map, locked. Posts: "+LWP.map(p=>`${p.n} (${p.x}, ${p.y})`).join(", ")+".":`Lantern walk map, ${LW.dir==="r"?"reverse":"forward"}. `+(step?LW.posts.map((n,i)=>{const p=lwPost(n);return `lantern ${i+1} at ${n} (${p.x}, ${p.y}) ${vName(q[i])} ${q[i].p}`}).join("; ")+".":"No lanterns lit yet.")+(LW.done?" Closed constellation with a central star.":` Unlit posts: ${LWP.filter(p=>!LW.posts.includes(p.n)).map(p=>p.n).join(", ")}.`);
@@ -2142,13 +2163,69 @@ function lwPick(n){
  if(state.sound){try{playVoice(t)}catch(e){}}
  if(LW.posts.length===3){
   LW.done=true;renderWalk();
-  lwSay(`Lantern 3 at ${n} (${p.x}, ${p.y}): ${vName(t)} ${t.p}. Walk complete: ${LW.posts.join(", ")} form a closed constellation.`,"live");
+  lwSay(`Lantern 3 at ${n} (${p.x}, ${p.y}): ${vName(t)} ${t.p}. Walk complete: ${LW.posts.join(", ")} form a closed constellation. Star Survey is open below.`,"live");svSay("Survey open: from which visited lantern do you see a longest opposite span?","");
   return;
  }
  renderWalk();
  const nx=q[LW.posts.length];
  lwSay(`Lantern ${step+1} at ${n} (${p.x}, ${p.y}): ${vName(t)} ${t.p}. Next: lantern ${step+2}, ${vName(nx)} ${nx.p}, within 12 blocks of ${LW.posts.join(" and ")}.`,"live");
 }
+/* star survey (session only, shared by Guide and #pairs) */
+let SV={done:false,last:null};
+function svSay(msg,kind){FFK.forEach(k=>{const s=$("svStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+const d2=(a,b)=>(a.x-b.x)**2+(a.y-b.y)**2;
+function svData(){
+ const ps=LW.posts.map(lwPost);
+ const opp=[0,1,2].map(i=>{const e=[0,1,2].filter(j=>j!==i);return {obs:i,ends:e,sq:d2(ps[e[0]],ps[e[1]])}});
+ const max=Math.max(...opp.map(o=>o.sq));
+ return {ps,opp,max};
+}
+const svLen=sq=>Math.sqrt(sq).toFixed(2);
+function surveySVG(){
+ const live=LW.done&&!!PRZ;
+ let g="";
+ for(let gx=0;gx<=16;gx+=2)g+=`<line x1="${28+gx*14}" y1="40" x2="${28+gx*14}" y2="152" stroke="#2a3070" stroke-width="1"/>`;
+ for(let gy=0;gy<=8;gy+=2)g+=`<line x1="28" y1="${40+gy*14}" x2="252" y2="${40+gy*14}" stroke="#2a3070" stroke-width="1"/>`;
+ if(live){
+  const {ps,opp}=svData(),C=ps.map(lwXY),G=[(C[0][0]+C[1][0]+C[2][0])/3,(C[0][1]+C[1][1]+C[2][1])/3];
+  const sel=SV.last!==null?opp[SV.last]:null;
+  opp.forEach(o=>{const a=C[o.ends[0]],b=C[o.ends[1]],bold=sel&&sel.obs===o.obs;g+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${bold?(SV.done?"#7cf5c4":"#ff9a3c"):"#8a7fb0"}" stroke-width="${bold?6:2}" stroke-linecap="round"/>`});
+  if(sel){const o=C[sel.obs],a=C[sel.ends[0]],b=C[sel.ends[1]],m=[(a[0]+b[0])/2,(a[1]+b[1])/2];g+=`<line x1="${o[0]}" y1="${o[1]}" x2="${m[0]}" y2="${m[1]}" stroke="#eef0ff" stroke-width="2" stroke-dasharray="5 4"/><circle cx="${m[0]}" cy="${m[1]}" r="3.5" fill="#eef0ff"/>`}
+  opp.forEach(o=>{const a=C[o.ends[0]],b=C[o.ends[1]],m=[(a[0]+b[0])/2,(a[1]+b[1])/2];let dx=m[0]-G[0],dy=m[1]-G[1];const L=Math.hypot(dx,dy)||1;dx/=L;dy/=L;g+=`<text x="${m[0]+dx*14}" y="${m[1]+dy*14+4}" text-anchor="middle" class="svlen" fill="#ffe27a">${svLen(o.sq)}</text>`});
+  if(sel){const [x,y]=C[sel.obs];g+=`<g transform="translate(${x} ${y})"><circle r="17" fill="none" stroke="#eef0ff" stroke-width="1.2" opacity=".7"/><path d="M0 -17 L3.5 -3.5 L17 0 L3.5 3.5 L0 17 L-3.5 3.5 L-17 0 L-3.5 -3.5 Z" fill="#eef0ff" opacity=".85"/><path d="M0 -17 L3.5 -3.5 L-3.5 -3.5 Z" fill="#ff9a3c"/></g>`}
+ }
+ LWP.forEach(p=>{
+  const [x,y]=lwXY(p),i=live?LW.posts.indexOf(p.n):-1,top=p.y===0,ly=top?y-17:y+27;
+  g+=i>=0?`<circle cx="${x}" cy="${y}" r="10" fill="#ffe27a" stroke="#0e1030" stroke-width="2"/><text x="${x}" y="${y+5}" text-anchor="middle" class="sealsub" fill="#2b1d00">${i+1}</text>`:`<circle cx="${x}" cy="${y}" r="7" fill="#141846" stroke="#7c82c4" stroke-width="2" stroke-dasharray="3 3"/>`;
+  g+=`<text x="${x}" y="${ly}" text-anchor="middle" class="cxn svlen" fill="${i>=0?"#eef0ff":"#9aa0dc"}">${p.n}</text>`;
+ });
+ g+=`<line x1="28" y1="196" x2="84" y2="196" stroke="#eef0ff" stroke-width="2"/><line x1="28" y1="191" x2="28" y2="201" stroke="#eef0ff" stroke-width="2"/><line x1="84" y1="191" x2="84" y2="201" stroke="#eef0ff" stroke-width="2"/><text x="92" y="201" class="cxn" fill="#b9bde8">4 blocks · lengths in blocks</text>`;
+ return `<svg viewBox="0 0 280 206" aria-hidden="true">${g}</svg>`;
+}
+function renderSurvey(){
+ const live=LW.done&&!!PRZ,dt=live?svData():null;
+ const items=live?dt.opp.map(o=>{const ob=LW.posts[o.obs],a=LW.posts[o.ends[0]],b=LW.posts[o.ends[1]];return `<li>From stop ${o.obs+1}, <b>${ob}</b>: opposite span ${a}–${b}, <b>${svLen(o.sq)} blocks</b> (${o.sq} squared)</li>`}):["<li>Complete a three-stop lantern walk to survey it.</li>"];
+ const sel=live&&SV.last!==null?dt.opp[SV.last]:null;
+ const lab=!live?"Star survey locked":`Survey map of the walk ${LW.posts.join(", ")}. `+dt.opp.map(o=>`From ${LW.posts[o.obs]}, opposite span ${LW.posts[o.ends[0]]} to ${LW.posts[o.ends[1]]} is ${svLen(o.sq)} blocks`).join("; ")+"."+(sel?` Sighting from ${LW.posts[sel.obs]} with a compass rose, bold span ${LW.posts[sel.ends[0]]} to ${LW.posts[sel.ends[1]]}, sightline to its midpoint.${SV.done?" Solved.":""}`:"");
+ FFK.forEach(k=>{
+  $("svFig_"+k).innerHTML=surveySVG();$("svFig_"+k).setAttribute('aria-label',lab);
+  $("svList_"+k).innerHTML=items.join('');
+  [0,1,2].forEach(i=>{const b=$(`svPick${i+1}_${k}`);b.textContent=live?`From ${LW.posts[i]}`:`Stop ${i+1}`;b.setAttribute('aria-label',live?`Observe from stop ${i+1}, ${LW.posts[i]}`:`Stop ${i+1}, locked`);b.setAttribute('aria-disabled',live&&!SV.done?"false":"true")});
+ });
+}
+function svPick(i){
+ if(!(LW.done&&PRZ)){svSay("Complete a three-stop lantern walk first.","");return}
+ if(SV.done){svSay("This walk's survey is already solved. Finish another crossing and walk to survey again.","");return}
+ const {opp,max}=svData(),o=opp[i],ob=LW.posts[i],a=LW.posts[o.ends[0]],b=LW.posts[o.ends[1]];
+ SV.last=i;
+ if(o.sq!==max){renderSurvey();svSay(`From ${ob}, the opposite span is ${a}–${b}, ${svLen(o.sq)} blocks (${o.sq} squared). Another span is longer; try another lantern.`,"quiet");return}
+ SV.done=true;renderSurvey();
+ const q=lwSeq(),va=q[o.ends[0]],vb=q[o.ends[1]];
+ const pre=sounded(()=>{const t=ensureCtx();playVoice(va,t);playVoice(vb,t)});
+ const ties=opp.filter(z=>z.sq===max).length>1?" (tied for longest)":"";
+ svSay(`${pre}Correct: from ${ob} you see the longest span${ties}, ${a}–${b}, ${svLen(o.sq)} blocks. Span endpoints: ${vName(va)} ${va.p} at ${a} and ${vName(vb)} ${vb.p} at ${b}.`,"live");
+}
+FFK.forEach(k=>[0,1,2].forEach(i=>$(`svPick${i+1}_${k}`).addEventListener('click',()=>svPick(i))));
 FFK.forEach(k=>LWP.forEach(p=>$(`lw${p.n}_${k}`).addEventListener('click',()=>lwPick(p.n))));
 FFK.forEach(k=>{$("crStart_"+k).addEventListener('click',()=>crStart("f"));$("crReverse_"+k).addEventListener('click',()=>crStart("r"))});
 if(PRZ)crSay("Start crossing or Start reverse crossing to name two stops.","");
