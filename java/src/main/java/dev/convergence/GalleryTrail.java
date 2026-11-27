@@ -163,7 +163,7 @@ final class GalleryTrail {
         }
     }
 
-    private static void drawLink(ServerPlayer p, Vec3 from, Vec3 to, double fraction, double arcHeight) {
+    static void drawLink(ServerPlayer p, Vec3 from, Vec3 to, double fraction, double arcHeight) {
         int steps = Math.max(2, (int)Math.ceil(from.distanceTo(to) * 2));
         for (int i = 0; i <= Math.ceil(steps * fraction); i++) {
             double t = (double)i / steps;
