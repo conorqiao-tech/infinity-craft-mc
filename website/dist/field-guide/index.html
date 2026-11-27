@@ -349,6 +349,8 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .beat.now{border:3px solid var(--mint);box-shadow:0 0 0 3px #7cf5c433;color:var(--ink)}
 .beat.now .st{color:var(--mint)}
 .baton .row .btn{flex:1 1 120px}
+.lpfig{width:280px;height:152px;margin:0 auto}
+.lpfig svg{display:block;width:280px;height:152px}
 @media(max-width:480px){.baton .ribbon{grid-template-columns:repeat(2,minmax(0,1fr))}.baton .beat{min-height:0}}
 @media(max-width:480px){.fanfare{padding:12px}}
 @media(max-width:480px){.pencard{grid-template-columns:minmax(0,1fr);justify-items:start}}
@@ -408,6 +410,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <button class="btn main" id="btNext_g" type="button" aria-disabled="true">Next beat</button>
 </div>
 <p class="status" id="btStatus_g" role="status" aria-live="polite">Finish a chorus trio, then conduct it forward or backward.</p>
+</div>
+<div class="baton loop" aria-labelledby="lpT_g">
+<h4 id="lpT_g">Infinity Loop</h4>
+<div class="lpfig" id="lpFig_g" role="img" aria-label="Infinity loop locked"></div>
+<p class="btdir" id="lpProg_g">Finish a forward phrase and a backward phrase on the baton to light both lobes.</p>
+<div class="row"><button class="btn main" id="lpRing_g" type="button" aria-disabled="true">Ring the loop</button></div>
+<p class="status" id="lpStatus_g" role="status" aria-live="polite">Both lobes unlock Ring the loop.</p>
 </div>
 </div>
 </section>
@@ -582,6 +591,7 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <li>Collect a chime, a harp and a bell solo to hear the three together.</li>
 <li>Different players have private scorecards.</li>
 <li>Chorus Baton: tap the flag where the chorus finished with a plain stick, once per beat. Sneak on the first tap to go backward.</li>
+<li>Infinity Loop: complete both baton directions on the finishing pennant, then use a plain amethyst shard on that flag to ring the loop.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -827,6 +837,13 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <button class="btn main" id="btNext_p" type="button" aria-disabled="true">Next beat</button>
 </div>
 <p class="status" id="btStatus_p" role="status" aria-live="polite">Finish a chorus trio, then conduct it forward or backward.</p>
+</div>
+<div class="baton loop" aria-labelledby="lpT_p">
+<h4 id="lpT_p">Infinity Loop</h4>
+<div class="lpfig" id="lpFig_p" role="img" aria-label="Infinity loop locked"></div>
+<p class="btdir" id="lpProg_p">Finish a forward phrase and a backward phrase on the baton to light both lobes.</p>
+<div class="row"><button class="btn main" id="lpRing_p" type="button" aria-disabled="true">Ring the loop</button></div>
+<p class="status" id="lpStatus_p" role="status" aria-live="polite">Both lobes unlock Ring the loop.</p>
 </div>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
@@ -1705,11 +1722,11 @@ function chCollect(){
  const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
  CH.armed=false;
  let pre="";
- if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
  const old=CH.slots[role];CH.slots[role]=id;if(!CH.order.includes(role))CH.order.push(role);
  const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
  if(filled.length===3){
-  CH.done=true;BT={score:CH.order.map(r=>({role:r,id:CH.slots[r]})),dir:null,step:0};renderChorus();btSay(`Baton ready. Joined order: ${BT.score.map(x=>CAP[x.role]).join(", ")}. Choose Conduct forward or Conduct backward.`,"");
+  CH.done=true;BT={score:CH.order.map(r=>({role:r,id:CH.slots[r]})),dir:null,step:0};renderChorus();btSay(`Baton ready. Joined order: ${BT.score.map(x=>CAP[x.role]).join(", ")}. Choose Conduct forward or Conduct backward.`,"");{const a=chVoice(BT.score[0].role,BT.score[0].id),z=chVoice(BT.score[2].role,BT.score[2].id);lpSay(`New loop score: first ${vName(a)} ${a.p}, last ${vName(z)} ${z.p}. Both lobes are missing; finish a forward and a backward phrase to light them.`,"")}
   const vs=ROLES.map(r=>chVoice(r,CH.slots[r]));
   if(state.sound){try{const t=ensureCtx();vs.forEach(x=>playVoice(x,t))}catch(e){}}
   chSay(`${pre}${old?`Replaced ${CAP[role]}. `:""}Chorus complete: ${vs.map(x=>`${vName(x)} ${x.p}`).join(", ")}, together once. The next collection starts a new trio.`,"live");
@@ -1726,6 +1743,7 @@ const btActive=()=>!!BT.score&&!!BT.dir&&BT.step>0&&BT.step<4;
 const btSeq=()=>BT.dir==="b"?BT.score.slice().reverse():BT.score;
 function btSay(msg,kind){FFK.forEach(k=>{const s=$("btStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
 function renderBaton(){
+ renderLoop();
  const has=!!BT.score,act=btActive(),seq=has?(BT.dir?btSeq():BT.score):null;
  const cell=i=>{
   if(!seq)return `<li class="beat"><span class="bn">Beat ${i+1}</span><span class="sym" aria-hidden="true"><span>?</span></span><span class="vn">${i<3?"Solo":"Full chord"}</span><span class="st">Locked</span></li>`;
@@ -1763,11 +1781,49 @@ function btNext(){
   btSay(`Beat ${i+1} of 4: ${CAP[x.role]} solo, ${vName(x)} ${x.p}. Next beat: ${i===2?"the full chord":vName(chVoice(seq[i+1].role,seq[i+1].id))}.`,"live");
   return;
  }
- BT.step=4;renderBaton();
+ BT.step=4;const lpWas=LP[BT.dir];LP[BT.dir]=true;renderBaton();if(!lpWas)lpSay(`${BT.dir==="b"?"Backward (right)":"Forward (left)"} lobe lit. ${LP.f&&LP.b?"Both lobes lit: Ring the loop is ready.":`Still missing: ${LP.f?"backward (right)":"forward (left)"} lobe.`}`,"");
  const vs=seq.map(z=>chVoice(z.role,z.id));
  if(state.sound){try{const t=ensureCtx();vs.forEach(z=>playVoice(z,t))}catch(e){}}
  btSay(`Beat 4 of 4: full chord, ${vs.map(z=>`${vName(z)} ${z.p}`).join(", ")}, together once. Phrase finished; either direction is open for a new phrase.`,"live");
 }
+/* infinity loop (session only, shared by Guide and #pairs) */
+let LP={f:false,b:false,rung:false};
+function lpSay(msg,kind){FFK.forEach(k=>{const s=$("lpStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+function loopSVG(){
+ const has=!!BT.score,both=LP.f&&LP.b,ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null;
+ const Lp="M140 76 C112 38 44 38 44 76 C44 114 112 114 140 76",Rp="M140 76 C168 38 236 38 236 76 C236 114 168 114 140 76";
+ const lobe=(d,on,col)=>on?`<path d="${d}" fill="none" stroke="${col}" stroke-width="12" opacity=".2"/><path d="${d}" fill="none" stroke="${col}" stroke-width="3"/><path d="${d}" fill="none" stroke="#fff" stroke-width="1" opacity=".7"/>`:`<path d="${d}" fill="none" stroke="#4a52a0" stroke-width="2" stroke-dasharray="4 6"/>`;
+ const stars=(cx,on)=>[[-54,-26],[-30,-36],[0,-29],[22,-14],[-62,8],[-40,30],[-8,30],[18,18]].map(([dx,dy])=>`<circle cx="${cx+(cx<140?dx:-dx)}" cy="${76+dy*.9}" r="${on?2.2:1.5}" fill="${on?"#ffffff":"#5a62b0"}"/>`).join('');
+ let g=lobe(Lp,LP.f,"#4fe3f0")+lobe(Rp,LP.b,"#ff9a3c")+stars(96,LP.f)+stars(184,LP.b);
+ g+=`<text x="88" y="20" text-anchor="middle" class="cxl" fill="${LP.f?"#eef0ff":"#9aa0dc"}">Forward ${LP.f?"✓ lit":"· missing"}</text><text x="192" y="20" text-anchor="middle" class="cxl" fill="${LP.b?"#eef0ff":"#9aa0dc"}">Backward ${LP.b?"✓ lit":"· missing"}</text>`;
+ const ring=LP.rung&&both;
+ g+=ring?`<circle cx="140" cy="76" r="16" fill="#ffffff" opacity=".18"/><circle cx="140" cy="76" r="9" fill="#c9fff0"/><circle cx="140" cy="76" r="4" fill="#fff"/>`:`<circle cx="140" cy="76" r="${both?7:5}" fill="${both?"#7cf5c4":"#1b2056"}" stroke="${both?"#c9fff0":"#4a52a0"}" stroke-width="2"/>`;
+ if(ends){
+  ends.forEach((v,i)=>{const x=i?236:44,col=byId(v.id).c,an=i?"end":"start",lx=i?276:4;g+=`<circle cx="${x}" cy="76" r="${ring?10:8}" fill="${col}" stroke="#0e1030" stroke-width="2"/><text x="${lx}" y="130" text-anchor="${an}" class="cxl" fill="#eef0ff">${i?"Last":"First"} · ${CAP[v.role]}</text><text x="${lx}" y="146" text-anchor="${an}" class="cxn" fill="#b9bde8">${nm(v.id)} ${v.p}</text>`});
+ }else g+=`<text x="140" y="138" text-anchor="middle" class="cxn" fill="#9aa0dc">Complete a chorus trio first</text>`;
+ return `<svg viewBox="0 0 280 152" aria-hidden="true">${g}</svg>`;
+}
+function renderLoop(){
+ const has=!!BT.score,both=has&&LP.f&&LP.b;
+ const ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null,mid=has?CAP[BT.score[1].role]:"";
+ const prog=!has?"Complete a chorus trio, then finish a forward phrase and a backward phrase on the baton to light both lobes.":`Forward (left) lobe: <b>${LP.f?"lit":"missing"}</b>. Backward (right) lobe: <b>${LP.b?"lit":"missing"}</b>. ${both?`Ring plays ${esc(vName(ends[0]))} and ${esc(vName(ends[1]))}; the ${mid.toLowerCase()} stays silent.`:"Finish a four-beat phrase in the missing direction."}`;
+ const lab=!has?"Infinity loop locked":`Infinity constellation: forward left lobe ${LP.f?"lit":"missing"}, backward right lobe ${LP.b?"lit":"missing"}. Markers: first ${vName(ends[0])} ${ends[0].p}, last ${vName(ends[1])} ${ends[1].p}.${LP.rung&&both?" Center glowing after the ring.":""}`;
+ FFK.forEach(k=>{
+  $("lpFig_"+k).innerHTML=loopSVG();$("lpFig_"+k).setAttribute('aria-label',lab);
+  $("lpProg_"+k).innerHTML=prog;
+  $("lpRing_"+k).setAttribute('aria-disabled',both?"false":"true");
+ });
+}
+function lpRing(){
+ if(!BT.score){lpSay("Complete a chorus trio first, then light both lobes.","");return}
+ if(!(LP.f&&LP.b)){lpSay(`Light both lobes first. Missing: ${[!LP.f&&"forward (left)",!LP.b&&"backward (right)"].filter(Boolean).join(" and ")}.`,"");return}
+ const a=chVoice(BT.score[0].role,BT.score[0].id),z=chVoice(BT.score[2].role,BT.score[2].id),mid=CAP[BT.score[1].role];
+ if(state.sound){try{const t=ensureCtx();playVoice(a,t);playVoice(z,t)}catch(e){}}
+ LP.rung=true;renderLoop();
+ const keep=btActive()?` Your ${BT.dir==="b"?"backward":"forward"} baton phrase is unchanged: beat ${BT.step+1} is next.`:"";
+ lpSay(`Loop rung: ${vName(a)} ${a.p} with ${vName(z)} ${z.p}, together. The ${mid.toLowerCase()} stays silent.${keep}`,"live");
+}
+FFK.forEach(k=>$("lpRing_"+k).addEventListener('click',lpRing));
 FFK.forEach(k=>{$("btFwd_"+k).addEventListener('click',()=>btConduct("f"));$("btBack_"+k).addEventListener('click',()=>btConduct("b"));$("btNext_"+k).addEventListener('click',btNext)});
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);

@@ -308,7 +308,12 @@ async function verify(page, origin) {
     await play();
     const trio = {notes: mode === 'replace' ? seal.notes : ['ember','moon','ember']};
     await take(3, trio.notes);
-    for (const backward of [false, true]) {
+    const ring = side => page.locator(side === 'p' ? '#pairs' : '#guide')
+      .getByRole('button', {name:'Ring the loop', exact:true});
+    const loopStatus = side => page.locator('#lpStatus_'+side).textContent();
+    assert.match(await loopStatus('p'), /New loop score: first .*chime.*last .*bell/i);
+    const firstBackward = mode === 'replace';
+    for (const backward of [firstBackward, firstBackward, !firstBackward]) {
       const order = backward ? [2,1,0] : [0,1,2];
       for (let beat = 0; beat < 4; beat++) {
         const side = beat % 2 === 0 ? 'p' : 'g';
@@ -325,18 +330,36 @@ async function verify(page, origin) {
         assert.equal(await page.locator('#btFwd_'+side).isDisabled(), beat < 3);
         assert.equal(await page.locator('#btBack_'+side).isDisabled(), beat < 3);
         assert.equal(await page.locator('#btNext_'+side).isEnabled(), beat < 3);
+        const bothComplete = backward !== firstBackward && beat === 3;
+        assert.equal(await ring(side).isEnabled(), bothComplete, 'Each direction must reach its closing chord');
       }
     }
     await tap(pairsTab);
     await tap(page.locator('#btFwd_p'));
+    const beatOne = await page.locator('#btScore_p').getAttribute('aria-label');
+    for (const side of ['g','p']) {
+      await tap(side === 'g' ? guideTab : pairsTab);
+      const before = (await heard()).length;
+      await tap(ring(side));
+      assertAudio((await heard()).slice(before), trio, [0,2], audible);
+      assert.equal(await page.locator('#btScore_'+side).getAttribute('aria-label'), beatOne);
+    }
+    const beforeBeatTwo = (await heard()).length;
+    await tap(page.locator('#btNext_p'));
+    assertAudio((await heard()).slice(beforeBeatTwo), trio, [1], audible);
     await play();
+    assert(await ring('p').isEnabled(), 'Hearing another fanfare preserves both arcs');
     assert(await page.locator('#btNext_p').isEnabled(), 'Performing another fanfare preserves the current phrase');
     await take(1); // A new bell is one slot into the next chorus and remains silent.
     assert(await page.locator('#btNext_p').isDisabled(), 'A successful new collection clears the unfinished phrase');
     assert(await page.locator('#btBack_p').isDisabled());
+    assert(await ring('p').isDisabled(), 'A new collection clears both arcs');
+    assert.match(await loopStatus('p'), /new trio.*loop was cleared/i);
+    assert.equal(await loopStatus('p'), await loopStatus('g'));
     await page.reload();
     assert.deepEqual(await heard(), []);
     assert(await collect('p').isDisabled());
+    assert(await ring('p').isDisabled());
     assert.equal(await page.locator('#btScore_p').getAttribute('aria-label'), 'Baton score locked');
     assert.deepEqual(await saved(), {ver:1, solo:'bell', notes:seal.notes});
   }
@@ -361,6 +384,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
