@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 
 const names = ['Chime', 'Harp', 'Bell'];
 const frequencies = {kite:1046.50, moon:1318.51, ember:1567.98};
-const partials = [3, 4, 4];
+const harmonics = [[1,2,3], [1,2,3,4], [1,2,2.76,5.4]];
 
 async function verify(page, origin) {
   await page.addInitScript(() => {
@@ -30,14 +30,46 @@ async function verify(page, origin) {
   const tap = control => control.press('Enter');
   const heard = () => page.evaluate(() => window.cipherNotes);
   const assertAudio = (notes, seal, voices, audible) => {
-    assert.equal(notes.length, audible ? voices.reduce((sum,v) => sum + partials[v], 0) : 0);
+    const pitches = audible ? voices.flatMap(v => {
+      const fundamental = frequencies[seal.notes[v]] / (v === 1 ? 4 : 1);
+      return harmonics[v].map(multiple => fundamental * multiple);
+    }) : [];
+    assert.equal(notes.length, pitches.length);
     if (!audible) return;
-    assert.equal(new Set(notes.map(n => n.time)).size, 1, 'All clue voices share one start time');
-    for (const v of voices) {
-      const hz = frequencies[seal.notes[v]] / (v === 1 ? 4 : 1);
-      assert(notes.some(n => Math.abs(n.pitch - hz) < 2), 'The recorded pitch belongs to the correct instrument');
-    }
+    assert.equal(new Set(notes.map(n => n.time)).size, 1, 'All voices start together');
+    const ascending = (a,b) => a-b;
+    const played = notes.map(n => n.pitch).sort(ascending);
+    pitches.sort(ascending).forEach((pitch,i) => assert(Math.abs(pitch-played[i]) < 2, 'Correct instrument and pitch'));
   };
+  const cadence = panel.getByRole('region', {name:/Refrain Cadence/i});
+  const cadenceButton = name => cadence.getByRole('button', {name});
+  const soloKnot = i => cadenceButton(new RegExp('knot '+(i+1), 'i'));
+  const answerPair = first => cadenceButton(new RegExp(names[first]+' \\+ '+names[(first+1)%3], 'i'));
+  const fullChord = cadenceButton(/play full chord/i);
+  const weaveAgain = cadenceButton(/weave again/i);
+  async function performCadences(voices, seal, audible) {
+    for (const [knot,solo] of voices.entries()) {
+      assert(await fullChord.isDisabled(), 'Full chord unlocks after the answering duet');
+      let before = (await heard()).length;
+      await tap(soloKnot(knot));
+      assertAudio((await heard()).slice(before), seal, [solo], audible);
+      before = (await heard()).length;
+      const first = (solo+1)%3, second = (solo+2)%3;
+      for (const wrong of [solo,second]) {
+        await tap(answerPair(wrong));
+        assert.equal((await heard()).length, before, 'A pair containing the soloist stays silent');
+        assert(await fullChord.isDisabled(), 'A wrong pair cannot finish the cadence');
+      }
+      await tap(answerPair(first));
+      assertAudio((await heard()).slice(before), seal, [first,second], audible);
+      before = (await heard()).length;
+      await tap(fullChord);
+      assertAudio((await heard()).slice(before), seal, [0,1,2], audible);
+      before = (await heard()).length;
+      await tap(weaveAgain);
+      assert.equal((await heard()).length, before, 'Choosing another solo starts silently');
+    }
+  }
   assert(await start.isDisabled(), 'A seal must be stamped first');
   for (const reverse of [false, true]) for (const opening of [0, 1, 2]) {
     const audible = opening !== 1;
@@ -84,6 +116,7 @@ async function verify(page, origin) {
     for (const backward of [false,true]) {
       before = (await heard()).length;
       await tap(direction(backward));
+      assert(await soloKnot(0).isDisabled(), 'A fresh refrain locks its cadence');
       const voices = backward ? sequence.slice().reverse() : sequence;
       assert.equal((await heard()).length, before, 'Starting a refrain is silent');
       for (const [i,voice] of voices.entries()) {
@@ -99,13 +132,16 @@ async function verify(page, origin) {
       }
       assert.match(await feedback.innerText(), /refrain complete/i);
       assert.deepEqual((await refrain.getByRole('listitem').allTextContents()).map(t => t.match(/done, (Chime|Harp|Bell)/)[1]), voices.map(v => names[v]));
+      await performCadences(voices, seal, audible);
       assert(await direction(!backward).isEnabled(), 'Either direction can be replayed');
     }
     await tap(button(/start again/i));
+    assert(await soloKnot(0).isDisabled(), 'Starting a fresh cipher locks its cadence');
     assert(await direction(false).isDisabled() && await hint.isDisabled(), 'Restarting the cipher locks the refrain');
     await tap(panel.getByRole('button', {name:'Play next beat'}));
     assert.match(await panel.locator('#sStatus').innerText(), /beat 2 of 4/i, 'Puzzle does not advance ordinary playback');
     await page.reload();
+    assert(await soloKnot(0).isDisabled(), 'Reload clears the cadence');
     assert(await start.isEnabled() && await replay.isDisabled(), 'Fresh visit keeps the seal and clears the puzzle');
   }
 }
@@ -116,6 +152,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes and twelve Refrains, including equal pitches, muted rounds, repeated hints, solo and triad audio, session reset and independent seal playback.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad, resets and independent seal playback.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
