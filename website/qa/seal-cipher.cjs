@@ -9,6 +9,11 @@ const harmonics = [[1,2,3], [1,2,3,4], [1,2,2.76,5.4]];
 async function verify(page, origin) {
   await page.addInitScript(() => {
     window.cipherNotes = [];
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key,value) {
+      if (window.blockPennantWrite) throw new DOMException('Storage full', 'QuotaExceededError');
+      return write.call(this,key,value);
+    };
     const start = OscillatorNode.prototype.start;
     OscillatorNode.prototype.start = function(time) {
       window.cipherNotes.push({time, pitch:this.frequency.value});
@@ -47,8 +52,41 @@ async function verify(page, origin) {
   const answerPair = first => cadenceButton(new RegExp(names[first]+' \\+ '+names[(first+1)%3], 'i'));
   const fullChord = cadenceButton(/play full chord/i);
   const weaveAgain = cadenceButton(/weave again/i);
+  const keep = page.locator('#pnKeep');
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('infinitycraft.field-guide.v1')).pennant);
+  const dyes = {kite:'#169C9C', moon:'#8932B8', ember:'#F9801D'};
+  async function keepPennant(seal,solo,testFailure) {
+    const previous = await saved();
+    const originalCaption = await page.locator('#pnSavedCap').innerText();
+    if (testFailure) {
+      await page.evaluate(() => {window.blockPennantWrite=true;});
+      await tap(keep);
+      assert.match(await page.locator('#pnStatus').innerText(), /try again/i);
+      assert(await keep.isEnabled());
+      assert.deepEqual(await saved(), previous);
+      assert.equal(await page.locator('#pnSavedCap').innerText(), originalCaption);
+      await page.evaluate(() => {window.blockPennantWrite=false;});
+    }
+    const audioCount = (await heard()).length;
+    await tap(keep);
+    assert.equal((await heard()).length, audioCount, 'Keeping a pennant is silent');
+    assert(await keep.isDisabled(), 'Each finished cadence can be kept once');
+    assert.deepEqual(await saved(), {ver:1, solo:names[solo].toLowerCase(), notes:seal.notes});
+    const design = page.locator('#pnSaved svg g');
+    const stripes = design.locator('rect[shape-rendering]');
+    for (const side of [0,1]) {
+      assert.equal(await stripes.nth(side).getAttribute('fill'), dyes[seal.notes[(solo+side+1)%3]]);
+    }
+    const center = design.locator(['rect[x="9.5"]','line[stroke-width="5"]','circle'][solo]);
+    assert.equal(await center.getAttribute(solo === 1 ? 'stroke' : 'fill'), dyes[seal.notes[solo]]);
+    const caption = await page.locator('#pnSavedCap').innerText();
+    assert.match(caption,new RegExp('Solo '+names[solo]));
+    assert.equal(await page.locator('#gPenCap').textContent(), caption);
+  }
   async function performCadences(voices, seal, audible) {
     for (const [knot,solo] of voices.entries()) {
+      assert(await keep.isDisabled(), 'An unfinished cadence cannot replace a keepsake');
+      const previousPennant = await saved();
       assert(await fullChord.isDisabled(), 'Full chord unlocks after the answering duet');
       let before = (await heard()).length;
       await tap(soloKnot(knot));
@@ -62,6 +100,8 @@ async function verify(page, origin) {
       }
       await tap(answerPair(first));
       assertAudio((await heard()).slice(before), seal, [first,second], audible);
+      assert.deepEqual(await saved(), previousPennant, 'Completing a new cadence leaves the old pennant on display');
+      await keepPennant(seal,solo,knot === 1);
       before = (await heard()).length;
       await tap(fullChord);
       assertAudio((await heard()).slice(before), seal, [0,1,2], audible);
@@ -140,10 +180,25 @@ async function verify(page, origin) {
     assert(await direction(false).isDisabled() && await hint.isDisabled(), 'Restarting the cipher locks the refrain');
     await tap(panel.getByRole('button', {name:'Play next beat'}));
     assert.match(await panel.locator('#sStatus').innerText(), /beat 2 of 4/i, 'Puzzle does not advance ordinary playback');
+    const kept = await saved();
     await page.reload();
+    assert.deepEqual(await saved(), kept);
+    assert.match(await page.locator('#gPenCap').textContent(), new RegExp('Solo '+kept.solo,'i'));
+    assert(await keep.isDisabled());
     assert(await soloKnot(0).isDisabled(), 'Reload clears the cadence');
     assert(await start.isEnabled() && await replay.isDisabled(), 'Fresh visit keeps the seal and clears the puzzle');
   }
+  const errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
+  for (const bad of [null,123,'obsolete',[],{ver:2,solo:'harp',notes:testSeal.notes},{ver:1,solo:'other',notes:testSeal.notes},{ver:1,solo:'bell',notes:['kite','unknown','moon']}]) {
+    const root = bad && typeof bad==='object' && !Array.isArray(bad) ? {seal:testSeal,pennant:bad} : bad;
+    await page.evaluate(value=>localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(value)),root);
+    await page.reload();
+    assert.equal(await page.locator('#gPen').getAttribute('aria-label'),'No pennant kept yet');
+    if (root?.seal) assert(await start.isEnabled(), 'Invalid souvenir cannot disable a valid seal');
+  }
+  assert.deepEqual(errors,[]);
 }
 
 (async () => {
@@ -152,6 +207,6 @@ async function verify(page, origin) {
   const browser = await chromium.launch({executablePath:process.env.CHROME_BIN});
   try {
     await verify(await browser.newPage(), origin);
-    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad, resets and independent seal playback.');
+    console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });

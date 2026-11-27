@@ -317,6 +317,21 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .cdknots .btn[aria-pressed=true]{background:var(--mint);border-color:var(--mint);color:#06281d;font-weight:700}
 .cdtext{margin:0;font-size:14px;color:var(--soft)}
 .cdtext b{color:var(--ink)}
+.pencard{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center;margin:0 0 18px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,#1b2056,#232a72);border:1px solid var(--line)}
+.pencard h2{font-size:26px;line-height:1.05;margin:0 0 6px}
+.pencard p{margin:0 0 10px;color:var(--soft);font-size:15px;max-width:60ch}
+.pencard p b{color:var(--ink)}
+.pencard .tie{margin:0;padding:0 16px;width:auto}
+.pnfig{display:grid;place-items:center}
+.pnfig svg{display:block;filter:drop-shadow(0 4px 0 #0006)}
+.pensec{margin-top:18px;padding:18px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.pnrow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.pncol{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center;padding:12px;border-radius:14px;background:var(--bg2);border:1px solid var(--line)}
+.pncol figcaption{font-size:14px;color:var(--soft)}
+.pncol figcaption strong{display:block;color:var(--ink);font:700 16px "Pixelify Sans",sans-serif;margin-bottom:4px}
+.pnempty{display:grid;place-items:center;border:2px dashed #4a52a0;border-radius:4px;color:#9aa0dc;font-size:13px;text-align:center}
+@media(max-width:700px){.pnrow{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.pencard{grid-template-columns:minmax(0,1fr);justify-items:start}}
 @media(max-width:600px){.cc .cpx{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
@@ -341,6 +356,14 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 
 <section id="guide" role="tabpanel" aria-labelledby="tab-guide">
 <p class="preview"><span class="pill">Development preview</span> The Minecraft gallery features below are still in development and may change before release.</p>
+<section class="pencard" aria-labelledby="gpTitle">
+<div class="pnfig" id="gPen" role="img" aria-label="No pennant kept yet"></div>
+<div>
+<h2 id="gpTitle">Your Cadence Pennant</h2>
+<p id="gPenCap">No pennant kept yet. Complete a Refrain Cadence in Postcard Pairs, then press Keep this pennant.</p>
+<button class="tie" type="button" data-go="pairs">Go to Postcard Pairs</button>
+</div>
+</section>
 <div class="trail">
 <article class="stop">
 <div class="frame" aria-hidden="true"><div><svg viewBox="0 0 16 16" shape-rendering="crispEdges"><rect x="2" y="2" width="12" height="12" fill="#e8d9b0"/><rect x="3" y="3" width="10" height="10" fill="#5fb7e8"/><rect x="3" y="9" width="10" height="4" fill="#4caf6a"/><rect x="6" y="7" width="4" height="2" fill="#4caf6a"/><rect x="10" y="4" width="2" height="2" fill="#ffe27a"/><rect x="5" y="11" width="2" height="1" fill="#2e7d48"/></svg></div></div>
@@ -483,6 +506,18 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="exline">Example: solo on <b>Bell</b>, and the answer is <b>Chime + Harp</b>.</p>
 </div>
 <div class="cdfig" id="gCadence" role="img" aria-label="Example cadence: Bell call forks into Chime and Harp answers"></div>
+</div>
+<div class="circ">
+<div>
+<span class="pill">Development preview</span>
+<h3 style="margin-top:8px">Cadence Pennant <small>keepsake</small></h3>
+<ol>
+<li>After a finished cadence, use Weave pennant.</li>
+<li>It takes one plain white banner from your hotbar or main inventory, once per finished cadence, and makes a placeable banner.</li>
+</ol>
+<p class="exline">This browser guide keeps the design only, without materials. The solo instrument is the central mark; the two answering instruments are the side stripes.</p>
+</div>
+<figure class="pncol" style="background:transparent;border:0;padding:0"><div class="pnfig" id="gPenEx"></div><figcaption id="gPenExCap"></figcaption></figure>
 </div>
 </section>
 </section>
@@ -691,6 +726,17 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 </div>
 </div>
 </section>
+<section class="pensec" aria-labelledby="pnTitle">
+<div class="khead">
+<div><h3 id="pnTitle">Cadence Pennant <small>keepsake</small></h3><p id="pnHint">Complete a Refrain Cadence with the right answering pair to weave a pennant.</p></div>
+<div class="toolbar"><button class="btn main" id="pnKeep" type="button" aria-disabled="true">Keep this pennant</button></div>
+</div>
+<div class="pnrow">
+<figure class="pncol"><div class="pnfig" id="pnNow" role="img" aria-label="No finished cadence yet"></div><figcaption><strong>This cadence</strong><span id="pnNowCap">Finish a cadence to see its pennant.</span></figcaption></figure>
+<figure class="pncol"><div class="pnfig" id="pnSaved" role="img" aria-label="No pennant kept yet"></div><figcaption><strong>Kept pennant</strong><span id="pnSavedCap">No pennant kept yet.</span></figcaption></figure>
+</div>
+<p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
+</section>
 <p class="note">Practice for the Postcard Pairs development preview. In game you tap with a plain echo shard and Sneak to swap, and close a circuit by tapping the third frame with plain prismarine crystals. Swap reverses one tap. Close the circuit selects the crystals and stays armed after a miss until you close the loop or disarm it.</p>
 </section>
 </div>
@@ -711,8 +757,9 @@ const yPct=n=>100-(n-LO)/(HI-LO)*100;
 const $=id=>document.getElementById(id);
 let store={};
 try{store=JSON.parse(localStorage.getItem("infinitycraft.field-guide.v1")||"{}")||{}}catch(e){store={}}
+if(store===null||typeof store!=="object"||Array.isArray(store))store={};
 const state={chime:store.chime||"kite",bell:store.bell||"ember",sound:store.sound!==false,tab:store.tab||"guide"};
-const save=()=>{try{localStorage.setItem("infinitycraft.field-guide.v1",JSON.stringify(state))}catch(e){}};
+const save=()=>{try{localStorage.setItem("infinitycraft.field-guide.v1",JSON.stringify(state));return true}catch(e){return false}};
 const byId=id=>NOTES.find(x=>x.id===id)||NOTES[0];
 
 /* tabs */
@@ -1403,6 +1450,7 @@ function renderCadence(){
  if(!el)$("cdText").textContent="The solo calls, then the other two instruments answer together.";
  else if(!soloV)$("cdText").innerHTML=`Knot order: <b>${seq.map((c,i)=>`${i+1} ${CAP[d.v[c].role]}`).join(", ")}</b>. Choose a soloist.`;
  else{const ans=ROLES.filter(r=>r!==soloV.role).map(r=>vByRole(d,r));$("cdText").innerHTML=`Call: <b>knot ${CD.solo+1}, ${vName(soloV)} ${soloV.p}</b>. ${CD.done?`Answer: <b>${ans.map(vName).join(" + ")}</b>.`:"Answer: choose the pair."}`}
+ renderPennant();
  $("cdFig").setAttribute('aria-label',!el?"Cadence locked":!soloV?"Forked thread waiting for a solo knot":CD.done?`Forked thread: ${vName(soloV)} call branches to ${ROLES.filter(r=>r!==soloV.role).map(r=>vName(vByRole(d,r))).join(" and ")}, both lit`:`Forked thread: ${vName(soloV)} call; two answer silhouettes waiting`);
 }
 $("cdKnots").addEventListener('click',e=>{
@@ -1436,6 +1484,57 @@ $("cdAgain").addEventListener('click',()=>{
  CD={solo:null,done:false};renderCadence();cdSay("Weave again: choose a solo knot.","");
 });
 {const ed=sealData({notes:["kite","moon","ember"],open:1,dir:true});$("gCadence").innerHTML=cadenceSVG(ed,ed.v[2],true);}
+/* cadence pennant (keepsake, saved separately) */
+const DYE={kite:["#169C9C","cyan"],moon:["#8932B8","purple"],ember:["#F9801D","orange"]};
+function validPennant(x){return !!x&&typeof x==="object"&&!Array.isArray(x)&&x.ver===1&&typeof x.solo==="string"&&ROLES.includes(x.solo)&&Array.isArray(x.notes)&&x.notes.length===3&&x.notes.every(n=>typeof n==="string"&&NOTE_IDS.includes(n))}
+let PN=validPennant(store.pennant)?{ver:1,solo:store.pennant.solo,notes:store.pennant.notes.slice()}:null;
+if("pennant" in store)state.pennant=store.pennant;
+function pnSay(msg,kind){const s=$("pnStatus");s.textContent=msg;s.className="status"+(kind?" "+kind:"")}
+function pnSides(pn){const i=ROLES.indexOf(pn.solo);return {i,L:(i+1)%3,R:(i+2)%3}}
+function pnCaption(pn){
+ const {i,L,R}=pnSides(pn),n=k=>`${CAP[ROLES[k]]} (${nm(pn.notes[k])}, ${DYE[pn.notes[k]][1]})`;
+ return `Solo ${n(i)} as the central ${pn.solo==="chime"?"vertical stripe":pn.solo==="harp"?"diagonal stripe":"roundel"}. Answers: ${n(L)} on the left stripe and ${n(R)} on the right stripe, on white cloth.`;
+}
+function bannerSVG(pn,w,gid){
+ const h=Math.round(w*46/24);
+ if(!pn)return `<div class="pnempty" style="width:${w}px;height:${h}px">No pennant</div>`;
+ const {i,L,R}=pnSides(pn),c=k=>DYE[pn.notes[k]][0],cs=c(i);
+ const mark=pn.solo==="chime"?`<rect x="9.5" y="2" width="5" height="40" fill="${cs}" stroke="#000" stroke-opacity=".38" stroke-width=".45"/>`
+  :pn.solo==="harp"?`<line x1="1" y1="0" x2="23" y2="44" stroke="#000" stroke-opacity=".38" stroke-width="5.9"/><line x1="1" y1="0" x2="23" y2="44" stroke="${cs}" stroke-width="5"/>`
+  :`<circle cx="12" cy="22" r="5.4" fill="${cs}" stroke="#000" stroke-opacity=".38" stroke-width=".45"/>`;
+ return `<svg viewBox="0 0 24 46" width="${w}" height="${h}" aria-hidden="true"><defs><clipPath id="pc${gid}"><rect x="2" y="2" width="20" height="40"/></clipPath><linearGradient id="ps${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".12"/></linearGradient></defs><rect x="2" y="2" width="20" height="40" fill="#F4F6F5"/><g clip-path="url(#pc${gid})"><rect x="2" y="2" width="6" height="40" fill="${c(L)}" shape-rendering="crispEdges"/><rect x="16" y="2" width="6" height="40" fill="${c(R)}" shape-rendering="crispEdges"/>${mark}<rect x="2" y="2" width="20" height="40" fill="url(#ps${gid})"/></g><rect x="2" y="2" width="20" height="40" fill="none" stroke="#b8c0bd" stroke-width=".35"/><rect x="0" y="0" width="24" height="2.2" rx=".5" fill="#7a5532"/><rect x="0" y="0" width="24" height=".7" fill="#a0764a"/></svg>`;
+}
+function pendingPennant(){if(!(cdEligible()&&CD.done&&CD.solo!==null))return null;const d=sealData(SEAL);return {ver:1,solo:d.v[cdSeq(d)[CD.solo]].role,notes:SEAL.notes.slice()}}
+function renderPennant(){
+ const now=pendingPennant();
+ $("pnKeep").setAttribute('aria-disabled',now&&!CD.kept?"false":"true");
+ $("pnKeep").textContent=now&&CD.kept?"Pennant kept":"Keep this pennant";
+ $("pnNow").innerHTML=bannerSVG(now,72,"n");$("pnNowCap").textContent=now?pnCaption(now):"Finish a cadence to see its pennant.";
+ $("pnNow").setAttribute('aria-label',now?"This cadence's pennant. "+pnCaption(now):"No finished cadence yet");
+ $("pnSaved").innerHTML=bannerSVG(PN,72,"s");$("pnSavedCap").textContent=PN?pnCaption(PN):"No pennant kept yet.";
+ $("pnSaved").setAttribute('aria-label',PN?"Kept pennant. "+pnCaption(PN):"No pennant kept yet");
+ $("pnHint").textContent=now?(CD.kept?"Kept. Weave again for a new cadence if you'd like another design.":"Cadence complete. Keep this pennant to save its design; it replaces any earlier kept pennant."):"Complete a Refrain Cadence with the right answering pair to weave a pennant. Unfinished games can't replace your kept pennant.";
+ $("gPen").innerHTML=bannerSVG(PN,96,"g");
+ $("gPen").setAttribute('aria-label',PN?"Your kept Cadence Pennant. "+pnCaption(PN):"No pennant kept yet");
+ $("gPenCap").innerHTML=PN?esc(pnCaption(PN)):"No pennant kept yet. Complete a Refrain Cadence in Postcard Pairs, then press <b>Keep this pennant</b>.";
+}
+function esc(t){return String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c])}
+$("pnKeep").addEventListener('click',()=>{
+ const now=pendingPennant();
+ if(!now){pnSay("Complete a Refrain Cadence with the right answering pair first. Unfinished games can't replace your kept pennant.","");return}
+ if(CD.kept){pnSay("This cadence's pennant is already kept. Weave again and finish a new cadence to keep another.","");return}
+ const had=!!PN,hadKey=Object.prototype.hasOwnProperty.call(state,"pennant"),prev=state.pennant;
+ state.pennant={ver:1,solo:now.solo,notes:now.notes.slice()};
+ if(!save()){
+  if(hadKey)state.pennant=prev;else delete state.pennant;
+  renderPennant();
+  pnSay(`Couldn't save the pennant on this device: browser storage is unavailable or full. ${had?"Your previously kept pennant is unchanged.":"Nothing was kept."} Press Keep this pennant to try again.`,"quiet");
+  return;
+ }
+ PN=now;CD.kept=true;renderPennant();
+ pnSay(`${had?"Replaced your kept pennant. ":""}Kept: ${pnCaption(PN)} It's saved on this device and shown on the Guide tab too.`,"live");
+});
+{const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
 
 {const ev=circVoices(EXC),el=$("gScore");el.innerHTML=scoreHTML(ev,{lead:[1,0,2,1],ans:[0,2,1,0],step:4,done:true},false);el.setAttribute('aria-label',"Example: lead corners 2, 1, 3, 2; answer corners 1, 3, 2, 1");}
