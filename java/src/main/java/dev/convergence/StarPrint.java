@@ -97,6 +97,11 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         UseItemCallback.EVENT.register((player, world, hand) -> {
             if (!(player instanceof ServerPlayer p) || hand != InteractionHand.MAIN_HAND)
                 return InteractionResult.PASS;
+            var prism = InlayPrism.read(p.getMainHandItem());
+            if (prism != null) {
+                prism.play(p);
+                return InteractionResult.SUCCESS_SERVER;
+            }
             var seal = ChordSeal.read(p.getMainHandItem());
             if (seal != null) {
                 seal.play(p);

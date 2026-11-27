@@ -344,6 +344,97 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void cutOnePrismAndPlayItsGiftedUnisonFacets(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Prism");
+             var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            var song = new ChordSeal(List.of(KITE, KITE, KITE), 2, -1);
+            for (int i = 0; i < 3; i++) {
+                var flag = i == 2 ? finish : other;
+                flag.mount(CadencePennant.banner(p, song, song.cornerAt(i)), i == 2);
+                perform(g, 0, flag);
+                paper(c, g, 0, flag, song, i + 1);
+            }
+            for (boolean backward : List.of(true, false)) {
+                for (int i = 0; i < 4; i++) conduct(c, g, 0, finish, song, backward,
+                    i == 3 ? List.of(0, 1, 2) : List.of(song.cornerAt(backward ? 2 - i : i)), (i + 1) + "/4");
+            }
+            ring(c, g, 0, finish, song, List.of(2, 0));
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.QUARTZ));
+            finish.tap(p);
+            c.assertTrue(InlayPrism.read(p.getMainHandItem()) == null, "A rung but unsolved loop cannot be cut");
+            other.mount(CadencePennant.banner(p, song, 1), false);
+            inlay(c, g, 0, other, song, List.of(2, 1, 0), "Diamond set");
+            var inv = p.getInventory();
+            int free = (inv.getSelectedSlot() + 1) % 9;
+            for (int slot = 0; slot < 36; slot++) inv.setItem(slot, new ItemStack(Items.STONE, 64));
+            var quartz = new ItemStack(Items.QUARTZ, 2);
+            p.setItemInHand(InteractionHand.MAIN_HAND, quartz);
+            finish.tap(p);
+            c.assertTrue(ItemStack.matches(p.getMainHandItem(), new ItemStack(Items.QUARTZ, 2)), "No room preserves both quartz");
+            inv.setItem(free, ItemStack.EMPTY);
+            other.tap(p);
+            c.assertTrue(inv.getItem(free).isEmpty() && InlayPrism.read(p.getMainHandItem()) == null,
+                "The answering flag cannot cut a prism");
+            finish.tap(p);
+            var prism = p.getMainHandItem();
+            c.assertValueEqual(InlayPrism.read(prism), new InlayPrism(song), "The item encodes the unison route");
+            c.assertTrue(ItemStack.matches(inv.getItem(free), new ItemStack(Items.QUARTZ)), "One ordinary quartz remains");
+            var ops = p.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
+            var gift = ItemStack.CODEC.parse(ops, ItemStack.CODEC.encodeStart(ops, prism).getOrThrow()).getOrThrow();
+            p.setItemInHand(InteractionHand.MAIN_HAND, inv.removeItemNoUpdate(free));
+            finish.tap(p);
+            c.assertTrue(ItemStack.matches(p.getMainHandItem(), new ItemStack(Items.QUARTZ)), "Only one cut per correct answer");
+            ring(c, g, 0, finish, song, List.of(2, 0));
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.QUARTZ));
+            finish.tap(p);
+            c.assertTrue(InlayPrism.read(p.getMainHandItem()) == null, "Ringing alone does not renew the cut");
+            inlay(c, g, 0, other, song, List.of(2, 1, 0), "Diamond set");
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.QUARTZ));
+            finish.tap(p);
+            c.assertValueEqual(InlayPrism.read(p.getMainHandItem()), new InlayPrism(song), "A fresh solve allows a second cut");
+            var changed = new ChordSeal(List.of(EMBER_PEAKS, EMBER_PEAKS, EMBER_PEAKS), 1, 1);
+            other.mount(CadencePennant.banner(p, changed, 2), false);
+            perform(g, 0, other);
+            paper(c, g, 0, other, changed, 1);
+            var friend = g.players.get(1);
+            friend.setItemInHand(InteractionHand.MAIN_HAND, gift);
+            for (boolean right : List.of(false, true, true, false)) {
+                friend.setShiftKeyDown(right);
+                friend.gameMode.useItem(friend, friend.level(), gift, InteractionHand.MAIN_HAND);
+                var packets = g.drain(1);
+                SealCipherGameTests.expectSounds(c, packets, song, right ? List.of(1, 0) : List.of(2, 1));
+                var lights = GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW);
+                c.assertValueEqual(lights.size(), 2, "Only the sounding pair lights up");
+                c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_OFF).size(), 4,
+                    "The central inlay diamond is visible on either facet");
+                c.assertTrue(EchoChallengeGameTests.overlays(packets).stream().anyMatch(s -> s.contains(right ? "Right facet" : "Left facet")),
+                    "The caption distinguishes unison facets");
+                c.assertTrue(ItemStack.matches(gift, friend.getMainHandItem()), "Playback preserves the gift");
+            }
+            var visitor = g.drain(2);
+            SealCipherGameTests.expectSounds(c, visitor, song, List.of());
+            c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.GLOW).isEmpty(), "Prism playback is private");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
+        var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
+        for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {
+            var seal = new ChordSeal(pitches, start, step);
+            var prism = new InlayPrism(seal);
+            var item = prism.item();
+            c.assertValueEqual(InlayPrism.read(item), prism, "Three distinct pitches and their route survive cutting");
+            c.assertTrue(ChordSeal.read(item) == null && InlayPrism.read(seal.item()) == null,
+                "A prism and a stamped seal retain their own use actions");
+        }
+        c.assertTrue(InlayPrism.read(new ItemStack(Items.QUARTZ)) == null, "Ordinary quartz is not playable");
+        var invalid = new InlayPrism(new ChordSeal(pitches, 0, 0)).item();
+        c.assertTrue(InlayPrism.read(invalid) == null, "Reject a route with repeated roles");
+        c.succeed();
+    }
+
     @GameTest public void conductCollectedSolosInBothDirections(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Baton");
              var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
