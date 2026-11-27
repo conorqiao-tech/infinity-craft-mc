@@ -15,7 +15,8 @@ record InlayPrism(ChordSeal score) {
     ItemStack item() {
         var prism = CommonsEvents.named(Items.QUARTZ, 1, "Inlay Prism",
             "First • " + score.voiceName(score.cornerAt(0)), "Middle • " + score.voiceName(score.cornerAt(1)),
-            "Last • " + score.voiceName(score.cornerAt(2)), "Use for the left facet. Sneak-use for the right.");
+            "Last • " + score.voiceName(score.cornerAt(2)), "Use for the left facet. Sneak-use for the right.",
+            "Use on an amethyst block to start Prism Crossing.");
         prism.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
         score.writeScore(prism, KEY);
         return prism;
@@ -30,6 +31,7 @@ record InlayPrism(ChordSeal score) {
     void play(ServerPlayer p) {
         if (!CodaPostcard.canListen(p)) return;
         boolean rightFacet = p.isShiftKeyDown();
+        if (PrismCrossing.answer(p, this, rightFacet)) return;
         int first = score.cornerAt(rightFacet ? 1 : 0);
         int second = score.cornerAt(rightFacet ? 2 : 1);
         InfinityChimes.stopPlayback(p);

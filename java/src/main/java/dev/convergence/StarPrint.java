@@ -52,6 +52,7 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
         GalleryTrail.register();
         PostcardPairs.register();
         SealCipher.register();
+        PrismCrossing.register();
         PennantFanfare.register();
         UseEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (!(entity instanceof ItemFrame frame) || !(player instanceof ServerPlayer p)
