@@ -188,6 +188,86 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    private static void conduct(GameTestHelper c, EncoreDuetGameTests.Gallery g, int listener, Stand stand,
+                                ChordSeal expected, boolean sneak, List<Integer> notes, String caption) {
+        var player = g.players.get(listener);
+        var stick = new ItemStack(Items.STICK, 3);
+        player.setItemInHand(InteractionHand.MAIN_HAND, stick);
+        player.setShiftKeyDown(sneak);
+        stand.tap(player);
+        player.setShiftKeyDown(false);
+        var packets = g.drain(listener);
+        SealCipherGameTests.expectSounds(c, packets, expected, notes);
+        c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW).size(), notes.size(),
+            "Each sounding instrument lights its corner");
+        var captions = EchoChallengeGameTests.overlays(packets);
+        if (notes.isEmpty()) {
+            c.assertTrue(captions.stream().noneMatch(x -> x.contains("Chorus Baton")), "A different flag or listener cannot advance the baton");
+        } else {
+            c.assertTrue(captions.stream().anyMatch(x -> x.contains(caption)), "Baton direction and count are readable");
+        }
+        c.assertValueEqual(stick.getCount(), 3, "Conducting preserves the stick");
+    }
+
+    @GameTest public void conductCollectedSolosInBothDirections(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Baton");
+             var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            var expected = new ChordSeal(List.of(KITE, HALF_MOON, EMBER_PEAKS), 0, 1);
+            var low = new ChordSeal(List.of(KITE, KITE, KITE), 0, 1);
+            var middle = new ChordSeal(List.of(HALF_MOON, HALF_MOON, HALF_MOON), 0, 1);
+            var flag = CadencePennant.banner(p, middle, 1);
+            finish.mount(flag, true);
+            for (int i = 0; i < 4; i++) {
+                int role = List.of(2, 0, 2, 1).get(i);
+                var stand = i == 3 ? finish : other;
+                if (stand == other) stand.mount(CadencePennant.banner(p, i == 2 ? expected : low, role), false);
+                perform(g, 0, stand);
+                paper(c, g, 0, stand, expected, List.of(1, 2, 2, 3).get(i));
+            }
+            other.mount(flag, false);
+            conduct(c, g, 1, finish, expected, false, List.of(), "");
+            for (boolean backward : List.of(false, true)) {
+                var order = backward ? List.of(1, 0, 2) : List.of(2, 0, 1);
+                for (int i = 0; i < 4; i++) {
+                    conduct(c, g, 0, other, expected, false, List.of(), "");
+                    var notes = i == 3 ? List.of(0, 1, 2) : List.of(order.get(i));
+                    conduct(c, g, 0, finish, expected, i == 0 ? backward : !backward, notes,
+                        (backward ? "Backward " : "Forward ") + (i + 1) + "/4");
+                }
+            }
+            // Start a fresh phrase, then collect a solo toward a new trio.
+            conduct(c, g, 0, finish, expected, false, List.of(2), "Forward 1/4");
+            perform(g, 0, other);
+            paper(c, g, 0, other, expected, 1);
+            conduct(c, g, 0, finish, expected, false, List.of(), "");
+            for (int role : List.of(0, 2)) {
+                finish.mount(CadencePennant.banner(p, expected, role), true);
+                perform(g, 0, finish);
+                paper(c, g, 0, finish, expected, role == 0 ? 2 : 3);
+            }
+            conduct(c, g, 0, finish, expected, false, List.of(1), "Forward 1/4");
+            finish.mount(CadencePennant.banner(p, expected, 2), true);
+            conduct(c, g, 0, finish, expected, false, List.of(), "");
+            for (int role : List.of(1, 0, 2)) {
+                var stand = role == 2 ? finish : other;
+                stand.mount(CadencePennant.banner(p, expected, role), false);
+                perform(g, 0, stand);
+                paper(c, g, 0, stand, expected, role == 1 ? 1 : role == 0 ? 2 : 3);
+            }
+            conduct(c, g, 0, finish, expected, true, List.of(2), "Backward 1/4");
+            var cloth = (BannerBlockEntity) p.level().getBlockEntity(finish.pos());
+            cloth.applyComponentsFromItemStack(CadencePennant.banner(p, low, 2));
+            conduct(c, g, 0, finish, expected, false, List.of(), "");
+            cloth.applyComponentsFromItemStack(CadencePennant.banner(p, expected, 2));
+            conduct(c, g, 0, finish, expected, false, List.of(), "");
+            var visitor = g.drain(2);
+            SealCipherGameTests.expectSounds(c, visitor, expected, List.of());
+            c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.GLOW).isEmpty(), "Baton visuals stay private");
+        }
+        c.succeed();
+    }
+
     @GameTest public void featherPlaysPrivateCallAndAnswerOnTheSamePlacedFlag(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Fanfare");
              var stand = Stand.at(g.players.getFirst(), 0); var wall = Stand.at(g.players.getFirst(), 1)) {
