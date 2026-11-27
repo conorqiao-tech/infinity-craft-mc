@@ -564,6 +564,28 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void aimGlassAtSignedHalfBlockMidpoints(GameTestHelper c) {
+        var target = new MidpointBeacon(new BlockPos(-8, -6, -6), new BlockPos(-1, -1, -1));
+        // Midpoint (-4.5, -3.5, -3.5). Lift the chosen block by one, after rounding.
+        for (int x = -5; x <= -4; x++) for (int y = -3; y <= -2; y++) for (int z = -4; z <= -3; z++)
+            c.assertTrue(target.adjustment(new BlockPos(x, y, z)) == null, "All eight nearest cells work");
+        for (var miss : List.of(new BlockPos(-6,-3,-4), new BlockPos(-3,-3,-4), new BlockPos(-4,-4,-4),
+                new BlockPos(-4,-1,-4), new BlockPos(-4,-3,-5), new BlockPos(-4,-3,-2)))
+            c.assertTrue(target.adjustment(miss) != null, "Each adjacent non-nearest cell misses");
+        var exact = new MidpointBeacon(new BlockPos(-4, 0, -4), new BlockPos(4, 2, 4));
+        c.assertTrue(exact.adjustment(new BlockPos(0, 2, 0)) == null
+            && exact.adjustment(new BlockPos(0, 1, 0)) != null, "Glass sits above an exact midpoint");
+        c.succeed();
+    }
+
+    private static void tapGlass(ServerPlayer p, Stand glass) {
+        p.setPos(Vec3.atBottomCenterOf(glass.pos).add(0, -1, -1));
+        p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(glass.pos));
+        glass.tap(p);
+        // Some clients also send an item-use packet for the same click.
+        p.gameMode.useItem(p, p.level(), p.getMainHandItem(), InteractionHand.MAIN_HAND);
+    }
+
     @GameTest public void sightLongestLanternSpanInThreeDimensions(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Sight"); var station = Stand.at(g.players.getFirst(), 1);
              var a = Stand.at(station.owner, station.pos.offset(0, 0, 2));
@@ -633,6 +655,38 @@ public class PennantFanfareGameTests {
                     "A raised eight-ray compass marks the observer");
                 viewpoint.tap(p);
                 SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
+                // On the tie, first try the glass for the other valid survey viewpoint.
+                var wrongCell = route == 1 ? a.pos.offset(2, 4, 0) : a.pos.offset(6, 4, 0);
+                var goodCell = switch (route) {
+                    case 0 -> a.pos.offset(3, 3, 0);
+                    case 1 -> a.pos.offset(6, 4, 0);
+                    default -> a.pos.offset(2, 5, 0);
+                };
+                var alternate = route == 0 ? goodCell.east() : route == 1 ? goodCell.above() : goodCell.below();
+                try (var wrong = Stand.at(p, wrongCell); var glass = Stand.at(p, goodCell);
+                     var otherGlass = Stand.at(p, alternate)) {
+                    for (var target : List.of(wrong, glass, otherGlass))
+                        p.level().setBlock(target.pos, Blocks.GLASS.defaultBlockState(), 2);
+                    tapGlass(p, wrong);
+                    var rejected = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, rejected, song, List.of());
+                    c.assertTrue(EchoChallengeGameTests.overlays(rejected).stream().anyMatch(t -> t.contains("Try glass")),
+                        "Use the surveyed edge even when another longest span ties");
+                    tapGlass(p, glass);
+                    var lit = g.drain(0);
+                    int solo = song.cornerAt(reverse ? 2 - observer : observer);
+                    SealCipherGameTests.expectSounds(c, lit, song, List.of(solo));
+                    var crown = Vec3.atCenterOf(glass.pos).add(0, .95, 0);
+                    c.assertValueEqual(GalleryTrailGameTests.particles(lit, ParticleTypes.GLOW), List.of(crown),
+                        "The beacon rises over the chosen glass cell");
+                    c.assertTrue(GalleryTrailGameTests.particles(lit, ParticleTypes.END_ROD).stream()
+                        .anyMatch(point -> point.distanceTo(crown.add(.36, 0, 0)) < .001), "Halo marks the top of the beam");
+                    tapGlass(p, otherGlass);
+                    var spent = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, spent, song, List.of());
+                    c.assertTrue(GalleryTrailGameTests.particles(spent, ParticleTypes.GLOW).isEmpty(), "Only one beacon per survey");
+                    c.assertTrue(p.level().getBlockState(glass.pos).is(Blocks.GLASS), "Clear glass stays intact");
+                }
                 var bystander = g.drain(2);
                 SealCipherGameTests.expectSounds(c, bystander, song, List.of());
                 c.assertTrue(GalleryTrailGameTests.particles(bystander, ParticleTypes.GLOW).isEmpty(), "Survey effects are private");

@@ -21,9 +21,16 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
             if (!(player instanceof ServerPlayer p) || p.isSpectator() || hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
             var station = world.getBlockState(hit.getBlockPos());
-            if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN)) return InteractionResult.PASS;
+            if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN) && !station.is(Blocks.GLASS))
+                return InteractionResult.PASS;
             var prism = InlayPrism.read(p.getMainHandItem());
             if (prism == null) return InteractionResult.PASS;
+            if (station.is(Blocks.GLASS)) {
+                var walk = LanternWalk.surveyed(p, prism);
+                if (walk == null) return InteractionResult.PASS;
+                if (CodaPostcard.canListen(p)) walk.lightBeacon(p, hit.getBlockPos());
+                return InteractionResult.SUCCESS_SERVER;
+            }
             if (!CodaPostcard.canListen(p)) return InteractionResult.SUCCESS_SERVER;
             if (station.is(Blocks.LANTERN)) {
                 LanternWalk.visit(p, prism, hit.getBlockPos());
@@ -54,7 +61,8 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
         if (p.pick(p.blockInteractionRange(), 1, false) instanceof BlockHitResult hit
             && hit.getType() == HitResult.Type.BLOCK) {
             var station = p.level().getBlockState(hit.getBlockPos());
-            if (station.is(Blocks.LANTERN) || (round != null && station.is(Blocks.AMETHYST_BLOCK))) return true;
+            if (station.is(Blocks.LANTERN) || (round != null && station.is(Blocks.AMETHYST_BLOCK))
+                || (station.is(Blocks.GLASS) && LanternWalk.surveyed(p, held) != null)) return true;
         }
         if (round == null) return false;
         if (!round.prism.equals(held)) {
