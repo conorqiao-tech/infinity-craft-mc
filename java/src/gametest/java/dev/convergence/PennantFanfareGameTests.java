@@ -279,6 +279,71 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    private static void inlay(GameTestHelper c, EncoreDuetGameTests.Gallery g, int listener, Stand flag,
+                              ChordSeal chord, List<Integer> notes, String feedback) {
+        var player = g.players.get(listener);
+        var dust = new ItemStack(Items.GLOWSTONE_DUST, 4);
+        player.setItemInHand(InteractionHand.MAIN_HAND, dust);
+        flag.tap(player);
+        var packets = g.drain(listener);
+        SealCipherGameTests.expectSounds(c, packets, chord, notes);
+        c.assertValueEqual(dust.getCount(), 4, "Guessing preserves the dust");
+        var tips = GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_OFF);
+        c.assertValueEqual(tips.size(), notes.isEmpty() ? 0 : 4, "Only a correct answer sets the four diamond tips");
+        if (!feedback.isEmpty()) {
+            c.assertTrue(EchoChallengeGameTests.overlays(packets).stream().anyMatch(s -> s.contains(feedback)),
+                "The answer has readable feedback");
+        }
+        if (feedback.startsWith("Right instrument") || feedback.startsWith("Find the instrument")) {
+            c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_ON).size(), 4,
+                "A missed guess leaves an open four-dot socket");
+        }
+    }
+
+    @GameTest public void inlayMatchesMiddleRoleAndReplacedPitchOncePerRing(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Inlay");
+             var finish = Stand.at(g.players.getFirst(), 0); var guess = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            var old = new ChordSeal(List.of(HALF_MOON, HALF_MOON, HALF_MOON), 0, 1);
+            var chord = new ChordSeal(List.of(EMBER_PEAKS, EMBER_PEAKS, KITE), 0, 1);
+            var roles = List.of(1, 0, 0, 1, 2);
+            var counts = List.of(1, 2, 2, 2, 3);
+            for (int i = 0; i < roles.size(); i++) {
+                var flag = i == 4 ? finish : guess;
+                flag.mount(CadencePennant.banner(p, i < 2 ? old : chord, roles.get(i)), i == 4);
+                perform(g, 0, flag);
+                paper(c, g, 0, flag, chord, counts.get(i));
+            }
+            for (boolean backward : List.of(false, true)) {
+                var order = backward ? List.of(2, 0, 1) : List.of(1, 0, 2);
+                for (int i = 0; i < 4; i++) conduct(c, g, 0, finish, chord, backward,
+                    i == 3 ? List.of(0, 1, 2) : List.of(order.get(i)), (i + 1) + "/4");
+            }
+            var correct = CadencePennant.banner(p, chord, 0);
+            guess.mount(correct, false);
+            inlay(c, g, 0, guess, chord, List.of(), "");
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            conduct(c, g, 0, finish, chord, true, List.of(2), "Backward 1/4");
+            guess.mount(CadencePennant.banner(p, chord, 1), true);
+            inlay(c, g, 0, guess, chord, List.of(), "Find the instrument");
+            guess.mount(CadencePennant.banner(p, old, 0), false);
+            inlay(c, g, 0, guess, chord, List.of(), "Right instrument");
+            guess.mount(correct, false);
+            inlay(c, g, 1, guess, chord, List.of(), "");
+            inlay(c, g, 0, guess, chord, List.of(1, 0, 2), "Diamond set");
+            inlay(c, g, 0, guess, chord, List.of(), "");
+            conduct(c, g, 0, finish, chord, false, List.of(0), "Backward 2/4");
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            inlay(c, g, 0, guess, chord, List.of(1, 0, 2), "Diamond set");
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            finish.mount(CadencePennant.banner(p, chord, 2), true);
+            inlay(c, g, 0, guess, chord, List.of(), "finishing flag is gone");
+            c.assertTrue(GalleryTrailGameTests.particles(g.drain(2), ParticleTypes.WAX_OFF).isEmpty(),
+                "Nearby players receive no diamond");
+        }
+        c.succeed();
+    }
+
     @GameTest public void conductCollectedSolosInBothDirections(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Baton");
              var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
