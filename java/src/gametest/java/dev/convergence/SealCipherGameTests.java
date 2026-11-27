@@ -160,6 +160,93 @@ public class SealCipherGameTests {
         c.succeed();
     }
 
+    private static String pair(int first) {
+        return NAMES.get(first) + " + " + NAMES.get((first + 1) % 3);
+    }
+
+    @GameTest public void arrangeEveryKnotAsSoloAndAnswerWithTheComplement(GameTestHelper c) {
+        try (var g = new Gallery(c, "Cadence"); var desk = Desk.place(g.players.getFirst())) {
+            var p = desk.player;
+            for (int opening = 0; opening < 3; opening++) for (int step : List.of(1, -1)) {
+                var charts = opening == 0 ? List.of(KITE, KITE, KITE) : List.of(KITE, HALF_MOON, EMBER_PEAKS);
+                var seal = new ChordSeal(charts, opening, step);
+                p.setItemInHand(InteractionHand.MAIN_HAND, seal.item());
+                p.setShiftKeyDown(true); p.gameMode.useItem(p, p.level(), p.getMainHandItem(), InteractionHand.MAIN_HAND);
+                p.setShiftKeyDown(false); desk.use();
+                var missing = new ArrayList<Integer>();
+                for (int i = 0; i < 3; i++) {
+                    int lead = Math.floorMod(opening + i * step, 3);
+                    missing.add(3 - lead - Math.floorMod(lead + step, 3));
+                    choose(p, NAMES.get(missing.get(i)));
+                }
+                for (boolean backward : List.of(false, true)) {
+                    choose(p, backward ? "Backward refrain" : "Forward refrain");
+                    var order = backward ? missing.reversed() : missing;
+                    for (int voice : order) choose(p, NAMES.get(voice));
+                    choose(p, "Weave a cadence"); g.drain(0);
+                    for (int knot = 0; knot < 3; knot++) {
+                        int solo = order.get(knot), first = (solo + 1) % 3, second = (solo + 2) % 3;
+                        choose(p, "Knot " + (knot + 1) + " • " + NAMES.get(solo));
+                        var call = g.drain(0);
+                        expectSounds(c, call, seal, List.of(solo));
+                        c.assertValueEqual(particles(call, ParticleTypes.END_ROD).size(), 7, "One private call stem");
+                        for (int wrong : List.of(solo, second)) {
+                            choose(p, pair(wrong));
+                            var miss = g.drain(0);
+                            expectSounds(c, miss, seal, List.of());
+                            c.assertTrue(particles(miss, ParticleTypes.END_ROD).isEmpty()
+                                && ((InfinityJourney.Handler)p.containerMenu).view.content().contains(seal.voiceName(solo)),
+                                "Wrong answer leaves the solo in place");
+                        }
+                        choose(p, pair(first));
+                        var win = g.drain(0);
+                        expectSounds(c, win, seal, List.of(first, second));
+                        c.assertValueEqual(particles(win, ParticleTypes.END_ROD).size(), 19, "Both arms complete the fork");
+                        var finished = (InfinityJourney.Handler)p.containerMenu;
+                        c.assertTrue(finished.getSlot(21).getItem().is(SealCipher.ICONS.get(first))
+                            && finished.getSlot(23).getItem().is(SealCipher.ICONS.get(second)), "Both answer icons are visible");
+                        choose(p, "Play full chord"); expectSounds(c, g.drain(0), seal, List.of(0, 1, 2));
+                        choose(p, "Weave again"); expectSounds(c, g.drain(0), seal, List.of());
+                    }
+                    choose(p, "Back to refrain");
+                }
+                p.closeContainer(); p.gameMode.useItem(p, p.level(), p.getMainHandItem(), InteractionHand.MAIN_HAND);
+                c.assertTrue(EchoChallengeGameTests.overlays(g.drain(0)).stream().anyMatch(t -> t.startsWith("Chord Seal 2/4")),
+                    "Cadence preserved ordinary playback");
+            }
+            var observer = g.drain(1);
+            c.assertTrue(notes(observer).isEmpty() && particles(observer, ParticleTypes.END_ROD).isEmpty(), "Only the performer receives the fork and music");
+            c.assertValueEqual(p.level().getBlockState(desk.pos).getValue(NoteBlock.NOTE), 8, "Note block tuning preserved");
+        }
+        c.succeed();
+    }
+
+    @GameTest public void staleCadenceAnswerCannotResolveTwiceOrAfterASealSwap(GameTestHelper c) {
+        try (var g = new Gallery(c, "Fork"); var desk = Desk.place(g.players.getFirst())) {
+            var p = desk.player;
+            var seal = new ChordSeal(List.of(KITE, KITE, KITE), 0, 1);
+            p.setItemInHand(InteractionHand.MAIN_HAND, seal.item()); desk.use();
+            for (String voice : List.of("Bell", "Chime", "Harp")) choose(p, voice);
+            choose(p, "Backward refrain");
+            for (String voice : List.of("Harp", "Chime", "Bell")) choose(p, voice);
+            choose(p, "Weave a cadence"); choose(p, "Knot 2 • Chime");
+            choose(p, "Choose another solo"); choose(p, "Knot 1 • Harp");
+            p.closeContainer(); g.drain(0);
+            var forms = new ArrayList<Form>(); var reply = new CommonsGameTests();
+            InfinityJourney.form(p, InfinityJourney.Page.SEAL_CIPHER, forms::add);
+            var answer = (SimpleForm)forms.getFirst();
+            c.assertTrue(answer.content().contains("Kite harp"), "Touch form names the solo even at unison");
+            reply.reply(answer, "2"); expectSounds(c, g.drain(0), seal, List.of(2, 0));
+            p.closeContainer(); reply.reply(answer, "2"); expectSounds(c, g.drain(0), seal, List.of());
+            forms.clear(); InfinityJourney.form(p, InfinityJourney.Page.SEAL_CIPHER, forms::add);
+            p.setItemInHand(InteractionHand.MAIN_HAND, new ChordSeal(List.of(EMBER_PEAKS, HALF_MOON, KITE), 0, 1).item());
+            reply.reply((SimpleForm)forms.getFirst(), "0"); expectSounds(c, g.drain(0), seal, List.of());
+            desk.use();
+            c.assertTrue(((InfinityJourney.Handler)p.containerMenu).view.title().endsWith("0/3"), "New seal starts at its first clue");
+        }
+        c.succeed();
+    }
+
     @GameTest public void delayedRefrainResponsesCannotPlayAfterRestartOrSwap(GameTestHelper c) {
         try (var g = new Gallery(c, "Knot"); var desk = Desk.place(g.players.getFirst())) {
             var p = desk.player;

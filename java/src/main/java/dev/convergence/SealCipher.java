@@ -48,7 +48,7 @@ record SealCipher(ChordSeal seal, int solved, boolean retry, CipherRefrain refra
         InfinityJourney.open(p, InfinityJourney.Page.SEAL_CIPHER);
     }
 
-    private boolean current(ServerPlayer p) {
+    boolean current(ServerPlayer p) {
         return p.getAttached(ACTIVE) == this && seal.equals(ChordSeal.read(p.getMainHandItem())) && CodaPostcard.canListen(p);
     }
 

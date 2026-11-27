@@ -8,7 +8,8 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
-record CipherRefrain(boolean backward, int played, Feedback feedback) {
+record CipherRefrain(boolean backward, int played, Feedback feedback, RefrainCadence cadence) {
+    private CipherRefrain(boolean backward, int played, Feedback feedback) { this(backward, played, feedback, null); }
     enum Feedback { READY, MISS, HINT }
 
     static void addDirections(List<InfinityJourney.Choice> choices, ServerPlayer p, SealCipher round) {
@@ -18,7 +19,11 @@ record CipherRefrain(boolean backward, int played, Feedback feedback) {
             () -> round.openRefrain(p, new CipherRefrain(true, 0, Feedback.READY))));
     }
 
-    private int voice(ChordSeal seal, int beat) {
+    CipherRefrain withCadence(RefrainCadence next) {
+        return new CipherRefrain(backward, played, feedback, next);
+    }
+
+    int voice(ChordSeal seal, int beat) {
         int clue = backward ? 2 - beat : beat;
         return seal.cornerAt(clue + 2);
     }
@@ -34,6 +39,7 @@ record CipherRefrain(boolean backward, int played, Feedback feedback) {
     }
 
     InfinityJourney.View view(ServerPlayer p, SealCipher round) {
+        if (cadence != null) return cadence.view(p, round);
         var choices = new ArrayList<InfinityJourney.Choice>();
         var seal = round.seal();
         String score = (backward ? "Backward" : "Forward") + " • "
@@ -42,6 +48,8 @@ record CipherRefrain(boolean backward, int played, Feedback feedback) {
         String prompt;
         if (played == 3) {
             prompt = "Three knots tied. The full chord rings.";
+            choices.add(new InfinityJourney.Choice(Items.STRING, "Weave a cadence",
+                () -> round.openRefrain(p, withCadence(RefrainCadence.START))));
             addDirections(choices, p, round);
         } else {
             prompt = switch (feedback) {
@@ -62,6 +70,7 @@ record CipherRefrain(boolean backward, int played, Feedback feedback) {
     }
 
     void draw(SimpleContainer chest, ChordSeal seal) {
+        if (cadence != null) { cadence.draw(chest, seal, this); return; }
         for (int i = 0; i < 3; i++) {
             var icon = i < played ? SealCipher.ICONS.get(voice(seal, i)) : i == played ? Items.TARGET : Items.IRON_NUGGET;
             int slot = backward ? 15 - i * 2 : 11 + i * 2;
