@@ -349,6 +349,19 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .beat.now{border:3px solid var(--mint);box-shadow:0 0 0 3px #7cf5c433;color:var(--ink)}
 .beat.now .st{color:var(--mint)}
 .baton .row .btn{flex:1 1 120px}
+.infig{width:260px;height:128px;margin:0 auto}
+.infig svg{display:block;width:260px;height:128px}
+fieldset.chips{border:0;margin:0;padding:0;min-width:0}
+fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700;color:var(--ink)}
+.chiprow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.chip{position:relative;display:block}
+.chip input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.chip span{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:4px 6px;border-radius:10px;border:2px solid var(--line);background:var(--bg2);font-size:14px;font-weight:600;line-height:1.15}
+.chip input:checked+span{border-color:var(--lav);background:#b9a4ff2b;color:var(--ink)}
+.chip input:checked+span::before{content:"✓ "}
+.chip input:focus-visible+span{outline:3px solid var(--mint);outline-offset:2px}
+.chip input:disabled+span{opacity:.5}
+.chip input:disabled{cursor:not-allowed}
 .lpfig{width:280px;height:152px;margin:0 auto}
 .lpfig svg{display:block;width:280px;height:152px}
 @media(max-width:480px){.baton .ribbon{grid-template-columns:repeat(2,minmax(0,1fr))}.baton .beat{min-height:0}}
@@ -417,6 +430,14 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="btdir" id="lpProg_g">Finish a forward phrase and a backward phrase on the baton to light both lobes.</p>
 <div class="row"><button class="btn main" id="lpRing_g" type="button" aria-disabled="true">Ring the loop</button></div>
 <p class="status" id="lpStatus_g" role="status" aria-live="polite">Both lobes unlock Ring the loop.</p>
+</div>
+<div class="baton inlay" aria-labelledby="inT_g">
+<h4 id="inT_g">Loop Inlay</h4>
+<div class="infig" id="inFig_g" role="img" aria-label="Inlay locked"></div>
+<fieldset class="chips"><legend>Middle instrument</legend><div class="chiprow"><label class="chip"><input type="radio" name="inRole_g" value="chime" disabled><span>Chime</span></label><label class="chip"><input type="radio" name="inRole_g" value="harp" disabled><span>Harp</span></label><label class="chip"><input type="radio" name="inRole_g" value="bell" disabled><span>Bell</span></label></div></fieldset>
+<fieldset class="chips"><legend>Chart</legend><div class="chiprow"><label class="chip"><input type="radio" name="inNote_g" value="kite" disabled><span>Kite</span></label><label class="chip"><input type="radio" name="inNote_g" value="moon" disabled><span>Half Moon</span></label><label class="chip"><input type="radio" name="inNote_g" value="ember" disabled><span>Ember Peaks</span></label></div></fieldset>
+<div class="row"><button class="btn main" id="inSet_g" type="button" aria-disabled="true">Set the inlay</button></div>
+<p class="status" id="inStatus_g" role="status" aria-live="polite">Ring the loop to open an inlay attempt.</p>
 </div>
 </div>
 </section>
@@ -592,6 +613,7 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <li>Different players have private scorecards.</li>
 <li>Chorus Baton: tap the flag where the chorus finished with a plain stick, once per beat. Sneak on the first tap to go backward.</li>
 <li>Infinity Loop: complete both baton directions on the finishing pennant, then use a plain amethyst shard on that flag to ring the loop.</li>
+<li>Loop Inlay: after ringing with amethyst, touch a placed Cadence Pennant bearing the middle solo and its pitch with plain glowstone dust.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -844,6 +866,14 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 <p class="btdir" id="lpProg_p">Finish a forward phrase and a backward phrase on the baton to light both lobes.</p>
 <div class="row"><button class="btn main" id="lpRing_p" type="button" aria-disabled="true">Ring the loop</button></div>
 <p class="status" id="lpStatus_p" role="status" aria-live="polite">Both lobes unlock Ring the loop.</p>
+</div>
+<div class="baton inlay" aria-labelledby="inT_p">
+<h4 id="inT_p">Loop Inlay</h4>
+<div class="infig" id="inFig_p" role="img" aria-label="Inlay locked"></div>
+<fieldset class="chips"><legend>Middle instrument</legend><div class="chiprow"><label class="chip"><input type="radio" name="inRole_p" value="chime" disabled><span>Chime</span></label><label class="chip"><input type="radio" name="inRole_p" value="harp" disabled><span>Harp</span></label><label class="chip"><input type="radio" name="inRole_p" value="bell" disabled><span>Bell</span></label></div></fieldset>
+<fieldset class="chips"><legend>Chart</legend><div class="chiprow"><label class="chip"><input type="radio" name="inNote_p" value="kite" disabled><span>Kite</span></label><label class="chip"><input type="radio" name="inNote_p" value="moon" disabled><span>Half Moon</span></label><label class="chip"><input type="radio" name="inNote_p" value="ember" disabled><span>Ember Peaks</span></label></div></fieldset>
+<div class="row"><button class="btn main" id="inSet_p" type="button" aria-disabled="true">Set the inlay</button></div>
+<p class="status" id="inStatus_p" role="status" aria-live="polite">Ring the loop to open an inlay attempt.</p>
 </div>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
@@ -1722,7 +1752,7 @@ function chCollect(){
  const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
  CH.armed=false;
  let pre="";
- if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";IN={open:false,role:null,note:null,earned:null};inSay("New trio started, so the inlay was cleared. Ring a newly earned loop to try again.","");LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
  const old=CH.slots[role];CH.slots[role]=id;if(!CH.order.includes(role))CH.order.push(role);
  const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
  if(filled.length===3){
@@ -1804,6 +1834,7 @@ function loopSVG(){
  return `<svg viewBox="0 0 280 152" aria-hidden="true">${g}</svg>`;
 }
 function renderLoop(){
+ renderInlay();
  const has=!!BT.score,both=has&&LP.f&&LP.b;
  const ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null,mid=has?CAP[BT.score[1].role]:"";
  const prog=!has?"Complete a chorus trio, then finish a forward phrase and a backward phrase on the baton to light both lobes.":`Forward (left) lobe: <b>${LP.f?"lit":"missing"}</b>. Backward (right) lobe: <b>${LP.b?"lit":"missing"}</b>. ${both?`Ring plays ${esc(vName(ends[0]))} and ${esc(vName(ends[1]))}; the ${mid.toLowerCase()} stays silent.`:"Finish a four-beat phrase in the missing direction."}`;
@@ -1819,11 +1850,60 @@ function lpRing(){
  if(!(LP.f&&LP.b)){lpSay(`Light both lobes first. Missing: ${[!LP.f&&"forward (left)",!LP.b&&"backward (right)"].filter(Boolean).join(" and ")}.`,"");return}
  const a=chVoice(BT.score[0].role,BT.score[0].id),z=chVoice(BT.score[2].role,BT.score[2].id),mid=CAP[BT.score[1].role];
  if(state.sound){try{const t=ensureCtx();playVoice(a,t);playVoice(z,t)}catch(e){}}
- LP.rung=true;renderLoop();
+ LP.rung=true;IN.open=true;IN.role=null;IN.note=null;IN.earned=null;renderLoop();inSay("Inlay attempt open: choose the middle instrument and its chart, then Set the inlay.","");
  const keep=btActive()?` Your ${BT.dir==="b"?"backward":"forward"} baton phrase is unchanged: beat ${BT.step+1} is next.`:"";
  lpSay(`Loop rung: ${vName(a)} ${a.p} with ${vName(z)} ${z.p}, together. The ${mid.toLowerCase()} stays silent.${keep}`,"live");
 }
 FFK.forEach(k=>$("lpRing_"+k).addEventListener('click',lpRing));
+/* loop inlay (session only, shared by Guide and #pairs) */
+let IN={open:false,role:null,note:null,earned:null};
+function inSay(msg,kind){FFK.forEach(k=>{const s=$("inStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+const inMid=()=>chVoice(BT.score[1].role,BT.score[1].id);
+function inlaySVG(){
+ const has=!!BT.score,ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null,e=IN.earned;
+ const path="M130 64 C108 34 54 34 54 64 C54 94 108 94 130 64 C152 34 206 34 206 64 C206 94 152 94 130 64";
+ let g=`<path d="${path}" fill="none" stroke="${e?"#b9a4ff":"#4a52a0"}" stroke-width="${e?2.5:2}"${e?"":' stroke-dasharray="4 6"'}/>`;
+ if(e){const col=byId(e.id).c;g+=`<rect x="119" y="53" width="22" height="22" transform="rotate(45 130 64)" fill="${col}" stroke="#ffffff" stroke-width="2.5"/><rect x="113" y="47" width="34" height="34" transform="rotate(45 130 64)" fill="none" stroke="${col}" stroke-width="6" opacity=".25"/>`}
+ else g+=`<rect x="120" y="54" width="20" height="20" transform="rotate(45 130 64)" fill="#141846" stroke="#5a62b0" stroke-width="2" stroke-dasharray="4 4"/><text x="130" y="69" text-anchor="middle" class="cxl" fill="#9aa0dc">?</text>`;
+ g+=`<text x="130" y="15" text-anchor="middle" class="cxl" fill="${e?"#eef0ff":"#9aa0dc"}">Middle · ${e?CAP[e.role]:"?"}</text><text x="130" y="30" text-anchor="middle" class="cxn" fill="#b9bde8">${e?`${nm(e.id)} ${e.p}`:"not set"}</text>`;
+ if(ends)ends.forEach((v,i)=>{const x=i?206:54,col=byId(v.id).c,an=i?"end":"start",lx=i?256:4;g+=`<circle cx="${x}" cy="64" r="7" fill="${col}" stroke="#0e1030" stroke-width="2"/><text x="${lx}" y="108" text-anchor="${an}" class="cxl" fill="#eef0ff">${i?"Last":"First"} · ${CAP[v.role]}</text><text x="${lx}" y="123" text-anchor="${an}" class="cxn" fill="#b9bde8">${nm(v.id)} ${v.p}</text>`});
+ else g+=`<text x="130" y="116" text-anchor="middle" class="cxn" fill="#9aa0dc">Complete a chorus trio first</text>`;
+ return `<svg viewBox="0 0 260 128" aria-hidden="true">${g}</svg>`;
+}
+function renderInlay(){
+ const has=!!BT.score,ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null;
+ const lab=!has?"Inlay locked":`Miniature infinity score: first ${vName(ends[0])} ${ends[0].p}, last ${vName(ends[1])} ${ends[1].p}, center ${IN.earned?`diamond earned: ${vName(IN.earned)} ${IN.earned.p}`:"diamond not set"}.${IN.open?" Inlay attempt open.":""}`;
+ FFK.forEach(k=>{
+  $("inFig_"+k).innerHTML=inlaySVG();$("inFig_"+k).setAttribute('aria-label',lab);
+  document.querySelectorAll(`input[name="inRole_${k}"]`).forEach(i=>{i.disabled=!IN.open;i.checked=i.value===IN.role});
+  document.querySelectorAll(`input[name="inNote_${k}"]`).forEach(i=>{i.disabled=!IN.open;i.checked=i.value===IN.note});
+  $("inSet_"+k).setAttribute('aria-disabled',IN.open?"false":"true");
+ });
+}
+document.addEventListener('change',e=>{
+ const t=e.target;if(!t.name)return;
+ if(t.name.startsWith("inRole_")&&IN.open){IN.role=t.value;renderInlay()}
+ if(t.name.startsWith("inNote_")&&IN.open){IN.note=t.value;renderInlay()}
+});
+function inSet(){
+ if(!IN.open){inSay(IN.earned?"This inlay is already set. Ring the loop again to open a fresh attempt.":"Ring the earned loop first to open an inlay attempt.","");return}
+ if(!IN.role||!IN.note){inSay(`Choose ${!IN.role&&!IN.note?"an instrument and a chart":!IN.role?"an instrument":"a chart"} first.`,"");return}
+ const m=inMid(),f=BT.score[0].role,roleOK=IN.role===m.role,noteOK=IN.note===m.id;
+ const pos=r=>r===f?"first":"last";
+ const cmp=()=>byId(m.id).n>byId(IN.note).n?"higher":"lower";
+ if(!(roleOK&&noteOK)){
+  let h;
+  if(!roleOK&&!noteOK)h=`Neither matches. ${CAP[IN.role]} is the ${pos(IN.role)} voice the ring played, so it isn't the middle, and the middle chart sits ${cmp()} on the note-block scale than ${nm(IN.note)}.`;
+  else if(roleOK)h=`Right instrument (${CAP[IN.role]}), wrong chart. The middle chart sits ${cmp()} on the note-block scale than ${nm(IN.note)}.`;
+  else h=`Right chart (${nm(IN.note)}), wrong instrument. ${CAP[IN.role]} is the ${pos(IN.role)} voice the ring played; the middle is the instrument it left out.`;
+  inSay(h+" The attempt is still open.","quiet");return;
+ }
+ const vs=BT.score.map(x=>chVoice(x.role,x.id));
+ if(state.sound){try{const t=ensureCtx();vs.forEach(v=>playVoice(v,t))}catch(e){}}
+ IN.open=false;IN.earned={role:m.role,id:m.id,p:m.p};renderInlay();
+ inSay(`Inlay set: ${vName(m)} ${m.p} is the middle. All three together: ${vs.map(v=>`${vName(v)} ${v.p}`).join(", ")}. Ring the loop again for a fresh attempt.`,"live");
+}
+FFK.forEach(k=>$("inSet_"+k).addEventListener('click',inSet));
 FFK.forEach(k=>{$("btFwd_"+k).addEventListener('click',()=>btConduct("f"));$("btBack_"+k).addEventListener('click',()=>btConduct("b"));$("btNext_"+k).addEventListener('click',btNext)});
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
