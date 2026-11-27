@@ -39,6 +39,8 @@ final class PennantFanfare {
         final List<Integer> order;
         int beat;
         boolean backward;
+        boolean leftLit;
+        boolean rightLit;
 
         Baton(BannerBlockEntity banner, CadencePennant design, Map<Integer, StarLoom.Chart> voices) {
             this.banner = new WeakReference<>(banner);
@@ -54,6 +56,10 @@ final class PennantFanfare {
             String label;
             if (beat == 3) {
                 label = soundAndDrawChorus(p, pos, voices);
+                if (backward) rightLit = true;
+                else leftLit = true;
+                drawLoop(p, pos, false);
+                label += " • " + loopHint();
             } else {
                 int role = order.get(backward ? 2 - beat : beat);
                 var chart = voices.get(role);
@@ -67,6 +73,48 @@ final class PennantFanfare {
             }
             ConcertStage.overlay(p, "Chorus Baton • " + (backward ? "Backward " : "Forward ") + (beat + 1) + "/4 • " + label);
             beat = (beat + 1) % 4;
+        }
+
+        private String loopHint() {
+            if (leftLit && rightLit) return "∞ Both lit • Ring with amethyst";
+            if (leftLit) return "Left lit • Finish backward";
+            if (rightLit) return "Right lit • Finish forward";
+            return "Finish a forward and a backward phrase";
+        }
+
+        void ring(ServerPlayer p, BlockPos pos) {
+            if (!leftLit || !rightLit) {
+                ConcertStage.overlay(p, "Infinity Loop • " + loopHint());
+                return;
+            }
+            int first = order.getFirst(), last = order.getLast();
+            InfinityChimes.stopPlayback(p);
+            EncoreDuet.leave(p);
+            CircuitConductor.soundVoice(p, first, voices.get(first));
+            CircuitConductor.soundVoice(p, last, voices.get(last));
+            drawLoop(p, pos, true);
+            ConcertStage.overlay(p, "Infinity Loop • " + name(voices.get(first), first) + " + " + name(voices.get(last), last));
+        }
+
+        private void drawLoop(ServerPlayer p, BlockPos pos, boolean ringing) {
+            var center = faceCenter(p, pos).add(0, .60, 0);
+            var right = viewerRight(p);
+            drawLobe(p, center, right.scale(-1), voices.get(order.getFirst()), leftLit);
+            drawLobe(p, center, right, voices.get(order.getLast()), rightLit);
+            if (leftLit && rightLit) GalleryTrail.spark(p, ParticleTypes.ELECTRIC_SPARK, center);
+            if (ringing) {
+                GalleryTrail.spark(p, ParticleTypes.END_ROD, center.add(right.scale(.52)));
+                GalleryTrail.spark(p, ParticleTypes.END_ROD, center.subtract(right.scale(.52)));
+            }
+        }
+
+        private static void drawLobe(ServerPlayer p, Vec3 center, Vec3 outward, StarLoom.Chart chart, boolean lit) {
+            var dust = new DustParticleOptions(chart.ink, .55f);
+            for (int i = lit ? 0 : 4; i < 16; i += lit ? 1 : 4) {
+                double t = Math.PI * i / 16;
+                var point = center.add(outward.scale(.52 * Math.sin(t))).add(0, .19 * Math.sin(2 * t), 0);
+                GalleryTrail.spark(p, lit ? dust : ParticleTypes.WAX_ON, point);
+            }
         }
     }
 
@@ -83,7 +131,8 @@ final class PennantFanfare {
             var held = p.getMainHandItem();
             boolean paper = held.is(Items.PAPER);
             boolean stick = held.is(Items.STICK);
-            if ((!paper && !stick && !held.is(Items.FEATHER))
+            boolean shard = held.is(Items.AMETHYST_SHARD);
+            if ((!paper && !stick && !shard && !held.is(Items.FEATHER))
                     || !(world.getBlockEntity(hit.getBlockPos()) instanceof BannerBlockEntity banner)) return InteractionResult.PASS;
             var score = CadencePennant.read(banner);
             var previous = p.getAttached(PENDING);
@@ -97,9 +146,12 @@ final class PennantFanfare {
                 p.removeAttached(BATON);
                 finishingFlag = false;
             }
-            if (stick) {
+            if (stick || shard) {
                 if (!finishingFlag) return InteractionResult.PASS;
-                if (CodaPostcard.canListen(p)) baton.conduct(p, banner.getBlockPos());
+                if (CodaPostcard.canListen(p)) {
+                    if (shard) baton.ring(p, banner.getBlockPos());
+                    else baton.conduct(p, banner.getBlockPos());
+                }
                 return InteractionResult.SUCCESS_SERVER;
             }
             if (score == null) return InteractionResult.PASS;

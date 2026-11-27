@@ -209,6 +209,76 @@ public class PennantFanfareGameTests {
         c.assertValueEqual(stick.getCount(), 3, "Conducting preserves the stick");
     }
 
+    private static void ring(GameTestHelper c, EncoreDuetGameTests.Gallery g, int listener, Stand flag,
+                             ChordSeal chord, List<Integer> expected) {
+        var p = g.players.get(listener);
+        var shards = new ItemStack(Items.AMETHYST_SHARD, 3);
+        p.setItemInHand(InteractionHand.MAIN_HAND, shards);
+        flag.tap(p);
+        var packets = g.drain(listener);
+        SealCipherGameTests.expectSounds(c, packets, chord, expected);
+        var knot = GalleryTrailGameTests.particles(packets, ParticleTypes.ELECTRIC_SPARK);
+        var tips = GalleryTrailGameTests.particles(packets, ParticleTypes.END_ROD);
+        c.assertValueEqual(knot.size(), expected.isEmpty() ? 0 : 1, "Only an unlocked loop rings at its crossing");
+        c.assertValueEqual(tips.size(), expected.size(), "Both outer tips flare for the duet");
+        if (!expected.isEmpty()) {
+            c.assertTrue(tips.getFirst().distanceTo(tips.getLast()) > 1.0
+                && tips.getFirst().lerp(tips.getLast(), .5).distanceTo(knot.getFirst()) < .001,
+                "The two tips frame the central spark");
+        }
+        c.assertValueEqual(shards.getCount(), 3, "The shard is reusable");
+    }
+
+    @GameTest public void ringOuterVoicesAfterBothBatonDirections(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Loop");
+             var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
+            var p = g.players.getFirst();
+            var chord = new ChordSeal(List.of(HALF_MOON, EMBER_PEAKS, HALF_MOON), 0, 1);
+            var low = new ChordSeal(List.of(KITE, KITE, KITE), 0, 1);
+            var finishDesign = CadencePennant.banner(p, new ChordSeal(List.of(KITE, KITE, HALF_MOON), 0, 1), 2);
+            var joined = List.of(1, 0, 1, 2);
+            for (int i = 0; i < joined.size(); i++) {
+                var flag = i == 3 ? finish : other;
+                flag.mount(i == 3 ? finishDesign : CadencePennant.banner(p, i == 0 ? low : chord, joined.get(i)), i == 3);
+                perform(g, 0, flag);
+                paper(c, g, 0, flag, chord, List.of(1, 2, 2, 3).get(i));
+            }
+            other.mount(finishDesign, false);
+            for (boolean backward : List.of(true, true, false)) {
+                var order = backward ? List.of(2, 0, 1) : List.of(1, 0, 2);
+                for (int i = 0; i < 3; i++) {
+                    conduct(c, g, 0, finish, chord, backward, List.of(order.get(i)), (i + 1) + "/4");
+                }
+                ring(c, g, 0, finish, chord, List.of());
+                p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STICK));
+                finish.tap(p);
+                var packets = g.drain(0);
+                SealCipherGameTests.expectSounds(c, packets, chord, List.of(0, 1, 2));
+                c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_ON).size(),
+                    backward ? 3 : 0, "An unearned lobe has three guide dots");
+                c.assertValueEqual(GalleryTrailGameTests.particles(packets, ParticleTypes.ELECTRIC_SPARK).size(),
+                    backward ? 0 : 1, "A repeated direction leaves the crossing dark");
+            }
+            conduct(c, g, 0, finish, chord, true, List.of(2), "Backward 1/4");
+            conduct(c, g, 0, finish, chord, false, List.of(0), "Backward 2/4");
+            ring(c, g, 1, finish, chord, List.of());
+            ring(c, g, 0, other, chord, List.of());
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            conduct(c, g, 0, finish, chord, false, List.of(1), "Backward 3/4");
+            conduct(c, g, 0, finish, chord, false, List.of(0, 1, 2), "Backward 4/4");
+            perform(g, 0, other);
+            ring(c, g, 0, finish, chord, List.of(1, 2));
+            paper(c, g, 0, other, chord, 1);
+            ring(c, g, 0, finish, chord, List.of());
+            var visitor = g.drain(2);
+            SealCipherGameTests.expectSounds(c, visitor, chord, List.of());
+            c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.ELECTRIC_SPARK).isEmpty(),
+                "The completed loop belongs to its conductor");
+        }
+        c.succeed();
+    }
+
     @GameTest public void conductCollectedSolosInBothDirections(GameTestHelper c) {
         try (var g = new EncoreDuetGameTests.Gallery(c, "Baton");
              var finish = Stand.at(g.players.getFirst(), 0); var other = Stand.at(g.players.getFirst(), 1)) {
