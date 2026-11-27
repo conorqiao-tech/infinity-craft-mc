@@ -349,6 +349,11 @@ h3 small{font:400 14px Figtree,sans-serif;color:var(--soft)}
 .beat.now{border:3px solid var(--mint);box-shadow:0 0 0 3px #7cf5c433;color:var(--ink)}
 .beat.now .st{color:var(--mint)}
 .baton .row .btn{flex:1 1 120px}
+.prism{margin-top:6px;padding-top:12px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px}
+.prism h4{margin:0;font:700 17px "Pixelify Sans",sans-serif}
+.prism .row .btn{flex:1 1 130px}
+.prfig{width:280px;height:200px;margin:0 auto}
+.prfig svg{display:block;width:280px;height:200px}
 .infig{width:260px;height:128px;margin:0 auto}
 .infig svg{display:block;width:260px;height:128px}
 fieldset.chips{border:0;margin:0;padding:0;min-width:0}
@@ -438,6 +443,17 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <fieldset class="chips"><legend>Chart</legend><div class="chiprow"><label class="chip"><input type="radio" name="inNote_g" value="kite" disabled><span>Kite</span></label><label class="chip"><input type="radio" name="inNote_g" value="moon" disabled><span>Half Moon</span></label><label class="chip"><input type="radio" name="inNote_g" value="ember" disabled><span>Ember Peaks</span></label></div></fieldset>
 <div class="row"><button class="btn main" id="inSet_g" type="button" aria-disabled="true">Set the inlay</button></div>
 <p class="status" id="inStatus_g" role="status" aria-live="polite">Ring the loop to open an inlay attempt.</p>
+<div class="prism" aria-labelledby="prT_g">
+<h4 id="prT_g">Inlay Prism</h4>
+<div class="prfig" id="prFig_g" role="img" aria-label="No prism saved"></div>
+<p class="btdir" id="prInfo_g">Set the inlay correctly, then cut a prism to keep this trio.</p>
+<div class="row"><button class="btn main" id="prCut_g" type="button" aria-disabled="true">Cut prism</button></div>
+<div class="row">
+<button class="btn" id="prL_g" type="button" aria-disabled="true">Play left facet</button>
+<button class="btn" id="prR_g" type="button" aria-disabled="true">Play right facet</button>
+</div>
+<p class="status" id="prStatus_g" role="status" aria-live="polite">No prism saved yet.</p>
+</div>
 </div>
 </div>
 </section>
@@ -614,6 +630,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Chorus Baton: tap the flag where the chorus finished with a plain stick, once per beat. Sneak on the first tap to go backward.</li>
 <li>Infinity Loop: complete both baton directions on the finishing pennant, then use a plain amethyst shard on that flag to ring the loop.</li>
 <li>Loop Inlay: after ringing with amethyst, touch a placed Cadence Pennant bearing the middle solo and its pitch with plain glowstone dust.</li>
+<li>Inlay Prism: after solving, cut one plain nether quartz at the original finishing flag. Use the portable prism normally for the left facet or Sneak-use it for the right facet. It can be given to another player.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -874,6 +891,17 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <fieldset class="chips"><legend>Chart</legend><div class="chiprow"><label class="chip"><input type="radio" name="inNote_p" value="kite" disabled><span>Kite</span></label><label class="chip"><input type="radio" name="inNote_p" value="moon" disabled><span>Half Moon</span></label><label class="chip"><input type="radio" name="inNote_p" value="ember" disabled><span>Ember Peaks</span></label></div></fieldset>
 <div class="row"><button class="btn main" id="inSet_p" type="button" aria-disabled="true">Set the inlay</button></div>
 <p class="status" id="inStatus_p" role="status" aria-live="polite">Ring the loop to open an inlay attempt.</p>
+<div class="prism" aria-labelledby="prT_p">
+<h4 id="prT_p">Inlay Prism</h4>
+<div class="prfig" id="prFig_p" role="img" aria-label="No prism saved"></div>
+<p class="btdir" id="prInfo_p">Set the inlay correctly, then cut a prism to keep this trio.</p>
+<div class="row"><button class="btn main" id="prCut_p" type="button" aria-disabled="true">Cut prism</button></div>
+<div class="row">
+<button class="btn" id="prL_p" type="button" aria-disabled="true">Play left facet</button>
+<button class="btn" id="prR_p" type="button" aria-disabled="true">Play right facet</button>
+</div>
+<p class="status" id="prStatus_p" role="status" aria-live="polite">No prism saved yet.</p>
+</div>
 </div>
 </div>
 <p class="status" id="pnStatus" role="status" aria-live="polite" style="margin-top:12px">Keeping a pennant is silent and saves only the design on this device.</p>
@@ -1752,7 +1780,7 @@ function chCollect(){
  const v=ffVoices(PN),role=v.solo.role,id=v.solo.id;
  CH.armed=false;
  let pre="";
- if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";IN={open:false,role:null,note:null,earned:null};inSay("New trio started, so the inlay was cleared. Ring a newly earned loop to try again.","");LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
+ if(CH.done){CH.slots={chime:null,harp:null,bell:null};CH.done=false;CH.order=[];pre="New trio started. ";if(PR.opp)prSay("Starting a new trio cleared the uncut prism."+(PRZ?" Your saved prism is still playable.":""),"");PR.opp=false;PR.cut=false;IN={open:false,role:null,note:null,earned:null};inSay("New trio started, so the inlay was cleared. Ring a newly earned loop to try again.","");LP={f:false,b:false,rung:false};lpSay("New trio started, so the Infinity Loop was cleared. Complete the trio, then finish both baton directions to light it again.","");if(BT.score){BT={score:null,dir:null,step:0};btSay("A new trio started, so the baton was cleared. Complete the trio to conduct again.","")}}
  const old=CH.slots[role];CH.slots[role]=id;if(!CH.order.includes(role))CH.order.push(role);
  const filled=ROLES.filter(r=>CH.slots[r]),need=ROLES.filter(r=>!CH.slots[r]).map(r=>CAP[r]);
  if(filled.length===3){
@@ -1850,7 +1878,7 @@ function lpRing(){
  if(!(LP.f&&LP.b)){lpSay(`Light both lobes first. Missing: ${[!LP.f&&"forward (left)",!LP.b&&"backward (right)"].filter(Boolean).join(" and ")}.`,"");return}
  const a=chVoice(BT.score[0].role,BT.score[0].id),z=chVoice(BT.score[2].role,BT.score[2].id),mid=CAP[BT.score[1].role];
  if(state.sound){try{const t=ensureCtx();playVoice(a,t);playVoice(z,t)}catch(e){}}
- LP.rung=true;IN.open=true;IN.role=null;IN.note=null;IN.earned=null;renderLoop();inSay("Inlay attempt open: choose the middle instrument and its chart, then Set the inlay.","");
+ LP.rung=true;IN.open=true;IN.role=null;IN.note=null;IN.earned=null;const prWas=PR.opp;PR.opp=false;PR.cut=false;renderLoop();if(prWas)prSay("Re-ringing cleared the uncut prism. Solve the inlay again to cut one.","");inSay("Inlay attempt open: choose the middle instrument and its chart, then Set the inlay.","");
  const keep=btActive()?` Your ${BT.dir==="b"?"backward":"forward"} baton phrase is unchanged: beat ${BT.step+1} is next.`:"";
  lpSay(`Loop rung: ${vName(a)} ${a.p} with ${vName(z)} ${z.p}, together. The ${mid.toLowerCase()} stays silent.${keep}`,"live");
 }
@@ -1871,6 +1899,7 @@ function inlaySVG(){
  return `<svg viewBox="0 0 260 128" aria-hidden="true">${g}</svg>`;
 }
 function renderInlay(){
+ renderPrism();
  const has=!!BT.score,ends=has?[chVoice(BT.score[0].role,BT.score[0].id),chVoice(BT.score[2].role,BT.score[2].id)]:null;
  const lab=!has?"Inlay locked":`Miniature infinity score: first ${vName(ends[0])} ${ends[0].p}, last ${vName(ends[1])} ${ends[1].p}, center ${IN.earned?`diamond earned: ${vName(IN.earned)} ${IN.earned.p}`:"diamond not set"}.${IN.open?" Inlay attempt open.":""}`;
  FFK.forEach(k=>{
@@ -1900,10 +1929,70 @@ function inSet(){
  }
  const vs=BT.score.map(x=>chVoice(x.role,x.id));
  if(state.sound){try{const t=ensureCtx();vs.forEach(v=>playVoice(v,t))}catch(e){}}
- IN.open=false;IN.earned={role:m.role,id:m.id,p:m.p};renderInlay();
+ IN.open=false;IN.earned={role:m.role,id:m.id,p:m.p};PR.opp=true;PR.cut=false;renderInlay();prSay("Inlay solved. Cut prism is ready for this round.","");
  inSay(`Inlay set: ${vName(m)} ${m.p} is the middle. All three together: ${vs.map(v=>`${vName(v)} ${v.p}`).join(", ")}. Ring the loop again for a fresh attempt.`,"live");
 }
 FFK.forEach(k=>$("inSet_"+k).addEventListener('click',inSet));
+/* inlay prism (portable copy saved separately; session opportunity) */
+let PR={opp:false,cut:false,face:null};
+function validPrism(x){return !!x&&typeof x==="object"&&!Array.isArray(x)&&x.ver===1&&Array.isArray(x.voices)&&x.voices.length===3&&x.voices.every(v=>!!v&&typeof v==="object"&&typeof v.role==="string"&&ROLES.includes(v.role)&&typeof v.note==="string"&&NOTE_IDS.includes(v.note))&&new Set(x.voices.map(v=>v.role)).size===3}
+let PRZ=validPrism(store.prism)?{ver:1,voices:store.prism.voices.map(v=>({role:v.role,note:v.note}))}:null;
+if("prism" in store)state.prism=store.prism;
+function prSay(msg,kind){FFK.forEach(k=>{const s=$("prStatus_"+k);s.textContent=msg;s.className="status"+(kind?" "+kind:"")})}
+const prV=z=>z.voices.map(v=>chVoice(v.role,v.note));
+function prismSVG(panel){
+ const hatch="prism-hatch-"+panel;
+ const A=[140,40],Ls=[76,72],Lf=[96,140],B=[140,152],Rf=[184,140],Rs=[204,72];
+ const pt=a=>a.join(",");
+ if(!PRZ)return `<svg viewBox="0 0 280 200" aria-hidden="true"><polygon points="${[A,Ls,Lf,B,Rf,Rs].map(pt).join(" ")}" fill="none" stroke="#4a52a0" stroke-width="2" stroke-dasharray="5 5"/><line x1="140" y1="40" x2="140" y2="152" stroke="#4a52a0" stroke-dasharray="5 5"/><text x="140" y="104" text-anchor="middle" class="cxl" fill="#9aa0dc">No prism</text></svg>`;
+ const v=prV(PRZ),fL=PR.face==="L",fR=PR.face==="R";
+ const face=(pts,on,lab,cx)=>`<polygon points="${pts.map(pt).join(" ")}" fill="${on?`url(#${hatch})`:"#e9e4dc"}" stroke="${on?"#0e1030":"#8a8798"}" stroke-width="${on?3.5:1.5}" stroke-linejoin="round"/><rect x="${cx-26}" y="96" width="52" height="20" rx="4" fill="${on?"#0e1030":"#f7f4ef"}" stroke="#0e1030" stroke-width="${on?0:1}"/><text x="${cx}" y="110" text-anchor="middle" class="sealsub" fill="${on?"#ffffff":"#14123a"}">${on?"▶ ":""}${lab}</text>`;
+ let g=`<defs><pattern id="${hatch}" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#c9fff0"/><line x1="0" y1="0" x2="0" y2="7" stroke="#0e1030" stroke-width="2.4"/></pattern></defs>`;
+ g+=face([A,Ls,Lf,B],fL,"Left",108)+face([A,Rs,Rf,B],fR,"Right",172);
+ g+=`<line x1="140" y1="40" x2="140" y2="152" stroke="#0e1030" stroke-width="2"/>`;
+ const mk=(x,y,i)=>`<circle cx="${x}" cy="${y}" r="7" fill="${byId(v[i].id).c}" stroke="#0e1030" stroke-width="2"/>`;
+ g+=mk(Ls[0],Ls[1],0)+mk(140,70,1)+mk(Rs[0],Rs[1],2);
+ g+=`<text x="140" y="14" text-anchor="middle" class="cxl" fill="#eef0ff">Middle · ${CAP[v[1].role]}</text><text x="140" y="29" text-anchor="middle" class="cxn" fill="#b9bde8">${nm(v[1].id)} ${v[1].p}</text>`;
+ g+=`<text x="4" y="176" class="cxl" fill="#eef0ff">First · ${CAP[v[0].role]}</text><text x="4" y="192" class="cxn" fill="#b9bde8">${nm(v[0].id)} ${v[0].p}</text>`;
+ g+=`<text x="276" y="176" text-anchor="end" class="cxl" fill="#eef0ff">Last · ${CAP[v[2].role]}</text><text x="276" y="192" text-anchor="end" class="cxn" fill="#b9bde8">${nm(v[2].id)} ${v[2].p}</text>`;
+ return `<svg viewBox="0 0 280 200" aria-hidden="true">${g}</svg>`;
+}
+function renderPrism(){
+ const v=PRZ?prV(PRZ):null,canCut=PR.opp&&!!IN.earned&&!!BT.score;
+ const info=!v?"Set the inlay correctly, then cut a prism to keep this trio.":`Saved prism: <b>${v.map((x,i)=>`${["First","Middle","Last"][i]} ${esc(vName(x))} ${x.p}`).join(", ")}</b>. Left facet: first + middle. Right facet: middle + last.${PR.face?` Last played: <b>${PR.face==="L"?"left":"right"} facet</b>.`:""}`;
+ const lab=!v?"No prism saved":`Faceted quartz: first ${vName(v[0])} ${v[0].p} on the left edge, middle ${vName(v[1])} ${v[1].p} on the center ridge, last ${vName(v[2])} ${v[2].p} on the right edge.${PR.face?` The ${PR.face==="L"?"left":"right"} facet is hatched as last played.`:""}`;
+ FFK.forEach(k=>{
+  $("prFig_"+k).innerHTML=prismSVG(k);$("prFig_"+k).setAttribute('aria-label',lab);
+  $("prInfo_"+k).innerHTML=info;
+  $("prCut_"+k).setAttribute('aria-disabled',canCut?"false":"true");
+  $("prL_"+k).setAttribute('aria-disabled',v?"false":"true");
+  $("prR_"+k).setAttribute('aria-disabled',v?"false":"true");
+ });
+}
+function prCut(){
+ if(!(PR.opp&&IN.earned&&BT.score)){prSay(PR.cut?"This round's prism is already cut. Ring and solve the inlay again for another cut.":"Set the inlay correctly first. Each solved round allows one cut.","");return}
+ const nz={ver:1,voices:BT.score.map(x=>({role:x.role,note:x.id}))};
+ const had=!!PRZ,hadKey=Object.prototype.hasOwnProperty.call(state,"prism"),prev=state.prism;
+ state.prism={ver:1,voices:nz.voices.map(v=>({role:v.role,note:v.note}))};
+ if(!save()){
+  if(hadKey)state.prism=prev;else delete state.prism;
+  renderPrism();
+  prSay(`Couldn't save the prism on this device: browser storage is unavailable or full. ${had?"Your previous prism is unchanged.":"Nothing was saved."} Press Cut prism to try again.`,"quiet");
+  return;
+ }
+ PRZ=nz;PR.opp=false;PR.cut=true;PR.face=null;renderPrism();
+ const v=prV(PRZ);
+ prSay(`${had?"Replaced your saved prism. ":""}Prism cut: ${v.map((x,i)=>`${["first","middle","last"][i]} ${vName(x)} ${x.p}`).join(", ")}. Saved on this device; it survives reload and new trios.`,"live");
+}
+function prPlay(side){
+ if(!PRZ){prSay("Cut a prism first: solve the Loop Inlay, then press Cut prism.","");return}
+ const v=prV(PRZ),pair=side==="L"?[v[0],v[1]]:[v[1],v[2]];
+ if(state.sound){try{const t=ensureCtx();pair.forEach(x=>playVoice(x,t))}catch(e){}}
+ PR.face=side;renderPrism();
+ prSay(`${side==="L"?"Left":"Right"} facet: ${vName(pair[0])} ${pair[0].p} with ${vName(pair[1])} ${pair[1].p}, together.`,"live");
+}
+FFK.forEach(k=>{$("prCut_"+k).addEventListener('click',prCut);$("prL_"+k).addEventListener('click',()=>prPlay("L"));$("prR_"+k).addEventListener('click',()=>prPlay("R"))});
+if(PRZ)prSay("Your saved prism is ready. Play left facet or Play right facet.","");
 FFK.forEach(k=>{$("btFwd_"+k).addEventListener('click',()=>btConduct("f"));$("btBack_"+k).addEventListener('click',()=>btConduct("b"));$("btNext_"+k).addEventListener('click',btNext)});
 {const ex={ver:1,solo:"bell",notes:["kite","moon","ember"]};$("gPenEx").innerHTML=bannerSVG(ex,72,"x");$("gPenExCap").textContent="Example: "+pnCaption(ex);$("gPenEx").setAttribute('role','img');$("gPenEx").setAttribute('aria-label',"Example pennant. "+pnCaption(ex));}
 $("gCipher").innerHTML=cipherSVG(sealData({notes:["kite","moon","ember"],open:1,dir:true}),0,false);
