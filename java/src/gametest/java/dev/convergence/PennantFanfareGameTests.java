@@ -564,6 +564,83 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void sightLongestLanternSpanInThreeDimensions(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Sight"); var station = Stand.at(g.players.getFirst(), 1);
+             var a = Stand.at(station.owner, station.pos.offset(0, 0, 2));
+             var b = Stand.at(station.owner, a.pos.offset(8, 0, 0));
+             var peak = Stand.at(station.owner, a.pos.offset(7, 4, 0));
+             var ridge = Stand.at(station.owner, a.pos.offset(4, 7, 0));
+             var extra = Stand.at(station.owner, a.pos.offset(2, 0, 2))) {
+            var p = station.owner;
+            var song = new ChordSeal(List.of(HALF_MOON, KITE, EMBER_PEAKS), 2, -1);
+            var prism = new InlayPrism(song).item();
+            p.setItemInHand(InteractionHand.MAIN_HAND, prism);
+            p.level().setBlock(station.pos, Blocks.AMETHYST_BLOCK.defaultBlockState(), 2);
+            for (var post : List.of(a, b, peak, ridge, extra))
+                p.level().setBlock(post.pos, Blocks.LANTERN.defaultBlockState(), 2);
+            // Peak makes squared lengths 64, 65 and 17. Ridge makes 64, 65 and 65.
+            for (int route = 0; route < 3; route++) {
+                boolean reverse = route != 1;
+                p.setPos(Vec3.atBottomCenterOf(station.pos).add(0, -1, -1));
+                p.setShiftKeyDown(reverse);
+                station.tap(p);
+                p.setXRot(-90);
+                p.gameMode.useItem(p, p.level(), prism, InteractionHand.MAIN_HAND);
+                p.setShiftKeyDown(!reverse);
+                p.gameMode.useItem(p, p.level(), prism, InteractionHand.MAIN_HAND);
+                var third = route == 0 ? peak : ridge;
+                var posts = List.of(a, b, third);
+                for (var post : posts) {
+                    p.setPos(Vec3.atBottomCenterOf(post.pos).add(0, -1, -1));
+                    post.tap(p);
+                }
+                g.drain(0);
+                p.setShiftKeyDown(true);
+                third.tap(p);
+                var miss = g.drain(0);
+                SealCipherGameTests.expectSounds(c, miss, song, List.of());
+                c.assertTrue(EchoChallengeGameTests.overlays(miss).stream().anyMatch(t -> t.contains("stops 1 and 2 make a shorter span")),
+                    "64 loses to 65 even though the projection onto the ground is longest");
+                p.setPos(Vec3.atBottomCenterOf(extra.pos).add(0, -1, -1));
+                extra.tap(p);
+                var outside = g.drain(0);
+                SealCipherGameTests.expectSounds(c, outside, song, List.of());
+                c.assertTrue(EchoChallengeGameTests.overlays(outside).stream().anyMatch(t -> t.contains("three lanterns you visited")),
+                    "An unvisited viewpoint does not consume the survey");
+                int observer = route == 1 ? 0 : 1; // Both tied observers win on independent walks.
+                var viewpoint = posts.get(observer);
+                p.setPos(Vec3.atBottomCenterOf(viewpoint.pos).add(0, -1, -1));
+                p.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(viewpoint.pos));
+                p.setShiftKeyDown(false); viewpoint.tap(p);
+                SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
+                p.setShiftKeyDown(true); viewpoint.tap(p);
+                p.gameMode.useItem(p, p.level(), prism, InteractionHand.MAIN_HAND);
+                var hit = g.drain(0);
+                int from = observer == 0 ? 1 : 0;
+                SealCipherGameTests.expectSounds(c, hit, song,
+                    List.of(song.cornerAt(reverse ? 2 - from : from), song.cornerAt(reverse ? 0 : 2)));
+                var first = Vec3.atCenterOf(posts.get(from).pos).add(0, .55, 0);
+                var last = Vec3.atCenterOf(third.pos).add(0, .55, 0);
+                c.assertValueEqual(GalleryTrailGameTests.particles(hit, ParticleTypes.GLOW), List.of(first, last),
+                    "Only the two far endpoints light up");
+                var sight = GalleryTrailGameTests.particles(hit, ParticleTypes.WAX_ON);
+                c.assertTrue(sight.getLast().distanceTo(first.lerp(last, .5)) < .001, "Dotted sight ends at true 3D midpoint");
+                var diamond = GalleryTrailGameTests.particles(hit, ParticleTypes.ELECTRIC_SPARK);
+                c.assertValueEqual(diamond.size(), 4, "A vertical diamond distinguishes the midpoint");
+                c.assertTrue(diamond.getFirst().distanceTo(first.lerp(last, .5).add(0, .19, 0)) < .001,
+                    "Diamond rises above the far edge");
+                c.assertValueEqual(GalleryTrailGameTests.particles(hit, ParticleTypes.WAX_OFF).size(), 24,
+                    "A raised eight-ray compass marks the observer");
+                viewpoint.tap(p);
+                SealCipherGameTests.expectSounds(c, g.drain(0), song, List.of());
+                var bystander = g.drain(2);
+                SealCipherGameTests.expectSounds(c, bystander, song, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(bystander, ParticleTypes.GLOW).isEmpty(), "Survey effects are private");
+            }
+        }
+        c.succeed();
+    }
+
     @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
         var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
         for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {
