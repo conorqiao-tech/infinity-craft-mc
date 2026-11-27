@@ -414,6 +414,14 @@ async function verify(page, origin) {
         assert(await post(other, 'Arch').isDisabled());
         const viewpoint = (view, number) => page.locator('#svPick'+number+'_'+view);
         const beacon = (view, control) => page.locator('#mb'+control+'_'+view);
+        const relayStop = (view, stop) => page.locator('#brPick'+stop+'_'+view);
+        async function relay(view, stop, instruments) {
+          const before = (await heard()).length;
+          await tap(relayStop(view, stop));
+          assertAudio((await heard()).slice(before), {notes:unison}, instruments, audible);
+          assert.equal(await page.locator('#brStatus_p').textContent(), await page.locator('#brStatus_g').textContent());
+          assert.equal(await page.locator('#brFig_p').getAttribute('aria-label'), await page.locator('#brFig_g').getAttribute('aria-label'));
+        }
         async function light(view, instruments, status) {
           const before = (await heard()).length;
           await tap(beacon(view, 'Light'));
@@ -481,6 +489,7 @@ async function verify(page, origin) {
         await survey(other, tied, []);
         assert.equal(await figure(other), completed);
         await light(other, [], /choose both X and Z/i);
+        assert(await relayStop(other, 1).isDisabled());
         const midX = tied === 1 ? '6' : '2';
         await beacon(other, 'X').selectOption(tied === 1 ? '2' : '6');
         await tap(pairsTab);
@@ -499,7 +508,24 @@ async function verify(page, origin) {
         assert.equal(/silent/i.test(await beacon(other, 'Status').innerText()), !audible);
         assert.match(await beacon(other, 'Fig').getAttribute('aria-label'), /rays from both endpoints and a halo/i);
         await light(other, [], /already lit/i);
+        // Both glass coordinates on these tied survey routes are exact midpoints.
+        const opposite = tied === 1 ? 2 : 1;
+        const lead = mode === 'muted' ? 3 : opposite;
+        const finish = lead === 3 ? opposite : 3;
+        await relay(other, tied, []);
+        await relay(other, lead, [lead-1]);
+        await relay(other, lead, []);
+        await playFacet(other, 'L', unison, [2,1]);
+        await page.evaluate(() => {window.blockPennantWrite=true;});
+        await tap(cut(other));
+        await page.evaluate(() => {window.blockPennantWrite=false;});
+        await tap(pairsTab);
+        await relay(side, finish, [0,1,2]);
+        assert.match(await page.locator('#brFig_p').getAttribute('aria-label'), /infinity|figure.eight/i);
+        await relay(side, finish, []);
+        await tap(guideTab);
         await tap(page.locator('#crStart_'+other));
+        assert(await relayStop(other, 2).isDisabled());
         assert(await beacon(other, 'Light').isDisabled());
         assert.equal(await beacon(other, 'X').inputValue(), '');
         await answerCrossing(other, 'L', [2,1]);
@@ -524,6 +550,12 @@ async function verify(page, origin) {
           await light(other, [], /move north/i);
           await beacon(other, 'Z').selectOption('2');
           await light(other, [0], /observer solo: Kite chime.*Pool/i);
+          // Picking the other legal glass cell reverses which end can lead.
+          const near = mode === 'mixed' ? 1 : 2;
+          const far = near === 1 ? 2 : 1;
+          await relay(other, far, []);
+          await relay(other, near, [3-near]);
+          if (mode === 'mixed') await relay(other, far, [0,1,2]);
         }
         const beforeCut = (await heard()).length;
         await tap(cut(other));
@@ -532,6 +564,7 @@ async function verify(page, origin) {
         assert(await viewpoint(other, 1).isDisabled(), 'A new cut clears the walk and its survey');
         assert(await beacon(other, 'Light').isDisabled());
         assert.equal(await beacon(other, 'Z').inputValue(), '');
+        assert(await relayStop(other, 1).isDisabled());
         assert(await cut(other).isDisabled());
         await tap(cut(other));
         assert.deepEqual(await storedPrism(), expectedPrism);
@@ -577,6 +610,7 @@ async function verify(page, origin) {
     assert(await page.locator('#lwArch_p').isDisabled());
     assert(await page.locator('#svPick1_p').isDisabled());
     assert(await page.locator('#mbLight_p').isDisabled());
+    assert(await page.locator('#brPick1_p').isDisabled());
     assert.deepEqual(await storedPrism(), expectedPrism);
     await playFacet('p', 'R', trio.notes, [1,2]);
     await tap(page.locator('#crStart_p'));
@@ -624,5 +658,6 @@ async function verify(page, origin) {
     await verify(await browser.newPage(), origin);
     console.log('PASS: all six Seal Cipher routes, twelve Refrains and 36 Cadences; unison and mute, correct solo and simultaneous answering pair, optional triad and independent seal playback; all 36 pennants, visible layers, explicit replacement, failed-save retry, reload and invalid saves. Kept-pennant fanfares passed for all three solos, distinct and repeated charts, cross-tab play and restart, muted and audible, with no seal. Mixed and replacement choruses passed with three collected pitches, one audio start, silent partials, failed-save recovery and fresh trios. Chorus Baton passed forward and backward solo playback, simultaneous final chords, mixed and replaced pitches, shared direction and beat across tabs, and clearing on a new collection. Infinity Loop passed both unlock orders, repeated-direction and partial-phrase guards, exact simultaneous duet pitches, mid-phrase playback across tabs and session resets. Loop Inlay passed the ring gate, separate instrument and pitch retries, cross-panel selection, one simultaneous triad per ring, an empty replay socket, and a fresh trio. Inlay Prism passed blocked-save recovery, unison instrument identity, both simultaneous facets, unique hatch patterns, cut and reset gates, mute, reload and invalid saves. Prism Crossing passed reverse unison clues, silent retries, cross-panel progress, exact duet and closing triad, storage failure and replacement, reload and free playback. Lantern Walk passed exact reverse solos at unison, silent duplicate and distant stops, both panels, completion, failed and successful prism replacement, restart and reload. Star Survey passed close unequal spans, either tied viewpoint, exact simultaneous far voices, silent retries, one answer, cross-panel play and reset.');
     console.log('PASS: Midpoint Beacon accepted both half-block neighbors, checked the chosen tied span, played the observer solo, and cleared on restart, replacement and reload.');
+    console.log('PASS: Beacon Relay used the chosen glass, both tied leads, exact solo and simultaneous chord, mute, failed saves, cross-panel play and session resets.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });

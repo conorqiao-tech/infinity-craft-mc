@@ -511,6 +511,13 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="row"><button class="btn main" id="mbLight_g" type="button" aria-disabled="true">Light beacon</button></div>
 <p class="status" id="mbStatus_g" role="status" aria-live="polite">Solve the Star Survey to unlock the beacon.</p>
 </div>
+<div class="beacon" aria-labelledby="brT_g">
+<h4 id="brT_g">Beacon Relay</h4>
+<p class="btdir">Visit both ends of your surveyed span. Start at the lantern closer to your lit glass. The distance labels count the glass height.</p>
+<div class="lwfig" id="brFig_g" role="img" aria-label="Beacon Relay locked" hidden></div>
+<div class="lwposts" role="group" aria-label="Relay lanterns"><button class="btn" type="button" id="brPick1_g" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="brPick2_g" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="brPick3_g" aria-disabled="true">Stop 3</button></div>
+<p class="status" id="brStatus_g" role="status" aria-live="polite">Light a Midpoint Beacon to begin.</p>
+</div>
 </div>
 </div>
 </div>
@@ -998,6 +1005,13 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 </div>
 <div class="row"><button class="btn main" id="mbLight_p" type="button" aria-disabled="true">Light beacon</button></div>
 <p class="status" id="mbStatus_p" role="status" aria-live="polite">Solve the Star Survey to unlock the beacon.</p>
+</div>
+<div class="beacon" aria-labelledby="brT_p">
+<h4 id="brT_p">Beacon Relay</h4>
+<p class="btdir">Visit both ends of your surveyed span. Start at the lantern closer to your lit glass. The distance labels count the glass height.</p>
+<div class="lwfig" id="brFig_p" role="img" aria-label="Beacon Relay locked" hidden></div>
+<div class="lwposts" role="group" aria-label="Relay lanterns"><button class="btn" type="button" id="brPick1_p" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="brPick2_p" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="brPick3_p" aria-disabled="true">Stop 3</button></div>
+<p class="status" id="brStatus_p" role="status" aria-live="polite">Light a Midpoint Beacon to begin.</p>
 </div>
 </div>
 </div>
@@ -2289,6 +2303,7 @@ function beaconSVG(){
  return `<svg viewBox="0 0 280 206" aria-hidden="true">${g}</svg>`;
 }
 function renderBeacon(){
+ renderRelay();
  const live=mbLive(),sp=live?mbSpan():null;
  const info=!live?"Solve the Star Survey to unlock the beacon.":`Span from the survey: <b>${sp.a.n} (${sp.a.x}, ${sp.a.y})</b> to <b>${sp.b.n} (${sp.b.x}, ${sp.b.y})</b>, observed from ${sp.obs.n}. Pick the block nearest the span's midpoint on each axis; at a half block either neighbor counts. The clear glass sits one block above the lantern plane.`;
  const aim=MB.x!==""||MB.z!==""?` Aim: X ${MB.x===""?"not set":MB.x}, Z ${MB.z===""?"not set":MB.z}.`:" No aim yet.";
@@ -2321,6 +2336,94 @@ function mbLight(){
  const v=lwSeq()[SV.obs],pre=sounded(()=>playVoice(v));
  mbSay(`${pre}Beacon lit at X ${x}, Z ${z}, one block above the lanterns. Observer solo: ${vName(v)} ${v.p} from ${sp.obs.n}.`,"live");
 }
+/* Relay progress belongs to the current beacon and ends with its walk. */
+function relayDistance(post) {
+  // Map posts share one level. The glass is one block above them.
+  return (post.x - Number(MB.x)) ** 2 + (post.y - Number(MB.z)) ** 2 + 1;
+}
+
+function relayFigure(span, visits) {
+  const ends = [span.a, span.b];
+  const sockets = ends.map((post, i) => {
+    const x = i === 0 ? 44 : 236;
+    const stop = i === 0 ? span.ia : span.ib;
+    const order = visits.indexOf(stop);
+    const active = order !== -1;
+    const color = active ? '#95f3d1' : '#b6b8e2';
+    const dash = active ? '' : 'stroke-dasharray="4 5"';
+    return `<path d="M 140 76 Q ${x} 56 ${x} 124" fill="none" stroke="${color}" stroke-width="${active ? 4 : 2}" ${dash}/>
+      <circle cx="${x}" cy="124" r="13" fill="${active ? '#95f3d1' : '#252956'}" stroke="${color}" stroke-width="2"/>
+      <text x="${x}" y="129" text-anchor="middle" fill="${active ? '#111630' : '#edf0ff'}" font-size="15" font-weight="bold">${active ? order+1 : '·'}</text>
+      <text x="${x}" y="157" text-anchor="middle" fill="#f5f4ff" font-size="15" font-weight="bold">${post.n}</text>
+      <text x="${x}" y="176" text-anchor="middle" fill="#bfc4e6" font-size="12">${Math.sqrt(relayDistance(post)).toFixed(2)} blocks</text>`;
+  }).join('');
+  const ribbon = visits.length === 2
+    ? '<path d="M140 38 C113 5 94 30 108 43 C123 58 140 31 155 26 C185 15 185 67 151 45 Z" fill="none" stroke="#ffdd83" stroke-width="4" stroke-linejoin="round"/>'
+    : '';
+  return `<svg viewBox="0 0 280 206" aria-hidden="true" font-family="system-ui,sans-serif">${sockets}${ribbon}
+    <path d="M140 64 l11 12 -11 12 -11 -12 Z" fill="#e9fbff" stroke="#8cf0dc" stroke-width="2"/>
+    <text x="140" y="107" text-anchor="middle" fill="#f0edff" font-size="12">Glass (${MB.x}, ${MB.z})</text>
+  </svg>`;
+}
+
+function renderRelay() {
+  const live = mbLive() && MB.done;
+  const span = live ? mbSpan() : null;
+  const visits = MB.relayVisits || [];
+  const names = live ? LW.posts : [];
+  let description = 'Light a Midpoint Beacon to begin.';
+  if (live) {
+    const distances = [span.a, span.b].map(post => post.n + " " + Math.sqrt(relayDistance(post)).toFixed(2) + " blocks");
+    description = `Glass (${MB.x}, ${MB.z}). ${distances.join(", ")}. `;
+    description += visits.length ? 'Relay order: ' + visits.map(i => names[i]).join(' then ') + '.' : 'Both paths are open.';
+    if (visits.length === 2) description += ' An infinity ribbon crosses above the glass.';
+  }
+  for (const panel of FFK) {
+    const figure = $('brFig_'+panel);
+    figure.hidden = !live;
+    figure.innerHTML = live ? relayFigure(span, visits) : '';
+    figure.setAttribute('aria-label', description);
+    $('brStatus_'+panel).textContent = live ? (MB.relayMessage || 'Visit the nearer span endpoint first. Either can lead a tie.') : description;
+    for (let i=0; i<3; i++) {
+      const button = $('brPick'+(i+1)+'_'+panel);
+      button.textContent = live ? (i+1)+'. '+names[i] : 'Stop '+(i+1);
+      button.setAttribute('aria-disabled', String(!live || visits.length === 2));
+    }
+  }
+}
+
+function relayPick(stop) {
+  if (!mbLive() || !MB.done) return;
+  const visits = MB.relayVisits || [];
+  if (visits.length === 2) return;
+  const span = mbSpan();
+  const post = lwPost(LW.posts[stop]);
+  const other = stop === span.ia ? span.b : span.a;
+  if (stop === SV.obs) {
+    MB.relayMessage = 'The observer already rang. Choose a span endpoint.';
+  } else if (visits.includes(stop)) {
+    MB.relayMessage = post.n+' has answered. Visit the other endpoint.';
+  } else if (!visits.length && relayDistance(post) > relayDistance(other)) {
+    MB.relayMessage = post.n+' is farther from the lit glass. Start at the nearer endpoint.';
+  } else {
+    MB.relayVisits = [...visits, stop];
+    const voices = lwSeq();
+    if (!visits.length) {
+      const voice = voices[stop];
+      MB.relayMessage = sounded(() => playVoice(voice))+post.n+' answered with '+vName(voice)+' '+voice.p+'. Visit '+other.n+'.';
+    } else {
+      MB.relayMessage = sounded(() => {
+        const time = ensureCtx();
+        voices.forEach(voice => playVoice(voice, time));
+      })+post.n+' completed the full chord. An infinity ribbon shines over the glass.';
+    }
+  }
+  renderRelay();
+}
+FFK.forEach(panel => [0,1,2].forEach(stop => {
+  $('brPick'+(stop+1)+'_'+panel).addEventListener('click', () => relayPick(stop));
+}));
+
 FFK.forEach(k=>$("mbLight_"+k).addEventListener('click',mbLight));
 FFK.forEach(k=>[0,1,2].forEach(i=>$(`svPick${i+1}_${k}`).addEventListener('click',()=>svPick(i))));
 FFK.forEach(k=>LWP.forEach(p=>$(`lw${p.n}_${k}`).addEventListener('click',()=>lwPick(p.n))));
