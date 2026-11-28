@@ -80,6 +80,8 @@
 
 **Star Trace.** Look at the projected board and count the bright stars in each column. The first, second and third lantern you visited correspond to the left, middle and right columns. Use your prism on a lantern for a column with the most stars. Either tied column works. Its lantern plays its own solo, and two lines appear beneath the chosen column. Use that lantern or the matching lens again for a silent redraw. Keep the tinted lens on the original clear glass.
 
+**Skyprint.** After marking a column, use a sheet of plain paper on the matching stained glass above your original beacon glass. Each press costs one sheet. With a stack, keep a spare inventory slot for the remaining blanks. Your print records the observer’s constellation, your marked column and that lantern’s solo. Carry it or pass it to a friend. Use the print in the air to see the chart and play the solo. Sneak-use it in the air for a silent view.
+
 
 
 **Infinity Glassworks.** At a crafting table, place eight matching glass panes in eight different slots. The empty slot can be anywhere. Take three full blocks of the same glass. Clear panes and all sixteen stained colors work. Picking up any of these panes unlocks the Glassworks recipes in the Java recipe book. To cut panes again, the ordinary recipe turns six blocks into sixteen panes. The Builder Exchange guide in Infinity Journey also lists the recipe.

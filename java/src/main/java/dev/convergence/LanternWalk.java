@@ -162,6 +162,25 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
             + (first ? " • Find a column with the most stars • Tap its lantern in walk order" : " • Chart projected again"));
     }
 
+    static boolean pressSkyprint(ServerPlayer p, BlockPos pos) {
+        var walk = p.getAttached(WALK);
+        if (walk == null || walk.relay == null || walk.relay.traceColumn() < 0
+                || !walk.dimension.equals(p.level().dimension()) || !pos.below().equals(walk.relay.glass())) return false;
+        int column = walk.relay.traceColumn();
+        var notes = walk.prism.score().voices();
+        var chart = notes.get(walk.voiceAt(walk.surveyedFrom));
+        if (!p.level().getBlockState(pos.below()).is(Blocks.GLASS)
+                || !p.level().getBlockState(pos).is(Blocks.STAINED_GLASS.pick(CadencePennant.ink(chart)))) return false;
+        if (CodaPostcard.canListen(p)) {
+            int voice = walk.voiceAt(column);
+            var print = new Skyprint(chart, column, voice, notes.get(voice));
+            boolean pressed = StarPrint.inkSheet(p, print.paper());
+            ConcertStage.overlay(p, pressed ? "Skyprint • " + print.caption() + " • Use in the air"
+                : "Skyprint • Make room for your remaining paper.");
+        }
+        return true;
+    }
+
     private void traceColumn(ServerPlayer player, BlockPos lantern) {
         int column = stops.indexOf(lantern);
         if (column < 0) {
@@ -182,11 +201,9 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
         }
         int count = StarLens.starsInColumn(chart, column);
         if (first) {
-            for (int other = 0; other < 3; other++) {
-                if (StarLens.starsInColumn(chart, other) > count) {
-                    ConcertStage.overlay(player, "Star Trace • Another column has more bright stars. Count from the left.");
-                    return;
-                }
+            if (!StarLens.densest(chart, column)) {
+                ConcertStage.overlay(player, "Star Trace • Another column has more bright stars. Count from the left.");
+                return;
             }
             player.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, relay.trace(column)));
             int voice = voiceAt(column);
@@ -197,7 +214,7 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
         StarLens.project(player, lens, chart, column);
         GalleryTrail.drawLink(player, Vec3.atCenterOf(lantern).add(0, .6, 0), Vec3.atCenterOf(lens), 1, .35);
         ConcertStage.overlay(player, "Star Trace • Column " + (column + 1) + " • " + count + " stars • "
-            + prism.score().voiceName(voiceAt(column)) + (first ? " solo" : " • Silent redraw"));
+            + prism.score().voiceName(voiceAt(column)) + (first ? " solo • Use plain paper on the lens for a Skyprint" : " • Silent redraw"));
     }
 
     private void relayLantern(ServerPlayer p, BlockPos pos) {

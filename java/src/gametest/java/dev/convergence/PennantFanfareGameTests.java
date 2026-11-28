@@ -935,6 +935,10 @@ public class PennantFanfareGameTests {
                 SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(1));
                 g.drain(2);
 
+                p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PAPER));
+                tapWithFollowup(p, lens);
+                c.assertTrue(p.getMainHandItem().getComponentsPatch().isEmpty(), "Paper stays blank until a column wins");
+                p.setItemInHand(InteractionHand.MAIN_HAND, prism.item());
                 tapWithFollowup(p, visits.get(loser));
                 SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
                 p.level().setBlock(lens.pos, Blocks.GLASS.defaultBlockState(), 2);
@@ -964,11 +968,85 @@ public class PennantFanfareGameTests {
                         c.assertTrue(GalleryTrailGameTests.particles(alternate, ParticleTypes.ELECTRIC_SPARK).isEmpty(), "A second choice cannot move the mark");
                     }
                 }
+                // Print away from the walk's spatial order and read it as a different player.
+                p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PAPER, 2));
+                p.level().setBlock(lens.pos, Blocks.STAINED_GLASS.white().defaultBlockState(), 2);
+                tapWithFollowup(p, lens);
+                c.assertTrue(p.getMainHandItem().getCount() == 2 && Skyprint.read(p.getMainHandItem()) == null,
+                    "Wrong lens leaves both blanks in hand");
+                p.level().setBlock(lens.pos, tint, 2);
+                if (run == 2) {
+                    var namedSheet = CommonsEvents.named(Items.PAPER, 1, "Letter", "Keep this text");
+                    p.setItemInHand(InteractionHand.MAIN_HAND, namedSheet);
+                    tapWithFollowup(p, lens);
+                    c.assertTrue(ItemStack.matches(namedSheet, p.getMainHandItem()), "Named paper keeps its contents");
+                    p.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.PAPER, 2));
+                    var filled = new ArrayList<Integer>();
+                    for (int slot = 0; slot < 36; slot++) {
+                        if (p.getInventory().getItem(slot).isEmpty()) {
+                            filled.add(slot);
+                            p.getInventory().setItem(slot, new ItemStack(Items.STONE, 64));
+                        }
+                    }
+                    tapWithFollowup(p, lens);
+                    c.assertTrue(p.getMainHandItem().getCount() == 2 && Skyprint.read(p.getMainHandItem()) == null,
+                        "Full inventory preserves both blanks and the earned trace for retry");
+                    for (int slot : filled) p.getInventory().setItem(slot, ItemStack.EMPTY);
+                }
+                int blanks = p.getInventory().countItem(Items.PAPER);
+                tapWithFollowup(p, lens);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                var sheet = p.getMainHandItem();
+                int selectedVoice = 2 - winner;
+                c.assertValueEqual(Skyprint.read(sheet), new Skyprint(chart, winner, selectedVoice, score.voices().get(selectedVoice)),
+                    "The ink carries the observer chart and the selected lantern's own role and pitch");
+                c.assertValueEqual(p.getInventory().countItem(Items.PAPER), blanks, "One sheet printed, remaining paper retained");
+                var friend = g.players.get(1);
+                friend.setItemInHand(InteractionHand.MAIN_HAND, sheet.copy());
+                p.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                LanternWalk.clear(p);
+                p.level().setBlock(lens.pos, Blocks.AIR.defaultBlockState(), 2);
+                p.level().setBlock(glass.pos, Blocks.AIR.defaultBlockState(), 2);
+                friend.setXRot(-90);
+                friend.setYRot(0);
+                g.drain(1);
+                for (boolean quiet : List.of(false, true, false)) {
+                    friend.setShiftKeyDown(quiet);
+                    friend.gameMode.useItem(friend, friend.level(), friend.getMainHandItem(), InteractionHand.MAIN_HAND);
+                    var readback = g.drain(1);
+                    SealCipherGameTests.expectSounds(c, readback, score, quiet ? List.of() : List.of(selectedVoice));
+                    c.assertValueEqual(GalleryTrailGameTests.particles(readback, ParticleTypes.GLOW).size(),
+                        Integer.bitCount(chart.goal), "Recipient sees the observer constellation");
+                    var marks = GalleryTrailGameTests.particles(readback, ParticleTypes.ELECTRIC_SPARK);
+                    c.assertValueEqual(marks.size(), 10, "Recipient sees both lines on quiet and audible use");
+                    var center = friend.getEyePosition().add(friend.getLookAngle().normalize().scale(1.6));
+                    var right = new Vec3(-.68, 0, 0);
+                    var up = right.cross(friend.getLookAngle()).normalize().scale(.68);
+                    var mark = center.add(right.scale((winner - 1) * .46)).add(up.scale(-.83));
+                    c.assertTrue(marks.stream().anyMatch(point -> point.distanceTo(mark) < .002),
+                        "Recipient's underline is beneath the actual winning column");
+                }
                 var other = g.drain(2);
                 SealCipherGameTests.expectSounds(c, other, score, List.of());
                 c.assertTrue(GalleryTrailGameTests.particles(other, ParticleTypes.ELECTRIC_SPARK).isEmpty(), "The mark stays private");
             }
         }
+        c.succeed();
+    }
+
+    @GameTest public void skyprintReadsOnlyAnEarnableScore(GameTestHelper c) {
+        var print = new Skyprint(EMBER_PEAKS, 0, 2, HALF_MOON);
+        c.assertValueEqual(Skyprint.read(print.paper()), print, "Ink distinguishes the chart from the solo's pitch");
+        c.assertTrue(Skyprint.read(new Skyprint(EMBER_PEAKS, 1, 0, KITE).paper()) == null, "Reject a non-winning column");
+        var bad = print.paper();
+        var data = bad.get(DataComponents.CUSTOM_DATA).copyTag();
+        var score = data.getCompound("infinity_skyprint_v1").orElseThrow();
+        score.remove("voice");
+        data.put("infinity_skyprint_v1", score);
+        bad.set(DataComponents.CUSTOM_DATA, net.minecraft.world.item.component.CustomData.of(data));
+        c.assertTrue(Skyprint.read(bad) == null, "Missing role cannot become a chime");
+        c.assertTrue(StarPrint.read(print.paper()) == null && CodaPostcard.read(print.paper()) == null,
+            "A Skyprint is distinct from other music papers");
         c.succeed();
     }
 
