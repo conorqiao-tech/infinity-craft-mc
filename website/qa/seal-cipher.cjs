@@ -416,6 +416,14 @@ async function verify(page, origin) {
         const beacon = (view, control) => page.locator('#mb'+control+'_'+view);
         const relayStop = (view, stop) => page.locator('#brPick'+stop+'_'+view);
         const ribbon = (view, control) => page.locator('#rr'+control+'_'+view);
+        const lens = (view, control) => page.locator('#sl'+control+'_'+view);
+        async function project(view, tint, voices) {
+          const before = (await heard()).length;
+          await tap(lens(view,tint));
+          assertAudio((await heard()).slice(before), {notes:unison}, voices, audible);
+          assert.equal(await lens('p','Status').textContent(), await lens('g','Status').textContent());
+          assert.equal(await lens('p','Fig').getAttribute('aria-label'), await lens('g','Fig').getAttribute('aria-label'));
+        }
         async function returnBeat(view, control, voices) {
           const before = (await heard()).length;
           await tap(ribbon(view, control));
@@ -542,11 +550,28 @@ async function verify(page, origin) {
         await page.evaluate(() => {window.blockPennantWrite=false;});
         await returnBeat(other, 'Pick'+tied, [tied-1]);
         await returnBeat(other, 'Pick'+finish, []);
+        assert(await lens(other,'Kite').isDisabled());
         await returnBeat(other, 'Pick'+lead, [lead-1,finish-1]);
         assert.match(await ribbon(other,'Fig').getAttribute('aria-label'), /star/i);
         assert.equal(/^silent/i.test(await ribbon(other,'Status').innerText()), !audible);
         await returnBeat(other, 'Pick'+lead, []);
+        await project(other, 'Moon', []);
+        await tap(pairsTab);
+        await project(side, 'Kite', [tied-1]);
+        assert.match(await lens(side,'Fig').getAttribute('aria-label'), /010.*101.*010/);
+        const cells = await lens(side,'Fig').locator('[data-cell]').evaluateAll(nodes =>
+          nodes.map(node => node.getAttribute('data-lit')).join(''));
+        assert.equal(cells,'010101010');
+        await tap(guideTab);
+        await playFacet(other,'L',unison,[2,1]);
+        await page.evaluate(() => {window.blockPennantWrite=true;});
+        await tap(cut(other));
+        await page.evaluate(() => {window.blockPennantWrite=false;});
+        await project(other,'Ember',[]);
+        await project(other,'Kite',[]);
+        assert.match(await lens(other,'Fig').getAttribute('aria-label'), /010.*101.*010/);
         await tap(page.locator('#crStart_'+other));
+        assert(await lens(other,'Kite').isDisabled());
         assert(await ribbon(other,'Start').isDisabled());
         assert(await relayStop(other, 2).isDisabled());
         assert(await beacon(other, 'Light').isDisabled());
@@ -592,6 +617,7 @@ async function verify(page, origin) {
         assert.equal(await beacon(other, 'Z').inputValue(), '');
         assert(await relayStop(other, 1).isDisabled());
         assert(await ribbon(other,'Pick1').isDisabled());
+        assert(await lens(other,'Kite').isDisabled());
         assert(await cut(other).isDisabled());
         await tap(cut(other));
         assert.deepEqual(await storedPrism(), expectedPrism);
@@ -639,6 +665,7 @@ async function verify(page, origin) {
     assert(await page.locator('#mbLight_p').isDisabled());
     assert(await page.locator('#brPick1_p').isDisabled());
     assert(await page.locator('#rrStart_p').isDisabled());
+    assert(await page.locator('#slKite_p').isDisabled());
     assert.deepEqual(await storedPrism(), expectedPrism);
     await playFacet('p', 'R', trio.notes, [1,2]);
     await tap(page.locator('#crStart_p'));
@@ -688,5 +715,6 @@ async function verify(page, origin) {
     console.log('PASS: Midpoint Beacon accepted both half-block neighbors, checked the chosen tied span, played the observer solo, and cleared on restart, replacement and reload.');
     console.log('PASS: Beacon Relay used the chosen glass, both tied leads, exact solo and simultaneous chord, mute, failed saves, cross-panel play and session resets.');
     console.log('PASS: Ribbon Return followed the actual tied relay order, played two solos and the endpoint duet, and preserved or cleared each beat across both panels as expected.');
+    console.log('PASS: Star Lens projected the stored observer chart and solo for both tie orders, synchronized panels and silently reprojected across free play and a failed replacement.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
