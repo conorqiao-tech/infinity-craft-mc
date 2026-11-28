@@ -553,6 +553,15 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 </div>
 <p class="status" id="spStatus_g" role="status" aria-live="polite">Mark a Star Trace to press your first print.</p>
 </div>
+<div class="beacon" aria-labelledby="sdTitle_g">
+<h4 id="sdTitle_g">Sky Dial</h4>
+<div class="slfig" id="sdFig_g" role="img" aria-label="Sky Dial locked" hidden></div>
+<div class="row" role="group" aria-label="Sky Dial controls">
+<button type="button" class="btn" id="sdTurn_g" disabled>Turn clockwise ⅛</button>
+<button type="button" class="btn" id="sdRead_g" disabled>Read with compass</button>
+</div>
+<p class="status" id="sdStatus_g" role="status" aria-live="polite">Keep a Skyprint to use the dial.</p>
+</div>
 </div>
 </div>
 </div>
@@ -739,6 +748,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Star Lens: use your prism on a full stained-glass block directly above your lit clear glass. Match the chart of the observer who sat out the closing duet.</li>
 <li>Star Trace: after projecting the observer chart, use the walk lantern for a column with the most bright stars. The three visits map to the three columns from left to right.</li>
 <li>Skyprint: press plain paper against the matching stained glass after a Star Trace. Give it to a friend or use it in the air to play the recorded solo. Sneak-use in the air to see the constellation silently.</li>
+<li>Sky Dial: mount a Skyprint in a wall item frame. Turn with an empty hand and read with a plain compass. Columns one, two and three aim left, up and right on the frame.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -1082,6 +1092,15 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <button type="button" class="btn" id="spShow_p" disabled>Show silently</button>
 </div>
 <p class="status" id="spStatus_p" role="status" aria-live="polite">Mark a Star Trace to press your first print.</p>
+</div>
+<div class="beacon" aria-labelledby="sdTitle_p">
+<h4 id="sdTitle_p">Sky Dial</h4>
+<div class="slfig" id="sdFig_p" role="img" aria-label="Sky Dial locked" hidden></div>
+<div class="row" role="group" aria-label="Sky Dial controls">
+<button type="button" class="btn" id="sdTurn_p" disabled>Turn clockwise ⅛</button>
+<button type="button" class="btn" id="sdRead_p" disabled>Read with compass</button>
+</div>
+<p class="status" id="sdStatus_p" role="status" aria-live="polite">Keep a Skyprint to use the dial.</p>
 </div>
 </div>
 </div>
@@ -2691,7 +2710,89 @@ function skyprintSVG(card) {
     </svg>`;
 }
 
+const keptDialCard = () => state.skyprint;
+let dialNotch = 0;
+let dialMessage = '';
+let dialAligned = false;
+
+function resetDial() {
+  dialNotch = 0;
+  dialAligned = false;
+  dialMessage = '';
+}
+
+function dialSVG(card, target) {
+  const voice = chVoice(card.role,card.note);
+  const ticks = Array.from({length:8}, (_, i) =>
+    `<path transform="rotate(${i*45})" d="M0 -55v7" stroke="#eee0bb" stroke-width="${i%2 ? 1.5 : 3}"/>`).join('');
+  const flare = dialAligned
+    ? '<path data-flare="" d="M0 -19L4 -4 19 0 4 4 0 19 -4 4 -19 0 -4 -4Z" fill="#fff5ac" stroke="#46381f"/>'
+    : '<circle r="6" fill="#e6c581" stroke="#363c46" stroke-width="2"/>';
+  return `<svg viewBox="0 0 320 176" aria-hidden="true" font-family="sans-serif">
+    <rect x="2" y="2" width="316" height="172" rx="12" fill="#202d35" stroke="#bc9e66" stroke-width="2"/>
+    <g transform="translate(88 88)">
+      <circle r="75" fill="#3e4c4c" stroke="#ceb47d" stroke-width="3"/>
+      <circle r="66" fill="#192b34" stroke="#7e9389"/>
+      <path d="M-44 0h88m-44 -44v88" stroke="#405357"/>
+      <g fill="#e6ddc6" text-anchor="middle" font-family="monospace" font-size="10">
+        <text y="-65">U</text><text x="69" y="4">R</text><text y="72">D</text><text x="-69" y="4">L</text>
+      </g>
+      ${ticks}
+      <path data-target="" transform="rotate(${target*45})" d="M-7 -53l7 -7 7 7" fill="none" stroke="#fff2c8" stroke-width="3"/>
+      <g data-needle="" transform="rotate(${dialNotch*45})"><path d="M0 -48L6 0 0 17 -6 0Z" fill="#e3b35e"/><path d="M0 -48L6 0 0 0Z" fill="#fff0b7"/></g>
+      ${flare}
+    </g>
+    <g transform="translate(180 0)" fill="#faf0d7">
+      <text y="42" font-size="10" letter-spacing="1" fill="#d2c19a">PRINTED CHART</text>
+      <text y="64" font-family="Georgia,serif" font-size="19">${nm(card.chart)}</text>
+      <path d="M0 76h123" stroke="#756f5f"/>
+      <text y="96" font-size="12">Column ${card.col+1} · ${['left','up','right'][card.col]}</text>
+      <text y="124" font-size="10" letter-spacing="1" fill="#d2c19a">RECORDED SOLO</text>
+      <text y="143" font-size="12">${vName(voice)} · ${voice.p}</text>
+    </g></svg>`;
+}
+
+function renderDial(panel) {
+  const card = keptDialCard();
+  const target = card ? [6,0,2][card.col] : 0;
+  const figure = $('sdFig_'+panel);
+  figure.hidden = !card;
+  figure.innerHTML = card ? dialSVG(card, target) : '';
+  figure.setAttribute('aria-label',card ? nm(card.chart)+' dial. Needle at notch '+dialNotch+' of 0–7. Column '+(card.col+1)+' aims '+['left','up','right'][card.col]+' at notch '+target+'.'+(dialAligned?' Aligned.':'') : 'Sky Dial locked');
+  $('sdTurn_'+panel).disabled = $('sdRead_'+panel).disabled = !card;
+  $('sdStatus_'+panel).textContent = card ? dialMessage || 'Turn the needle to the marked direction, then read with the compass.' : 'Keep a Skyprint to use the dial.';
+}
+
+function turnDial() {
+  if (!keptDialCard()) return;
+  dialNotch = (dialNotch+1)%8;
+  dialAligned = false;
+  dialMessage = 'Needle at notch '+dialNotch+' of 0–7.';
+  FFK.forEach(renderDial);
+}
+
+function readDial() {
+  const card = keptDialCard();
+  if (!card) return;
+  const target = [6,0,2][card.col];
+  const turns = (target-dialNotch+8)%8;
+  dialAligned = turns === 0;
+  if (dialAligned) {
+    const voice = chVoice(card.role,card.note);
+    dialMessage = sounded(() => playVoice(voice))+'Aligned '+['left','up','right'][card.col]+'. '+vName(voice)+' '+voice.p+'.';
+  } else {
+    dialMessage = 'Turn clockwise '+turns+' more '+(turns===1?'notch.':'notches.');
+  }
+  FFK.forEach(renderDial);
+}
+
+for (const panel of FFK) {
+  $('sdTurn_'+panel).addEventListener('click',turnDial);
+  $('sdRead_'+panel).addEventListener('click',readDial);
+}
+
 function renderSkyprint(panel) {
+  renderDial(panel);
   const card = state.skyprint;
   const earned = !!MB.lensChart && MB.traceColumn !== undefined;
   const figure = $('spFig_'+panel);
@@ -2710,6 +2811,7 @@ function pressSkyprint() {
   const previous = state.skyprint;
   state.skyprint = card;
   if (save()) {
+    resetDial();
     printMessage = 'Kept '+printCaption(card)+'.';
   } else {
     if (previous) state.skyprint = previous;
