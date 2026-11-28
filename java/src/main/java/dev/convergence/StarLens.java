@@ -9,7 +9,14 @@ import net.minecraft.world.phys.Vec3;
 final class StarLens {
     private StarLens() {}
 
-    static void project(ServerPlayer player, BlockPos lens, StarLoom.Chart chart) {
+    static int starsInColumn(StarLoom.Chart chart, int column) {
+        int count = 0;
+        for (int cell = column; cell < 9; cell += 3)
+            if (StarLoom.lit(chart.goal, cell)) count++;
+        return count;
+    }
+
+    static void project(ServerPlayer player, BlockPos lens, StarLoom.Chart chart, int traceColumn) {
         var from = Vec3.atCenterOf(lens).add(0, .5, 0);
         var center = from.add(0, 1.5, 0);
         double yaw = Math.toRadians(player.getYRot());
@@ -26,6 +33,14 @@ final class StarLens {
                 GalleryTrail.spark(player, ParticleTypes.END_ROD, point.subtract(right.scale(.10)));
             } else {
                 GalleryTrail.spark(player, ParticleTypes.WAX_OFF, point);
+            }
+        }
+        if (traceColumn >= 0) {
+            var base = center.add(right.scale((traceColumn - 1) * .46)).add(0, -.83, 0);
+            for (int dot = -2; dot <= 2; dot++) {
+                var mark = base.add(right.scale(dot * .08));
+                GalleryTrail.spark(player, ParticleTypes.ELECTRIC_SPARK, mark);
+                GalleryTrail.spark(player, ParticleTypes.ELECTRIC_SPARK, mark.add(0, -.12, 0));
             }
         }
         for (int i = -3; i <= 3; i++) {

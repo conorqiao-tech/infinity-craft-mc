@@ -5,14 +5,16 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
-record BeaconRelay(BlockPos glass, BlockPos lead, Phase phase) {
+record BeaconRelay(BlockPos glass, BlockPos lead, Phase phase, int traceColumn) {
     enum Phase { RELAY, AT_GLASS, AT_OBSERVER, AT_LEAD, FINISHED, PROJECTED }
 
-    BeaconRelay(BlockPos glass) { this(glass.immutable(), null, Phase.RELAY); }
+    BeaconRelay(BlockPos glass) { this(glass.immutable(), null, Phase.RELAY, -1); }
 
     boolean complete() { return phase != Phase.RELAY; }
 
-    BeaconRelay at(Phase next) { return new BeaconRelay(glass, lead, next); }
+    BeaconRelay at(Phase next) { return new BeaconRelay(glass, lead, next, traceColumn); }
+
+    BeaconRelay trace(int column) { return new BeaconRelay(glass, lead, phase, column); }
 
     String rejection(MidpointBeacon span, BlockPos tap) {
         if (complete()) return "Infinity ribbon complete.";
@@ -26,7 +28,7 @@ record BeaconRelay(BlockPos glass, BlockPos lead, Phase phase) {
     }
 
     BeaconRelay advance(BlockPos tap) {
-        return lead == null ? new BeaconRelay(glass, tap.immutable(), Phase.RELAY) : at(Phase.AT_GLASS);
+        return lead == null ? new BeaconRelay(glass, tap.immutable(), Phase.RELAY, -1) : at(Phase.AT_GLASS);
     }
 
     void draw(ServerPlayer p, BlockPos tap) {
