@@ -537,6 +537,12 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="lwposts" role="group" aria-label="Lens tint"><button class="btn" type="button" id="slKite_g" data-sl="kite" aria-disabled="true" aria-pressed="false">Cyan • Kite</button><button class="btn" type="button" id="slMoon_g" data-sl="moon" aria-disabled="true" aria-pressed="false">Purple • Half Moon</button><button class="btn" type="button" id="slEmber_g" data-sl="ember" aria-disabled="true" aria-pressed="false">Orange • Ember Peaks</button></div>
 <p class="status" id="slStatus_g" role="status" aria-live="polite">Finish Ribbon Return to unlock the lens.</p>
 </div>
+<div class="beacon slens" aria-labelledby="stTitle_g">
+<h4 id="stTitle_g">Star Trace</h4>
+<div class="slfig" id="stFig_g" role="img" aria-label="Star Trace locked" hidden></div>
+<div class="lwposts" role="group" aria-label="Trace a column"><button class="btn" type="button" id="stPick1_g" data-trace="0" aria-disabled="true" aria-pressed="false">Column 1</button><button class="btn" type="button" id="stPick2_g" data-trace="1" aria-disabled="true" aria-pressed="false">Column 2</button><button class="btn" type="button" id="stPick3_g" data-trace="2" aria-disabled="true" aria-pressed="false">Column 3</button></div>
+<p class="status" id="stStatus_g" role="status" aria-live="polite">Project a Star Lens to begin.</p>
+</div>
 </div>
 </div>
 </div>
@@ -721,6 +727,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Midpoint Beacon: after a solved survey, use the same prism on ordinary clear glass placed one block above the block center nearest the surveyed span's midpoint, in all three axes.</li>
 <li>Beacon Relay and Ribbon Return: normal-use the two relay endpoints, nearer first. Then Sneak-use the exact clear glass that was lit to start the return, and normal-use the observer lantern followed by the original lead lantern.</li>
 <li>Star Lens: use your prism on a full stained-glass block directly above your lit clear glass. Match the chart of the observer who sat out the closing duet.</li>
+<li>Star Trace: after projecting the observer chart, use the walk lantern for a column with the most bright stars. The three visits map to the three columns from left to right.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -1048,6 +1055,12 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="slfig" id="slFig_p" role="img" aria-label="Star lens locked"></div>
 <div class="lwposts" role="group" aria-label="Lens tint"><button class="btn" type="button" id="slKite_p" data-sl="kite" aria-disabled="true" aria-pressed="false">Cyan • Kite</button><button class="btn" type="button" id="slMoon_p" data-sl="moon" aria-disabled="true" aria-pressed="false">Purple • Half Moon</button><button class="btn" type="button" id="slEmber_p" data-sl="ember" aria-disabled="true" aria-pressed="false">Orange • Ember Peaks</button></div>
 <p class="status" id="slStatus_p" role="status" aria-live="polite">Finish Ribbon Return to unlock the lens.</p>
+</div>
+<div class="beacon slens" aria-labelledby="stTitle_p">
+<h4 id="stTitle_p">Star Trace</h4>
+<div class="slfig" id="stFig_p" role="img" aria-label="Star Trace locked" hidden></div>
+<div class="lwposts" role="group" aria-label="Trace a column"><button class="btn" type="button" id="stPick1_p" data-trace="0" aria-disabled="true" aria-pressed="false">Column 1</button><button class="btn" type="button" id="stPick2_p" data-trace="1" aria-disabled="true" aria-pressed="false">Column 2</button><button class="btn" type="button" id="stPick3_p" data-trace="2" aria-disabled="true" aria-pressed="false">Column 3</button></div>
+<p class="status" id="stStatus_p" role="status" aria-live="polite">Project a Star Lens to begin.</p>
 </div>
 </div>
 </div>
@@ -2530,11 +2543,14 @@ function lensSVG(chart, panel) {
     cells.push(`<g data-cell="${i}" data-lit="${lit ? 1 : 0}" transform="translate(${100 + i%3*40} ${38 + Math.floor(i/3)*34})">${shape}</g>`);
   }
   const beam = chart ? `<path d="M135 174 L72 131 H208 L145 174Z" fill="url(#lens-beam-${panel})"/>` : '';
+  const col = MB.traceColumn;
+  const mark = chart && col !== undefined
+    ? `<path transform="translate(${100+col*40} 0)" d="M-12 120h24m-22 4h20" fill="none" stroke="#ffe183" stroke-width="2"/>` : '';
   return `<svg viewBox="0 0 280 226" aria-hidden="true">
     <defs><linearGradient id="lens-beam-${panel}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${ink}" stop-opacity=".08"/><stop offset="1" stop-color="${ink}" stop-opacity=".9"/></linearGradient></defs>
     <rect x="65" y="7" width="150" height="126" rx="8" fill="#0c1229" stroke="${ink}" stroke-width="3"/>
     <path d="M75 27V17h12m106 0h12v10m0 86v10h-12m-106 0H75v-10" fill="none" stroke="#c6d8e4" stroke-width="1.8"/>
-    ${cells.join('')}${beam}
+    ${cells.join('')}${mark}${beam}
     <g stroke-linejoin="round" stroke-width="1.5">
       <path d="M119 181l21 -9 21 9v16l-21 10 -21 -10Z" fill="#a7d6e0" stroke="#e6fcff"/>
       <path d="M119 181l21 9 21 -9m-21 9v17" fill="none" stroke="#41657e"/>
@@ -2551,18 +2567,83 @@ function renderLens() {
     ? `Which chart belongs to ${LW.posts[SV.obs]}, the observer who sat out the closing duet? Choose its lens tint.`
     : 'Finish Ribbon Return to unlock the lens.';
   for (const panel of FFK) {
+    renderTrace(panel, chart);
     $('slInfo_'+panel).textContent = instruction;
     $('slStatus_'+panel).textContent = MB.lensMessage || (live ? 'The frame is ready above your glass.' : '');
     const figure = $('slFig_'+panel);
     figure.hidden = !live;
     figure.innerHTML = live ? lensSVG(chart, panel) : '';
     const label = chart ? nm(chart)+' constellation, rows '+lensPatterns[chart].join(' / ')+'. One is a bright star and zero is a dark socket.' : 'Nine empty sockets';
-    figure.setAttribute('aria-label', live ? label+' Glass at X '+MB.x+', Z '+MB.z+'.' : 'Star Lens locked');
+    const trace = chart && MB.traceColumn !== undefined ? ' Double underline on column '+(MB.traceColumn+1)+'.' : '';
+    figure.setAttribute('aria-label', live ? label+trace+' Glass at X '+MB.x+', Z '+MB.z+'.' : 'Star Lens locked');
     for (const button of figure.parentNode.querySelectorAll('[data-sl]')) {
       button.setAttribute('aria-disabled', String(!live));
       button.setAttribute('aria-pressed', String(chart === button.dataset.sl));
     }
   }
+}
+
+function traceCounts(chart) {
+  return [0,1,2].map(col => lensPatterns[chart].filter(row => row[col] === '1').length);
+}
+
+function traceSVG(chart, selected) {
+  const ink = DYE[chart][0];
+  const columns = [0,1,2].map(col => {
+    const marked = col === selected;
+    const stars = lensPatterns[chart].map((row, index) => {
+      const symbol = row[col] === '1'
+        ? '<path d="M0 -10 L2.8 -2.8 10 0 2.8 2.8 0 10 -2.8 2.8 -10 0 -2.8 -2.8Z" fill="#fff7ce"/>'
+        : '<circle r="4.3" fill="none" stroke="#a4aec7" stroke-width="1.7"/>';
+      return `<g transform="translate(0 ${49+index*29})">${symbol}</g>`;
+    }).join('');
+    const stamp = marked ? '<path data-trace-mark="" d="M-22 127v5h44v-5 M-19 138h38" fill="none" stroke="#ffe183" stroke-width="3"/>' : '';
+    return `<g data-column="${col+1}" transform="translate(${64+col*86} 0)">
+      <rect x="-36" y="28" width="72" height="120" rx="6" fill="#111a33" stroke="${marked ? '#ffe183' : '#576588'}" stroke-width="${marked ? 2.5 : 1}"/>
+      <path d="M-25 33h50" stroke="${ink}" stroke-width="3"/>
+      <text y="20" text-anchor="middle" font-family="monospace" font-size="13" fill="#cad5e6">0${col+1}</text>
+      ${stars}${stamp}
+      <text y="168" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="14" fill="#f4f1e9">${LW.posts[col]}</text></g>`;
+  });
+  return `<svg viewBox="0 0 300 186" aria-hidden="true"><rect x="1" y="1" width="298" height="184" rx="9" fill="#17213c" stroke="#7885a6"/>${columns.join('')}</svg>`;
+}
+
+function renderTrace(panel, chart) {
+  const figure = $('stFig_'+panel);
+  const selected = MB.traceColumn;
+  figure.hidden = !chart;
+  figure.innerHTML = chart ? traceSVG(chart, selected) : '';
+  const columns = chart ? traceCounts(chart).map((count, i) => 'Column '+(i+1)+', '+LW.posts[i]+', '+count+' bright').join('. ') : '';
+  const mark = selected === undefined ? 'No column marked.' : 'Double underline on column '+(selected+1)+'.';
+  figure.setAttribute('aria-label', chart ? nm(chart)+'. '+columns+'. '+mark : 'Star Trace locked');
+  for (let i = 0; i < 3; i++) {
+    const button = $('stPick'+(i+1)+'_'+panel);
+    button.textContent = chart ? (i+1)+' · '+LW.posts[i] : 'Column '+(i+1);
+    button.setAttribute('aria-disabled', String(!chart));
+    button.setAttribute('aria-pressed', String(!!chart && selected === i));
+  }
+  $('stStatus_'+panel).textContent = chart ? (MB.traceMessage || 'Each column belongs to a lantern in visit order. Choose one with the most bright stars.') : 'Project a Star Lens to begin.';
+}
+
+function pickTrace(column) {
+  if (!lensReady() || !MB.lensChart) return;
+  const counts = traceCounts(MB.lensChart);
+  if (MB.traceColumn !== undefined) {
+    MB.traceMessage = column === MB.traceColumn
+      ? 'Silently redrew the double underline at '+LW.posts[column]+'.'
+      : 'Your mark stays on column '+(MB.traceColumn+1)+' at '+LW.posts[MB.traceColumn]+'.';
+  } else if (counts[column] < Math.max(...counts)) {
+    MB.traceMessage = 'Another column has more bright stars. Count the points and try again.';
+  } else {
+    const voice = lwSeq()[column];
+    MB.traceColumn = column;
+    MB.traceMessage = sounded(() => playVoice(voice))+'Column '+(column+1)+' at '+LW.posts[column]+' holds '+counts[column]+' stars. '+vName(voice)+' '+voice.p+' sounds the trace.';
+  }
+  renderLens();
+}
+
+for (const button of document.querySelectorAll('[data-trace]')) {
+  button.addEventListener('click', () => pickTrace(Number(button.dataset.trace)));
 }
 
 function projectLens(tint) {
