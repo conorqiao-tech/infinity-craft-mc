@@ -82,6 +82,8 @@
 
 **Skyprint.** After marking a column, use a sheet of plain paper on the matching stained glass above your original beacon glass. Each press costs one sheet. With a stack, keep a spare inventory slot for the remaining blanks. Your print records the observer’s constellation, your marked column and that lantern’s solo. Carry it or pass it to a friend. Use the print in the air to see the chart and play the solo. Sneak-use it in the air for a silent view.
 
+**Sky Dial.** Mount a Skyprint in an upright wall item frame. Each empty-hand turn advances the dial one eighth of a revolution. Use a plain compass on the frame to reveal the needle and its forked target. From the front, column one aims left, column two straight up and column three right. A miss tells you how many clockwise turns remain. Each aligned reading flashes a four-point star and plays the printed lantern solo just for the reader.
+
 
 
 **Infinity Glassworks.** At a crafting table, place eight matching glass panes in eight different slots. The empty slot can be anywhere. Take three full blocks of the same glass. Clear panes and all sixteen stained colors work. Picking up any of these panes unlocks the Glassworks recipes in the Java recipe book. To cut panes again, the ordinary recipe turns six blocks into sixteen panes. The Builder Exchange guide in Infinity Journey also lists the recipe.
