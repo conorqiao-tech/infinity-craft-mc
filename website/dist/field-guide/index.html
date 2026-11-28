@@ -543,6 +543,16 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="lwposts" role="group" aria-label="Trace a column"><button class="btn" type="button" id="stPick1_g" data-trace="0" aria-disabled="true" aria-pressed="false">Column 1</button><button class="btn" type="button" id="stPick2_g" data-trace="1" aria-disabled="true" aria-pressed="false">Column 2</button><button class="btn" type="button" id="stPick3_g" data-trace="2" aria-disabled="true" aria-pressed="false">Column 3</button></div>
 <p class="status" id="stStatus_g" role="status" aria-live="polite">Project a Star Lens to begin.</p>
 </div>
+<div class="beacon" aria-labelledby="spTitle_g">
+<h4 id="spTitle_g">Skyprint</h4>
+<div class="slfig" id="spFig_g" role="img" aria-label="No Skyprint kept" hidden></div>
+<div class="lwposts" role="group" aria-label="Skyprint controls">
+<button type="button" class="btn" id="spPress_g" disabled>Press Skyprint</button>
+<button type="button" class="btn" id="spPlay_g" disabled>Play print</button>
+<button type="button" class="btn" id="spShow_g" disabled>Show silently</button>
+</div>
+<p class="status" id="spStatus_g" role="status" aria-live="polite">Mark a Star Trace to press your first print.</p>
+</div>
 </div>
 </div>
 </div>
@@ -728,6 +738,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Beacon Relay and Ribbon Return: normal-use the two relay endpoints, nearer first. Then Sneak-use the exact clear glass that was lit to start the return, and normal-use the observer lantern followed by the original lead lantern.</li>
 <li>Star Lens: use your prism on a full stained-glass block directly above your lit clear glass. Match the chart of the observer who sat out the closing duet.</li>
 <li>Star Trace: after projecting the observer chart, use the walk lantern for a column with the most bright stars. The three visits map to the three columns from left to right.</li>
+<li>Skyprint: press plain paper against the matching stained glass after a Star Trace. Give it to a friend or use it in the air to play the recorded solo. Sneak-use in the air to see the constellation silently.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -1061,6 +1072,16 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="slfig" id="stFig_p" role="img" aria-label="Star Trace locked" hidden></div>
 <div class="lwposts" role="group" aria-label="Trace a column"><button class="btn" type="button" id="stPick1_p" data-trace="0" aria-disabled="true" aria-pressed="false">Column 1</button><button class="btn" type="button" id="stPick2_p" data-trace="1" aria-disabled="true" aria-pressed="false">Column 2</button><button class="btn" type="button" id="stPick3_p" data-trace="2" aria-disabled="true" aria-pressed="false">Column 3</button></div>
 <p class="status" id="stStatus_p" role="status" aria-live="polite">Project a Star Lens to begin.</p>
+</div>
+<div class="beacon" aria-labelledby="spTitle_p">
+<h4 id="spTitle_p">Skyprint</h4>
+<div class="slfig" id="spFig_p" role="img" aria-label="No Skyprint kept" hidden></div>
+<div class="lwposts" role="group" aria-label="Skyprint controls">
+<button type="button" class="btn" id="spPress_p" disabled>Press Skyprint</button>
+<button type="button" class="btn" id="spPlay_p" disabled>Play print</button>
+<button type="button" class="btn" id="spShow_p" disabled>Show silently</button>
+</div>
+<p class="status" id="spStatus_p" role="status" aria-live="polite">Mark a Star Trace to press your first print.</p>
 </div>
 </div>
 </div>
@@ -2609,6 +2630,7 @@ function traceSVG(chart, selected) {
 }
 
 function renderTrace(panel, chart) {
+  renderSkyprint(panel);
   const figure = $('stFig_'+panel);
   const selected = MB.traceColumn;
   figure.hidden = !chart;
@@ -2623,6 +2645,92 @@ function renderTrace(panel, chart) {
     button.setAttribute('aria-pressed', String(!!chart && selected === i));
   }
   $('stStatus_'+panel).textContent = chart ? (MB.traceMessage || 'Each column belongs to a lantern in visit order. Choose one with the most bright stars.') : 'Project a Star Lens to begin.';
+}
+
+function validSkyprint(card) {
+  if (!card || card.ver !== 1 || !NOTE_IDS.includes(card.chart) || !NOTE_IDS.includes(card.note)
+      || !ROLES.includes(card.role) || !Number.isInteger(card.col) || card.col < 0 || card.col > 2) return false;
+  const counts = traceCounts(card.chart);
+  return counts[card.col] === Math.max(...counts);
+}
+if (validSkyprint(store.skyprint)) state.skyprint = store.skyprint;
+let printMessage = '';
+
+function printCaption(card) {
+  const voice = chVoice(card.role, card.note);
+  return 'Chart '+nm(card.chart)+' · Column '+(card.col+1)+' · Solo '+vName(voice)+' '+voice.p;
+}
+
+function skyprintSVG(card) {
+  const voice = chVoice(card.role, card.note);
+  const ink = byId(card.chart).c;
+  const cells = [];
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      const lit = lensPatterns[card.chart][row][col] === '1';
+      const mark = lit
+        ? '<path d="M0 -10L3 -3 10 0 3 3 0 10 -3 3 -10 0 -3 -3Z" fill="#fff3c4"/>'
+        : '<circle r="4.3" fill="none" stroke="#a7b4d0" stroke-width="1.6"/>';
+      cells.push(`<g data-lit="${lit ? 1 : 0}" transform="translate(${37+col*31} ${49+row*30})">${mark}</g>`);
+    }
+  }
+  const x = 37+card.col*31;
+  return `<svg viewBox="0 0 316 164" font-family="sans-serif" aria-hidden="true">
+    <path d="M3 2h310v48a7 7 0 0 0 0 14v96H3V64a7 7 0 0 0 0-14Z" fill="#f3e6c6" stroke="#332e3b" stroke-width="2"/>
+    <rect x="13" y="13" width="110" height="137" rx="3" fill="#172441"/>
+    <path d="M20 29V21h10m76 0h10v8m0 105v8h-10m-76 0H20v-8" fill="none" stroke="${ink}" stroke-width="2"/>
+    ${cells.join('')}
+    <path data-underline="${card.col+1}" d="M${x-10} 123v4h20v-4m-18 9h16" fill="none" stroke="#ffdc74" stroke-width="2.5"/>
+    <path d="M135 8v147" stroke="#9f947b" stroke-width="1.2" stroke-dasharray="2 4"/>
+    <text x="148" y="33" fill="#57554a" font-size="10" font-weight="700" letter-spacing="1.5">SKYPRINT / CHART</text>
+    <text x="148" y="62" fill="#172441" font-family="Georgia,serif" font-size="21" font-weight="bold">${nm(card.chart)}</text>
+    <path d="M148 76h149" stroke="#988c71"/>
+    <text x="148" y="100" fill="#454336" font-size="13">Column ${card.col+1}</text>
+    <text x="148" y="120" fill="#57554a" font-size="9" letter-spacing="1.2">RECORDED SOLO</text>
+    <text x="148" y="140" fill="#172441" font-size="13" font-weight="bold">${vName(voice)} · ${voice.p}</text>
+    </svg>`;
+}
+
+function renderSkyprint(panel) {
+  const card = state.skyprint;
+  const earned = !!MB.lensChart && MB.traceColumn !== undefined;
+  const figure = $('spFig_'+panel);
+  figure.hidden = !card;
+  figure.innerHTML = card ? skyprintSVG(card) : '';
+  figure.setAttribute('aria-label', card ? printCaption(card)+'. Chart rows '+lensPatterns[card.chart].join(' / ')+'.' : 'No Skyprint kept');
+  $('spPress_'+panel).disabled = !earned;
+  $('spPlay_'+panel).disabled = $('spShow_'+panel).disabled = !card;
+  $('spStatus_'+panel).textContent = printMessage || (card ? printCaption(card) : earned ? 'Press your trace onto a keepsake.' : 'Mark a Star Trace to press your first print.');
+}
+
+function pressSkyprint() {
+  if (!lensReady() || !MB.lensChart || MB.traceColumn === undefined) return;
+  const voice = lwSeq()[MB.traceColumn];
+  const card = {ver:1, chart:MB.lensChart, col:MB.traceColumn, role:voice.role, note:voice.id};
+  const previous = state.skyprint;
+  state.skyprint = card;
+  if (save()) {
+    printMessage = 'Kept '+printCaption(card)+'.';
+  } else {
+    if (previous) state.skyprint = previous;
+    else delete state.skyprint;
+    printMessage = 'Could not save the new Skyprint. Try pressing it again.';
+  }
+  FFK.forEach(renderSkyprint);
+}
+
+function showSkyprint(quiet) {
+  const card = state.skyprint;
+  if (!card) return;
+  const voice = chVoice(card.role, card.note);
+  printMessage = (quiet ? 'Silent view. ' : sounded(() => playVoice(voice)))+printCaption(card)+'.';
+  FFK.forEach(renderSkyprint);
+}
+
+for (const panel of FFK) {
+  $('spPress_'+panel).addEventListener('click', pressSkyprint);
+  $('spPlay_'+panel).addEventListener('click', () => showSkyprint(false));
+  $('spShow_'+panel).addEventListener('click', () => showSkyprint(true));
 }
 
 function pickTrace(column) {
