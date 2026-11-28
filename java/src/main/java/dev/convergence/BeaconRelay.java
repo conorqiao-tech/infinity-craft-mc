@@ -6,7 +6,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 record BeaconRelay(BlockPos glass, BlockPos lead, Phase phase) {
-    enum Phase { RELAY, AT_GLASS, AT_OBSERVER, AT_LEAD, FINISHED }
+    enum Phase { RELAY, AT_GLASS, AT_OBSERVER, AT_LEAD, FINISHED, PROJECTED }
 
     BeaconRelay(BlockPos glass) { this(glass.immutable(), null, Phase.RELAY); }
 
