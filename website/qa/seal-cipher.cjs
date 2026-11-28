@@ -572,9 +572,21 @@ async function verify(page, origin) {
         const cells = await lens(side,'Fig').locator('[data-cell]').evaluateAll(nodes =>
           nodes.map(node => node.getAttribute('data-lit')).join(''));
         assert.equal(cells,'010101010');
+        const print = (view, part) => page.locator('#sp'+part+'_'+view);
+        const readPrint = () => page.evaluate(() => JSON.parse(localStorage.getItem('infinitycraft.field-guide.v1')).skyprint);
+        assert(await print(side,'Press').isDisabled());
         await stamp(side, 1, []);
         await stamp(side, 2, [1]);
         assert.equal(await trace(side,'Fig').locator('[data-column="2"] [data-trace-mark]').count(), 1);
+        const beforePress = (await heard()).length;
+        await tap(print(side,'Press'));
+        const kept = {ver:1, chart:'kite', col:1, role:'harp', note:'kite'};
+        assert.deepEqual(await readPrint(),kept);
+        await tap(print(side,'Show'));
+        assert.equal((await heard()).length,beforePress,'Press and quiet view are silent');
+        assert.match(await print(side,'Fig').getAttribute('aria-label'), /Chart Kite.*Column 2.*Kite harp/i);
+        await tap(print(side,'Play'));
+        assertAudio((await heard()).slice(beforePress),{notes:unison},[1],audible);
         await tap(guideTab);
         await playFacet(other,'L',unison,[2,1]);
         await page.evaluate(() => {window.blockPennantWrite=true;});
@@ -587,6 +599,9 @@ async function verify(page, origin) {
         assert.match(await trace(other,'Fig').getAttribute('aria-label'), /Double underline on column 2/);
         assert.match(await lens(other,'Fig').getAttribute('aria-label'), /010.*101.*010/);
         await tap(page.locator('#crStart_'+other));
+        assert(await print(other,'Press').isDisabled());
+        assert(await print(other,'Play').isEnabled());
+        assert.deepEqual(await readPrint(),kept);
         assert(await trace(other,'Pick1').isDisabled());
         assert(await lens(other,'Kite').isDisabled());
         assert(await ribbon(other,'Start').isDisabled());
@@ -709,6 +724,13 @@ async function verify(page, origin) {
       assert(await page.locator('#ffMain_'+side).isEnabled(), 'Invalid prism leaves the pennant playable');
     }
   }
+  for (const bad of [{col:1}, {role:'flute'}, {chart:'missing'}, {note:'bad'}, {ver:2}]) {
+    const skyprint = {ver:1, chart:'ember', col:0, role:'harp', note:'moon', ...bad};
+    await page.evaluate(data => localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(data)), {skyprint, prism:oldPrism});
+    await page.reload();
+    assert(await page.locator('#spPlay_p').isDisabled(), 'Invalid Skyprint stays unplayable');
+    assert(await page.locator('#prL_p').isEnabled(), 'Other saved items still play');
+  }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
   for (const bad of [null,123,'obsolete',[],{ver:2,solo:'harp',notes:testSeal.notes},{ver:1,solo:'other',notes:testSeal.notes},{ver:1,solo:'bell',notes:['kite','unknown','moon']}]) {
     const root = bad && typeof bad==='object' && !Array.isArray(bad) ? {seal:testSeal,pennant:bad} : bad;
@@ -736,5 +758,6 @@ async function verify(page, origin) {
     console.log('PASS: Ribbon Return followed the actual tied relay order, played two solos and the endpoint duet, and preserved or cleared each beat across both panels as expected.');
     console.log('PASS: Star Lens projected the stored observer chart and solo for both tie orders, synchronized panels and silently reprojected across free play and a failed replacement.');
     console.log('PASS: Star Trace selected the densest Kite column, played its assigned unison instrument once, held the mark across tabs and cleared on a fresh walk.');
+    console.log('PASS: Skyprint enforced the trace gate, preserved a pressed card across reset, and replayed the selected harp with audible, quiet and muted controls.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
