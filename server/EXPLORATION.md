@@ -78,6 +78,8 @@
 
 **Star Lens.** After Ribbon Return, place a full stained-glass block directly on top of the clear glass you lit. Use the same prism on the colored block. Match the chart of the observing lantern, the voice missing from the closing duet: cyan for Kite, purple for Half Moon, or orange for Ember Peaks. The correct lens plays that lantern’s solo and projects its original nine-cell Star Loom pattern above the glass. Use the matching lens again to see the chart silently. Your blocks stay in place.
 
+**Star Trace.** Look at the projected board and count the bright stars in each column. The first, second and third lantern you visited correspond to the left, middle and right columns. Use your prism on a lantern for a column with the most stars. Either tied column works. Its lantern plays its own solo, and two lines appear beneath the chosen column. Use that lantern or the matching lens again for a silent redraw. Keep the tinted lens on the original clear glass.
+
 
 
 **Infinity Glassworks.** At a crafting table, place eight matching glass panes in eight different slots. The empty slot can be anywhere. Take three full blocks of the same glass. Clear panes and all sixteen stained colors work. Picking up any of these panes unlocks the Glassworks recipes in the Java recipe book. To cut panes again, the ordinary recipe turns six blocks into sixteen panes. The Builder Exchange guide in Infinity Journey also lists the recipe.

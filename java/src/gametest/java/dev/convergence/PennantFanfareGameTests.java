@@ -897,6 +897,81 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void stampOneDensestColumnInWalkVisitOrder(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Trace"); var west = Stand.at(g.players.getFirst(), 2);
+             var observer = Stand.at(west.owner, west.pos.offset(2, 0, 1)); var east = Stand.at(west.owner, west.pos.east(4));
+             var glass = Stand.at(west.owner, west.pos.offset(2, 1, 0)); var lens = Stand.at(west.owner, glass.pos.above())) {
+            var p = west.owner;
+            var visits = List.of(east, observer, west);
+            for (var post : visits) p.level().setBlock(post.pos, Blocks.LANTERN.defaultBlockState(), 2);
+            for (int run = 0; run < 4; run++) {
+                var chart = List.of(KITE, HALF_MOON, EMBER_PEAKS, EMBER_PEAKS).get(run);
+                int winner = List.of(1, 1, 0, 2).get(run);
+                int loser = winner == 1 ? 0 : 1;
+                var score = new ChordSeal(run == 0 ? List.of(KITE, KITE, KITE) : List.of(KITE, chart, HALF_MOON), 0, 1);
+                var prism = new InlayPrism(score);
+                p.setItemInHand(InteractionHand.MAIN_HAND, prism.item());
+                p.level().setBlock(glass.pos, Blocks.GLASS.defaultBlockState(), 2);
+                var tint = Blocks.STAINED_GLASS.pick(CadencePennant.ink(chart)).defaultBlockState();
+                p.level().setBlock(lens.pos, tint, 2);
+                LanternWalk.open(p, prism, true);
+                p.setShiftKeyDown(false);
+                for (var post : visits) tapWithFollowup(p, post);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, observer);
+                tapWithFollowup(p, glass);
+                p.setShiftKeyDown(false);
+                tapWithFollowup(p, east);
+                tapWithFollowup(p, west);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, glass);
+                p.setShiftKeyDown(false);
+                tapWithFollowup(p, observer);
+                tapWithFollowup(p, east);
+                g.drain(0);
+                tapWithFollowup(p, visits.get(winner));
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                tapWithFollowup(p, lens);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(1));
+                g.drain(2);
+
+                tapWithFollowup(p, visits.get(loser));
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                p.level().setBlock(lens.pos, Blocks.GLASS.defaultBlockState(), 2);
+                tapWithFollowup(p, visits.get(winner));
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                p.level().setBlock(lens.pos, tint, 2);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, visits.get(winner));
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                p.setShiftKeyDown(false);
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    tapWithFollowup(p, attempt == 2 ? lens : visits.get(winner));
+                    var packets = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, packets, score, attempt == 0 ? List.of(2 - winner) : List.of());
+                    var marks = GalleryTrailGameTests.particles(packets, ParticleTypes.ELECTRIC_SPARK);
+                    c.assertValueEqual(marks.size(), 10, "Two five-dot underlines mark exactly one column");
+                    var center = Vec3.atCenterOf(lens.pos).add((1 - winner) * .46, 2 - .83, 0);
+                    for (int row = 0; row < 2; row++) for (int dot = -2; dot <= 2; dot++) {
+                        var point = center.add(dot * .08, -row * .12, 0);
+                        c.assertTrue(marks.stream().anyMatch(mark -> mark.distanceTo(point) < .002), "Mark stays under the selected column");
+                    }
+                    if (attempt == 0) {
+                        // Test the other tied winner on both Ember routes.
+                        tapWithFollowup(p, visits.get(winner == 1 ? 2 : 2 - winner));
+                        var alternate = g.drain(0);
+                        SealCipherGameTests.expectSounds(c, alternate, score, List.of());
+                        c.assertTrue(GalleryTrailGameTests.particles(alternate, ParticleTypes.ELECTRIC_SPARK).isEmpty(), "A second choice cannot move the mark");
+                    }
+                }
+                var other = g.drain(2);
+                SealCipherGameTests.expectSounds(c, other, score, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(other, ParticleTypes.ELECTRIC_SPARK).isEmpty(), "The mark stays private");
+            }
+        }
+        c.succeed();
+    }
+
     @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
         var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
         for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {

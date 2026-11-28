@@ -157,12 +157,54 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
             EncoreDuet.leave(player);
             CircuitConductor.soundVoice(player, voice, chart);
         }
-        StarLens.project(player, pos, chart);
+        StarLens.project(player, pos, chart, relay.traceColumn());
         ConcertStage.overlay(player, "Star Lens • " + prism.score().voiceName(voice)
-            + (first ? " • Observer solo • Use again to show the chart" : " • Chart projected again"));
+            + (first ? " • Find a column with the most stars • Tap its lantern in walk order" : " • Chart projected again"));
+    }
+
+    private void traceColumn(ServerPlayer player, BlockPos lantern) {
+        int column = stops.indexOf(lantern);
+        if (column < 0) {
+            ConcertStage.overlay(player, "Star Trace • Use one of your three walk lanterns, left to right in visit order.");
+            return;
+        }
+        var chart = prism.score().voices().get(voiceAt(surveyedFrom));
+        var lens = relay.glass().above();
+        if (!player.level().getBlockState(relay.glass()).is(Blocks.GLASS)
+                || !player.level().getBlockState(lens).is(Blocks.STAINED_GLASS.pick(CadencePennant.ink(chart)))) {
+            ConcertStage.overlay(player, "Star Trace • Restore your matching lens on the original clear glass.");
+            return;
+        }
+        boolean first = relay.traceColumn() < 0;
+        if (!first && column != relay.traceColumn()) {
+            ConcertStage.overlay(player, "Star Trace • Your mark is on column " + (relay.traceColumn() + 1));
+            return;
+        }
+        int count = StarLens.starsInColumn(chart, column);
+        if (first) {
+            for (int other = 0; other < 3; other++) {
+                if (StarLens.starsInColumn(chart, other) > count) {
+                    ConcertStage.overlay(player, "Star Trace • Another column has more bright stars. Count from the left.");
+                    return;
+                }
+            }
+            player.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, relay.trace(column)));
+            int voice = voiceAt(column);
+            InfinityChimes.stopPlayback(player);
+            EncoreDuet.leave(player);
+            CircuitConductor.soundVoice(player, voice, prism.score().voices().get(voice));
+        }
+        StarLens.project(player, lens, chart, column);
+        GalleryTrail.drawLink(player, Vec3.atCenterOf(lantern).add(0, .6, 0), Vec3.atCenterOf(lens), 1, .35);
+        ConcertStage.overlay(player, "Star Trace • Column " + (column + 1) + " • " + count + " stars • "
+            + prism.score().voiceName(voiceAt(column)) + (first ? " solo" : " • Silent redraw"));
     }
 
     private void relayLantern(ServerPlayer p, BlockPos pos) {
+        if (relay.phase() == BeaconRelay.Phase.PROJECTED) {
+            traceColumn(p, pos);
+            return;
+        }
         if (relay.complete()) {
             returnBeat(p, pos, false);
             return;
