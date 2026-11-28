@@ -74,6 +74,9 @@
 
 **Beacon Relay.** Use the prism on the two lanterns at the ends of that span without sneaking. Start at the one closer to the glass you lit, including its height. If both are equally close, either can lead. The first lantern plays its solo and lights one arch. Visiting the other plays the full chord once and traces a figure eight above your glass. A wrong lantern gives a silent clue and keeps your place.
 
+**Ribbon Return.** After finishing Beacon Relay, sneak-use the same prism on the exact glass you lit. The lantern that finished the relay sounds again, and a dotted arc returns to your glass. Use the observing lantern without sneaking to hear its solo. Then use the lantern that led your relay. Both endpoints answer together and a four-point star marks the center of your infinity ribbon. Wrong guesses keep your place. On a tied relay, remember which lantern you chose first.
+
+
 **Infinity Glassworks.** At a crafting table, place eight matching glass panes in eight different slots. The empty slot can be anywhere. Take three full blocks of the same glass. Clear panes and all sixteen stained colors work. Picking up any of these panes unlocks the Glassworks recipes in the Java recipe book. To cut panes again, the ordinary recipe turns six blocks into sixteen panes. The Builder Exchange guide in Infinity Journey also lists the recipe.
 
 **Infinity Chimes.** Tune a note block, aim at it, then open **Infinity Menu → Infinity Journey → Infinity Chimes**. Choose **Copy** to hear the chime and add the note to your personal score. Note names follow the standard harp octave. Copy up to eight notes in order, including repeats. **Play my score** plays the saved pitches privately in a chime voice, eight game ticks apart. You can listen away from the original blocks. **Undo last note** removes one note at a time. The score stays with your character when you leave and come back.

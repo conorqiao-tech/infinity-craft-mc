@@ -738,6 +738,82 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void playReturnFromChosenGlassAndActualTiedRelayOrder(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Ribbon"); var a = Stand.at(g.players.getFirst(), 2);
+             var observer = Stand.at(a.owner, a.pos.offset(1, 1, 1)); var b = Stand.at(a.owner, a.pos.offset(3, 3, 0));
+             var high = Stand.at(a.owner, a.pos.offset(1, 3, 0)); var low = Stand.at(a.owner, a.pos.offset(1, 2, 0))) {
+            var p = a.owner;
+            var score = new ChordSeal(List.of(KITE, KITE, KITE), 2, -1);
+            var prism = new InlayPrism(score);
+            p.setItemInHand(InteractionHand.MAIN_HAND, prism.item());
+            for (var post : List.of(a, observer, b)) p.level().setBlock(post.pos, Blocks.LANTERN.defaultBlockState(), 2);
+            for (var cell : List.of(high, low)) p.level().setBlock(cell.pos, Blocks.GLASS.defaultBlockState(), 2);
+            // At high the squared distances to A/B are 10/4. One block lower they are 5/5.
+            for (int run = 0; run < 3; run++) {
+                var glass = run == 0 ? high : low;
+                var otherGlass = run == 0 ? low : high;
+                var lead = run == 1 ? a : b;
+                var finish = run == 1 ? b : a;
+                boolean reverse = run == 0;
+                int leadVoice = score.cornerAt((lead == a) != reverse ? 0 : 2);
+                int finishVoice = score.cornerAt((finish == a) != reverse ? 0 : 2);
+                LanternWalk.open(p, prism, reverse);
+                p.setShiftKeyDown(false);
+                for (var post : List.of(a, observer, b)) tapWithFollowup(p, post);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, observer);
+                tapWithFollowup(p, glass);
+                g.drain(0);
+                tapWithFollowup(p, glass);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                p.setShiftKeyDown(false);
+                if (run == 0) {
+                    tapWithFollowup(p, a);
+                    SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                }
+                tapWithFollowup(p, lead);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(leadVoice));
+                tapWithFollowup(p, finish);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(0, 1, 2));
+                tapWithFollowup(p, glass); // Plain use never starts the return.
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, otherGlass);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                tapWithFollowup(p, glass);
+                var opening = g.drain(0);
+                SealCipherGameTests.expectSounds(c, opening, score, List.of(finishVoice));
+                var center = Vec3.atCenterOf(glass.pos).add(0, 1.35, 0);
+                var arc = GalleryTrailGameTests.particles(opening, ParticleTypes.ELECTRIC_SPARK);
+                c.assertTrue(arc.size() == 13 && arc.getFirst().distanceTo(Vec3.atCenterOf(finish.pos).add(0, .7, 0)) < .001
+                    && arc.getLast().distanceTo(center) < .001, "Dotted arc returns from the actual finisher to the chosen glass");
+                tapWithFollowup(p, glass);
+                p.setShiftKeyDown(false);
+                tapWithFollowup(p, lead);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                tapWithFollowup(p, observer);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of(score.cornerAt(1)));
+                tapWithFollowup(p, observer);
+                tapWithFollowup(p, finish);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                tapWithFollowup(p, lead);
+                var last = g.drain(0);
+                SealCipherGameTests.expectSounds(c, last, score, List.of(leadVoice, finishVoice));
+                c.assertValueEqual(GalleryTrailGameTests.particles(last, ParticleTypes.GLOW),
+                    List.of(Vec3.atCenterOf(lead.pos).add(0, .7, 0), Vec3.atCenterOf(finish.pos).add(0, .7, 0), center),
+                    "Only the endpoint duet and the glass carry the final glow");
+                c.assertTrue(GalleryTrailGameTests.particles(last, ParticleTypes.END_ROD).stream()
+                    .anyMatch(point -> point.distanceTo(center.add(0, .42, 0)) < .001), "A star crowns the ribbon at its center");
+                c.assertValueEqual(GalleryTrailGameTests.particles(last, ParticleTypes.WAX_ON).size(), 32, "Both lobes close");
+                tapWithFollowup(p, lead);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, List.of());
+                var bystander = g.drain(2);
+                SealCipherGameTests.expectSounds(c, bystander, score, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(bystander, ParticleTypes.ELECTRIC_SPARK).isEmpty(), "Return is private");
+            }
+        }
+        c.succeed();
+    }
+
     @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
         var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
         for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {
