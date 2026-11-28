@@ -8,6 +8,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.phys.BlockHitResult;
@@ -25,7 +26,10 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
             if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN) && !station.is(Blocks.GLASS)
                     && !(station.getBlock() instanceof StainedGlassBlock))
                 return InteractionResult.PASS;
-            var prism = InlayPrism.read(p.getMainHandItem());
+            var held = p.getMainHandItem();
+            if (station.getBlock() instanceof StainedGlassBlock && held.is(Items.PAPER) && held.getComponentsPatch().isEmpty()
+                    && LanternWalk.pressSkyprint(p, hit.getBlockPos())) return InteractionResult.SUCCESS_SERVER;
+            var prism = InlayPrism.read(held);
             if (prism == null) return InteractionResult.PASS;
             if (station.getBlock() instanceof StainedGlassBlock lens) {
                 var walk = LanternWalk.lensAt(p, prism, hit.getBlockPos());

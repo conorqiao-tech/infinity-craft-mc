@@ -108,6 +108,11 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
                 seal.play(p);
                 return InteractionResult.SUCCESS_SERVER;
             }
+            var skyprint = Skyprint.read(p.getMainHandItem());
+            if (skyprint != null) {
+                skyprint.show(p);
+                return InteractionResult.SUCCESS_SERVER;
+            }
             var postcard = CodaPostcard.read(p.getMainHandItem());
             if (postcard != null) {
                 postcard.playIfHeld(p);
