@@ -19,7 +19,8 @@ record Skyprint(StarLoom.Chart chart, int column, int voice, StarLoom.Chart pitc
 
     ItemStack paper() {
         var sheet = CommonsEvents.named(Items.PAPER, 1, "Skyprint • " + chart.label, caption(),
-            "Use in the air to play. Sneak-use for a silent view.");
+            "Use in the air to play. Sneak-use for a silent view.",
+            "For Sky Dial, mount in a wall frame, turn by hand and read with a compass.");
         var score = new CompoundTag();
         score.putIntArray("pitches", new int[]{chart.note, pitch.note});
         score.putInt("column", column);

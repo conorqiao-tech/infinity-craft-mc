@@ -77,6 +77,13 @@ record StarPrint(String composer, List<StarLoom.Chart> notes) {
             if ((held.is(Items.GLOW_INK_SAC) || held.is(Items.PAPER)) && held.getComponentsPatch().isEmpty() && EncoreDuet.useCodaItem(p, frame))
                 return InteractionResult.SUCCESS_SERVER;
             boolean compass = held.is(Items.COMPASS) && held.getComponentsPatch().isEmpty();
+            if (compass && frame.getDirection().getAxis() != Direction.Axis.Y) {
+                var skyprint = Skyprint.read(frame.getItem());
+                if (skyprint != null) {
+                    SkyDial.read(p, frame, skyprint);
+                    return InteractionResult.SUCCESS_SERVER;
+                }
+            }
             boolean feather = held.is(Items.FEATHER) && held.getComponentsPatch().isEmpty() && GalleryTrail.encoreReady(p);
             boolean stick = EncoreDuet.hasBaton(p) && GalleryTrail.encoreReady(p);
             if (!stick && !feather && !compass && !held.is(Items.AMETHYST_SHARD)) return InteractionResult.PASS;

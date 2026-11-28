@@ -15,6 +15,7 @@ import net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket;
 import net.minecraft.network.protocol.game.ServerboundInteractPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.decoration.GlowItemFrame;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -50,6 +51,80 @@ public class GalleryTrailGameTests {
     static List<Vec3> particles(List<Packet<?>> packets, ParticleType<?> type) {
         return packets.stream().filter(ClientboundLevelParticlesPacket.class::isInstance).map(ClientboundLevelParticlesPacket.class::cast)
             .filter(pkt -> pkt.particle().getType() == type).map(pkt -> new Vec3(pkt.x(), pkt.y(), pkt.z())).toList();
+    }
+
+    @GameTest public void compassReadsAllEightSkyDialNotchesWithoutTurningTheFrame(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Dial")) {
+            var reader = g.players.get(1);
+            var north = g.frames.getFirst();
+            var walls = new ArrayList<ItemFrame>();
+            walls.add(north);
+            for (var face : List.of(Direction.EAST, Direction.SOUTH, Direction.WEST)) {
+                var position = north.blockPosition().above(2 * walls.size());
+                var wall = face == Direction.SOUTH ? new GlowItemFrame(reader.level(), position, face)
+                    : new ItemFrame(reader.level(), position, face);
+                c.assertTrue(reader.level().addFreshEntity(wall), "Place a dial facing " + face);
+                walls.add(wall);
+                g.frames.add(wall);
+            }
+            var score = new ChordSeal(List.of(KITE, HALF_MOON, EMBER_PEAKS), 0, 1);
+            var prints = List.of(new Skyprint(EMBER_PEAKS, 0, 1, HALF_MOON), new Skyprint(HALF_MOON, 1, 0, KITE),
+                new Skyprint(EMBER_PEAKS, 2, 2, EMBER_PEAKS));
+            for (var frame : walls) for (var print : prints) {
+                var paper = print.paper();
+                frame.setItem(paper.copy());
+                frame.setRotation(0);
+                int target = List.of(6, 0, 2).get(print.column());
+                var center = GalleryTrail.framePoint(frame);
+                var right = frame.getDirection().getCounterClockWise().getUnitVec3();
+                for (int angle = 0; angle < 8; angle++) {
+                    reader.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COMPASS));
+                    visit(reader, frame, false);
+                    var packets = g.drain(1);
+                    int remaining = Math.floorMod(target - angle, 8);
+                    SealCipherGameTests.expectSounds(c, packets, score, remaining == 0 ? List.of(print.voice()) : List.of());
+                    c.assertValueEqual(frame.getRotation(), angle, "Compass reads preserve rotation");
+                    var needle = particles(packets, ParticleTypes.END_ROD);
+                    c.assertValueEqual(needle.size(), 6, "Six needle points on every reading");
+                    double radians = angle * Math.PI / 4;
+                    var tip = center.add(right.scale(.425 * Math.sin(radians))).add(0, .425 * Math.cos(radians), 0);
+                    c.assertTrue(needle.stream().anyMatch(point -> point.distanceTo(tip) < .001), "Needle follows the wall face");
+                    c.assertValueEqual(particles(packets, ParticleTypes.ELECTRIC_SPARK).size(), remaining == 0 ? 8 : 0,
+                        "Only an aligned reading flashes");
+                    if (remaining == 0) {
+                        visit(reader, frame, false);
+                        SealCipherGameTests.expectSounds(c, g.drain(1), score, List.of(print.voice()));
+                    } else {
+                        c.assertTrue(overlays(packets).stream().anyMatch(line -> line.contains(remaining + " clockwise turn")),
+                            "Hint reports clockwise distance including wraparound");
+                    }
+                    reader.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+                    visit(reader, frame, false);
+                    c.assertValueEqual(frame.getRotation(), (angle + 1) % 8, "An empty hand uses vanilla frame rotation");
+                    SealCipherGameTests.expectSounds(c, g.drain(1), score, List.of());
+                }
+                c.assertTrue(ItemStack.matches(frame.getItem(), paper), "Reading and turning retain the printed score");
+            }
+            for (var face : List.of(Direction.UP, Direction.DOWN)) {
+                var horizontal = new ItemFrame(reader.level(), north.blockPosition().above(face == Direction.UP ? 8 : 10), face);
+                c.assertTrue(reader.level().addFreshEntity(horizontal), "Place a horizontal frame");
+                g.frames.add(horizontal);
+                horizontal.setItem(prints.get(1).paper());
+                reader.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.COMPASS));
+                visit(reader, horizontal, false);
+                c.assertValueEqual(horizontal.getRotation(), 1, "Floor and ceiling frames keep ordinary compass interaction");
+                var packets = g.drain(1);
+                SealCipherGameTests.expectSounds(c, packets, score, List.of());
+                c.assertTrue(particles(packets, ParticleTypes.END_ROD).isEmpty(), "A horizontal frame has no dial needle");
+            }
+            var visitor = g.drain(2);
+            SealCipherGameTests.expectSounds(c, visitor, score, List.of());
+            c.assertTrue(particles(visitor, ParticleTypes.END_ROD).isEmpty(), "Other players do not see the dial reading");
+            reader.setItemInHand(InteractionHand.MAIN_HAND, CommonsEvents.named(Items.COMPASS, 1, "Named compass", "Ordinary frame use"));
+            visit(reader, north, false);
+            c.assertValueEqual(north.getRotation(), 1, "A named compass keeps vanilla frame interaction");
+        }
+        c.succeed();
     }
 
     @GameTest(maxTicks = 80) public void visitorSolvesThreeFramedMelodiesWithPrivateLinksAndHalos(GameTestHelper c) {
