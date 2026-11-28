@@ -109,6 +109,10 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
 
     void lightBeacon(ServerPlayer p, BlockPos glass) {
         if (relay != null) {
+            if (relay.complete() && p.isShiftKeyDown() && relay.glass().equals(glass)) {
+                returnBeat(p, glass, true);
+                return;
+            }
             ConcertStage.overlay(p, "Midpoint Beacon • Already lit at " + relay.glass().toShortString());
             return;
         }
@@ -130,6 +134,10 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
     }
 
     private void relayLantern(ServerPlayer p, BlockPos pos) {
+        if (relay.complete()) {
+            returnBeat(p, pos, false);
+            return;
+        }
         var span = OPPOSITE.get(surveyedFrom);
         String clue = relay.rejection(new MidpointBeacon(stops.get(span.from), stops.get(span.to)), pos);
         if (clue != null) {
@@ -143,13 +151,56 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
         var score = prism.score();
         if (next.complete()) {
             score.soundBeat(p, 3);
-            ConcertStage.overlay(p, "Beacon Relay • Full chord • Infinity ribbon complete");
+            ConcertStage.overlay(p, "Beacon Relay • Full chord • Sneak-use your lit glass to start Ribbon Return");
         } else {
             int voice = voiceAt(stops.indexOf(pos));
             CircuitConductor.soundVoice(p, voice, score.voices().get(voice));
             ConcertStage.overlay(p, "Beacon Relay • " + score.voiceName(voice) + " solo • Visit the other endpoint");
         }
         next.draw(p, pos);
+    }
+
+    private void returnBeat(ServerPlayer p, BlockPos tap, boolean onGlass) {
+        var observer = stops.get(surveyedFrom);
+        var span = OPPOSITE.get(surveyedFrom);
+        int lead = stops.indexOf(relay.lead());
+        int finish = lead == span.from ? span.to : span.from;
+        var score = prism.score();
+        var next = switch (relay.phase()) {
+            case AT_GLASS -> onGlass ? BeaconRelay.Phase.AT_OBSERVER : null;
+            case AT_OBSERVER -> !onGlass && observer.equals(tap) ? BeaconRelay.Phase.AT_LEAD : null;
+            case AT_LEAD -> !onGlass && relay.lead().equals(tap) ? BeaconRelay.Phase.FINISHED : null;
+            default -> null;
+        };
+        if (next == null) {
+            String clue = switch (relay.phase()) {
+                case AT_GLASS -> "Sneak-use the glass you lit.";
+                case AT_OBSERVER -> "Visit your survey observer.";
+                case AT_LEAD -> "Visit the lantern that led your relay.";
+                default -> "Center star complete.";
+            };
+            ConcertStage.overlay(p, "Ribbon Return • " + clue);
+            return;
+        }
+        var advanced = relay.at(next);
+        p.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, advanced));
+        InfinityChimes.stopPlayback(p);
+        EncoreDuet.leave(p);
+        if (next == BeaconRelay.Phase.FINISHED) {
+            for (int i : List.of(lead, finish)) {
+                int voice = voiceAt(i);
+                CircuitConductor.soundVoice(p, voice, score.voices().get(voice));
+            }
+            ConcertStage.overlay(p, "Ribbon Return • 3/3 • " + score.voiceName(voiceAt(lead)) + " + "
+                + score.voiceName(voiceAt(finish)) + " • Center star complete");
+        } else {
+            boolean opening = next == BeaconRelay.Phase.AT_OBSERVER;
+            int voice = voiceAt(opening ? finish : surveyedFrom);
+            CircuitConductor.soundVoice(p, voice, score.voices().get(voice));
+            ConcertStage.overlay(p, "Ribbon Return • " + (opening ? "1/3" : "2/3") + " • " + score.voiceName(voice)
+                + (opening ? " • Visit your survey observer" : " • Return to your lead: " + score.voiceName(voiceAt(lead))));
+        }
+        advanced.drawReturn(p, stops.get(finish), observer);
     }
 
     private static void drawSurvey(ServerPlayer p, BlockPos observer, BlockPos first, BlockPos second) {
