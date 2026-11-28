@@ -398,6 +398,10 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 @media(max-width:420px){.cscore{border-spacing:4px}.cscore th[scope=row]{width:3.9em;font-size:14px}.cc{padding:6px 2px}}
 @media(max-width:640px){.gallery{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:560px){.loom{grid-template-columns:minmax(0,1fr)}.lfig{height:96px}.ex{grid-template-columns:minmax(0,1fr)}.ex svg{height:40px}}
+.slfig{width:min(100%,300px);margin:0 auto}
+.slfig svg{display:block;width:100%;height:auto}
+.slens .btn{white-space:normal}
+.slens .btn[aria-pressed=true]{background:#e8fbff;border-color:#e8fbff;color:#0e1030}
 </style>
 </head>
 <body>
@@ -525,6 +529,13 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="row"><button class="btn main" id="rrStart_g" type="button" aria-disabled="true">Return to glass</button></div>
 <div class="lwposts" role="group" aria-label="Return stops in visit order"><button class="btn" type="button" id="rrPick1_g" data-rr="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="rrPick2_g" data-rr="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="rrPick3_g" data-rr="2" aria-disabled="true">Stop 3</button></div>
 <p class="status" id="rrStatus_g" role="status" aria-live="polite">Complete the Beacon Relay to unlock the return.</p>
+</div>
+<div class="beacon slens" aria-labelledby="slT_g">
+<h4 id="slT_g">Star Lens</h4>
+<p class="btdir" id="slInfo_g">Finish Ribbon Return to unlock the lens.</p>
+<div class="slfig" id="slFig_g" role="img" aria-label="Star lens locked"></div>
+<div class="lwposts" role="group" aria-label="Lens tint"><button class="btn" type="button" id="slKite_g" data-sl="kite" aria-disabled="true" aria-pressed="false">Cyan • Kite</button><button class="btn" type="button" id="slMoon_g" data-sl="moon" aria-disabled="true" aria-pressed="false">Purple • Half Moon</button><button class="btn" type="button" id="slEmber_g" data-sl="ember" aria-disabled="true" aria-pressed="false">Orange • Ember Peaks</button></div>
+<p class="status" id="slStatus_g" role="status" aria-live="polite">Finish Ribbon Return to unlock the lens.</p>
 </div>
 </div>
 </div>
@@ -709,6 +720,7 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <li>Star Survey: after a completed walk, Sneak-use the same prism on the observing lantern to sight its opposite span. Normal use keeps the existing facet behavior.</li>
 <li>Midpoint Beacon: after a solved survey, use the same prism on ordinary clear glass placed one block above the block center nearest the surveyed span's midpoint, in all three axes.</li>
 <li>Beacon Relay and Ribbon Return: normal-use the two relay endpoints, nearer first. Then Sneak-use the exact clear glass that was lit to start the return, and normal-use the observer lantern followed by the original lead lantern.</li>
+<li>Star Lens: use your prism on a full stained-glass block directly above your lit clear glass. Match the chart of the observer who sat out the closing duet.</li>
 </ol>
 </div>
 <p class="exline">In this guide, Play call and Play answer do the same with your kept pennant: the solo first, then the two stripe instruments together, left and right.</p>
@@ -1029,6 +1041,13 @@ fieldset.chips legend{padding:0;margin-bottom:6px;font-size:14px;font-weight:700
 <div class="row"><button class="btn main" id="rrStart_p" type="button" aria-disabled="true">Return to glass</button></div>
 <div class="lwposts" role="group" aria-label="Return stops in visit order"><button class="btn" type="button" id="rrPick1_p" data-rr="0" aria-disabled="true">Stop 1</button><button class="btn" type="button" id="rrPick2_p" data-rr="1" aria-disabled="true">Stop 2</button><button class="btn" type="button" id="rrPick3_p" data-rr="2" aria-disabled="true">Stop 3</button></div>
 <p class="status" id="rrStatus_p" role="status" aria-live="polite">Complete the Beacon Relay to unlock the return.</p>
+</div>
+<div class="beacon slens" aria-labelledby="slT_p">
+<h4 id="slT_p">Star Lens</h4>
+<p class="btdir" id="slInfo_p">Finish Ribbon Return to unlock the lens.</p>
+<div class="slfig" id="slFig_p" role="img" aria-label="Star lens locked"></div>
+<div class="lwposts" role="group" aria-label="Lens tint"><button class="btn" type="button" id="slKite_p" data-sl="kite" aria-disabled="true" aria-pressed="false">Cyan • Kite</button><button class="btn" type="button" id="slMoon_p" data-sl="moon" aria-disabled="true" aria-pressed="false">Purple • Half Moon</button><button class="btn" type="button" id="slEmber_p" data-sl="ember" aria-disabled="true" aria-pressed="false">Orange • Ember Peaks</button></div>
+<p class="status" id="slStatus_p" role="status" aria-live="polite">Finish Ribbon Return to unlock the lens.</p>
 </div>
 </div>
 </div>
@@ -2496,7 +2515,77 @@ function returnSVG(route, step) {
     <text x="92" y="201" class="cxn" fill="#b9bde8">4 blocks · ◆ glass X ${MB.x}, Z ${MB.z}</text></svg>`;
 }
 
+
+const lensPatterns = {kite: ['010','101','010'], moon: ['010','110','010'], ember: ['101','111','111']};
+const lensReady = () => mbLive() && MB.returnStep === 3;
+
+function lensSVG(chart, panel) {
+  const ink = chart ? DYE[chart][0] : '#5a639a';
+  const cells = [];
+  for (let i=0; i<9; i++) {
+    const lit = chart && lensPatterns[chart][Math.floor(i/3)][i%3] === '1';
+    const shape = lit
+      ? `<circle r="14" fill="${ink}" opacity=".7"/><path d="M0 -12 L3 -3 12 0 3 3 0 12 -3 3 -12 0 -3 -3Z" fill="#fff9d8"/>`
+      : '<circle r="6" fill="#17203d" stroke="#96a5be" stroke-width="1.5"/><circle r="2" fill="#74849b"/>';
+    cells.push(`<g data-cell="${i}" data-lit="${lit ? 1 : 0}" transform="translate(${100 + i%3*40} ${38 + Math.floor(i/3)*34})">${shape}</g>`);
+  }
+  const beam = chart ? `<path d="M135 174 L72 131 H208 L145 174Z" fill="url(#lens-beam-${panel})"/>` : '';
+  return `<svg viewBox="0 0 280 226" aria-hidden="true">
+    <defs><linearGradient id="lens-beam-${panel}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${ink}" stop-opacity=".08"/><stop offset="1" stop-color="${ink}" stop-opacity=".9"/></linearGradient></defs>
+    <rect x="65" y="7" width="150" height="126" rx="8" fill="#0c1229" stroke="${ink}" stroke-width="3"/>
+    <path d="M75 27V17h12m106 0h12v10m0 86v10h-12m-106 0H75v-10" fill="none" stroke="#c6d8e4" stroke-width="1.8"/>
+    ${cells.join('')}${beam}
+    <g stroke-linejoin="round" stroke-width="1.5">
+      <path d="M119 181l21 -9 21 9v16l-21 10 -21 -10Z" fill="#a7d6e0" stroke="#e6fcff"/>
+      <path d="M119 181l21 9 21 -9m-21 9v17" fill="none" stroke="#41657e"/>
+      <path d="M117 171l23 -10 23 10v10l-23 10 -23 -10Z" fill="${ink}" stroke="#e6eaff"/>
+      <path d="M117 171l23 10 23 -10m-23 10v10" fill="none" stroke="#f0e9ff"/>
+    </g>
+    <text x="140" y="221" text-anchor="middle" class="cxn" fill="#e4e8ff">Glass X ${MB.x}, Z ${MB.z}${chart ? ' · '+nm(chart) : ''}</text></svg>`;
+}
+
+function renderLens() {
+  const live = lensReady();
+  const chart = live && MB.lensChart;
+  const instruction = live
+    ? `Which chart belongs to ${LW.posts[SV.obs]}, the observer who sat out the closing duet? Choose its lens tint.`
+    : 'Finish Ribbon Return to unlock the lens.';
+  for (const panel of FFK) {
+    $('slInfo_'+panel).textContent = instruction;
+    $('slStatus_'+panel).textContent = MB.lensMessage || (live ? 'The frame is ready above your glass.' : '');
+    const figure = $('slFig_'+panel);
+    figure.hidden = !live;
+    figure.innerHTML = live ? lensSVG(chart, panel) : '';
+    const label = chart ? nm(chart)+' constellation, rows '+lensPatterns[chart].join(' / ')+'. One is a bright star and zero is a dark socket.' : 'Nine empty sockets';
+    figure.setAttribute('aria-label', live ? label+' Glass at X '+MB.x+', Z '+MB.z+'.' : 'Star Lens locked');
+    for (const button of figure.parentNode.querySelectorAll('[data-sl]')) {
+      button.setAttribute('aria-disabled', String(!live));
+      button.setAttribute('aria-pressed', String(chart === button.dataset.sl));
+    }
+  }
+}
+
+function projectLens(tint) {
+  if (!lensReady()) return;
+  const observer = lwSeq()[SV.obs];
+  if (tint !== observer.id) {
+    MB.lensMessage = 'That tint does not match the silent observer. Recall the second lantern of Ribbon Return.';
+  } else if (MB.lensChart) {
+    MB.lensMessage = 'Re-projected '+nm(tint)+' in silence.';
+  } else {
+    MB.lensChart = tint;
+    MB.lensMessage = sounded(() => playVoice(observer))+'Projected '+nm(tint)+' through the '+DYE[tint][1]+' glass. Observer '+LW.posts[SV.obs]+': '+vName(observer)+' '+observer.p+'.';
+  }
+  renderLens();
+}
+
+for (const button of document.querySelectorAll('[data-sl]')) {
+  button.addEventListener('click', () => projectLens(button.dataset.sl));
+}
+
+
 function renderReturn() {
+  renderLens();
   const visits = MB.relayVisits || [];
   const live = mbLive() && visits.length === 2;
   const step = MB.returnStep || 0;
