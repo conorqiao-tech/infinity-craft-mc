@@ -724,11 +724,37 @@ async function verify(page, origin) {
       assert(await page.locator('#ffMain_'+side).isEnabled(), 'Invalid prism leaves the pennant playable');
     }
   }
+  // A kept score is portable across reloads even when this session has no walk.
+  for (const [col, target] of [[0,6],[1,0],[2,2]]) {
+    const card = {ver:1, chart:col===1?'moon':'ember', col, role:'harp', note:'kite'};
+    await page.evaluate(skyprint => localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify({skyprint,sound:true})),card);
+    await page.reload();
+    const view = 'p';
+    await tap(pairsTab);
+    for (let angle = 0; angle < 8; angle++) {
+      const expected = angle === target ? [1] : [];
+      const before = (await heard()).length;
+      await tap(page.locator('#sdRead_'+view));
+      assertAudio((await heard()).slice(before), {notes:['kite','kite','kite']}, expected, true);
+      for (const panel of ['g','p']) {
+        const figure = page.locator('#sdFig_'+panel);
+        assert.equal(await figure.locator('[data-needle]').getAttribute('transform'),'rotate('+angle*45+')');
+        assert.equal(await figure.locator('[data-target]').getAttribute('transform'),'rotate('+target*45+')');
+        assert.equal(await figure.locator('[data-flare]').count(),expected.length);
+      }
+      if (angle !== target) assert.match(await page.locator('#sdStatus_p').innerText(),new RegExp('clockwise '+((target-angle+8)%8)+' more'));
+      const turn = (await heard()).length;
+      await tap(page.locator('#sdTurn_'+view));
+      assert.equal((await heard()).length,turn,'Turning is silent');
+    }
+    assert.equal(await page.locator('#sdFig_g [data-needle]').getAttribute('transform'),'rotate(0)');
+  }
   for (const bad of [{col:1}, {role:'flute'}, {chart:'missing'}, {note:'bad'}, {ver:2}]) {
     const skyprint = {ver:1, chart:'ember', col:0, role:'harp', note:'moon', ...bad};
     await page.evaluate(data => localStorage.setItem('infinitycraft.field-guide.v1',JSON.stringify(data)), {skyprint, prism:oldPrism});
     await page.reload();
     assert(await page.locator('#spPlay_p').isDisabled(), 'Invalid Skyprint stays unplayable');
+    assert(await page.locator('#sdRead_p').isDisabled() && await page.locator('#sdTurn_g').isDisabled());
     assert(await page.locator('#prL_p').isEnabled(), 'Other saved items still play');
   }
   const testSeal = {ver:1, notes:['kite','moon','ember'], open:1, dir:true};
@@ -759,5 +785,6 @@ async function verify(page, origin) {
     console.log('PASS: Star Lens projected the stored observer chart and solo for both tie orders, synchronized panels and silently reprojected across free play and a failed replacement.');
     console.log('PASS: Star Trace selected the densest Kite column, played its assigned unison instrument once, held the mark across tabs and cleared on a fresh walk.');
     console.log('PASS: Skyprint enforced the trace gate, preserved a pressed card across reset, and replayed the selected harp with audible, quiet and muted controls.');
+    console.log('PASS: Sky Dial reads all eight notches for all three columns, projects the correct needle and fork on both panels, wraps silently and plays only the printed solo.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode=1; });
