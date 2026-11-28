@@ -11,6 +11,8 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimension, List<BlockPos> stops,
@@ -133,6 +135,33 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
             + " solo • Use the nearer span lantern, then the other");
     }
 
+    static LanternWalk lensAt(ServerPlayer player, InlayPrism prism, BlockPos pos) {
+        var walk = surveyed(player, prism);
+        if (walk == null || walk.relay == null) return null;
+        var relay = walk.relay;
+        if (relay.phase() != BeaconRelay.Phase.FINISHED && relay.phase() != BeaconRelay.Phase.PROJECTED) return null;
+        return pos.below().equals(relay.glass()) && player.level().getBlockState(relay.glass()).is(Blocks.GLASS) ? walk : null;
+    }
+
+    void useLens(ServerPlayer player, BlockPos pos, Block tint) {
+        int voice = voiceAt(surveyedFrom);
+        var chart = prism.score().voices().get(voice);
+        if (tint != Blocks.STAINED_GLASS.pick(CadencePennant.ink(chart))) {
+            ConcertStage.overlay(player, "Star Lens • Match the chart of the observer who sat out the closing duet.");
+            return;
+        }
+        boolean first = relay.phase() == BeaconRelay.Phase.FINISHED;
+        if (first) {
+            player.setAttached(WALK, new LanternWalk(prism, reverse, dimension, stops, surveyedFrom, relay.at(BeaconRelay.Phase.PROJECTED)));
+            InfinityChimes.stopPlayback(player);
+            EncoreDuet.leave(player);
+            CircuitConductor.soundVoice(player, voice, chart);
+        }
+        StarLens.project(player, pos, chart);
+        ConcertStage.overlay(player, "Star Lens • " + prism.score().voiceName(voice)
+            + (first ? " • Observer solo • Use again to show the chart" : " • Chart projected again"));
+    }
+
     private void relayLantern(ServerPlayer p, BlockPos pos) {
         if (relay.complete()) {
             returnBeat(p, pos, false);
@@ -192,7 +221,7 @@ record LanternWalk(InlayPrism prism, boolean reverse, ResourceKey<Level> dimensi
                 CircuitConductor.soundVoice(p, voice, score.voices().get(voice));
             }
             ConcertStage.overlay(p, "Ribbon Return • 3/3 • " + score.voiceName(voiceAt(lead)) + " + "
-                + score.voiceName(voiceAt(finish)) + " • Center star complete");
+                + score.voiceName(voiceAt(finish)) + " • Center star complete • Place a stained-glass lens on your clear glass");
         } else {
             boolean opening = next == BeaconRelay.Phase.AT_OBSERVER;
             int voice = voiceAt(opening ? finish : surveyedFrom);

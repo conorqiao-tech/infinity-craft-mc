@@ -18,7 +18,7 @@ record CadencePennant(int solo, StarLoom.Chart call, StarLoom.Chart left, StarLo
     private static final List<ResourceKey<BannerPattern>> SYMBOLS = List.of(
         BannerPatterns.STRIPE_CENTER, BannerPatterns.STRIPE_DOWNRIGHT, BannerPatterns.CIRCLE_MIDDLE);
 
-    private static DyeColor ink(StarLoom.Chart chart) {
+    static DyeColor ink(StarLoom.Chart chart) {
         return switch (chart) {
             case KITE -> DyeColor.CYAN;
             case HALF_MOON -> DyeColor.PURPLE;

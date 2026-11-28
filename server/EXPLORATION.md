@@ -76,6 +76,9 @@
 
 **Ribbon Return.** After finishing Beacon Relay, sneak-use the same prism on the exact glass you lit. The lantern that finished the relay sounds again, and a dotted arc returns to your glass. Use the observing lantern without sneaking to hear its solo. Then use the lantern that led your relay. Both endpoints answer together and a four-point star marks the center of your infinity ribbon. Wrong guesses keep your place. On a tied relay, remember which lantern you chose first.
 
+**Star Lens.** After Ribbon Return, place a full stained-glass block directly on top of the clear glass you lit. Use the same prism on the colored block. Match the chart of the observing lantern, the voice missing from the closing duet: cyan for Kite, purple for Half Moon, or orange for Ember Peaks. The correct lens plays that lantern’s solo and projects its original nine-cell Star Loom pattern above the glass. Use the matching lens again to see the chart silently. Your blocks stay in place.
+
+
 
 **Infinity Glassworks.** At a crafting table, place eight matching glass panes in eight different slots. The empty slot can be anywhere. Take three full blocks of the same glass. Clear panes and all sixteen stained colors work. Picking up any of these panes unlocks the Glassworks recipes in the Java recipe book. To cut panes again, the ordinary recipe turns six blocks into sixteen panes. The Builder Exchange guide in Infinity Journey also lists the recipe.
 

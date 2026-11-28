@@ -814,6 +814,89 @@ public class PennantFanfareGameTests {
         c.succeed();
     }
 
+    @GameTest public void projectObserverChartsThroughTheEarnedStarLens(GameTestHelper c) {
+        try (var g = new EncoreDuetGameTests.Gallery(c, "Lens"); var a = Stand.at(g.players.getFirst(), 2);
+             var obs = Stand.at(a.owner, a.pos.offset(2, 0, 1)); var b = Stand.at(a.owner, a.pos.east(4));
+             var glass = Stand.at(a.owner, a.pos.offset(2, 1, 0)); var lens = Stand.at(a.owner, glass.pos.above());
+             var neighbor = Stand.at(a.owner, lens.pos.east())) {
+            var p = a.owner;
+            var charts = List.of(KITE, HALF_MOON, EMBER_PEAKS);
+            var tints = List.of(Blocks.STAINED_GLASS.cyan(), Blocks.STAINED_GLASS.purple(), Blocks.STAINED_GLASS.orange());
+            var masks = List.of("010101010", "010110010", "101111111");
+            for (var post : List.of(a, obs, b)) p.level().setBlock(post.pos, Blocks.LANTERN.defaultBlockState(), 2);
+            for (int run = 0; run < 3; run++) {
+                var visits = switch (run) {
+                    case 0 -> List.of(a, obs, b);
+                    case 1 -> List.of(obs, b, a);
+                    default -> List.of(a, b, obs);
+                };
+                var score = new ChordSeal(run == 0 ? List.of(KITE, KITE, KITE) : charts, run, 1);
+                var prism = new InlayPrism(score);
+                p.setItemInHand(InteractionHand.MAIN_HAND, prism.item());
+                int index = visits.indexOf(obs);
+                int voice = score.cornerAt(run == 2 ? 2 - index : index);
+                var facet = List.of(score.cornerAt(0), score.cornerAt(1));
+                p.level().setBlock(glass.pos, Blocks.GLASS.defaultBlockState(), 2);
+                p.level().setBlock(lens.pos, tints.get(run).defaultBlockState(), 2);
+                p.level().setBlock(neighbor.pos, tints.get(run).defaultBlockState(), 2);
+                LanternWalk.open(p, prism, run == 2);
+                p.setShiftKeyDown(false);
+                for (var post : visits) tapWithFollowup(p, post);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, obs);
+                tapWithFollowup(p, glass);
+                p.setShiftKeyDown(false);
+                var lead = run == 1 ? b : a;
+                var finish = lead == a ? b : a;
+                tapWithFollowup(p, lead);
+                tapWithFollowup(p, finish);
+                g.drain(0);
+                tapWithFollowup(p, lens);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, facet);
+                p.setShiftKeyDown(true);
+                tapWithFollowup(p, glass);
+                p.setShiftKeyDown(false);
+                tapWithFollowup(p, obs);
+                tapWithFollowup(p, lead);
+                g.drain(0);
+                tapWithFollowup(p, neighbor);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, facet);
+                p.level().setBlock(glass.pos, Blocks.STONE.defaultBlockState(), 2);
+                tapWithFollowup(p, lens);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, facet);
+                p.level().setBlock(glass.pos, Blocks.GLASS.defaultBlockState(), 2);
+                p.level().setBlock(lens.pos, Blocks.STAINED_GLASS_PANE.purple().defaultBlockState(), 2);
+                tapWithFollowup(p, lens);
+                SealCipherGameTests.expectSounds(c, g.drain(0), score, facet);
+                p.level().setBlock(lens.pos, tints.get((run + 1) % 3).defaultBlockState(), 2);
+                tapWithFollowup(p, lens);
+                var miss = g.drain(0);
+                SealCipherGameTests.expectSounds(c, miss, score, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(miss, ParticleTypes.GLOW).isEmpty(), "Wrong tint preserves the unheard solo");
+                p.level().setBlock(lens.pos, tints.get(run).defaultBlockState(), 2);
+                for (int attempt = 0; attempt < 2; attempt++) {
+                    tapWithFollowup(p, lens);
+                    var packets = g.drain(0);
+                    SealCipherGameTests.expectSounds(c, packets, score, attempt == 0 ? List.of(voice) : List.of());
+                    var stars = GalleryTrailGameTests.particles(packets, ParticleTypes.GLOW);
+                    var sockets = GalleryTrailGameTests.particles(packets, ParticleTypes.WAX_OFF);
+                    c.assertValueEqual(stars.size()+sockets.size(), 9, "Nine cells remain visible on silent re-projection");
+                    for (int cell = 0; cell < 9; cell++) {
+                        // The fixture faces south, so the viewer's right is west.
+                        var point = Vec3.atCenterOf(lens.pos).add((1 - cell % 3) * .46, 2 + (1 - cell / 3) * .46, 0);
+                        var expected = masks.get(run).charAt(cell) == '1' ? stars : sockets;
+                        c.assertTrue(expected.stream().anyMatch(dot -> dot.distanceTo(point) < .002), "Correct screen cell " + cell);
+                    }
+                }
+                c.assertTrue(p.level().getBlockState(lens.pos).is(tints.get(run)), "Projection leaves the lens intact");
+                var visitor = g.drain(2);
+                SealCipherGameTests.expectSounds(c, visitor, score, List.of());
+                c.assertTrue(GalleryTrailGameTests.particles(visitor, ParticleTypes.GLOW).isEmpty(), "Only the owner sees the chart");
+            }
+        }
+        c.succeed();
+    }
+
     @GameTest public void decodeSixPrismRoutesAndKeepSealDataSeparate(GameTestHelper c) {
         var pitches = List.of(KITE, EMBER_PEAKS, HALF_MOON);
         for (int start = 0; start < 3; start++) for (int step : List.of(-1, 1)) {

@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.StainedGlassBlock;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -21,10 +22,17 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
             if (!(player instanceof ServerPlayer p) || p.isSpectator() || hand != InteractionHand.MAIN_HAND) return InteractionResult.PASS;
             var station = world.getBlockState(hit.getBlockPos());
-            if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN) && !station.is(Blocks.GLASS))
+            if (!station.is(Blocks.AMETHYST_BLOCK) && !station.is(Blocks.LANTERN) && !station.is(Blocks.GLASS)
+                    && !(station.getBlock() instanceof StainedGlassBlock))
                 return InteractionResult.PASS;
             var prism = InlayPrism.read(p.getMainHandItem());
             if (prism == null) return InteractionResult.PASS;
+            if (station.getBlock() instanceof StainedGlassBlock lens) {
+                var walk = LanternWalk.lensAt(p, prism, hit.getBlockPos());
+                if (walk == null) return InteractionResult.PASS;
+                if (CodaPostcard.canListen(p)) walk.useLens(p, hit.getBlockPos(), lens);
+                return InteractionResult.SUCCESS_SERVER;
+            }
             if (station.is(Blocks.GLASS)) {
                 var walk = LanternWalk.surveyed(p, prism);
                 if (walk == null) return InteractionResult.PASS;
@@ -62,7 +70,8 @@ record PrismCrossing(InlayPrism prism, boolean reverse, boolean second) {
             && hit.getType() == HitResult.Type.BLOCK) {
             var station = p.level().getBlockState(hit.getBlockPos());
             if (station.is(Blocks.LANTERN) || (round != null && station.is(Blocks.AMETHYST_BLOCK))
-                || (station.is(Blocks.GLASS) && LanternWalk.surveyed(p, held) != null)) return true;
+                || (station.is(Blocks.GLASS) && LanternWalk.surveyed(p, held) != null)
+                || (station.getBlock() instanceof StainedGlassBlock && LanternWalk.lensAt(p, held, hit.getBlockPos()) != null)) return true;
         }
         if (round == null) return false;
         if (!round.prism.equals(held)) {
